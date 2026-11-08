@@ -13,6 +13,8 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+var repoName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+
 type Starter struct {
 	options   map[string]option
 	folders   []folder
@@ -82,6 +84,9 @@ func readStarter(fsys fs.FS, starterName string) (Starter, error) {
 }
 
 func (s Starter) Select(name string, given map[string]string) (Selection, error) {
+	if !repoName.MatchString(name) {
+		return Selection{}, fmt.Errorf("the name %q of the repo must start with a letter or a digit, and hold only letters, digits, '.', '_' and '-'", name)
+	}
 	for _, optionName := range slices.Sorted(maps.Keys(given)) {
 		declared, ok := s.options[optionName]
 		if !ok {

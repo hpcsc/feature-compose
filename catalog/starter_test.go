@@ -4,6 +4,7 @@ package catalog_test
 
 import (
 	"path/filepath"
+	"strconv"
 	"testing"
 	"testing/fstest"
 
@@ -97,6 +98,25 @@ folders:
 			require.ErrorContains(t, err, `"1.20"`)
 		})
 
+		for _, name := range []string{"", "../escape", "team/service", "my service", "my-service;rm -rf ~", "-flag", ".hidden"} {
+			t.Run("the name "+strconv.Quote(name)+" stops, and the message names the name", func(t *testing.T) {
+				starter := starterWith(t, map[string]string{"go/go.mod": `module {{ option "starter.module" }}`})
+
+				_, err := starter.Select(name, nil)
+
+				require.ErrorContains(t, err, "the name "+strconv.Quote(name)+" of the repo")
+			})
+		}
+
+		t.Run("a name of letters, digits, dots, underscores and hyphens is accepted", func(t *testing.T) {
+			starter := starterWith(t, map[string]string{"go/name": "{{ .Name }}"})
+
+			selection, err := starter.Select("Ledger_2.api-v1", nil)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"name": "Ledger_2.api-v1"}, written(t, selection))
+		})
+
 		t.Run("an option without a pattern accepts any text", func(t *testing.T) {
 			starter := starterWith(t, map[string]string{"go/app": `{{ option "starter.app" }}`})
 
@@ -121,23 +141,4 @@ folders:
 		})
 	})
 
-	t.Run("write", func(t *testing.T) {
-		for _, name := range []string{"starter.nope", "module"} {
-			t.Run("option with the name "+name+" stops the write before the first file, and the message names the template and the name", func(t *testing.T) {
-				starter := starterWith(t, map[string]string{
-					"go/a.go": "package a\n",
-					"go/b.go": `// {{ option "` + name + `" }}`,
-				})
-				selection, err := starter.Select("my-service", nil)
-				require.NoError(t, err)
-				output := filepath.Join(t.TempDir(), "repo")
-
-				err = selection.Write(output)
-
-				require.ErrorContains(t, err, "go/b.go")
-				require.ErrorContains(t, err, `"`+name+`"`)
-				require.NoDirExists(t, output)
-			})
-		}
-	})
 }

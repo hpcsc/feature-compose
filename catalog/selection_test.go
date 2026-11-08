@@ -291,20 +291,65 @@ func TestSelection(t *testing.T) {
 			require.NoDirExists(t, output)
 		})
 
-		t.Run("a name that leads out of the output folder stops the write before the first file", func(t *testing.T) {
+		t.Run("a path that leads out of the output folder stops the write before the first file", func(t *testing.T) {
 			files := fstest.MapFS{
-				"starters/service/starter.yml":                  oneFolder,
-				"starters/service/files/go/a.go":                &fstest.MapFile{Data: []byte("package a\n")},
-				"starters/service/files/go/{{ .Name }}/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"starters/service/starter.yml":                                 &fstest.MapFile{Data: []byte("options:\n  app:\n    default: ../../escape\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/a.go":                               &fstest.MapFile{Data: []byte("package a\n")},
+				`starters/service/files/go/{{ option "starter.app" }}/main.go`: &fstest.MapFile{Data: []byte("package main\n")},
 			}
 			parent := t.TempDir()
 			output := filepath.Join(parent, "work", "repo")
 
-			err := selectionOf(t, files, "../../escape").Write(output)
+			err := selectionOf(t, files, "my-service").Write(output)
 
-			require.ErrorContains(t, err, "go/{{ .Name }}/main.go")
+			require.ErrorContains(t, err, `go/{{ option "starter.app" }}/main.go`)
 			require.Empty(t, filesIn(t, parent))
 		})
+
+		t.Run("an empty output path is the working folder, so a working folder that has entries is refused", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":     oneFolder,
+				"starters/service/files/go/go.mod": &fstest.MapFile{Data: []byte("module {{ .Name }}\n")},
+			}
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+			require.NoError(t, os.WriteFile("go.mod", []byte("module mine\n"), 0o644))
+
+			err := selectionOf(t, files, "my-service").Write("")
+
+			require.Error(t, err)
+			require.Equal(t, map[string]string{"go.mod": "module mine\n"}, filesIn(t, workingFolder))
+		})
+
+		t.Run("a folder that the write makes can be read and entered by everyone", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":          oneFolder,
+				"starters/service/files/go/cmd/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := selectionOf(t, files, "my-service").Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, 0o755&^umask(), modeOf(t, filepath.Join(output, "cmd")))
+		})
+
+		for _, name := range []string{"starter.nope", "module"} {
+			t.Run("option with the name "+name+" stops the write before the first file, and the message names the template and the name", func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":   &fstest.MapFile{Data: []byte("options:\n  module:\n    default: example.com/m\nfolders:\n  go:\n    path: .\n")},
+					"starters/service/files/go/a.go": &fstest.MapFile{Data: []byte("package a\n")},
+					"starters/service/files/go/b.go": &fstest.MapFile{Data: []byte(`// {{ option "` + name + `" }}`)},
+				}
+				output := filepath.Join(t.TempDir(), "repo")
+
+				err := selectionOf(t, files, "my-service").Write(output)
+
+				require.ErrorContains(t, err, "go/b.go")
+				require.ErrorContains(t, err, `"`+name+`"`)
+				require.NoDirExists(t, output)
+			})
+		}
 
 		withDelimiters := &fstest.MapFile{Data: []byte(`
 options:

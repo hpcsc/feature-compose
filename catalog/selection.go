@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	texttemplate "text/template"
@@ -30,9 +31,9 @@ func (s Selection) Write(output string) error {
 			return err
 		}
 		if other, ok := writers[f.path]; ok {
-			return fmt.Errorf("the templates %s and %s both write %s", other, t.path, f.path)
+			return fmt.Errorf("the templates %s and %s both write %s", other, t.catalogPath, f.path)
 		}
-		writers[f.path] = t.path
+		writers[f.path] = t.catalogPath
 		rendered = append(rendered, f)
 	}
 	for _, f := range rendered {
@@ -53,7 +54,7 @@ func (s Selection) RunAfterRender(ctx context.Context, output string) error {
 }
 
 func (s Selection) checkEmpty(output string) error {
-	entries, err := os.ReadDir(output)
+	entries, err := os.ReadDir(filepath.Clean(output))
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
 	}
@@ -66,9 +67,9 @@ func (s Selection) checkEmpty(output string) error {
 	return nil
 }
 
-func (s Selection) render(name, text string, d delimiters) (string, error) {
+func (s Selection) render(label, text string, d delimiters) (string, error) {
 	funcs := texttemplate.FuncMap{"option": s.option, "kebab": kebab, "snake": snake, "camel": camel, "pascal": pascal}
-	parsed, err := texttemplate.New(name).Delims(d.left, d.right).Funcs(funcs).Option("missingkey=error").Parse(text)
+	parsed, err := texttemplate.New(label).Delims(d.left, d.right).Funcs(funcs).Option("missingkey=error").Parse(text)
 	if err != nil {
 		return "", fmt.Errorf("parse %w", err)
 	}
@@ -79,12 +80,12 @@ func (s Selection) render(name, text string, d delimiters) (string, error) {
 	return rendered.String(), nil
 }
 
-func (s Selection) option(name string) (string, error) {
-	optionName, ok := strings.CutPrefix(name, "starter.")
+func (s Selection) option(reference string) (string, error) {
+	optionName, ok := strings.CutPrefix(reference, "starter.")
 	value, found := s.values[optionName]
 	if !ok || !found {
 		return "", fmt.Errorf("unknown option %q: the options of the starter are starter.%s",
-			name, strings.Join(slices.Sorted(maps.Keys(s.values)), ", starter."))
+			reference, strings.Join(slices.Sorted(maps.Keys(s.values)), ", starter."))
 	}
 	return value, nil
 }

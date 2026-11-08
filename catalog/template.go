@@ -11,7 +11,7 @@ import (
 )
 
 type template struct {
-	path         string
+	catalogPath  string
 	folder       folder
 	pathInFolder string
 	contents     string
@@ -43,7 +43,7 @@ func readTemplates(fsys fs.FS, root string, folders map[string]folder, rules []d
 				break
 			}
 		}
-		templates = append(templates, template{path: catalogPath, folder: declared, pathInFolder: pathInFolder, contents: string(contents), delimiters: chosen})
+		templates = append(templates, template{catalogPath: catalogPath, folder: declared, pathInFolder: pathInFolder, contents: string(contents), delimiters: chosen})
 		return nil
 	})
 	if err != nil {
@@ -53,15 +53,15 @@ func readTemplates(fsys fs.FS, root string, folders map[string]folder, rules []d
 }
 
 func (t template) render(s Selection) (file, error) {
-	renderedPath, err := s.render(t.path, t.pathInFolder, defaultDelimiters)
+	renderedPath, err := s.render(t.catalogPath, t.pathInFolder, defaultDelimiters)
 	if err != nil {
 		return file{}, err
 	}
 	repoPath := path.Join(t.folder.path, renderedPath)
 	if !filepath.IsLocal(filepath.FromSlash(repoPath)) {
-		return file{}, fmt.Errorf("template %s renders to %s, which is outside the output folder", t.path, repoPath)
+		return file{}, fmt.Errorf("template %s renders to %s, which is outside the output folder", t.catalogPath, repoPath)
 	}
-	contents, err := s.render(t.path, t.contents, t.delimiters)
+	contents, err := s.render(t.catalogPath, t.contents, t.delimiters)
 	if err != nil {
 		return file{}, err
 	}

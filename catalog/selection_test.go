@@ -23,7 +23,7 @@ func TestSelection(t *testing.T) {
 		t.Helper()
 		starter, err := catalog.New(files).Starter("service")
 		require.NoError(t, err)
-		selection, err := starter.Select(name, nil)
+		selection, err := starter.Select(name, nil, nil)
 		require.NoError(t, err)
 		return selection
 	}
@@ -350,6 +350,116 @@ func TestSelection(t *testing.T) {
 				require.NoDirExists(t, output)
 			})
 		}
+
+		featureSelection := func(t *testing.T, files fstest.MapFS, features ...string) catalog.Selection {
+			t.Helper()
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, features)
+			require.NoError(t, err)
+			return selection
+		}
+		twoFolders := &fstest.MapFile{Data: []byte("options:\n  module:\n    default: example.com/{{ .Name }}\nfolders:\n  go:\n    path: .\n  web:\n    path: frontend\n")}
+
+		t.Run("writes the templates of each selected feature into the folders of the starter", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":                       twoFolders,
+				"starters/service/files/go/main.go":                  &fstest.MapFile{Data: []byte("package main\n")},
+				"features/cli/feature.yml":                           &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\n")},
+				"features/cli/files/go/cmd/{{ .Name }}/main.go.tmpl": &fstest.MapFile{Data: []byte("package main // {{ .Name }}\n")},
+				"features/cli/files/web/cli.html":                    &fstest.MapFile{Data: []byte("<p>cli</p>\n")},
+				"features/docs/feature.yml":                          &fstest.MapFile{Data: []byte("summary: Docs.\ntargets: [other, service]\nfiles:\n  - path: files/common/\n  - path: files/extra\n")},
+				"features/docs/files/common/go/docs/a.md":            &fstest.MapFile{Data: []byte("a\n")},
+				"features/docs/files/extra/go/docs/b.md":             &fstest.MapFile{Data: []byte("b\n")},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := featureSelection(t, files, "cli", "docs").Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"main.go":                "package main\n",
+				"cmd/my-service/main.go": "package main // my-service\n",
+				"frontend/cli.html":      "<p>cli</p>\n",
+				"docs/a.md":              "a\n",
+				"docs/b.md":              "b\n",
+			}, filesIn(t, output))
+		})
+
+		t.Run("a feature given twice is selected once, and a feature that is not given writes no file", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":        twoFolders,
+				"starters/service/files/go/README.md": &fstest.MapFile{Data: []byte("service\n")},
+				"features/cli/feature.yml":            &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\n")},
+				"features/cli/files/go/cli.go":        &fstest.MapFile{Data: []byte("package cli\n")},
+				"features/docs/feature.yml":           &fstest.MapFile{Data: []byte("summary: Docs.\ntargets: [service]\nfiles:\n  - path: files/\n")},
+				"features/docs/files/go/docs/a.md":    &fstest.MapFile{Data: []byte("a\n")},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := featureSelection(t, files, "cli", "cli").Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"README.md": "service\n", "cli.go": "package cli\n"}, filesIn(t, output))
+		})
+
+		t.Run("a template of a feature renders the name, the options, the case functions, .tmpl and #! as a template of the starter does", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":         twoFolders,
+				"starters/service/files/go/README.md":  &fstest.MapFile{Data: []byte("service\n")},
+				"features/cli/feature.yml":             &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\n")},
+				"features/cli/files/go/values.tmpl":    &fstest.MapFile{Data: []byte(`{{ .Name }} {{ option "starter.module" }} {{ pascal .Name }}`)},
+				"features/cli/files/go/scripts/run.sh": &fstest.MapFile{Data: []byte("#!/bin/sh\necho {{ .Name }}\n")},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := featureSelection(t, files, "cli").Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"README.md":      "service\n",
+				"values":         "my-service example.com/my-service MyService",
+				"scripts/run.sh": "#!/bin/sh\necho my-service\n",
+			}, filesIn(t, output))
+			require.Equal(t, 0o755&^umask(), modeOf(t, filepath.Join(output, "scripts", "run.sh")))
+		})
+
+		t.Run("a template of the starter and a template of a feature that write one path stop the write before the first file, and the message names both", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":       twoFolders,
+				"starters/service/files/go/a.go":     &fstest.MapFile{Data: []byte("package a\n")},
+				"starters/service/files/go/main.go":  &fstest.MapFile{Data: []byte("package main\n")},
+				"features/cli/feature.yml":           &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\n")},
+				"features/cli/files/go/main.go.tmpl": &fstest.MapFile{Data: []byte("package cli\n")},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := featureSelection(t, files, "cli").Write(output)
+
+			require.ErrorContains(t, err, "the template go/main.go of the starter")
+			require.ErrorContains(t, err, "the template go/main.go.tmpl of the feature cli")
+			require.ErrorContains(t, err, "both write main.go")
+			require.NoDirExists(t, output)
+		})
+
+		t.Run("two features that write one path stop the write before the first file, and the message names both", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":        twoFolders,
+				"starters/service/files/go/README.md": &fstest.MapFile{Data: []byte("service\n")},
+				"features/cli/feature.yml":            &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\n")},
+				"features/cli/files/go/shared.md":     &fstest.MapFile{Data: []byte("cli\n")},
+				"features/docs/feature.yml":           &fstest.MapFile{Data: []byte("summary: Docs.\ntargets: [service]\nfiles:\n  - path: files/\n")},
+				"features/docs/files/go/shared.md":    &fstest.MapFile{Data: []byte("docs\n")},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := featureSelection(t, files, "cli", "docs").Write(output)
+
+			require.ErrorContains(t, err, "the feature cli")
+			require.ErrorContains(t, err, "the feature docs")
+			require.ErrorContains(t, err, "both write shared.md")
+			require.NoDirExists(t, output)
+		})
 
 		withDelimiters := &fstest.MapFile{Data: []byte(`
 options:

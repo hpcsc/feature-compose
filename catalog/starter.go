@@ -16,12 +16,14 @@ import (
 var repoName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
 type Starter struct {
+	name      string
 	options   map[string]option
-	folders   []folder
+	folders   map[string]folder
 	templates []template
+	features  map[string]feature
 }
 
-func readStarter(fsys fs.FS, starterName string) (Starter, error) {
+func readStarter(fsys fs.FS, starterName string, features map[string]feature) (Starter, error) {
 	root := path.Join("starters", starterName)
 	definitionPath := path.Join(root, "starter.yml")
 	definitionYAML, err := fs.ReadFile(fsys, definitionPath)
@@ -72,18 +74,22 @@ func readStarter(fsys fs.FS, starterName string) (Starter, error) {
 		}
 		rules = append(rules, rule)
 	}
-	templates, err := readTemplates(fsys, path.Join(root, "files"), folders, rules)
+	read, err := readTemplates(fsys, path.Join(root, "files"), "the starter")
 	if err != nil {
 		return Starter{}, err
 	}
-	var byName []folder
-	for _, folderName := range slices.Sorted(maps.Keys(folders)) {
-		byName = append(byName, folders[folderName])
+	templates := make([]template, 0, len(read))
+	for _, t := range read {
+		placed, err := t.place(folders, rules)
+		if err != nil {
+			return Starter{}, err
+		}
+		templates = append(templates, placed)
 	}
-	return Starter{options: options, folders: byName, templates: templates}, nil
+	return Starter{name: starterName, options: options, folders: folders, templates: templates, features: features}, nil
 }
 
-func (s Starter) Select(name string, given map[string]string) (Selection, error) {
+func (s Starter) Select(name string, given map[string]string, featureNames []string) (Selection, error) {
 	if !repoName.MatchString(name) {
 		return Selection{}, fmt.Errorf("the name %q of the repo must start with a letter or a digit, and hold only letters, digits, '.', '_' and '-'", name)
 	}
@@ -97,7 +103,11 @@ func (s Starter) Select(name string, given map[string]string) (Selection, error)
 			return Selection{}, err
 		}
 	}
-	selection := Selection{starter: s, name: name}
+	templates, err := s.templatesWith(featureNames)
+	if err != nil {
+		return Selection{}, err
+	}
+	selection := Selection{starter: s, name: name, templates: templates}
 	values := make(map[string]string, len(s.options))
 	for optionName, declared := range s.options {
 		value, ok := given[optionName]
@@ -112,4 +122,34 @@ func (s Starter) Select(name string, given map[string]string) (Selection, error)
 	}
 	selection.values = values
 	return selection, nil
+}
+
+func (s Starter) templatesWith(featureNames []string) ([]template, error) {
+	selected := map[string]feature{}
+	for _, featureName := range featureNames {
+		f, ok := s.features[featureName]
+		if !ok {
+			return nil, s.unknownFeature(featureName)
+		}
+		selected[featureName] = f
+	}
+	templates := slices.Clone(s.templates)
+	for _, featureName := range slices.Sorted(maps.Keys(selected)) {
+		for _, t := range selected[featureName].templates {
+			placed, err := t.place(s.folders, nil)
+			if err != nil {
+				return nil, err
+			}
+			templates = append(templates, placed)
+		}
+	}
+	return templates, nil
+}
+
+func (s Starter) unknownFeature(featureName string) error {
+	if len(s.features) == 0 {
+		return fmt.Errorf("unknown feature %q: no feature targets the starter %s", featureName, s.name)
+	}
+	return fmt.Errorf("unknown feature %q: the features that target the starter %s are %s",
+		featureName, s.name, strings.Join(slices.Sorted(maps.Keys(s.features)), ", "))
 }

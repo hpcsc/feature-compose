@@ -147,16 +147,63 @@ func TestCatalog(t *testing.T) {
 			require.ErrorContains(t, err, `"../web"`)
 		})
 
+		for name, features := range map[string]fstest.MapFS{
+			"a feature.yml that is not valid YAML": {
+				"features/cli/feature.yml": &fstest.MapFile{Data: []byte("targets: [service\n")},
+			},
+			"a files entry of a feature with no folder": {
+				"features/cli/feature.yml": &fstest.MapFile{Data: []byte("targets: [service]\nfiles:\n  - path: missing/\n")},
+			},
+			"a files entry that leads into a sibling feature whose name starts with the name of the feature": {
+				"features/cli/feature.yml":         &fstest.MapFile{Data: []byte("targets: [service]\nfiles:\n  - path: ../cli-extra/files/\n")},
+				"features/cli-extra/feature.yml":   &fstest.MapFile{Data: []byte("targets: [other]\nfiles:\n  - path: files/\n")},
+				"features/cli-extra/files/go/a.md": &fstest.MapFile{Data: []byte("a\n")},
+			},
+			"a files entry that leads out of the feature": {
+				"features/cli/feature.yml":    &fstest.MapFile{Data: []byte("targets: [service]\nfiles:\n  - path: ../docs/files/\n")},
+				"features/docs/feature.yml":   &fstest.MapFile{Data: []byte("targets: [other]\nfiles:\n  - path: files/\n")},
+				"features/docs/files/go/a.md": &fstest.MapFile{Data: []byte("a\n")},
+			},
+		} {
+			t.Run(name+" stops, and the message names the feature", func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+					"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				}
+				maps.Copy(files, features)
+
+				_, err := catalog.New(files).Starter("service")
+
+				require.ErrorContains(t, err, "features/cli")
+			})
+		}
+
+		t.Run("a file directly in the features folder is not a feature", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"features/README.md":                &fstest.MapFile{Data: []byte("the features of the catalog\n")},
+			}
+
+			_, err := catalog.New(files).Starter("service")
+
+			require.NoError(t, err)
+		})
+
 		for _, failing := range []string{
 			"starters",
 			"starters/service/starter.yml",
 			"starters/service/files",
 			"starters/service/files/go/main.go",
+			"features",
+			"features/cli/feature.yml",
 		} {
 			t.Run("a read of "+failing+" that fails stops with its cause", func(t *testing.T) {
 				files := failingFS{failing: failing, files: fstest.MapFS{
 					"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n")},
 					"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+					"features/cli/feature.yml":          &fstest.MapFile{Data: []byte("targets: [service]\nfiles:\n  - path: files/\n")},
+					"features/cli/files/go/cli.go":      &fstest.MapFile{Data: []byte("package cli\n")},
 				}}
 
 				_, err := catalog.New(files).Starter("service")
@@ -171,7 +218,7 @@ func TestCatalog(t *testing.T) {
 			t.Helper()
 			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", given)
+			selection, err := starter.Select("my-service", given, nil)
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 			require.NoError(t, selection.Write(output))
@@ -215,7 +262,7 @@ func TestCatalog(t *testing.T) {
 			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 
-			_, err = starter.Select("my-service", map[string]string{"module": "example.com/acme ledger;rm -rf ~"})
+			_, err = starter.Select("my-service", map[string]string{"module": "example.com/acme ledger;rm -rf ~"}, nil)
 
 			require.ErrorContains(t, err, "module")
 		})
@@ -223,7 +270,7 @@ func TestCatalog(t *testing.T) {
 		t.Run("a name with capitals and dots gives a kebab-case name in the Docker names of the repo", func(t *testing.T) {
 			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("MyService.v2", nil)
+			selection, err := starter.Select("MyService.v2", nil, nil)
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "repo")
 			require.NoError(t, selection.Write(output))

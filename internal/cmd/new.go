@@ -29,7 +29,7 @@ func newNewCommand(c catalog.Catalog) *cli.Command {
 			if err != nil {
 				return err
 			}
-			selection, err := starter.Select(name, values)
+			selection, err := starter.Select(name, values, nil)
 			if err != nil {
 				return err
 			}

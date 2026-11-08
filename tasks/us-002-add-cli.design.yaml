@@ -1,0 +1,77 @@
+design: planned
+types:
+  - name: Catalog
+    package: catalog
+    change: changed
+    does: finds a starter by name, with the features of the catalog that name it in their targets
+    owns:
+      - a catalog with no features folder has no features
+    fields: []
+    methods: [Starter]
+  - name: Starter
+    package: catalog
+    change: changed
+    does: one starter of the catalog, which each selection of a repo starts from
+    owns:
+      - each selected feature names the starter in its targets; any other name stops, and the message lists the features that target the starter
+      - a feature that is given twice is selected once
+    fields: [name, options, folders, templates, features]
+    methods: [Select]
+  - name: Selection
+    package: catalog
+    change: changed
+    does: makes one repo from a starter, the selected features, a name and the values of the starter options
+    owns:
+      - each path of the repo has one owner; two templates that write one path stop the write before the first file, and the message names both owners
+      - items gives the items of an extension point that a selected feature declares, and any other name stops the write before the first file
+      - one extension point has one declarer among the selected features
+    fields: [starter, features, name, values]
+    methods: [Write, RunAfterRender]
+  - name: feature
+    package: catalog
+    change: new
+    does: one feature.yml with the templates under its files entries, which a selection writes into the folders of the starter
+    owns:
+      - the first path segment of a template after the path of its files entry names a folder of the starter
+      - the templates of a feature render with the delimiters of its own feature.yml, and never with those of the starter
+    fields: [name, targets, templates, extensionPoints]
+    methods: []
+  - name: extensionPoint
+    package: catalog
+    change: new
+    does: a named list in one file of the feature that declares it, with the fields of each item
+    owns: []
+    fields: [name, summary, file, itemFields]
+    methods: []
+  - name: template
+    package: catalog
+    change: changed
+    does: one file under the files folder of a starter or of a feature, which renders to one file of the repo
+    owns:
+      - a message about a template names its owner, the starter or the feature
+    fields: [catalogPath, owner, contents]
+    methods: []
+functions:
+  - New(files fs.FS) Catalog
+  - Embedded() Catalog
+words:
+  - concept: something that a developer selects with --feature, which adds files to the folders of the starter
+    word: feature
+    not: [plugin, addon, add-on, module, component, extension, mixin]
+  - concept: a starter that a feature works with, named in the targets of its feature.yml
+    word: target
+    not: [platform, base, host, supported starter]
+  - concept: a named list in one file, which features add items to and the file renders
+    word: extension point
+    not: [hook, slot, marker, anchor, injection point, extension]
+  - concept: one entry of an extension point, with the fields that the extension point declares
+    word: item
+    not: [entry, element, contribution]
+  - concept: a starter or a feature names an extension point in its own definition
+    word: declare
+    not: [define, register, expose, publish]
+  - concept: the starter or the one feature whose template writes a path of the repo
+    word: owner
+    not: [author, source, origin, creator]
+dependencies:
+  - internal/cmd -> catalog

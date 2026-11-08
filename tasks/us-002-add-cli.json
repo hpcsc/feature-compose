@@ -1,0 +1,173 @@
+{
+  "story": "Add a CLI to a service repo",
+  "story_id": "feature-compose/US-002",
+  "tasks_file": "tasks/us-002-add-cli.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Write the files of the selected features into the folders of the starter",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "catalog/starter.go:24-84",
+        "catalog/template.go:21-53",
+        "catalog/selection.go:22-45",
+        "catalog/catalog.go:26-49",
+        "catalog/catalog_test.go:33-167",
+        "catalog/selection_test.go:158-172",
+        "PROPOSAL.md:152-252",
+        "PROPOSAL.md:328-354"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "catalog/",
+        "internal/cmd/new.go",
+        "internal/cmd/new_test.go"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Render the templates of a feature with the delimiters of its feature.yml",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "catalog/starter.go:67-74",
+        "catalog/template.go:39-45",
+        "catalog/selection_test.go:354-438",
+        "catalog/catalog_test.go:103-137",
+        "tasks/learnings.md:17-23"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Declare extension points in a feature, and render their items with `items`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "catalog/selection.go:70-91",
+        "catalog/selection_test.go:337-373",
+        "PROPOSAL.md:295-326",
+        "PROPOSAL.md:179-192"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/"
+      ]
+    },
+    {
+      "n": 4,
+      "done": false,
+      "title": "Select features with `--feature` on `new`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/cmd/new.go:18-27",
+        "internal/cmd/new_test.go:91-100",
+        "internal/cmd/new_test.go:186-196"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "internal/cmd/new.go",
+        "internal/cmd/new_test.go"
+      ]
+    },
+    {
+      "n": 5,
+      "done": false,
+      "title": "Port the go-cli template as the feature `cli` into the catalog in the binary",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "tasks/learnings.md:24-30",
+        "tasks/learnings.md:10-16",
+        "tasks/learnings.md:31-37",
+        "catalog/catalog_test.go:169-289",
+        "PROPOSAL.md:179-192",
+        "internal/cmd/root.go:25-37",
+        "internal/cmd/root_test.go:40-51",
+        "e2e/tests/cli.test.ts:4-12",
+        "task:2",
+        "task:3"
+      ],
+      "depends_on": [
+        2,
+        3
+      ],
+      "affected_files": [
+        "catalog/features/cli/feature.yml",
+        "catalog/features/cli/files/go/",
+        "catalog/catalog.go",
+        "catalog/catalog_test.go"
+      ]
+    },
+    {
+      "n": 6,
+      "done": false,
+      "title": "Name the GitHub repository of the CLI's releases after the module",
+      "language": "Go",
+      "testable": true,
+      "certainty": "low",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "catalog/catalog_test.go:223-236",
+        "catalog/selection_test.go:337-373",
+        "task:5"
+      ],
+      "depends_on": [
+        5
+      ],
+      "affected_files": [
+        "catalog/features/cli/files/go/",
+        "catalog/",
+        "catalog/catalog_test.go"
+      ]
+    },
+    {
+      "n": 7,
+      "done": false,
+      "title": "Check end to end that a repo with `cli` builds and passes the unit tests of the service and of the CLI",
+      "language": "TypeScript",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "e2e/tests/new.test.ts:31-53",
+        "e2e/tests/new.test.ts:10-18",
+        "e2e/testUtils.ts:38-57",
+        "tasks/learnings.md:38-44"
+      ],
+      "depends_on": [
+        4,
+        6
+      ],
+      "affected_files": [
+        "e2e/tests/new.test.ts",
+        "docs/e2e-tests.md"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-002-add-cli.design.yaml"
+}

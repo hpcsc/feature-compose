@@ -14,26 +14,28 @@ import (
 )
 
 type Selection struct {
-	starter Starter
-	name    string
-	values  map[string]string
+	starter   Starter
+	name      string
+	values    map[string]string
+	templates []template
 }
 
 func (s Selection) Write(output string) error {
 	if err := s.checkEmpty(output); err != nil {
 		return err
 	}
-	rendered := make([]file, 0, len(s.starter.templates))
-	writers := make(map[string]string, len(s.starter.templates))
-	for _, t := range s.starter.templates {
+	rendered := make([]file, 0, len(s.templates))
+	writers := make(map[string]template, len(s.templates))
+	for _, t := range s.templates {
 		f, err := t.render(s)
 		if err != nil {
 			return err
 		}
 		if other, ok := writers[f.path]; ok {
-			return fmt.Errorf("the templates %s and %s both write %s", other, t.catalogPath, f.path)
+			return fmt.Errorf("the template %s of %s and the template %s of %s both write %s",
+				other.catalogPath, other.owner, t.catalogPath, t.owner, f.path)
 		}
-		writers[f.path] = t.catalogPath
+		writers[f.path] = t
 		rendered = append(rendered, f)
 	}
 	for _, f := range rendered {
@@ -45,8 +47,8 @@ func (s Selection) Write(output string) error {
 }
 
 func (s Selection) RunAfterRender(ctx context.Context, output string) error {
-	for _, f := range s.starter.folders {
-		if err := f.runAfterRender(ctx, output); err != nil {
+	for _, folderName := range slices.Sorted(maps.Keys(s.starter.folders)) {
+		if err := s.starter.folders[folderName].runAfterRender(ctx, output); err != nil {
 			return err
 		}
 	}

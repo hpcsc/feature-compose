@@ -15,6 +15,7 @@ func newNewCommand(c catalog.Catalog) *cli.Command {
 		Usage:     "make a new repo from a starter",
 		ArgsUsage: "<starter> <name>",
 		Flags: []cli.Flag{
+			&cli.StringSliceFlag{Name: "feature", Usage: "select a feature of the catalog by its name; give the flag one time for each feature"},
 			&cli.StringSliceFlag{Name: "option", Usage: "set an option of the starter, as <name>=<value>; give the flag one time for each option"},
 			&cli.StringFlag{Name: "output-dir", Usage: "the folder for the new repo (default: ./<name>)"},
 			&cli.BoolFlag{Name: "no-prompt", Usage: "ask no question, and give each option without a value its default"},
@@ -29,7 +30,7 @@ func newNewCommand(c catalog.Catalog) *cli.Command {
 			if err != nil {
 				return err
 			}
-			selection, err := starter.Select(name, values, nil)
+			selection, err := starter.Select(name, values, cmd.StringSlice("feature"))
 			if err != nil {
 				return err
 			}

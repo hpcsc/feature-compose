@@ -348,13 +348,13 @@ here gives a list, and the names that it accepts come from the selected features
 starter. An unknown feature stops `new` before the first file with the message of Task 1.
 
 **Acceptance Criteria:**
-- [ ] `new <starter> <name> --feature <feature>` writes the files of the starter and of the feature. The flag can
+- [x] `new <starter> <name> --feature <feature>` writes the files of the starter and of the feature. The flag can
   be given more than one time, and each gives one feature.
-- [ ] Without `--feature`, `new` writes the same repo as before.
-- [ ] A value of `--feature` keeps its commas: `--feature a,b` names one feature, `a,b`.
-- [ ] An unknown feature stops `new` with an exit status other than 0 and the message of Task 1, also when
+- [x] Without `--feature`, `new` writes the same repo as before.
+- [x] A value of `--feature` keeps its commas: `--feature a,b` names one feature, `a,b`.
+- [x] An unknown feature stops `new` with an exit status other than 0 and the message of Task 1, also when
   another given feature is known. The output folder is not made.
-- [ ] `new --help` shows `--feature` and its form.
+- [x] `new --help` shows `--feature` and its form.
 
 **Affected Files/Modules:**
 - `internal/cmd/new.go` — the flag `--feature`

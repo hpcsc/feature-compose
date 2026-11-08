@@ -46,6 +46,17 @@ folders:
 		return printed.String(), err
 	}
 
+	withFeatures := func() fstest.MapFS {
+		files := starterFiles("")
+		files["features/cli/feature.yml"] = &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\n")}
+		files["features/cli/files/go/cmd/{{ .Name }}/main.go.tmpl"] = &fstest.MapFile{Data: []byte("package main // {{ .Name }}\n")}
+		files["features/docs/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Docs.\ntargets: [service]\nfiles:\n  - path: files/\n")}
+		files["features/docs/files/go/docs/index.md"] = &fstest.MapFile{Data: []byte("docs\n")}
+		files["features/a,b/feature.yml"] = &fstest.MapFile{Data: []byte("summary: A comma.\ntargets: [service]\nfiles:\n  - path: files/\n")}
+		files["features/a,b/files/go/comma.md"] = &fstest.MapFile{Data: []byte("comma\n")}
+		return files
+	}
+
 	t.Run("write", func(t *testing.T) {
 		t.Run("writes the repo to a folder with the name of the repo in the working folder", func(t *testing.T) {
 			workingFolder := t.TempDir()
@@ -55,6 +66,33 @@ folders:
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{"my-service/go.mod": "module github.com/hpcsc/my-service\ngo 1.27.1\n"}, filesIn(t, workingFolder))
+		})
+
+		t.Run("each --feature selects one feature, and new writes its files with the files of the starter", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			_, err := runNew(t, withFeatures(), "service", "my-service", "--output-dir", output, "--feature", "cli", "--feature", "docs")
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"go.mod":                 "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				"cmd/my-service/main.go": "package main // my-service\n",
+				"docs/index.md":          "docs\n",
+			}, filesIn(t, output))
+		})
+
+		t.Run("a value of --feature keeps its commas", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			_, err := runNew(t, withFeatures(), "service", "my-service", "--output-dir", output, "--feature", "a,b")
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"go.mod":   "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				"comma.md": "comma\n",
+			}, filesIn(t, output))
 		})
 
 		t.Run("prints the folder that it made the repo in", func(t *testing.T) {
@@ -138,6 +176,16 @@ folders:
 		})
 	})
 
+	t.Run("help", func(t *testing.T) {
+		t.Run("--help shows --feature and its form", func(t *testing.T) {
+			printed, err := runNew(t, withFeatures(), "--help")
+
+			require.NoError(t, err)
+			require.Contains(t, printed, "--feature")
+			require.Contains(t, printed, "select a feature of the catalog")
+		})
+	})
+
 	t.Run("stop", func(t *testing.T) {
 		for name, arguments := range map[string][]string{
 			"no argument":  {},
@@ -194,6 +242,17 @@ folders:
 				require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
 			})
 		}
+
+		t.Run("an unknown feature stops new, also next to a known one, lists the features that target the starter, and makes no output folder", func(t *testing.T) {
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+
+			_, err := runNew(t, withFeatures(), "service", "my-service", "--feature", "cli", "--feature", "no-such-feature")
+
+			require.ErrorContains(t, err, `unknown feature "no-such-feature"`)
+			require.ErrorContains(t, err, "a,b, cli, docs")
+			require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
+		})
 
 		t.Run("an output folder that has entries stops new, and keeps its contents", func(t *testing.T) {
 			t.Chdir(t.TempDir())

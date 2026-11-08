@@ -73,7 +73,7 @@
     },
     {
       "n": 4,
-      "done": false,
+      "done": true,
       "title": "Select features with `--feature` on `new`",
       "language": "Go",
       "testable": true,

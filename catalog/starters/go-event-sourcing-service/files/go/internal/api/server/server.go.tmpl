@@ -17,34 +17,27 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func New(name string, cfg *api.Config, pool *pgxpool.Pool, logger *slog.Logger) (*Server, error) {
-	handler, err := newHandler(name, cfg, pool, logger)
-	if err != nil {
-		return nil, err
-	}
-
+func New(name string, cfg *api.Config, pool *pgxpool.Pool, logger *slog.Logger) *Server {
 	return &Server{
 		cfg: cfg,
 		httpServer: &http.Server{
 			Addr:    fmt.Sprintf(":%s", cfg.Port),
-			Handler: handler,
+			Handler: newHandler(name, pool, logger),
 		},
 		logger: logger,
-	}, nil
+	}
 }
 
-func newHandler(name string, cfg *api.Config, pool *pgxpool.Pool, logger *slog.Logger) (http.Handler, error) {
+func newHandler(name string, pool *pgxpool.Pool, logger *slog.Logger) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(apiMiddleware.RequestLogger(logger, request.NewRealClock(), nil))
 
 	r.Use(middleware.Recoverer)
 
-	if err := use_cases.Register(r, cfg, pool, logger); err != nil {
-		return nil, err
-	}
+	use_cases.Register(r, pool, logger)
 
-	return r, nil
+	return r
 }
 
 type Server struct {

@@ -129,7 +129,7 @@
     },
     {
       "n": 7,
-      "done": false,
+      "done": true,
       "title": "Remove the shared-token check from the starter",
       "language": "Go",
       "testable": true,

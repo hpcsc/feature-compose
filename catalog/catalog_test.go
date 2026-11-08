@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -260,6 +261,20 @@ func TestCatalog(t *testing.T) {
 				require.False(t, processManager.MatchString(path), path)
 				require.NotContains(t, contents, "fakeservices", path)
 				require.NotContains(t, contents, "HoldPlaced", path)
+			}
+		})
+
+		t.Run("the repo has no shared-token check: no token file, and no file reads, sets, sends or describes a token", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			for _, path := range []string{"internal/api/middleware/auth.go", "internal/api/middleware/auth_test.go", "internal/api/middleware/testdata/valid-token", "local/api/token"} {
+				require.NotContains(t, files, path)
+			}
+			for path, contents := range files {
+				withoutGitHubToken := strings.NewReplacer("github_token", "", "repo-token", "", "GITHUB_TOKEN", "").Replace(contents)
+				for _, word := range []string{"token", "bearer", "authorization"} {
+					require.NotContains(t, strings.ToLower(withoutGitHubToken), word, path)
+				}
 			}
 		})
 

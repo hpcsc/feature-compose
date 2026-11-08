@@ -29,11 +29,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	srv, err := server.New("api", cfg, pool, logger)
-	if err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
-	}
+	srv := server.New("api", cfg, pool, logger)
 
 	withCancelCtx, cancelServer := context.WithCancel(context.Background())
 

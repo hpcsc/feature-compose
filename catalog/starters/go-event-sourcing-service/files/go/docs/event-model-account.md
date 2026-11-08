@@ -26,7 +26,7 @@ emod diagram docs/event-model-account.emod --format svg --specs -o docs/event-mo
 
 | Actor | Type | Description |
 | --- | --- | --- |
-| Client | System or human | A program or a person that calls the HTTP API with a bearer token |
+| Client | System or human | A program or a person that calls the HTTP API |
 | `WelcomeBonusReaction` | Automation | Gives the welcome bonus to each new account |
 
 ## Storyboard

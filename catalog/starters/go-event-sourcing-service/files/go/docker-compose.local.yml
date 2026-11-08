@@ -14,8 +14,6 @@ services:
       dockerfile: Dockerfile.api
       args:
         VERSION: main
-    volumes:
-      - ./local/api:/var/run
     ports:
       - "3333:3333"
     environment:

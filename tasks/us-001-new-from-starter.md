@@ -414,14 +414,14 @@ with no `Authorization` header. The token files, the middleware, its config, and
 in Taskfiles, compose files and docs are removed.
 
 **Acceptance Criteria:**
-- [ ] The written repo has no `internal/api/middleware/auth.go`, no `internal/api/middleware/auth_test.go`, no
+- [x] The written repo has no `internal/api/middleware/auth.go`, no `internal/api/middleware/auth_test.go`, no
   `internal/api/middleware/testdata/valid-token`, and no `local/api/token`.
-- [ ] No written file reads, sets or sends the shared token: no `TokenPath`, no `TOKEN_PATH`, no
+- [x] No written file reads, sets or sends the shared token: no `TokenPath`, no `TOKEN_PATH`, no
   `valid-token`, no `Authorization` header in the requests of `Taskfile.api.yml`, and no token volume for the
   `api` service of `docker-compose.local.yml`.
-- [ ] The API registers each route with no middleware that reads a credential.
-- [ ] No doc of the written repo says that a client of the API sends a token.
-- [ ] The unit tests of the starter show that the token files and the token text are absent from a written
+- [x] The API registers each route with no middleware that reads a credential.
+- [x] No doc of the written repo says that a client of the API sends a token.
+- [x] The unit tests of the starter show that the token files and the token text are absent from a written
   repo, and `go build ./...`, `go vet ./...` and `task test:unit` of this repo pass.
 
 **Affected Files/Modules:**

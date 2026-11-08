@@ -5,7 +5,7 @@ model "Bank Account" {
 }
 
 actor "Client" {
-  description = "A program or a person that calls the HTTP API with a bearer token"
+  description = "A program or a person that calls the HTTP API"
 }
 
 context "Accounts" {

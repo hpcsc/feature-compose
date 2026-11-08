@@ -14,8 +14,6 @@ import (
 func NewRouterWithRoutable(routable route.Routable) *chi.Mux {
 	router := chi.NewRouter()
 	for _, r := range routable.Routes() {
-		// register all as public
-		// auth middleware should be tested separately
 		router.MethodFunc(r.Method, r.Pattern, r.Handler)
 	}
 	return router

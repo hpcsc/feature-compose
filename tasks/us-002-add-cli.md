@@ -265,16 +265,16 @@ is. The globs of a feature apply only to the templates of that feature, and the 
 the templates of the starter.
 
 **Acceptance Criteria:**
-- [ ] `feature.yml` declares `delimiters`: entries with a `glob`, a `left` and a `right`. A glob matches the path
+- [x] `feature.yml` declares `delimiters`: entries with a `glob`, a `left` and a `right`. A glob matches the path
   of a template of the feature from its folder segment, `.tmpl` included, as a glob of `starter.yml` does:
   `go/.goreleaser.yaml` matches the template `files/go/.goreleaser.yaml` of a feature with the entry `files/`.
-- [ ] A template of a feature that matches a glob of its `feature.yml` renders with the `left` and the `right` of
+- [x] A template of a feature that matches a glob of its `feature.yml` renders with the `left` and the `right` of
   the first entry that matches, and text such as `{{ .Tag }}` in it is written as it is. `.Name`, `option` and
   the case functions give the same values with these delimiters.
-- [ ] A template of a feature that matches only a glob of the starter, or only a glob of another selected
+- [x] A template of a feature that matches only a glob of the starter, or only a glob of another selected
   feature, renders with `{{` and `}}`. A template of the starter that matches only a glob of a feature
   renders as the rules of the starter say.
-- [ ] A glob that is not valid, a glob with an empty segment, or delimiters with only `left` or only `right` stop,
+- [x] A glob that is not valid, a glob with an empty segment, or delimiters with only `left` or only `right` stop,
   and the message names the feature and the glob.
 
 **Affected Files/Modules:**

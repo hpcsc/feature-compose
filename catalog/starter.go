@@ -135,8 +135,9 @@ func (s Starter) templatesWith(featureNames []string) ([]template, error) {
 	}
 	templates := slices.Clone(s.templates)
 	for _, featureName := range slices.Sorted(maps.Keys(selected)) {
-		for _, t := range selected[featureName].templates {
-			placed, err := t.place(s.folders, nil)
+		f := selected[featureName]
+		for _, t := range f.templates {
+			placed, err := t.place(s.folders, f.rules)
 			if err != nil {
 				return nil, err
 			}

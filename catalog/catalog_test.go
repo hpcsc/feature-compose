@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -146,6 +147,25 @@ func TestCatalog(t *testing.T) {
 			require.ErrorContains(t, err, "web")
 			require.ErrorContains(t, err, `"../web"`)
 		})
+
+		for glob, definition := range map[string]string{
+			"go/[Task": "targets: [service]\nfiles:\n  - path: files/\ndelimiters:\n  - glob: \"go/[Task\"\n    left: \"[[\"\n    right: \"]]\"\n",
+			"go/a.md":  "targets: [service]\nfiles:\n  - path: files/\ndelimiters:\n  - glob: go/a.md\n    left: \"[[\"\n",
+		} {
+			t.Run("delimiters of a feature that are not valid stop, and the message names the feature and the glob "+glob, func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+					"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+					"features/cli/feature.yml":          &fstest.MapFile{Data: []byte(definition)},
+					"features/cli/files/go/a.md":        &fstest.MapFile{Data: []byte("a\n")},
+				}
+
+				_, err := catalog.New(files).Starter("service")
+
+				require.ErrorContains(t, err, "features/cli/feature.yml")
+				require.ErrorContains(t, err, strconv.Quote(glob))
+			})
+		}
 
 		for name, features := range map[string]fstest.MapFS{
 			"a feature.yml that is not valid YAML": {

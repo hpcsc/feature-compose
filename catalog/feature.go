@@ -13,6 +13,7 @@ import (
 type feature struct {
 	name      string
 	templates []template
+	rules     []delimitersRule
 }
 
 func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool, error) {
@@ -27,12 +28,25 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 		Files   []struct {
 			Path string `yaml:"path"`
 		} `yaml:"files"`
+		Delimiters []struct {
+			Glob  string `yaml:"glob"`
+			Left  string `yaml:"left"`
+			Right string `yaml:"right"`
+		} `yaml:"delimiters"`
 	}
 	if err := yaml.Unmarshal(definitionYAML, &definition); err != nil {
 		return feature{}, false, fmt.Errorf("read %s: %w", definitionPath, err)
 	}
 	if !slices.Contains(definition.Targets, starterName) {
 		return feature{}, false, nil
+	}
+	var rules []delimitersRule
+	for _, declared := range definition.Delimiters {
+		rule, err := newDelimitersRule(declared.Glob, delimiters{left: declared.Left, right: declared.Right})
+		if err != nil {
+			return feature{}, false, fmt.Errorf("read %s: %w", definitionPath, err)
+		}
+		rules = append(rules, rule)
 	}
 	var templates []template
 	for _, entry := range definition.Files {
@@ -46,5 +60,5 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 		}
 		templates = append(templates, read...)
 	}
-	return feature{name: featureName, templates: templates}, true, nil
+	return feature{name: featureName, templates: templates, rules: rules}, true, nil
 }

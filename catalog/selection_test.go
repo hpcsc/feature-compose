@@ -461,6 +461,49 @@ func TestSelection(t *testing.T) {
 			require.NoDirExists(t, output)
 		})
 
+		t.Run("a template of a feature that matches a glob of its feature.yml renders with the delimiters of the first matching entry", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":           twoFolders,
+				"starters/service/files/go/README.md":    &fstest.MapFile{Data: []byte("service\n")},
+				"features/cli/feature.yml":               &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\ndelimiters:\n  - glob: go/.goreleaser.yaml\n    left: \"[[\"\n    right: \"]]\"\n  - glob: go/**\n    left: \"((\"\n    right: \"))\"\n")},
+				"features/cli/files/go/.goreleaser.yaml": &fstest.MapFile{Data: []byte(`project_name: [[ .Name ]] [[ option "starter.module" ]] [[ pascal .Name ]]` + "\nversion: {{ .Tag }}\n")},
+				"features/cli/files/go/notes.txt":        &fstest.MapFile{Data: []byte("(( .Name )) {{ .Name }}")},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := featureSelection(t, files, "cli").Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"README.md":        "service\n",
+				"notes.txt":        "my-service {{ .Name }}",
+				".goreleaser.yaml": "project_name: my-service example.com/my-service MyService\nversion: {{ .Tag }}\n",
+			}, filesIn(t, output))
+		})
+
+		t.Run("the globs of a starter and of a feature apply only to their own templates", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":                  &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\ndelimiters:\n  - glob: go/*.starter-glob\n    left: \"[[\"\n    right: \"]]\"\n")},
+				"starters/service/files/go/of-starter.cli-glob": &fstest.MapFile{Data: []byte("{{ .Name }} [[ .Name ]]")},
+				"features/cli/feature.yml":                      &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\ndelimiters:\n  - glob: go/*.cli-glob\n    left: \"[[\"\n    right: \"]]\"\n")},
+				"features/cli/files/go/of-cli.starter-glob":     &fstest.MapFile{Data: []byte("{{ .Name }} [[ .Name ]]")},
+				"features/cli/files/go/of-cli.cli-glob":         &fstest.MapFile{Data: []byte("{{ .Name }} [[ .Name ]]")},
+				"features/docs/feature.yml":                     &fstest.MapFile{Data: []byte("summary: Docs.\ntargets: [service]\nfiles:\n  - path: files/\n")},
+				"features/docs/files/go/of-docs.cli-glob":       &fstest.MapFile{Data: []byte("{{ .Name }} [[ .Name ]]")},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := featureSelection(t, files, "cli", "docs").Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"of-starter.cli-glob": "my-service [[ .Name ]]",
+				"of-cli.starter-glob": "my-service [[ .Name ]]",
+				"of-cli.cli-glob":     "{{ .Name }} my-service",
+				"of-docs.cli-glob":    "my-service [[ .Name ]]",
+			}, filesIn(t, output))
+		})
+
 		withDelimiters := &fstest.MapFile{Data: []byte(`
 options:
   module:

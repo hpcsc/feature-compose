@@ -30,7 +30,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Render the templates of a feature with the delimiters of its feature.yml",
       "language": "Go",
       "testable": true,

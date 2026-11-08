@@ -386,38 +386,38 @@ renders its items after the commands of the CLI itself, and the root command has
 GitHub repository of the releases stays `hpcsc/<name>`, as in go-cli, and Task 6 changes it.
 
 **Acceptance Criteria:**
-- [ ] `catalog/features/cli/feature.yml` has a `summary` that says what the repo gets; `targets` with only
+- [x] `catalog/features/cli/feature.yml` has a `summary` that says what the repo gets; `targets` with only
   `go-event-sourcing-service`; `files` with the one entry `files/`; the extension point `cli.commands` with a
   `summary` that says that an item is an expression of type `*cli.Command`, `file: go/internal/cli/root.go`
   and `item: [code]`; and `[[` and `]]` delimiters for `.goreleaser.yaml`. It names no language.
-- [ ] The catalog in the binary holds `cli` and its files whose names start with `.`, with no catalog file on
+- [x] The catalog in the binary holds `cli` and its files whose names start with `.`, with no catalog file on
   disk, from any working folder.
-- [ ] Written with `go-event-sourcing-service`, the name `my-service`, no given values and the feature `cli`,
+- [x] Written with `go-event-sourcing-service`, the name `my-service`, no given values and the feature `cli`,
   the repo has each file that the go-cli table in Codebase Context gives to `cli`, at the path that the table
   gives, and each file of the starter with the same contents as without `cli`.
-- [ ] The binary is `cmd/my-service/main.go`. Each place where go-cli uses the project name, such as the name
+- [x] The binary is `cmd/my-service/main.go`. Each place where go-cli uses the project name, such as the name
   and the usage texts of the root command, the `project_name`, `main` and archive names of
   `.goreleaser.yaml`, and the e2e image and tests, has `my-service`.
-- [ ] Each import of a package of the repo, each `-X` ldflag in `.goreleaser.yaml` and `e2e/Dockerfile`, and the
+- [x] Each import of a package of the repo, each `-X` ldflag in `.goreleaser.yaml` and `e2e/Dockerfile`, and the
   module path in the version test start with the module, and the ldflags name `internal/cli/version`. Written
   with `module=github.com/acme/ledger` and `go-version=1.28.0`, the files of `cli` have those values, no file
   contains `github.com/hpcsc/my-service`, and `e2e/Dockerfile` builds from `golang:1.28.0`. (Task 6 stops `new`
   with `cli` for a module that is not on github.com, so this test uses a module that is.)
-- [ ] `.goreleaser.yaml` keeps the template syntax of GoReleaser: `{{ .Tag }}`,
+- [x] `.goreleaser.yaml` keeps the template syntax of GoReleaser: `{{ .Tag }}`,
   `{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}` and `{{ incpatch .Version }}`.
-- [ ] `internal/cli/root.go` renders the items of `cli.commands` in the list of commands of the root command,
+- [x] `internal/cli/root.go` renders the items of `cli.commands` in the list of commands of the root command,
   after `version` and `update`. Written with no item, the root command has the commands `version` and
   `update` and no action of its own: with no command, it prints its commands and reads no input. The
   `e2e/tests/cli.test.ts` of `cli` checks this, and no file of `cli` greets a name.
-- [ ] `scripts/install.sh` can be run in the written repo.
-- [ ] No written file of `cli` holds a value of scaffold (`.Scaffold.`, `.ProjectKebab`), a sentinel value, or
+- [x] `scripts/install.sh` can be run in the written repo.
+- [x] No written file of `cli` holds a value of scaffold (`.Scaffold.`, `.ProjectKebab`), a sentinel value, or
   `<no value>`.
-- [ ] `docs/cli.md` and `docs/e2e-tests.md` name no task, workflow or file that the written repo does not have,
+- [x] `docs/cli.md` and `docs/e2e-tests.md` name no task, workflow or file that the written repo does not have,
   and they give the commands that build the CLI, make a snapshot release with GoReleaser, and run the
   end-to-end tests of the CLI in Docker and on the machine.
-- [ ] Written with the name `api` and the feature `cli`, the write stops before the first file is written, and
+- [x] Written with the name `api` and the feature `cli`, the write stops before the first file is written, and
   the message names `cmd/api/main.go`, the starter and `cli`.
-- [ ] In this repo, `go build ./...`, `go vet ./...` and `task test:unit` pass with `cli` in the catalog, and
+- [x] In this repo, `go build ./...`, `go vet ./...` and `task test:unit` pass with `cli` in the catalog, and
   `git status --ignored catalog/` shows no file of `cli` as ignored.
 
 **Affected Files/Modules:**

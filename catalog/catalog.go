@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-//go:embed all:starters
-var starters embed.FS
+//go:embed all:starters all:features
+var catalogFiles embed.FS
 
 type Catalog struct {
 	fsys fs.FS
@@ -21,7 +21,7 @@ func New(fsys fs.FS) Catalog {
 }
 
 func Embedded() Catalog {
-	return New(starters)
+	return New(catalogFiles)
 }
 
 func (c Catalog) Starter(starterName string) (Starter, error) {

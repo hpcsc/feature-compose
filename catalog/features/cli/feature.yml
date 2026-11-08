@@ -1,0 +1,16 @@
+summary: A command line program with releases from GoReleaser, and a command that updates it.
+targets: [go-event-sourcing-service]
+
+files:
+  - path: files/
+
+extension_points:
+  cli.commands:
+    summary: An expression of type *cli.Command.
+    file: go/internal/cli/root.go
+    item: [code]
+
+delimiters:
+  - glob: go/.goreleaser.yaml
+    left: "[["
+    right: "]]"

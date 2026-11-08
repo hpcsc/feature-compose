@@ -6,6 +6,8 @@ import (
 	"errors"
 	"io/fs"
 	"maps"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -361,6 +363,160 @@ func TestCatalog(t *testing.T) {
 					require.NotContains(t, strings.ToLower(withoutGitHubToken), word, path)
 				}
 			}
+		})
+
+		writtenWithCLI := func(t *testing.T, name string, given map[string]string) (string, map[string]string) {
+			t.Helper()
+			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select(name, given, []string{"cli"})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), name)
+			require.NoError(t, selection.Write(output))
+			return output, filesIn(t, output)
+		}
+
+		t.Run("cli adds each of its files at its path, and the files of the starter stay as without cli", func(t *testing.T) {
+			_, withoutCLI := writtenStarter(t, nil)
+
+			_, withCLI := writtenWithCLI(t, "my-service", nil)
+
+			added := map[string]string{}
+			for path, contents := range withCLI {
+				if before, ok := withoutCLI[path]; ok {
+					require.Equal(t, before, contents, path)
+				} else {
+					added[path] = contents
+				}
+			}
+			require.ElementsMatch(t, []string{
+				".dockerignore", ".goreleaser.yaml", "scripts/install.sh",
+				"cmd/my-service/main.go",
+				"internal/cli/adapter.go", "internal/cli/adapter_test.go", "internal/cli/root.go", "internal/cli/update.go",
+				"internal/cli/progress/line.go", "internal/cli/progress/line_test.go",
+				"internal/cli/release/client.go", "internal/cli/release/updater.go", "internal/cli/release/updater_test.go",
+				"internal/cli/version/version.go", "internal/cli/version/version_test.go",
+				"docs/cli.md", "docs/e2e-tests.md",
+				"e2e/Dockerfile", "e2e/package.json", "e2e/testUtils.ts", "e2e/tsconfig.json", "e2e/vitest.config.ts",
+				"e2e/tests/cli.test.ts", "e2e/tests/update.test.ts",
+			}, slices.Collect(maps.Keys(added)))
+			require.Len(t, withCLI, len(withoutCLI)+len(added))
+		})
+
+		t.Run("the files of cli have the name of the repo in each place where go-cli has the project name", func(t *testing.T) {
+			_, files := writtenWithCLI(t, "my-service", nil)
+
+			require.Contains(t, files["internal/cli/root.go"], `Name:                  "my-service",`)
+			require.Contains(t, files["internal/cli/root.go"], `print the tag my-service was built from`)
+			require.Contains(t, files[".goreleaser.yaml"], "project_name: my-service")
+			require.Contains(t, files["e2e/package.json"], `"name": "my-service-e2e"`)
+			require.Contains(t, files["e2e/tests/cli.test.ts"], "my-service version")
+		})
+
+		t.Run("a name with capitals and dots gives a kebab-case name in the binary, the release config and the e2e image of cli", func(t *testing.T) {
+			_, files := writtenWithCLI(t, "MyService.v2", nil)
+
+			require.Contains(t, files, "cmd/my-service-v2/main.go")
+			require.Contains(t, files["internal/cli/root.go"], `Name:                  "my-service-v2",`)
+			require.Contains(t, files[".goreleaser.yaml"], "project_name: my-service-v2\n")
+			require.Contains(t, files[".goreleaser.yaml"], "main: ./cmd/my-service-v2\n")
+			require.Contains(t, files["e2e/package.json"], `"name": "my-service-v2-e2e"`)
+		})
+
+		t.Run("the files of cli have the module and the Go version in each import, ldflag and image", func(t *testing.T) {
+			_, files := writtenWithCLI(t, "my-service", map[string]string{"module": "github.com/acme/ledger", "go-version": "1.28.0"})
+
+			require.Contains(t, files["cmd/my-service/main.go"], `"github.com/acme/ledger/internal/cli"`)
+			require.Contains(t, files["internal/cli/update.go"], `"github.com/acme/ledger/internal/cli/release"`)
+			require.Contains(t, files["internal/cli/version/version_test.go"], `Path: "github.com/acme/ledger"`)
+			require.Contains(t, files[".goreleaser.yaml"], "-X github.com/acme/ledger/internal/cli/version.releaseTag={{ .Tag }}")
+			require.Contains(t, files["e2e/Dockerfile"], "-X github.com/acme/ledger/internal/cli/version.releaseTag=${BUILD_TAG}")
+			require.Contains(t, files["e2e/Dockerfile"], "FROM golang:1.28.0")
+			for path, contents := range files {
+				require.NotContains(t, contents, "github.com/hpcsc/my-service", path)
+			}
+		})
+
+		t.Run(".goreleaser.yaml keeps the template syntax of GoReleaser", func(t *testing.T) {
+			_, files := writtenWithCLI(t, "my-service", nil)
+
+			require.Contains(t, files[".goreleaser.yaml"], "{{ .Tag }}")
+			require.Contains(t, files[".goreleaser.yaml"], "'{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}'")
+			require.Contains(t, files[".goreleaser.yaml"], "'{{ incpatch .Version }}-next'")
+		})
+
+		t.Run("the root command of the CLI lists version and update with no item of cli.commands, and has no greeting", func(t *testing.T) {
+			_, files := writtenWithCLI(t, "my-service", nil)
+
+			require.Contains(t, files["internal/cli/root.go"], "\t\t\tnewVersionCommand(),\n\t\t\tnewUpdateCommand(),\n\t\t},")
+			require.NotContains(t, files["internal/cli/root.go"], `"Name: "`)
+			require.NotContains(t, files["internal/cli/root.go"], "bufio")
+			require.NotContains(t, files["e2e/tests/cli.test.ts"], "Name:")
+			require.NotContains(t, files["e2e/tests/cli.test.ts"], "hello world")
+		})
+
+		t.Run("the files of cli hold no value of scaffold", func(t *testing.T) {
+			_, files := writtenWithCLI(t, "my-service", nil)
+
+			for path, contents := range files {
+				for _, value := range []string{".Scaffold.", ".ProjectKebab", "<no value>", "zzsentinel"} {
+					require.NotContains(t, contents, value, path)
+				}
+			}
+		})
+
+		t.Run("the docs of cli name no task or workflow that the repo lacks", func(t *testing.T) {
+			_, files := writtenWithCLI(t, "my-service", nil)
+
+			for _, path := range []string{"docs/cli.md", "docs/e2e-tests.md"} {
+				for _, missing := range []string{"task ", "Taskfile", ".github/workflows", "release:local"} {
+					require.NotContains(t, files[path], missing, path)
+				}
+			}
+		})
+
+		t.Run("the installer of cli can be run", func(t *testing.T) {
+			output, _ := writtenWithCLI(t, "my-service", nil)
+
+			require.Equal(t, 0o755&^umask(), modeOf(t, filepath.Join(output, "scripts", "install.sh")))
+		})
+
+		t.Run("the installer of cli sends the token in one Authorization header, and never as an argument of its own", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output, _ := writtenWithCLI(t, "my-service", nil)
+			stubs := t.TempDir()
+			recorded := filepath.Join(stubs, "curl-arguments")
+			require.NoError(t, os.WriteFile(filepath.Join(stubs, "curl"), []byte("#!/bin/sh\nfor argument in \"$@\"; do printf '%s\\n' \"$argument\" >> \""+recorded+"\"; done\nexit 22\n"), 0o755))
+			for _, tool := range []string{"jq", "tar", "gzip"} {
+				require.NoError(t, os.WriteFile(filepath.Join(stubs, tool), []byte("#!/bin/sh\nexit 0\n"), 0o755))
+			}
+			installer := exec.Command("sh", filepath.Join(output, "scripts", "install.sh"), "--channel", "release", "--dir", t.TempDir())
+			installer.Env = append(os.Environ(), "PATH="+stubs+string(os.PathListSeparator)+os.Getenv("PATH"), "GITHUB_TOKEN=secret-token", "GH_TOKEN=")
+
+			printed, err := installer.CombinedOutput()
+
+			require.Error(t, err, string(printed))
+			arguments, readErr := os.ReadFile(recorded)
+			require.NoError(t, readErr, string(printed))
+			lines := strings.Split(strings.TrimSpace(string(arguments)), "\n")
+			require.Contains(t, lines, "Authorization: Bearer secret-token")
+			require.NotContains(t, lines, "secret-token")
+			require.NotContains(t, lines, "Bearer")
+		})
+
+		t.Run("a repo named api with cli stops the write, because the starter and cli both write cmd/api/main.go", func(t *testing.T) {
+			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select("api", nil, []string{"cli"})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "api")
+
+			err = selection.Write(output)
+
+			require.ErrorContains(t, err, "of the starter")
+			require.ErrorContains(t, err, "of the feature cli")
+			require.ErrorContains(t, err, "both write cmd/api/main.go")
+			require.NoDirExists(t, output)
 		})
 
 		t.Run("hooks/pre-push and the scripts can be run", func(t *testing.T) {

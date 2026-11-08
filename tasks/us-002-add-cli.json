@@ -94,7 +94,7 @@
     },
     {
       "n": 5,
-      "done": false,
+      "done": true,
       "title": "Port the go-cli template as the feature `cli` into the catalog in the binary",
       "language": "Go",
       "testable": true,

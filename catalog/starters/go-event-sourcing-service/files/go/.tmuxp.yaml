@@ -1,4 +1,4 @@
-session_name: {{ .Name }}
+session_name: {{ kebab .Name }}
 start_directory: ./
 windows:
   - name: dev

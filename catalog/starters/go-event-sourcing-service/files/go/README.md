@@ -1,4 +1,4 @@
-# {{ .Name }}
+# {{ kebab .Name }}
 
 A base for an event-sourced Go application that keeps its events in Postgres. Consumers read the events
 with a loop that wakes on a `LISTEN/NOTIFY` signal, so the application needs no other event store.

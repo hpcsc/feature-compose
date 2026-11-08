@@ -31,7 +31,7 @@ func pascal(name string) string {
 
 func words(name string) []string {
 	var parts []string
-	for _, field := range strings.FieldsFunc(name, func(r rune) bool { return r == '-' || r == '_' }) {
+	for _, field := range strings.FieldsFunc(name, func(r rune) bool { return r == '-' || r == '_' || r == '.' }) {
 		runes := []rune(field)
 		start := 0
 		for i := 1; i < len(runes); i++ {

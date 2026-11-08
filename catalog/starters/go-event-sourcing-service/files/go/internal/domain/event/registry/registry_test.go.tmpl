@@ -50,9 +50,9 @@ func TestRegistry(t *testing.T) {
 		t.Run("returns an unknown type error for a type that is not registered", func(t *testing.T) {
 			r := registry.New()
 
-			_, _, err := r.ParseRawData("{{ .Name }}.not-registered", 1, []byte(`{}`), nil)
+			_, _, err := r.ParseRawData("{{ kebab .Name }}.not-registered", 1, []byte(`{}`), nil)
 
-			require.ErrorContains(t, err, "no payload registered for event type {{ .Name }}.not-registered")
+			require.ErrorContains(t, err, "no payload registered for event type {{ kebab .Name }}.not-registered")
 			require.ErrorIs(t, err, registry.ErrUnknownEventType)
 		})
 

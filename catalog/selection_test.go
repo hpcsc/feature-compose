@@ -62,7 +62,7 @@ func TestSelection(t *testing.T) {
 			require.Equal(t, map[string]string{"cmd/my-service/main.go": "// my-service starts here\n"}, filesIn(t, output))
 		})
 
-		for _, name := range []string{"order-event-store", "order_event_store", "orderEventStore", "OrderEventStore"} {
+		for _, name := range []string{"order-event-store", "order_event_store", "order.event.store", "orderEventStore", "OrderEventStore"} {
 			t.Run("the case functions give one result for the name "+name, func(t *testing.T) {
 				files := fstest.MapFS{
 					"starters/service/starter.yml":    oneFolder,

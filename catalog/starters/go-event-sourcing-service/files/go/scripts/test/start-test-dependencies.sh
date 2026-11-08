@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-export COMPOSE_PROJECT_NAME={{ .Name }}-integration-test
+export COMPOSE_PROJECT_NAME={{ kebab .Name }}-integration-test
 export COMPOSE_FILE=./docker-compose.test.yml
 
 docker compose down --remove-orphans

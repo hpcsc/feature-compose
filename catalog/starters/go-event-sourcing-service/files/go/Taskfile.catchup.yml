@@ -22,6 +22,6 @@ tasks:
     cmds:
       - |
         docker build \
-          -t [[ .Name ]]-catchup:{{ default "latest" .TAG }} \
+          -t [[ kebab .Name ]]-catchup:{{ default "latest" .TAG }} \
           -f Dockerfile.catchup \
           .

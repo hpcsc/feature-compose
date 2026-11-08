@@ -25,7 +25,7 @@ tasks:
       - .env.local
     cmds:
       - |
-        docker compose -p [[ .Name ]]-local exec \
+        docker compose -p [[ kebab .Name ]]-local exec \
           db psql -U${DB_USERNAME} -d${DB_NAME}
 
   db:query:
@@ -35,18 +35,18 @@ tasks:
       - .env.local
     cmds:
       - |
-        docker compose -p [[ .Name ]]-local exec \
+        docker compose -p [[ kebab .Name ]]-local exec \
           db psql -U${DB_USERNAME} -d${DB_NAME} -c {{.CLI_ARGS}}
 
   run-dependencies:
     cmds:
-      - docker compose --env-file .env.local -f docker-compose.dependencies.yml -p [[ .Name ]]-local up -d --wait db
-      - docker compose --env-file .env.local -f docker-compose.dependencies.yml -p [[ .Name ]]-local up --exit-code-from migrate migrate
+      - docker compose --env-file .env.local -f docker-compose.dependencies.yml -p [[ kebab .Name ]]-local up -d --wait db
+      - docker compose --env-file .env.local -f docker-compose.dependencies.yml -p [[ kebab .Name ]]-local up --exit-code-from migrate migrate
       - command -v tmuxp && echo "tmuxp exists" || pip install tmuxp
 
   remove-dependencies:
     cmds:
-      - docker compose --env-file .env.local -f docker-compose.dependencies.yml -p [[ .Name ]]-local down
+      - docker compose --env-file .env.local -f docker-compose.dependencies.yml -p [[ kebab .Name ]]-local down
 
   run:
     deps:

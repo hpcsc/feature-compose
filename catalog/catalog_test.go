@@ -220,6 +220,24 @@ func TestCatalog(t *testing.T) {
 			require.ErrorContains(t, err, "module")
 		})
 
+		t.Run("a name with capitals and dots gives a kebab-case name in the Docker names of the repo", func(t *testing.T) {
+			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select("MyService.v2", nil)
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "repo")
+			require.NoError(t, selection.Write(output))
+			files := filesIn(t, output)
+
+			require.Equal(t, 5, strings.Count(files["Taskfile.yml"], "-p my-service-v2-local "))
+			require.Contains(t, files["Taskfile.api.yml"], "-t my-service-v2-api:")
+			require.Contains(t, files["Taskfile.catchup.yml"], "-t my-service-v2-catchup:")
+			require.Contains(t, files["scripts/test/start-test-dependencies.sh"], "COMPOSE_PROJECT_NAME=my-service-v2-integration-test")
+			require.Contains(t, files["internal/domain/event/constants.go"], `Namespace     = "my-service-v2"`)
+			require.Contains(t, files[".tmuxp.yaml"], "session_name: my-service-v2\n")
+			require.True(t, strings.HasPrefix(files["README.md"], "# my-service-v2\n"))
+		})
+
 		t.Run("given values for the module and the Go version replace the defaults in each file", func(t *testing.T) {
 			_, files := writtenStarter(t, map[string]string{"module": "example.com/acme/ledger", "go-version": "1.28.0"})
 

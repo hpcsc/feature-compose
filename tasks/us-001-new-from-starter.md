@@ -523,16 +523,16 @@ the unit tests and `task --list` of the new repo. The Docker image of the end-to
 that this needs.
 
 **Acceptance Criteria:**
-- [ ] An end-to-end test runs `feature-compose new go-event-sourcing-service my-service --no-prompt` in an
+- [x] An end-to-end test runs `feature-compose new go-event-sourcing-service my-service --no-prompt` in an
   empty scratch folder. It exits with 0 and writes `./my-service`.
-- [ ] In `./my-service`, `go.mod` declares `module github.com/hpcsc/my-service`, `go.sum` exists,
+- [x] In `./my-service`, `go.mod` declares `module github.com/hpcsc/my-service`, `go.sum` exists,
   `gofmt -l .` lists no file, `task --list` exits with 0, and `task test:unit` exits with 0.
 - [ ] `task test:e2e` runs this test in Docker. The e2e image has on PATH Go at the version in the `go.mod` of
   this repo, Task, gotestsum, and a C compiler for the `-race` flag of the starter's `task test:unit`.
-- [ ] `task test:e2e:local` runs this test on a machine that has Go, Task and gotestsum on PATH.
-- [ ] Only this test has a timeout longer than the 30 seconds of `e2e/vitest.config.ts`, and its timeout is
+- [x] `task test:e2e:local` runs this test on a machine that has Go, Task and gotestsum on PATH.
+- [x] Only this test has a timeout longer than the 30 seconds of `e2e/vitest.config.ts`, and its timeout is
   long enough for `go mod tidy` and a race build of the repo.
-- [ ] `docs/e2e-tests.md` says that this test needs Go, Task, gotestsum and the network, and about how long it
+- [x] `docs/e2e-tests.md` says that this test needs Go, Task, gotestsum and the network, and about how long it
   takes.
 
 **Affected Files/Modules:**

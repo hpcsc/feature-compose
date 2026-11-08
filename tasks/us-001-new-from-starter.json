@@ -184,7 +184,7 @@
     },
     {
       "n": 9,
-      "done": false,
+      "done": true,
       "title": "Check end to end that a new repo passes `task test:unit` and `task --list`",
       "language": "TypeScript",
       "testable": true,

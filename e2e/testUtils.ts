@@ -33,16 +33,11 @@ export interface Result {
   status: number | null
 }
 
-// runCli does not block, so a fake server in this process can still answer the
+// runProgram does not block, so a fake server in this process can still answer the
 // requests the CLI makes.
-export function runCli(
-  cwd: string,
-  args: string[] = [],
-  env: Record<string, string> = {},
-  executable = getExecutablePath(),
-): Promise<Result> {
+export function runProgram(cwd: string, program: string, args: string[] = [], env: Record<string, string> = {}): Promise<Result> {
   return new Promise((done, fail) => {
-    const child = spawn(executable, args, { cwd, env: { ...process.env, ...env } })
+    const child = spawn(program, args, { cwd, env: { ...process.env, ...env } })
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', (chunk) => (stdout += chunk))
@@ -50,6 +45,15 @@ export function runCli(
     child.on('error', fail)
     child.on('close', (status) => done({ stdout, stderr, status }))
   })
+}
+
+export function runCli(
+  cwd: string,
+  args: string[] = [],
+  env: Record<string, string> = {},
+  executable = getExecutablePath(),
+): Promise<Result> {
+  return runProgram(cwd, executable, args, env)
 }
 
 // openCli starts the CLI in a pseudo-terminal. When the CLI stops, the shell

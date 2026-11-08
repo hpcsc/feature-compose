@@ -20,7 +20,9 @@ func TestSelection(t *testing.T) {
 		t.Helper()
 		starter, err := catalog.New(files).Starter("service")
 		require.NoError(t, err)
-		return starter.Select(name)
+		selection, err := starter.Select(name, nil)
+		require.NoError(t, err)
+		return selection
 	}
 	oneFolder := &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n")}
 

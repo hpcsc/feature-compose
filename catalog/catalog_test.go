@@ -83,6 +83,18 @@ func TestCatalog(t *testing.T) {
 			require.ErrorContains(t, err, "template go ")
 		})
 
+		t.Run("a pattern that is not a valid regular expression stops, and the message names the option", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("options:\n  go-version:\n    pattern: '^1\\.(2[7-9]$'\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			}
+
+			_, err := catalog.New(files).Starter("service")
+
+			require.ErrorContains(t, err, "go-version")
+			require.ErrorContains(t, err, "missing closing )")
+		})
+
 		t.Run("a folder whose path leads out of the repo stops, and the message names the folder", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n  web:\n    path: ../web\n")},

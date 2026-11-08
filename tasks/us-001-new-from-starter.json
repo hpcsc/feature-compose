@@ -44,7 +44,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Set the starter options from their defaults and from given values",
       "language": "Go",
       "testable": true,

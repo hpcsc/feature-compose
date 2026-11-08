@@ -233,17 +233,17 @@ name. A template reads a value with `option "starter.<option>"`. An unknown opti
 match its pattern stops the selection before the first file is written.
 
 **Acceptance Criteria:**
-- [ ] An option with no given value takes its `default`. A default that contains a template renders with the
+- [x] An option with no given value takes its `default`. A default that contains a template renders with the
   name: `github.com/hpcsc/{{ .Name }}` gives `github.com/hpcsc/my-service` for `my-service`.
-- [ ] A given value replaces the default.
-- [ ] `{{ option "starter.<option>" }}` in the contents or the path of a template gives the value of that
+- [x] A given value replaces the default.
+- [x] `{{ option "starter.<option>" }}` in the contents or the path of a template gives the value of that
   option.
-- [ ] A given value for a name that is not an option of the starter stops the selection. The message names
+- [x] A given value for a name that is not an option of the starter stops the selection. The message names
   the unknown option and lists the options of the starter. No file is written.
-- [ ] A value that does not match the `pattern` of its option stops the selection. The message names the
+- [x] A value that does not match the `pattern` of its option stops the selection. The message names the
   option and its pattern. No file is written. A value that matches is accepted.
-- [ ] An option without `pattern` accepts any text.
-- [ ] `option` with a name that is not `starter.` and an option of the starter stops the write before the
+- [x] An option without `pattern` accepts any text.
+- [x] `option` with a name that is not `starter.` and an option of the starter stops the write before the
   first file is written. The message names the template and the name.
 
 **Affected Files/Modules:**

@@ -26,7 +26,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Run the after_render commands of each folder",
       "language": "Go",
       "testable": true,

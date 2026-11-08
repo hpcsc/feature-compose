@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -28,6 +29,15 @@ func (s Selection) Write(output string) error {
 	}
 	for _, f := range rendered {
 		if err := f.write(output); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s Selection) RunAfterRender(ctx context.Context, output string) error {
+	for _, f := range s.starter.folders {
+		if err := f.runAfterRender(ctx, output); err != nil {
 			return err
 		}
 	}

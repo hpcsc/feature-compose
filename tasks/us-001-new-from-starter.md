@@ -196,15 +196,15 @@ in order, in that folder of the repo. The first command that fails stops the run
 folder, the command and its output. The `test` commands are data, and the tool does not run them.
 
 **Acceptance Criteria:**
-- [ ] Each command in `folders.<name>.after_render` runs in that folder of the written repo (`path: .` is the
+- [x] Each command in `folders.<name>.after_render` runs in that folder of the written repo (`path: .` is the
   root of the repo), in the order of the list, after the last file is written.
-- [ ] A command that exits with a status other than 0 stops the run, and the commands after it do not run.
+- [x] A command that exits with a status other than 0 stops the run, and the commands after it do not run.
   The message names the folder, the command, and the output of the command, stderr included.
-- [ ] A command that cannot start, for example a program that is not on PATH, stops the run with a message
+- [x] A command that cannot start, for example a program that is not on PATH, stops the run with a message
   that names the same three things.
-- [ ] The `test` commands of a folder are read from `starter.yml` and do not run.
-- [ ] No command runs in a folder outside the written repo, also when the tool runs from another folder.
-- [ ] When the context ends, for example on Ctrl-C, the command that runs stops and the run returns an error.
+- [x] The `test` commands of a folder are read from `starter.yml` and do not run.
+- [x] No command runs in a folder outside the written repo, also when the tool runs from another folder.
+- [x] When the context ends, for example on Ctrl-C, the command that runs stops and the run returns an error.
 
 **Affected Files/Modules:**
 - `catalog/` — the commands of a folder, the run of the commands of a selection, and their unit tests

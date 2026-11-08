@@ -3,13 +3,16 @@ package catalog
 import (
 	"fmt"
 	"io/fs"
+	"maps"
 	"path"
 	"path/filepath"
+	"slices"
 
 	"go.yaml.in/yaml/v3"
 )
 
 type Starter struct {
+	folders   []folder
 	templates []template
 }
 
@@ -22,7 +25,8 @@ func readStarter(fsys fs.FS, starterName string) (Starter, error) {
 	}
 	var definition struct {
 		Folders map[string]struct {
-			Path string `yaml:"path"`
+			Path        string   `yaml:"path"`
+			AfterRender []string `yaml:"after_render"`
 		} `yaml:"folders"`
 	}
 	if err := yaml.Unmarshal(definitionYAML, &definition); err != nil {
@@ -33,13 +37,17 @@ func readStarter(fsys fs.FS, starterName string) (Starter, error) {
 		if !filepath.IsLocal(filepath.FromSlash(declared.Path)) {
 			return Starter{}, fmt.Errorf("read %s: the path %q of the folder %s is outside the repo", definitionPath, declared.Path, folderName)
 		}
-		folders[folderName] = folder{path: declared.Path}
+		folders[folderName] = folder{name: folderName, path: declared.Path, afterRender: declared.AfterRender}
 	}
 	templates, err := readTemplates(fsys, path.Join(root, "files"), folders)
 	if err != nil {
 		return Starter{}, err
 	}
-	return Starter{templates: templates}, nil
+	var byName []folder
+	for _, folderName := range slices.Sorted(maps.Keys(folders)) {
+		byName = append(byName, folders[folderName])
+	}
+	return Starter{folders: byName, templates: templates}, nil
 }
 
 func (s Starter) Select(name string) Selection {

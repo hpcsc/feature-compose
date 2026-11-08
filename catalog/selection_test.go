@@ -3,11 +3,13 @@
 package catalog_test
 
 import (
+	"context"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/hpcsc/feature-compose/catalog"
 	"github.com/stretchr/testify/require"
@@ -244,6 +246,170 @@ func TestSelection(t *testing.T) {
 
 			require.ErrorContains(t, err, "go/{{ .Name }}/main.go")
 			require.Empty(t, filesIn(t, parent))
+		})
+	})
+
+	t.Run("run after render", func(t *testing.T) {
+		writtenRepo := func(t *testing.T, starterYML string, output string) catalog.Selection {
+			t.Helper()
+			files := fstest.MapFS{
+				"starters/service/starter.yml":          &fstest.MapFile{Data: []byte(starterYML)},
+				"starters/service/files/app/main.go":    &fstest.MapFile{Data: []byte("package main\n")},
+				"starters/service/files/web/index.html": &fstest.MapFile{Data: []byte("<html></html>\n")},
+			}
+			selection := selectionOf(t, files, "my-service")
+			require.NoError(t, selection.Write(output))
+			return selection
+		}
+
+		t.Run("runs the commands of each folder in that folder of the repo, in their order", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+			selection := writtenRepo(t, `
+folders:
+  app:
+    path: .
+    after_render: ["echo one >> order", "echo two >> order"]
+  web:
+    path: frontend
+    after_render: ["echo web > made-here"]
+`, output)
+
+			err := selection.RunAfterRender(context.Background(), output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"main.go":             "package main\n",
+				"order":               "one\ntwo\n",
+				"frontend/index.html": "<html></html>\n",
+				"frontend/made-here":  "web\n",
+			}, filesIn(t, output))
+		})
+
+		t.Run("a command that fails stops the run, and the message names the folder, the command and its output", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+			selection := writtenRepo(t, `
+folders:
+  app:
+    path: .
+    after_render: ["echo before >> log", "echo broken module >&2; exit 3", "echo after >> log"]
+  web:
+    path: frontend
+`, output)
+
+			err := selection.RunAfterRender(context.Background(), output)
+
+			require.ErrorContains(t, err, "folder app")
+			require.ErrorContains(t, err, "echo broken module >&2; exit 3")
+			require.ErrorContains(t, err, "broken module")
+			require.Equal(t, "before\n", filesIn(t, output)["log"])
+		})
+
+		t.Run("a program that is not on PATH stops the run, and the message names the folder, the command and the cause", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+			selection := writtenRepo(t, `
+folders:
+  app:
+    path: .
+    after_render: ["no-such-program-of-feature-compose --flag"]
+  web:
+    path: frontend
+`, output)
+
+			err := selection.RunAfterRender(context.Background(), output)
+
+			require.ErrorContains(t, err, "folder app")
+			require.ErrorContains(t, err, "no-such-program-of-feature-compose --flag")
+			require.ErrorContains(t, err, "not found")
+		})
+
+		t.Run("the test commands of a folder do not run", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+			selection := writtenRepo(t, `
+folders:
+  app:
+    path: .
+    after_render: ["touch rendered"]
+    test: ["touch tested"]
+  web:
+    path: frontend
+`, output)
+
+			err := selection.RunAfterRender(context.Background(), output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"main.go":             "package main\n",
+				"rendered":            "",
+				"frontend/index.html": "<html></html>\n",
+			}, filesIn(t, output))
+		})
+
+		t.Run("runs each command in the repo when the tool runs from another folder", func(t *testing.T) {
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+			selection := writtenRepo(t, `
+folders:
+  app:
+    path: .
+    after_render: ["touch marker"]
+  web:
+    path: frontend
+`, "my-service")
+
+			err := selection.RunAfterRender(context.Background(), "my-service")
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"my-service/main.go":             "package main\n",
+				"my-service/marker":              "",
+				"my-service/frontend/index.html": "<html></html>\n",
+			}, filesIn(t, workingFolder))
+		})
+
+		t.Run("a context that ends stops the command and its children, and the run returns an error", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+			selection := writtenRepo(t, `
+folders:
+  app:
+    path: .
+    after_render: ["sh -c 'sleep 1; touch finished'; true"]
+  web:
+    path: frontend
+`, output)
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
+
+			err := selection.RunAfterRender(ctx, output)
+
+			require.Error(t, err)
+			time.Sleep(2 * time.Second)
+			require.NoFileExists(t, filepath.Join(output, "finished"))
+		})
+
+		t.Run("a context that ends does not wait for a child that left the process group", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+			selection := writtenRepo(t, `
+folders:
+  app:
+    path: .
+    after_render: ["set -m; sleep 8 & wait"]
+  web:
+    path: frontend
+`, output)
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
+			started := time.Now()
+
+			err := selection.RunAfterRender(ctx, output)
+
+			require.Error(t, err)
+			require.Less(t, time.Since(started), 4*time.Second)
 		})
 	})
 }

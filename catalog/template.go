@@ -26,6 +26,7 @@ func readTemplates(fsys fs.FS, root string, folders map[string]folder, rules []d
 		}
 		catalogPath := strings.TrimPrefix(name, root+"/")
 		folderName, pathInFolder, _ := strings.Cut(catalogPath, "/")
+		pathInFolder = strings.TrimSuffix(pathInFolder, ".tmpl")
 		declared, ok := folders[folderName]
 		if !ok || pathInFolder == "" {
 			return fmt.Errorf("template %s is not in a folder of the starter: the folders are %s",

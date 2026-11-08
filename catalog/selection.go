@@ -23,11 +23,16 @@ func (s Selection) Write(output string) error {
 		return err
 	}
 	rendered := make([]file, 0, len(s.starter.templates))
+	writers := make(map[string]string, len(s.starter.templates))
 	for _, t := range s.starter.templates {
 		f, err := t.render(s)
 		if err != nil {
 			return err
 		}
+		if other, ok := writers[f.path]; ok {
+			return fmt.Errorf("the templates %s and %s both write %s", other, t.path, f.path)
+		}
+		writers[f.path] = t.path
 		rendered = append(rendered, f)
 	}
 	for _, f := range rendered {

@@ -86,7 +86,7 @@
     },
     {
       "n": 5,
-      "done": false,
+      "done": true,
       "title": "Write `.tmpl` templates without the suffix, and scripts as executables",
       "language": "Go",
       "testable": true,

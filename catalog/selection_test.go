@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"syscall"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -102,7 +103,7 @@ func TestSelection(t *testing.T) {
 			require.Equal(t, map[string]string{"names": "x-ray-scan"}, filesIn(t, output))
 		})
 
-		t.Run("a written file cannot be run", func(t *testing.T) {
+		t.Run("a written file can be read by everyone and cannot be run", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":      oneFolder,
 				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
@@ -112,9 +113,62 @@ func TestSelection(t *testing.T) {
 			err := selectionOf(t, files, "my-service").Write(output)
 
 			require.NoError(t, err)
-			info, err := os.Stat(filepath.Join(output, "main.go"))
+			require.Equal(t, 0o644&^umask(), modeOf(t, filepath.Join(output, "main.go")))
+		})
+
+		t.Run("a rendered file that starts with #! can be run by everyone", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":               oneFolder,
+				"starters/service/files/go/scripts/run.sh":   &fstest.MapFile{Data: []byte("#!/bin/sh\necho {{ .Name }}\n")},
+				"starters/service/files/go/scripts/notes.sh": &fstest.MapFile{Data: []byte("echo {{ .Name }}\n#!/bin/sh\n")},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := selectionOf(t, files, "my-service").Write(output)
+
 			require.NoError(t, err)
-			require.Zero(t, info.Mode().Perm()&0o111)
+			require.Equal(t, map[string]fs.FileMode{
+				"scripts/run.sh":   0o755 &^ umask(),
+				"scripts/notes.sh": 0o644 &^ umask(),
+			}, map[string]fs.FileMode{
+				"scripts/run.sh":   modeOf(t, filepath.Join(output, "scripts", "run.sh")),
+				"scripts/notes.sh": modeOf(t, filepath.Join(output, "scripts", "notes.sh")),
+			})
+		})
+
+		t.Run("a template whose name ends in .tmpl is written without the suffix, and other templates keep their name", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":            oneFolder,
+				"starters/service/files/go/go.mod.tmpl":   &fstest.MapFile{Data: []byte("module {{ .Name }}\n")},
+				"starters/service/files/go/main.go.tmpl":  &fstest.MapFile{Data: []byte("package main\n")},
+				"starters/service/files/go/notes.tmpl.md": &fstest.MapFile{Data: []byte("notes\n")},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := selectionOf(t, files, "my-service").Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"go.mod":        "module my-service\n",
+				"main.go":       "package main\n",
+				"notes.tmpl.md": "notes\n",
+			}, filesIn(t, output))
+		})
+
+		t.Run("two templates that write one path stop the write before the first file, and the message names both", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":           oneFolder,
+				"starters/service/files/go/a.go":         &fstest.MapFile{Data: []byte("package a\n")},
+				"starters/service/files/go/main.go":      &fstest.MapFile{Data: []byte("package main\n")},
+				"starters/service/files/go/main.go.tmpl": &fstest.MapFile{Data: []byte("package main\n")},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := selectionOf(t, files, "my-service").Write(output)
+
+			require.ErrorContains(t, err, "go/main.go ")
+			require.ErrorContains(t, err, "go/main.go.tmpl")
+			require.NoDirExists(t, output)
 		})
 
 		t.Run("writes into an output folder that exists and is empty", func(t *testing.T) {
@@ -523,4 +577,17 @@ func filesIn(t *testing.T, dir string) map[string]string {
 	})
 	require.NoError(t, err)
 	return files
+}
+
+func modeOf(t *testing.T, path string) fs.FileMode {
+	t.Helper()
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	return info.Mode().Perm()
+}
+
+func umask() fs.FileMode {
+	current := syscall.Umask(0)
+	syscall.Umask(current)
+	return fs.FileMode(current)
 }

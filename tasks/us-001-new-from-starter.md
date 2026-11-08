@@ -317,10 +317,10 @@ compiles them. A rendered file that starts with `#!` is written as an executable
 no file mode.
 
 **Acceptance Criteria:**
-- [ ] A template whose name ends in `.tmpl` is written without that suffix: `go/go.mod.tmpl` becomes
+- [x] A template whose name ends in `.tmpl` is written without that suffix: `go/go.mod.tmpl` becomes
   `go.mod`, and `go/main.go.tmpl` becomes `main.go`. A template with another name keeps its name.
-- [ ] A rendered file whose contents start with `#!` can be run by its owner. Other files cannot be run.
-- [ ] Two templates that would be written to the same path, for example `go/main.go` and `go/main.go.tmpl`,
+- [x] A rendered file whose contents start with `#!` can be run by its owner. Other files cannot be run.
+- [x] Two templates that would be written to the same path, for example `go/main.go` and `go/main.go.tmpl`,
   stop the write before the first file is written, and the message names both templates.
 
 **Affected Files/Modules:**

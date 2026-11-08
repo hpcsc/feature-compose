@@ -2,7 +2,7 @@
 
 # {{ kebab .Name }} — first-time installer.
 #
-# Installs the {{ kebab .Name }} binary from the hpcsc/{{ kebab .Name }} GitHub
+# Installs the {{ kebab .Name }} binary from the {{ githubRepository (option "starter.module") }} GitHub
 # releases into a directory (default ~/.local/bin). It asks which release
 # channel to use (release or prerelease), lists the available versions in that
 # channel for selection, then asks where to put the binary.
@@ -16,7 +16,7 @@
 #   INSTALL_DIR     the default install directory, default ~/.local/bin
 set -eu
 
-repo="hpcsc/{{ kebab .Name }}"
+repo="{{ githubRepository (option "starter.module") }}"
 binary_name="{{ kebab .Name }}"
 archive_name_base="{{ kebab .Name }}"
 checksums_name="checksums.txt"
@@ -271,7 +271,7 @@ main() {
 	archive_name="$archive_name_base-$platform_name.tar.gz"
 
 	channel=$(choose_channel "$flag_channel")
-	releases_json=$(api_releases) || die 'could not fetch the releases of hpcsc/{{ kebab .Name }}'
+	releases_json=$(api_releases) || die 'could not fetch the releases of {{ githubRepository (option "starter.module") }}'
 
 	matches=$(versions_in_channel "$channel" "$releases_json")
 	[ -n "$matches" ] || die "there is no $channel release of {{ kebab .Name }} yet"

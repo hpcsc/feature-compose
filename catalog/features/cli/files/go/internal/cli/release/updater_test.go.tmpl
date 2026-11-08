@@ -47,7 +47,7 @@ func (f fakeGitHub) serve(t *testing.T) *httptest.Server {
 		return map[string]any{"tag_name": rel.tag, "prerelease": rel.prerelease, "draft": rel.draft, "published_at": rel.published, "assets": assets}
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/hpcsc/{{ kebab .Name }}/releases/latest", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/repos/{{ githubRepository (option "starter.module") }}/releases/latest", func(w http.ResponseWriter, r *http.Request) {
 		for _, rel := range f.releases {
 			if !rel.prerelease && !rel.draft {
 				require.NoError(t, json.NewEncoder(w).Encode(describe(rel)))
@@ -56,7 +56,7 @@ func (f fakeGitHub) serve(t *testing.T) *httptest.Server {
 		}
 		http.NotFound(w, r)
 	})
-	mux.HandleFunc("/repos/hpcsc/{{ kebab .Name }}/releases", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/repos/{{ githubRepository (option "starter.module") }}/releases", func(w http.ResponseWriter, r *http.Request) {
 		all := []map[string]any{}
 		for _, rel := range f.releases {
 			all = append(all, describe(rel))
@@ -118,12 +118,12 @@ func TestUpdater(t *testing.T) {
 		server := fakeGitHub{releases: []fakeRelease{
 			{tag: tag, assets: assets},
 		}}.serve(t)
-		return release.NewClient(server.Client(), server.URL, "hpcsc/{{ kebab .Name }}", "")
+		return release.NewClient(server.Client(), server.URL, "{{ githubRepository (option "starter.module") }}", "")
 	}
 	clientFor := func(t *testing.T, releases ...fakeRelease) *release.Client {
 		t.Helper()
 		server := fakeGitHub{releases: releases}.serve(t)
-		return release.NewClient(server.Client(), server.URL, "hpcsc/{{ kebab .Name }}", "")
+		return release.NewClient(server.Client(), server.URL, "{{ githubRepository (option "starter.module") }}", "")
 	}
 	day := func(n int) time.Time {
 		return time.Date(2026, 9, n, 12, 0, 0, 0, time.UTC)
@@ -262,7 +262,7 @@ func TestUpdater(t *testing.T) {
 				{tag: "v0.2.0", assets: assets},
 			}}.serve(t)
 			path := installedBinary(t)
-			updater := release.NewUpdater(release.NewClient(server.Client(), server.URL, "hpcsc/{{ kebab .Name }}", ""), "v0.1.0", "darwin-arm64", path)
+			updater := release.NewUpdater(release.NewClient(server.Client(), server.URL, "{{ githubRepository (option "starter.module") }}", ""), "v0.1.0", "darwin-arm64", path)
 			check, err := updater.Check(ctx, release.Releases)
 			require.NoError(t, err)
 

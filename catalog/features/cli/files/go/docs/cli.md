@@ -6,7 +6,7 @@ The installer downloads the latest release for your platform, verifies its check
 binary where you can start using it. It needs `sh`, `curl`, `jq`, `tar`, and `gzip`.
 
 ```shell
-sh <(curl -fsSL https://raw.githubusercontent.com/hpcsc/{{ kebab .Name }}/main/scripts/install.sh)
+sh <(curl -fsSL https://raw.githubusercontent.com/{{ githubRepository (option "starter.module") }}/main/scripts/install.sh)
 ```
 
 It asks for the release channel and the install directory. To skip the questions on the command line:

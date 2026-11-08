@@ -475,6 +475,51 @@ func TestCatalog(t *testing.T) {
 			}
 		})
 
+		for module, repository := range map[string][2]string{
+			"":                             {"hpcsc", "my-service"},
+			"github.com/acme/ledger":       {"acme", "ledger"},
+			"github.com/acme/ledger/tools": {"acme", "ledger"},
+		} {
+			t.Run("each file of cli that names the release repository names "+repository[0]+"/"+repository[1]+" for the module "+module, func(t *testing.T) {
+				given := map[string]string{}
+				if module != "" {
+					given["module"] = module
+				}
+
+				_, files := writtenWithCLI(t, "my-service", given)
+
+				full := repository[0] + "/" + repository[1]
+				require.Contains(t, files["internal/cli/root.go"], `const releaseRepository = "`+full+`"`)
+				require.Contains(t, files["scripts/install.sh"], `repo="`+full+`"`)
+				require.Contains(t, files[".goreleaser.yaml"], "    owner: "+repository[0]+"\n    name: "+repository[1]+"\n")
+				require.Contains(t, files["docs/cli.md"], "https://raw.githubusercontent.com/"+full+"/main/scripts/install.sh")
+				require.Contains(t, files["e2e/tests/update.test.ts"], "'/repos/"+full+"/releases/latest'")
+				require.Contains(t, files["internal/cli/release/updater_test.go"], `"/repos/`+full+`/releases/latest"`)
+				if module != "" {
+					_, withoutCLI := writtenStarter(t, given)
+					for path, contents := range files {
+						if _, ofStarter := withoutCLI[path]; !ofStarter {
+							require.NotContains(t, contents, "hpcsc", path)
+						}
+					}
+				}
+			})
+		}
+
+		t.Run("cli with a module that is not on github.com stops the write before the first file, and the message names the module", func(t *testing.T) {
+			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", map[string]string{"module": "example.com/acme/ledger"}, []string{"cli"})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err = selection.Write(output)
+
+			require.ErrorContains(t, err, `"example.com/acme/ledger"`)
+			require.ErrorContains(t, err, "GitHub")
+			require.NoDirExists(t, output)
+		})
+
 		t.Run("the installer of cli can be run", func(t *testing.T) {
 			output, _ := writtenWithCLI(t, "my-service", nil)
 

@@ -10,7 +10,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-const releaseRepository = "hpcsc/{{ kebab .Name }}"
+const releaseRepository = "{{ githubRepository (option "starter.module") }}"
 
 func Run(ctx context.Context) int {
 	if err := newCommand().Run(ctx, os.Args); err != nil {

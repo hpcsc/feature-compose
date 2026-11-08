@@ -557,6 +557,47 @@ func TestSelection(t *testing.T) {
 			})
 		}
 
+		githubTemplate := `{{ githubRepository (option "starter.module") }} {{ (githubRepository (option "starter.module")).Account }} {{ (githubRepository (option "starter.module")).Name }}`
+		for _, module := range []string{"github.com/acme/ledger", "github.com/acme/ledger/tools"} {
+			t.Run("githubRepository gives the account and the repository of the module "+module, func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":     twoFolders,
+					"starters/service/files/go/github": &fstest.MapFile{Data: []byte(githubTemplate)},
+				}
+				starter, err := catalog.New(files).Starter("service")
+				require.NoError(t, err)
+				selection, err := starter.Select("my-service", map[string]string{"module": module}, nil)
+				require.NoError(t, err)
+				output := filepath.Join(t.TempDir(), "my-service")
+
+				err = selection.Write(output)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"github": "acme/ledger acme ledger"}, filesIn(t, output))
+			})
+		}
+
+		for _, module := range []string{"example.com/acme/ledger", "github.com/acme", "github.com//ledger", "github.com/acme/", "github.com/acme/..", "github.com/./ledger"} {
+			t.Run("githubRepository with the module "+module+" stops the write before the first file, and the message names the module", func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":     twoFolders,
+					"starters/service/files/go/a.md":   &fstest.MapFile{Data: []byte("a\n")},
+					"starters/service/files/go/github": &fstest.MapFile{Data: []byte(githubTemplate)},
+				}
+				starter, err := catalog.New(files).Starter("service")
+				require.NoError(t, err)
+				selection, err := starter.Select("my-service", map[string]string{"module": module}, nil)
+				require.NoError(t, err)
+				output := filepath.Join(t.TempDir(), "my-service")
+
+				err = selection.Write(output)
+
+				require.ErrorContains(t, err, strconv.Quote(module))
+				require.ErrorContains(t, err, "GitHub")
+				require.NoDirExists(t, output)
+			})
+		}
+
 		withDelimiters := &fstest.MapFile{Data: []byte(`
 options:
   module:

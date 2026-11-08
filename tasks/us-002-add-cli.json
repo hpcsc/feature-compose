@@ -125,7 +125,7 @@
     },
     {
       "n": 6,
-      "done": false,
+      "done": true,
       "title": "Name the GitHub repository of the CLI's releases after the module",
       "language": "Go",
       "testable": true,

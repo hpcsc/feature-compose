@@ -44,7 +44,7 @@ async function fakeReleases(releases: FakeRelease[]): Promise<string> {
       assets: Object.keys(assets.get(release.tag) ?? {}).map((name) => ({ name, url: `${base}/assets/${release.tag}/${name}` })),
     })
     const path = new URL(request.url ?? '/', base).pathname
-    if (path === '/repos/hpcsc/{{ kebab .Name }}/releases/latest') {
+    if (path === '/repos/{{ githubRepository (option "starter.module") }}/releases/latest') {
       let latest = -1
       releases.forEach((release, index) => {
         if (!release.prerelease) latest = index
@@ -53,7 +53,7 @@ async function fakeReleases(releases: FakeRelease[]): Promise<string> {
       response.end(JSON.stringify(describe(releases[latest], latest)))
       return
     }
-    if (path === '/repos/hpcsc/{{ kebab .Name }}/releases') {
+    if (path === '/repos/{{ githubRepository (option "starter.module") }}/releases') {
       response.setHeader('content-type', 'application/json')
       response.end(JSON.stringify(releases.map(describe).reverse()))
       return
@@ -118,7 +118,7 @@ describe('{{ kebab .Name }} update', () => {
 
     expect(update.status).toBe(0)
     expect(update.stderr).toBe(
-      `Finding the latest release of hpcsc/{{ kebab .Name }}…\nDownloading {{ kebab .Name }} v9.0.0 for ${platform()}…\n`,
+      `Finding the latest release of {{ githubRepository (option "starter.module") }}…\nDownloading {{ kebab .Name }} v9.0.0 for ${platform()}…\n`,
     )
   })
 

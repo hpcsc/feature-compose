@@ -64,7 +64,7 @@ sequenceDiagram
     participant Copy as copy of the CLI
     Test->>API: listen on 127.0.0.1, on a free port
     Test->>Copy: {{ kebab .Name }} update, with GITHUB_API_URL set to the fake API
-    Copy->>API: GET /repos/hpcsc/{{ kebab .Name }}/releases/latest
+    Copy->>API: GET /repos/{{ githubRepository (option "starter.module") }}/releases/latest
     API-->>Copy: tag v9.0.0 and two assets
     Copy->>API: GET the archive and checksums.txt
     Copy->>Copy: check the SHA-256, extract the binary, rename it over the old file

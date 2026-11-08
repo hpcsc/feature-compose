@@ -71,7 +71,7 @@ func (s Selection) checkEmpty(output string) error {
 }
 
 func (s Selection) render(label, text string, d delimiters) (string, error) {
-	funcs := texttemplate.FuncMap{"option": s.option, "items": s.items, "kebab": kebab, "snake": snake, "camel": camel, "pascal": pascal}
+	funcs := texttemplate.FuncMap{"option": s.option, "items": s.items, "githubRepository": parseGitHubRepository, "kebab": kebab, "snake": snake, "camel": camel, "pascal": pascal}
 	parsed, err := texttemplate.New(label).Delims(d.left, d.right).Funcs(funcs).Option("missingkey=error").Parse(text)
 	if err != nil {
 		return "", fmt.Errorf("parse %w", err)

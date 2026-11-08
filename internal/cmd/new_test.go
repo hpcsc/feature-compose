@@ -82,6 +82,22 @@ folders:
 			}, filesIn(t, output))
 		})
 
+		t.Run("new renders the templates of a feature with its delimiters, its extension points, githubRepository and the case functions", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-tool")
+			files := starterFiles("")
+			files["features/tool/feature.yml"] = &fstest.MapFile{Data: []byte("summary: A tool.\ntargets: [service]\nfiles:\n  - path: files/\nextension_points:\n  tool.commands:\n    file: go/tool.txt\n    item: [code]\ndelimiters:\n  - glob: go/tool.txt\n    left: \"[[\"\n    right: \"]]\"\n")}
+			files["features/tool/files/go/tool.txt"] = &fstest.MapFile{Data: []byte(`[[ kebab .Name ]] [[ githubRepository (option "starter.module") ]] [[ range items "tool.commands" ]]x[[ end ]]{{ .Tag }}`)}
+
+			_, err := runNew(t, files, "service", "My.Tool", "--output-dir", output, "--feature", "tool", "--option", "module=github.com/acme/ledger")
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"go.mod":   "module github.com/acme/ledger\ngo 1.27.1\n",
+				"tool.txt": "my-tool acme/ledger {{ .Tag }}",
+			}, filesIn(t, output))
+		})
+
 		t.Run("a value of --feature keeps its commas", func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			output := filepath.Join(t.TempDir(), "my-service")

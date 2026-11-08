@@ -465,12 +465,12 @@ repository of the module. A module that is not on github.com stops `new` with `c
 because `update` and the installer find releases only on GitHub.
 
 **Acceptance Criteria:**
-- [ ] For a module `github.com/<owner>/<repo>`, with or without more path segments after it, each file of `cli`
+- [x] For a module `github.com/<owner>/<repo>`, with or without more path segments after it, each file of `cli`
   that names the GitHub repository of the CLI's releases names `<owner>/<repo>`: `hpcsc/my-service` for the
   default module of `my-service`, and `acme/ledger` for `module=github.com/acme/ledger` and for
   `module=github.com/acme/ledger/tools`.
-- [ ] Written with `module=github.com/acme/ledger`, no file of `cli` contains `hpcsc`.
-- [ ] With `cli` and a module that does not start with `github.com/<owner>/<repo>`, for example
+- [x] Written with `module=github.com/acme/ledger`, no file of `cli` contains `hpcsc`.
+- [x] With `cli` and a module that does not start with `github.com/<owner>/<repo>`, for example
   `example.com/acme/ledger` or `github.com/acme`, `new` stops before the first file is written, and the message
   names the module and says that the releases of `cli` are on GitHub. Without `cli`, such a module makes a
   repo as before.

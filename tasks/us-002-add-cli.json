@@ -52,7 +52,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Declare extension points in a feature, and render their items with `items`",
       "language": "Go",
       "testable": true,

@@ -3,6 +3,7 @@ package catalog
 import (
 	"fmt"
 	"io/fs"
+	"maps"
 	"path"
 	"slices"
 	"strings"
@@ -11,9 +12,10 @@ import (
 )
 
 type feature struct {
-	name      string
-	templates []template
-	rules     []delimitersRule
+	name            string
+	templates       []template
+	rules           []delimitersRule
+	extensionPoints []string
 }
 
 func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool, error) {
@@ -33,6 +35,11 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 			Left  string `yaml:"left"`
 			Right string `yaml:"right"`
 		} `yaml:"delimiters"`
+		ExtensionPoints map[string]struct {
+			Summary string   `yaml:"summary"`
+			File    string   `yaml:"file"`
+			Item    []string `yaml:"item"`
+		} `yaml:"extension_points"`
 	}
 	if err := yaml.Unmarshal(definitionYAML, &definition); err != nil {
 		return feature{}, false, fmt.Errorf("read %s: %w", definitionPath, err)
@@ -60,5 +67,17 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 		}
 		templates = append(templates, read...)
 	}
-	return feature{name: featureName, templates: templates, rules: rules}, true, nil
+	return feature{name: featureName, templates: templates, rules: rules, extensionPoints: slices.Sorted(maps.Keys(definition.ExtensionPoints))}, true, nil
+}
+
+func (f feature) placedIn(folders map[string]folder) ([]template, error) {
+	placed := make([]template, 0, len(f.templates))
+	for _, t := range f.templates {
+		inFolder, err := t.place(folders, f.rules)
+		if err != nil {
+			return nil, err
+		}
+		placed = append(placed, inFolder)
+	}
+	return placed, nil
 }

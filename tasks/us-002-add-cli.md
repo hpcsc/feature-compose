@@ -309,15 +309,15 @@ nothing, and the text around it renders as without it. A name that no selected f
 write.
 
 **Acceptance Criteria:**
-- [ ] `feature.yml` declares `extension_points.<name>` with `summary`, `file` and `item`, in the form of
+- [x] `feature.yml` declares `extension_points.<name>` with `summary`, `file` and `item`, in the form of
   `cli.commands` in `PROPOSAL.md`. `new` reads them, and in this story it uses only the name.
-- [ ] In a template of the starter or of a selected feature, `{{ range items "<name>" }}…{{ end }}` for an
+- [x] In a template of the starter or of a selected feature, `{{ range items "<name>" }}…{{ end }}` for an
   extension point that a selected feature declares renders nothing between `range` and `end`, and the rest of
   the template renders as without the `range`.
-- [ ] `items` with a name that no selected feature declares, also the name of an extension point of a feature
+- [x] `items` with a name that no selected feature declares, also the name of an extension point of a feature
   that is not selected, stops the write before the first file is written. The message names the template and
   the extension point.
-- [ ] Two selected features that declare one extension point stop the selection or the write before the first
+- [x] Two selected features that declare one extension point stop the selection or the write before the first
   file is written, and the message names the extension point and both features.
 
 **Affected Files/Modules:**

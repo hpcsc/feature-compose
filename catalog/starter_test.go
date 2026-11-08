@@ -190,6 +190,23 @@ folders:
 			require.Equal(t, map[string]string{"README.md": "service\n", "cli.go": "package cli\n"}, written(t, selection))
 		})
 
+		t.Run("two selected features that declare one extension point stop, and the message names it and both features", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/README.md": &fstest.MapFile{Data: []byte("service\n")},
+				"features/cli/feature.yml":            &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\nextension_points:\n  cli.commands:\n    file: go/a.go\n    item: [code]\n")},
+				"features/cli/files/go/a.go":          &fstest.MapFile{Data: []byte("package a\n")},
+				"features/tools/feature.yml":          &fstest.MapFile{Data: []byte("summary: Tools.\ntargets: [service]\nfiles:\n  - path: files/\nextension_points:\n  cli.commands:\n    file: go/b.go\n    item: [code]\n")},
+				"features/tools/files/go/b.go":        &fstest.MapFile{Data: []byte("package b\n")},
+			}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, []string{"cli", "tools"})
+
+			require.ErrorContains(t, err, `the features cli and tools both declare the extension point "cli.commands"`)
+		})
+
 		t.Run("a default that fails to render stops, and the message names the option", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":     &fstest.MapFile{Data: []byte("options:\n  module:\n    default: example.com/{{ .Nmae }}\nfolders:\n  go:\n    path: .\n")},

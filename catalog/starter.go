@@ -103,11 +103,19 @@ func (s Starter) Select(name string, given map[string]string, featureNames []str
 			return Selection{}, err
 		}
 	}
-	templates, err := s.templatesWith(featureNames)
+	selected, err := s.selectedFeatures(featureNames)
 	if err != nil {
 		return Selection{}, err
 	}
-	selection := Selection{starter: s, name: name, templates: templates}
+	templates, err := s.templatesOf(selected)
+	if err != nil {
+		return Selection{}, err
+	}
+	extensionPoints, err := s.extensionPointsOf(selected)
+	if err != nil {
+		return Selection{}, err
+	}
+	selection := Selection{starter: s, name: name, templates: templates, extensionPoints: extensionPoints}
 	values := make(map[string]string, len(s.options))
 	for optionName, declared := range s.options {
 		value, ok := given[optionName]
@@ -124,27 +132,45 @@ func (s Starter) Select(name string, given map[string]string, featureNames []str
 	return selection, nil
 }
 
-func (s Starter) templatesWith(featureNames []string) ([]template, error) {
-	selected := map[string]feature{}
+func (s Starter) selectedFeatures(featureNames []string) ([]feature, error) {
+	byName := map[string]feature{}
 	for _, featureName := range featureNames {
 		f, ok := s.features[featureName]
 		if !ok {
 			return nil, s.unknownFeature(featureName)
 		}
-		selected[featureName] = f
+		byName[featureName] = f
 	}
+	selected := make([]feature, 0, len(byName))
+	for _, featureName := range slices.Sorted(maps.Keys(byName)) {
+		selected = append(selected, byName[featureName])
+	}
+	return selected, nil
+}
+
+func (s Starter) templatesOf(selected []feature) ([]template, error) {
 	templates := slices.Clone(s.templates)
-	for _, featureName := range slices.Sorted(maps.Keys(selected)) {
-		f := selected[featureName]
-		for _, t := range f.templates {
-			placed, err := t.place(s.folders, f.rules)
-			if err != nil {
-				return nil, err
-			}
-			templates = append(templates, placed)
+	for _, f := range selected {
+		placed, err := f.placedIn(s.folders)
+		if err != nil {
+			return nil, err
 		}
+		templates = append(templates, placed...)
 	}
 	return templates, nil
+}
+
+func (s Starter) extensionPointsOf(selected []feature) ([]string, error) {
+	declarers := map[string]string{}
+	for _, f := range selected {
+		for _, extensionPoint := range f.extensionPoints {
+			if other, ok := declarers[extensionPoint]; ok {
+				return nil, fmt.Errorf("the features %s and %s both declare the extension point %q", other, f.name, extensionPoint)
+			}
+			declarers[extensionPoint] = f.name
+		}
+	}
+	return slices.Sorted(maps.Keys(declarers)), nil
 }
 
 func (s Starter) unknownFeature(featureName string) error {

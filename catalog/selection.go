@@ -14,10 +14,11 @@ import (
 )
 
 type Selection struct {
-	starter   Starter
-	name      string
-	values    map[string]string
-	templates []template
+	starter         Starter
+	name            string
+	values          map[string]string
+	templates       []template
+	extensionPoints []string
 }
 
 func (s Selection) Write(output string) error {
@@ -70,7 +71,7 @@ func (s Selection) checkEmpty(output string) error {
 }
 
 func (s Selection) render(label, text string, d delimiters) (string, error) {
-	funcs := texttemplate.FuncMap{"option": s.option, "kebab": kebab, "snake": snake, "camel": camel, "pascal": pascal}
+	funcs := texttemplate.FuncMap{"option": s.option, "items": s.items, "kebab": kebab, "snake": snake, "camel": camel, "pascal": pascal}
 	parsed, err := texttemplate.New(label).Delims(d.left, d.right).Funcs(funcs).Option("missingkey=error").Parse(text)
 	if err != nil {
 		return "", fmt.Errorf("parse %w", err)
@@ -90,4 +91,15 @@ func (s Selection) option(reference string) (string, error) {
 			reference, strings.Join(slices.Sorted(maps.Keys(s.values)), ", starter."))
 	}
 	return value, nil
+}
+
+func (s Selection) items(extensionPoint string) ([]map[string]string, error) {
+	if !slices.Contains(s.extensionPoints, extensionPoint) {
+		if len(s.extensionPoints) == 0 {
+			return nil, fmt.Errorf("unknown extension point %q: no selected feature declares an extension point", extensionPoint)
+		}
+		return nil, fmt.Errorf("unknown extension point %q: the selected features declare %s",
+			extensionPoint, strings.Join(s.extensionPoints, ", "))
+	}
+	return nil, nil
 }

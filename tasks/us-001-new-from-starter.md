@@ -466,24 +466,24 @@ takes the values of `--option`, writes the repo to `./<name>` or to `--output-di
 `after_render` commands. It accepts `--no-prompt`. The greeting of the root command is removed.
 
 **Acceptance Criteria:**
-- [ ] `feature-compose new <starter> <name>` writes the repo to `./<name>` in the working folder, and
+- [x] `feature-compose new <starter> <name>` writes the repo to `./<name>` in the working folder, and
   `--output-dir <path>` writes it to that path.
-- [ ] With fewer than two arguments, `new` stops with a message that names `<starter>` and `<name>`, and
+- [x] With fewer than two arguments, `new` stops with a message that names `<starter>` and `<name>`, and
   writes nothing.
-- [ ] `--option <name>=<value>` can be given more than one time, and each sets one starter option. A value
+- [x] `--option <name>=<value>` can be given more than one time, and each sets one starter option. A value
   without `=` stops `new` before the first file is written, with a message that shows the form
   `<name>=<value>`.
-- [ ] `new` accepts `--no-prompt`. With or without it, `new` asks no question, reads no input, and gives each
+- [x] `new` accepts `--no-prompt`. With or without it, `new` asks no question, reads no input, and gives each
   option without a given value its default.
-- [ ] An unknown starter, an unknown option, a value that does not match its pattern, and an output folder
+- [x] An unknown starter, an unknown option, a value that does not match its pattern, and an output folder
   that has entries each stop `new` with an exit status other than 0. The output folder is not made, or it
   keeps its contents.
-- [ ] After the last file is written, `new` runs the `after_render` commands. A command that fails ends `new`
+- [x] After the last file is written, `new` runs the `after_render` commands. A command that fails ends `new`
   with an exit status other than 0 and the message of Task 2.
-- [ ] From an empty folder, with no catalog files and no `SCAFFOLD_DIR`, `feature-compose new no-such-starter
+- [x] From an empty folder, with no catalog files and no `SCAFFOLD_DIR`, `feature-compose new no-such-starter
   x` exits with a status other than 0 and lists `go-event-sourcing-service`, and `feature-compose new
   go-event-sourcing-service x --option go-version=1.20` names `go-version` and its pattern and makes no `./x`.
-- [ ] The root command has no action of its own. The greeting and its end-to-end test are removed, and
+- [x] The root command has no action of its own. The greeting and its end-to-end test are removed, and
   `feature-compose` with no command prints its commands and reads no input.
 
 **Affected Files/Modules:**

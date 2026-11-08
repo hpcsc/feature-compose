@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
 
 	"github.com/fatih/color"
+	"github.com/hpcsc/feature-compose/catalog"
 	"github.com/hpcsc/feature-compose/internal/version"
 	"github.com/urfave/cli/v3"
 )
@@ -25,20 +25,11 @@ func Run(ctx context.Context) int {
 func newCommand() *cli.Command {
 	return &cli.Command{
 		Name:                  "feature-compose",
+		Usage:                 "make a repo from one starter and the features that you select",
 		Version:               version.Current(),
 		EnableShellCompletion: true,
-		Action: func(_ context.Context, cmd *cli.Command) error {
-			reader := bufio.NewReader(os.Stdin)
-			fmt.Fprint(cmd.Root().Writer, "Name: ")
-			text, err := reader.ReadString('\n')
-			if err != nil {
-				return fmt.Errorf("failed to read user input: %w", err)
-			}
-
-			fmt.Fprintf(cmd.Root().Writer, "hello %s\n", text)
-			return nil
-		},
 		Commands: []*cli.Command{
+			newNewCommand(catalog.Embedded()),
 			newVersionCommand(),
 			newUpdateCommand(),
 		},

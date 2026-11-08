@@ -156,7 +156,7 @@
     },
     {
       "n": 8,
-      "done": false,
+      "done": true,
       "title": "Replace the sample command with `new`",
       "language": "Go",
       "testable": true,

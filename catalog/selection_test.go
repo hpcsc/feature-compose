@@ -5,8 +5,10 @@ package catalog_test
 import (
 	"context"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -248,6 +250,91 @@ func TestSelection(t *testing.T) {
 
 			require.ErrorContains(t, err, "go/{{ .Name }}/main.go")
 			require.Empty(t, filesIn(t, parent))
+		})
+
+		withDelimiters := &fstest.MapFile{Data: []byte(`
+options:
+  module:
+    default: github.com/hpcsc/{{ .Name }}
+folders:
+  go:
+    path: .
+  web:
+    path: web
+delimiters:
+  - glob: "go/**/Taskfile*.yml"
+    left: "[["
+    right: "]]"
+  - glob: "go/.github/**"
+    left: "<%"
+    right: "%>"
+  - glob: "go/**"
+    left: "(("
+    right: "))"
+`)}
+
+		t.Run("a template that matches a delimiters glob renders with the delimiters of its first matching entry, and writes {{ }} as it is", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":                       withDelimiters,
+				"starters/service/files/go/Taskfile.yml":             &fstest.MapFile{Data: []byte("name: [[ .Name ]]\ncmd: go run . {{.CLI_ARGS}}\n")},
+				"starters/service/files/go/.github/workflows/ci.yml": &fstest.MapFile{Data: []byte("name: <% .Name %>\ntoken: ${{ secrets.GITHUB_TOKEN }}\n")},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := selectionOf(t, files, "my-service").Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"Taskfile.yml":             "name: my-service\ncmd: go run . {{.CLI_ARGS}}\n",
+				".github/workflows/ci.yml": "name: my-service\ntoken: ${{ secrets.GITHUB_TOKEN }}\n",
+			}, filesIn(t, output))
+		})
+
+		for catalogPath, expected := range map[string]string{
+			"go/Taskfile.yml":           "my-service {{ .Name }} (( .Name ))",
+			"go/a/b/Taskfile.test.yml":  "my-service {{ .Name }} (( .Name ))",
+			"web/Taskfile.yml":          "[[ .Name ]] my-service (( .Name ))",
+			"go/a/b/Makefile":           "[[ .Name ]] {{ .Name }} my-service",
+			"go/a/b/Taskfile.yml/other": "[[ .Name ]] {{ .Name }} my-service",
+		} {
+			t.Run("the glob ** matches any number of path segments, so "+catalogPath+" renders "+expected, func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":          withDelimiters,
+					"starters/service/files/" + catalogPath: &fstest.MapFile{Data: []byte("[[ .Name ]] {{ .Name }} (( .Name ))")},
+				}
+				output := filepath.Join(t.TempDir(), "my-service")
+
+				err := selectionOf(t, files, "my-service").Write(output)
+
+				require.NoError(t, err)
+				require.Equal(t, []string{expected}, slices.Collect(maps.Values(filesIn(t, output))))
+			})
+		}
+
+		t.Run("other delimiters give the same name, options and case functions as {{ and }}", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":           withDelimiters,
+				"starters/service/files/go/Taskfile.yml": &fstest.MapFile{Data: []byte(`[[ .Name ]] [[ option "starter.module" ]] [[ pascal .Name ]]`)},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := selectionOf(t, files, "my-service").Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"Taskfile.yml": "my-service github.com/hpcsc/my-service MyService"}, filesIn(t, output))
+		})
+
+		t.Run("the path of a template renders with {{ and }} also when its contents use other delimiters", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":                           withDelimiters,
+				"starters/service/files/go/cmd/{{ .Name }}/Taskfile.yml": &fstest.MapFile{Data: []byte("name: [[ .Name ]]\n")},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := selectionOf(t, files, "my-service").Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"cmd/my-service/Taskfile.yml": "name: my-service\n"}, filesIn(t, output))
 		})
 	})
 

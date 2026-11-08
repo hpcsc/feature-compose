@@ -65,7 +65,7 @@
     },
     {
       "n": 4,
-      "done": false,
+      "done": true,
       "title": "Render the templates that match a delimiters glob with their own delimiters",
       "language": "Go",
       "testable": true,

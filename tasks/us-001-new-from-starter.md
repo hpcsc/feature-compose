@@ -276,13 +276,13 @@ A template that matches a glob renders with those delimiters, so text that anoth
 template, such as the `{{ }}` of Task and the `${{ }}` of GitHub Actions, is written as it is.
 
 **Acceptance Criteria:**
-- [ ] A template whose catalog path matches the `glob` of a `delimiters` entry renders with the `left` and
+- [x] A template whose catalog path matches the `glob` of a `delimiters` entry renders with the `left` and
   the `right` of that entry. Text in it between `{{` and `}}`, for example `{{.CLI_ARGS}}` and
   `${{ secrets.GITHUB_TOKEN }}`, is written as it is.
-- [ ] `**` in a glob matches any number of path segments, also none: `go/**/Taskfile*.yml` matches
+- [x] `**` in a glob matches any number of path segments, also none: `go/**/Taskfile*.yml` matches
   `go/Taskfile.yml` and `go/a/b/Taskfile.test.yml`, and does not match `web/Taskfile.yml`.
-- [ ] A template that matches no glob renders with `{{` and `}}`.
-- [ ] With other delimiters, `.Name`, `option` and the case functions give the same values as with `{{` and
+- [x] A template that matches no glob renders with `{{` and `}}`.
+- [x] With other delimiters, `.Name`, `option` and the case functions give the same values as with `{{` and
   `}}`.
 
 **Affected Files/Modules:**

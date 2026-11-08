@@ -61,9 +61,9 @@ func (s Selection) checkEmpty(output string) error {
 	return nil
 }
 
-func (s Selection) render(name, text string) (string, error) {
+func (s Selection) render(name, text string, d delimiters) (string, error) {
 	funcs := texttemplate.FuncMap{"option": s.option, "kebab": kebab, "snake": snake, "camel": camel, "pascal": pascal}
-	parsed, err := texttemplate.New(name).Funcs(funcs).Option("missingkey=error").Parse(text)
+	parsed, err := texttemplate.New(name).Delims(d.left, d.right).Funcs(funcs).Option("missingkey=error").Parse(text)
 	if err != nil {
 		return "", fmt.Errorf("parse %w", err)
 	}

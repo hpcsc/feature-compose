@@ -35,6 +35,11 @@ func readStarter(fsys fs.FS, starterName string) (Starter, error) {
 			Path        string   `yaml:"path"`
 			AfterRender []string `yaml:"after_render"`
 		} `yaml:"folders"`
+		Delimiters []struct {
+			Glob  string `yaml:"glob"`
+			Left  string `yaml:"left"`
+			Right string `yaml:"right"`
+		} `yaml:"delimiters"`
 	}
 	if err := yaml.Unmarshal(definitionYAML, &definition); err != nil {
 		return Starter{}, fmt.Errorf("read %s: %w", definitionPath, err)
@@ -57,7 +62,15 @@ func readStarter(fsys fs.FS, starterName string) (Starter, error) {
 		}
 		folders[folderName] = folder{name: folderName, path: declared.Path, afterRender: declared.AfterRender}
 	}
-	templates, err := readTemplates(fsys, path.Join(root, "files"), folders)
+	var rules []delimitersRule
+	for _, declared := range definition.Delimiters {
+		rule, err := newDelimitersRule(declared.Glob, delimiters{left: declared.Left, right: declared.Right})
+		if err != nil {
+			return Starter{}, fmt.Errorf("read %s: %w", definitionPath, err)
+		}
+		rules = append(rules, rule)
+	}
+	templates, err := readTemplates(fsys, path.Join(root, "files"), folders, rules)
 	if err != nil {
 		return Starter{}, err
 	}
@@ -85,7 +98,7 @@ func (s Starter) Select(name string, given map[string]string) (Selection, error)
 		value, ok := given[optionName]
 		if !ok {
 			var err error
-			value, err = selection.render("the default of the option "+optionName, declared.defaultValue)
+			value, err = selection.render("the default of the option "+optionName, declared.defaultValue, defaultDelimiters)
 			if err != nil {
 				return Selection{}, err
 			}

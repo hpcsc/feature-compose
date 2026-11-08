@@ -95,6 +95,41 @@ func TestCatalog(t *testing.T) {
 			require.ErrorContains(t, err, "missing closing )")
 		})
 
+		t.Run("a delimiters glob that is not valid stops, and the message names the glob", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\ndelimiters:\n  - glob: \"go/**/[Task\"\n    left: \"[[\"\n    right: \"]]\"\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			}
+
+			_, err := catalog.New(files).Starter("service")
+
+			require.ErrorContains(t, err, `"go/**/[Task"`)
+		})
+
+		t.Run("a delimiters glob with an empty segment stops, and the message names the glob", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\ndelimiters:\n  - glob: \"go//Taskfile.yml\"\n    left: \"[[\"\n    right: \"]]\"\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			}
+
+			_, err := catalog.New(files).Starter("service")
+
+			require.ErrorContains(t, err, `"go//Taskfile.yml"`)
+		})
+
+		for name, pair := range map[string]string{"left": `left: "[["`, "right": `right: "]]"`} {
+			t.Run("delimiters with only "+name+" stop, and the message names the glob", func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\ndelimiters:\n  - glob: \"go/Taskfile.yml\"\n    " + pair + "\n")},
+					"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				}
+
+				_, err := catalog.New(files).Starter("service")
+
+				require.ErrorContains(t, err, `"go/Taskfile.yml"`)
+			})
+		}
+
 		t.Run("a folder whose path leads out of the repo stops, and the message names the folder", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n  web:\n    path: ../web\n")},

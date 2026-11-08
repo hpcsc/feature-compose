@@ -15,9 +15,10 @@ type template struct {
 	folder       folder
 	pathInFolder string
 	contents     string
+	delimiters   delimiters
 }
 
-func readTemplates(fsys fs.FS, root string, folders map[string]folder) ([]template, error) {
+func readTemplates(fsys fs.FS, root string, folders map[string]folder, rules []delimitersRule) ([]template, error) {
 	var templates []template
 	err := fs.WalkDir(fsys, root, func(name string, entry fs.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
@@ -34,7 +35,14 @@ func readTemplates(fsys fs.FS, root string, folders map[string]folder) ([]templa
 		if err != nil {
 			return err
 		}
-		templates = append(templates, template{path: catalogPath, folder: declared, pathInFolder: pathInFolder, contents: string(contents)})
+		chosen := defaultDelimiters
+		for _, rule := range rules {
+			if rule.matches(catalogPath) {
+				chosen = rule.delimiters
+				break
+			}
+		}
+		templates = append(templates, template{path: catalogPath, folder: declared, pathInFolder: pathInFolder, contents: string(contents), delimiters: chosen})
 		return nil
 	})
 	if err != nil {
@@ -44,7 +52,7 @@ func readTemplates(fsys fs.FS, root string, folders map[string]folder) ([]templa
 }
 
 func (t template) render(s Selection) (file, error) {
-	renderedPath, err := s.render(t.path, t.pathInFolder)
+	renderedPath, err := s.render(t.path, t.pathInFolder, defaultDelimiters)
 	if err != nil {
 		return file{}, err
 	}
@@ -52,7 +60,7 @@ func (t template) render(s Selection) (file, error) {
 	if !filepath.IsLocal(filepath.FromSlash(repoPath)) {
 		return file{}, fmt.Errorf("template %s renders to %s, which is outside the output folder", t.path, repoPath)
 	}
-	contents, err := s.render(t.path, t.contents)
+	contents, err := s.render(t.path, t.contents, t.delimiters)
 	if err != nil {
 		return file{}, err
 	}

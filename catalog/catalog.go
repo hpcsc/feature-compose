@@ -1,11 +1,15 @@
 package catalog
 
 import (
+	"embed"
 	"fmt"
 	"io/fs"
 	"slices"
 	"strings"
 )
+
+//go:embed all:starters
+var starters embed.FS
 
 type Catalog struct {
 	fsys fs.FS
@@ -13,6 +17,10 @@ type Catalog struct {
 
 func New(fsys fs.FS) Catalog {
 	return Catalog{fsys: fsys}
+}
+
+func Embedded() Catalog {
+	return New(starters)
 }
 
 func (c Catalog) Starter(starterName string) (Starter, error) {

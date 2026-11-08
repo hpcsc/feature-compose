@@ -104,7 +104,7 @@
     },
     {
       "n": 6,
-      "done": false,
+      "done": true,
       "title": "Port the go-event-sourcing-service starter, without the process manager, into the catalog in the binary",
       "language": "Go",
       "testable": true,

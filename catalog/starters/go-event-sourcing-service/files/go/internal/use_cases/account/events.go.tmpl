@@ -1,0 +1,14 @@
+package account
+
+import (
+	"{{ option "starter.module" }}/internal/domain/event/registry"
+	"{{ option "starter.module" }}/internal/use_cases/account/event"
+)
+
+func RegisterEvents(reg *registry.OfEvents) {
+	reg.Register[event.AccountOpened]()
+	reg.Register[event.MoneyDeposited]()
+	reg.Register[event.MoneyWithdrawn]()
+	reg.Register[event.WelcomeBonusGranted]()
+	reg.Register[event.AccountClosed]()
+}

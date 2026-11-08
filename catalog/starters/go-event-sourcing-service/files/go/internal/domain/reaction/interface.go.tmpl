@@ -1,0 +1,13 @@
+package reaction
+
+import (
+	"context"
+
+	"{{ option "starter.module" }}/internal/domain"
+)
+
+type Interface interface {
+	Handle(ctx context.Context, event *domain.Event) error
+	EventTypes() []string
+	Name() string
+}

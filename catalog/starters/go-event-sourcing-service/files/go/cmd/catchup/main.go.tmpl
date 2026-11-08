@@ -1,0 +1,125 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
+	"sync"
+	"sync/atomic"
+	"syscall"
+
+	"{{ option "starter.module" }}/internal/common/config"
+	"{{ option "starter.module" }}/internal/common/lock"
+	"{{ option "starter.module" }}/internal/domain/checkpoint/store"
+	"{{ option "starter.module" }}/internal/domain/command"
+	"{{ option "starter.module" }}/internal/domain/event/registry"
+	"{{ option "starter.module" }}/internal/domain/event/stream"
+	"{{ option "starter.module" }}/internal/domain/event/subscription"
+	"{{ option "starter.module" }}/internal/domain/projection"
+	"{{ option "starter.module" }}/internal/domain/reaction"
+	"{{ option "starter.module" }}/internal/use_cases"
+	"{{ option "starter.module" }}/internal/use_cases/account/balance"
+	"{{ option "starter.module" }}/internal/use_cases/account/welcomebonus"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+type Config struct {
+	DB config.DB
+}
+
+func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	cfg, err := config.Load[Config]()
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+
+	pool, err := pgxpool.New(context.Background(), cfg.DB.ConnectionString())
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+
+	ctx := runShutdownSignalHandler(context.Background(), logger)
+	failed := run(ctx, workers(pool, cfg, logger), lock.NewPostgres(pool), logger)
+
+	pool.Close()
+	if failed {
+		os.Exit(1)
+	}
+}
+
+// worker is a consumer or a scheduler. catchup runs each one under the lock of its name.
+type worker interface {
+	Name() string
+	Start(ctx context.Context) error
+}
+
+func workers(pool *pgxpool.Pool, cfg *Config, logger *slog.Logger) []worker {
+	reg := registry.New()
+	use_cases.RegisterEvents(reg)
+
+	eventStream := stream.NewPostgres(pool, reg)
+	bus := command.NewBus(command.WithHistory(eventStream))
+	use_cases.RegisterHandlers(bus, eventStream)
+
+	checkpointStore := store.NewPostgres(pool)
+	eventSubscription := subscription.NewPostgres(pool, reg, logger)
+
+	return []worker{
+		projection.NewProjector(balance.NewProjection(), pool, checkpointStore, eventSubscription, logger),
+		reaction.NewReactor(reaction.NewConflictRetry(welcomebonus.NewReaction(bus), 3), checkpointStore, eventSubscription, logger),
+	}
+}
+
+func run(parentCtx context.Context, workers []worker, locks *lock.Postgres, logger *slog.Logger) bool {
+	ctx, cancel := context.WithCancel(parentCtx)
+	defer cancel()
+
+	var failed atomic.Bool
+	var wg sync.WaitGroup
+	for _, w := range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if err := recover(); err != nil {
+					logger.Error(fmt.Sprintf("%s received unhandled error: %v", w.Name(), err))
+					failed.Store(true)
+					cancel()
+				}
+			}()
+
+			logger.Info(fmt.Sprintf("%s takes its lock", w.Name()))
+			if err := locks.Hold(ctx, w.Name(), w.Start); err != nil {
+				logger.Error(fmt.Sprintf("%s failed: %v", w.Name(), err))
+				failed.Store(true)
+				cancel()
+				return
+			}
+			logger.Info(fmt.Sprintf("%s stopped", w.Name()))
+		}()
+	}
+
+	wg.Wait()
+	return failed.Load()
+}
+
+func runShutdownSignalHandler(parentCtx context.Context, logger *slog.Logger) context.Context {
+	ctx, cancel := context.WithCancel(parentCtx)
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+
+	go func() {
+		s := <-sig
+		logger.Info(fmt.Sprintf("received %v signal", s))
+		cancel()
+	}()
+
+	return ctx
+}

@@ -350,30 +350,30 @@ manager, with each scaffold value changed to `.Name` or a starter option. The to
 template has it, and Task 7 removes it.
 
 **Acceptance Criteria:**
-- [ ] `catalog/starters/go-event-sourcing-service/starter.yml` has a `summary`; the option `go-version` with
+- [x] `catalog/starters/go-event-sourcing-service/starter.yml` has a `summary`; the option `go-version` with
   the default `1.27.1` and the regex of the `GoVersion` question of `scaffold.yml` as its pattern; the option
   `module` with the default `github.com/hpcsc/{{ .Name }}`; the folder `go` with `path: .`, the
   `after_render` commands `go mod tidy` and then `gofmt -w .`, and the `test` command `task test:unit`; and
   `[[` and `]]` delimiters for the Taskfiles and for the files under `.github/`. It has no
   `extension_points`.
-- [ ] The catalog in the binary finds `go-event-sourcing-service` with no catalog file on disk, from any
+- [x] The catalog in the binary finds `go-event-sourcing-service` with no catalog file on disk, from any
   working folder, and it holds the files whose names start with `.`.
-- [ ] Written with the name `my-service` and no given values, the repo has `module
+- [x] Written with the name `my-service` and no given values, the repo has `module
   github.com/hpcsc/my-service` and `go 1.27.1` in `go.mod`. Each import of a package of the repo starts with
   the module. `mise.toml`, `Dockerfile.api` and `Dockerfile.catchup` use the Go version. Each place where the
   template used the project name has `my-service`.
-- [ ] Written with `module=example.com/acme/ledger` and `go-version=1.28.0`, the repo has those values in the
+- [x] Written with `module=example.com/acme/ledger` and `go-version=1.28.0`, the repo has those values in the
   same places, and no file contains `github.com/hpcsc/my-service`.
-- [ ] Each Taskfile keeps the template syntax of Task, for example `{{.CLI_ARGS}}` and
+- [x] Each Taskfile keeps the template syntax of Task, for example `{{.CLI_ARGS}}` and
   `{{ default "latest" .TAG }}`, and `.github/workflows/ci.yml` keeps `${{ secrets.GITHUB_TOKEN }}`.
-- [ ] No written file contains a scaffold value (`.Scaffold.`, `.ProjectKebab`, `.ModulePath`) or the text
+- [x] No written file contains a scaffold value (`.Scaffold.`, `.ProjectKebab`, `.ModulePath`) or the text
   `<no value>`.
-- [ ] The written repo has none of the files that the `features` globs of `scaffold.yml` select for the
+- [x] The written repo has none of the files that the `features` globs of `scaffold.yml` select for the
   process manager, and none of the edits that the hook of
   `global/go-event-sourcing-service-process-manager` makes to shared files. Each shared file has the content
   of its branch for `ProcessManager: false`.
-- [ ] `hooks/pre-push` and each script under `scripts/` can be run in the written repo.
-- [ ] In this repo, `go build ./...`, `go vet ./...` and `task test:unit` pass with the starter in the
+- [x] `hooks/pre-push` and each script under `scripts/` can be run in the written repo.
+- [x] In this repo, `go build ./...`, `go vet ./...` and `task test:unit` pass with the starter in the
   catalog, and `git status --ignored catalog/` shows no file of the starter as ignored.
 
 **Affected Files/Modules:**

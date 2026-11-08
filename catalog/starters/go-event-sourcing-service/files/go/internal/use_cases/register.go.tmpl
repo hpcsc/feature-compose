@@ -1,0 +1,27 @@
+package use_cases
+
+import (
+	"{{ option "starter.module" }}/internal/domain/command"
+	"{{ option "starter.module" }}/internal/domain/event"
+	"{{ option "starter.module" }}/internal/domain/event/registry"
+	"{{ option "starter.module" }}/internal/use_cases/account"
+	"{{ option "starter.module" }}/internal/use_cases/account/closeaccount"
+	"{{ option "starter.module" }}/internal/use_cases/account/deposit"
+	"{{ option "starter.module" }}/internal/use_cases/account/open"
+	"{{ option "starter.module" }}/internal/use_cases/account/welcomebonus"
+	"{{ option "starter.module" }}/internal/use_cases/account/withdraw"
+)
+
+func RegisterEvents(reg *registry.OfEvents) {
+	account.RegisterEvents(reg)
+}
+
+func RegisterHandlers(bus *command.Bus, stream event.Stream) {
+	accounts := account.NewRepository(stream)
+
+	open.Register(bus, accounts)
+	deposit.Register(bus, accounts)
+	withdraw.Register(bus, accounts)
+	welcomebonus.Register(bus, accounts)
+	closeaccount.Register(bus, accounts)
+}

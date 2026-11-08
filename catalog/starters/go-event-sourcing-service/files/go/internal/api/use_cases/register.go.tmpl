@@ -1,0 +1,71 @@
+package use_cases
+
+import (
+	"fmt"
+	"log/slog"
+
+	"github.com/go-chi/chi/v5"
+	"{{ option "starter.module" }}/internal/api"
+	"{{ option "starter.module" }}/internal/api/middleware"
+	"{{ option "starter.module" }}/internal/api/route"
+	apiAccount "{{ option "starter.module" }}/internal/api/use_cases/account"
+	"{{ option "starter.module" }}/internal/api/use_cases/root"
+	"{{ option "starter.module" }}/internal/domain/command"
+	"{{ option "starter.module" }}/internal/domain/event/registry"
+	"{{ option "starter.module" }}/internal/domain/event/stream"
+	coreUseCases "{{ option "starter.module" }}/internal/use_cases"
+	"{{ option "starter.module" }}/internal/use_cases/account/balance"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func Register(router chi.Router, cfg *api.Config, pool *pgxpool.Pool, logger *slog.Logger) error {
+	authMiddleware, err := middleware.NewAuthMiddleware(cfg.TokenPath)
+	if err != nil {
+		return err
+	}
+
+	var publicRoutes, protectedRoutes []*route.Route
+	for _, r := range allRoutes(pool) {
+		if r.IsPublic() {
+			publicRoutes = append(publicRoutes, r)
+		} else if r.IsProtected() {
+			protectedRoutes = append(protectedRoutes, r)
+		}
+	}
+
+	for _, r := range publicRoutes {
+		router.MethodFunc(r.Method, r.Pattern, r.Handler)
+		logger.Info(fmt.Sprintf("registered public route %s %s", r.Method, r.Pattern))
+	}
+
+	router.Group(func(protectedRouter chi.Router) {
+		protectedRouter.Use(authMiddleware)
+
+		for _, r := range protectedRoutes {
+			protectedRouter.MethodFunc(r.Method, r.Pattern, r.Handler)
+			logger.Info(fmt.Sprintf("registered protected route %s %s", r.Method, r.Pattern))
+		}
+	})
+
+	return nil
+}
+
+func allRoutes(pool *pgxpool.Pool) []*route.Route {
+	reg := registry.New()
+	coreUseCases.RegisterEvents(reg)
+
+	eventStream := stream.NewPostgres(pool, reg)
+	bus := command.NewBus(command.WithHistory(eventStream))
+	coreUseCases.RegisterHandlers(bus, eventStream)
+
+	routables := []route.Routable{
+		root.NewHandler(),
+		apiAccount.NewHandler(bus, balance.NewQuery(pool)),
+	}
+
+	var routes []*route.Route
+	for _, r := range routables {
+		routes = append(routes, r.Routes()...)
+	}
+	return routes
+}

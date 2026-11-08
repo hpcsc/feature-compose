@@ -5,6 +5,10 @@ package catalog_test
 import (
 	"errors"
 	"io/fs"
+	"maps"
+	"path/filepath"
+	"regexp"
+	"slices"
 	"testing"
 	"testing/fstest"
 
@@ -159,5 +163,112 @@ func TestCatalog(t *testing.T) {
 				require.ErrorContains(t, err, "disk failure")
 			})
 		}
+	})
+
+	t.Run("embedded", func(t *testing.T) {
+		writtenStarter := func(t *testing.T, given map[string]string) (string, map[string]string) {
+			t.Helper()
+			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", given)
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+			require.NoError(t, selection.Write(output))
+			return output, filesIn(t, output)
+		}
+
+		t.Run("the catalog in the binary holds go-event-sourcing-service and its files whose names start with a dot, from any working folder", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			_, files := writtenStarter(t, nil)
+
+			require.Subset(t, slices.Collect(maps.Keys(files)), []string{
+				".github/workflows/ci.yml", ".gitignore", ".env.local", ".env.integration", ".tmuxp.yaml", "go.mod", "cmd/api/main.go",
+			})
+		})
+
+		t.Run("with no given values, the repo has the name, the default module and the default Go version", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			require.Contains(t, files["go.mod"], "module github.com/hpcsc/my-service\n")
+			require.Contains(t, files["go.mod"], "go 1.27.1\n")
+			require.Contains(t, files["internal/domain/reaction/conflict_retry.go"], `"github.com/hpcsc/my-service/internal/domain/event"`)
+			for _, path := range []string{"mise.toml", "Dockerfile.api", "Dockerfile.catchup"} {
+				require.Contains(t, files[path], "1.27.1", path)
+			}
+			require.NotContains(t, files, "go.sum")
+		})
+
+		t.Run("each file where the starter uses the name has the name, also with another module", func(t *testing.T) {
+			_, files := writtenStarter(t, map[string]string{"module": "example.com/acme/ledger"})
+
+			for _, path := range []string{
+				"README.md", ".tmuxp.yaml", "Taskfile.api.yml", "Taskfile.catchup.yml", "Taskfile.yml", "scripts/test/start-test-dependencies.sh",
+				"internal/domain/event/constants.go", "internal/domain/event/registry/registry_test.go",
+			} {
+				require.Contains(t, files[path], "my-service", path)
+			}
+		})
+
+		t.Run("a module value that a Go module path cannot hold stops the selection", func(t *testing.T) {
+			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", map[string]string{"module": "example.com/acme ledger;rm -rf ~"})
+
+			require.ErrorContains(t, err, "module")
+		})
+
+		t.Run("given values for the module and the Go version replace the defaults in each file", func(t *testing.T) {
+			_, files := writtenStarter(t, map[string]string{"module": "example.com/acme/ledger", "go-version": "1.28.0"})
+
+			require.Contains(t, files["go.mod"], "module example.com/acme/ledger\n")
+			require.Contains(t, files["go.mod"], "go 1.28.0\n")
+			require.Contains(t, files["cmd/api/main.go"], `"example.com/acme/ledger/internal/`)
+			for _, path := range []string{"Dockerfile.api", "Dockerfile.catchup"} {
+				require.Contains(t, files[path], "-X 'example.com/acme/ledger/internal/api/use_cases/root.Version=${VERSION}'", path)
+			}
+			for path, contents := range files {
+				require.NotContains(t, contents, "github.com/hpcsc/my-service", path)
+				require.NotContains(t, contents, "1.27.1", path)
+			}
+		})
+
+		t.Run("the Taskfiles and the GitHub workflow keep the template syntax of Task and of GitHub Actions", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			require.Contains(t, files["Taskfile.yml"], "{{.CLI_ARGS}}")
+			require.Contains(t, files["Taskfile.api.yml"], `-t my-service-api:{{ default "latest" .TAG }}`)
+			require.Contains(t, files[".github/workflows/ci.yml"], "${{ secrets.GITHUB_TOKEN }}")
+		})
+
+		t.Run("no written file holds a value of scaffold", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			for path, contents := range files {
+				for _, value := range []string{".Scaffold.", ".ProjectKebab", ".ModulePath", "<no value>", "zzsentinel"} {
+					require.NotContains(t, contents, value, path)
+				}
+			}
+		})
+
+		t.Run("the repo has no file and no edit of the process manager example", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			processManager := regexp.MustCompile(`^(internal/use_cases/payment/|internal/api/use_cases/(payment|webhook)/|internal/use_cases/account/(holds/|hold(_test)?\.go$|event/hold_|command/[^/]*_hold\.go$)|internal/fakeservices/|cmd/fakeservices/|Taskfile\.fakeservices\.yml$|Dockerfile\.fakeservices$|migrations/[^/]*_create-payment(s|-deadlines)-table\.|docs/process-manager-example\.md$|docs/event-model-payment\.)`)
+			for path, contents := range files {
+				require.False(t, processManager.MatchString(path), path)
+				require.NotContains(t, contents, "fakeservices", path)
+				require.NotContains(t, contents, "HoldPlaced", path)
+			}
+		})
+
+		t.Run("hooks/pre-push and the scripts can be run", func(t *testing.T) {
+			output, _ := writtenStarter(t, nil)
+
+			for _, path := range []string{"hooks/pre-push", "scripts/libs/git-hook-prepush.sh", "scripts/local/migrate/entrypoint.sh", "scripts/test/start-test-dependencies.sh"} {
+				require.Equal(t, 0o755&^umask(), modeOf(t, filepath.Join(output, path)), path)
+			}
+		})
 	})
 }

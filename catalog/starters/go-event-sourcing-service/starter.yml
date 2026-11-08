@@ -1,0 +1,23 @@
+summary: A Go service with an event store, an HTTP API, and a catchup process.
+
+options:
+  go-version:
+    default: "1.27.1"
+    pattern: '^1\.(2[7-9]|[3-9][0-9])(\.[0-9]+)?$'
+  module:
+    default: github.com/hpcsc/{{ .Name }}
+    pattern: '^[A-Za-z0-9][A-Za-z0-9._~/-]*$'
+
+folders:
+  go:
+    path: .
+    after_render: [go mod tidy, gofmt -w .]
+    test: [task test:unit]
+
+delimiters:
+  - glob: "go/**/Taskfile*.yml"
+    left: "[["
+    right: "]]"
+  - glob: "go/.github/**"
+    left: "[["
+    right: "]]"

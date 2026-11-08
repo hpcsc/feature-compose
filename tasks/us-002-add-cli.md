@@ -508,17 +508,17 @@ repo, runs its unit tests and runs its CLI. A second test shows that an unknown 
 with the list of features that target the starter.
 
 **Acceptance Criteria:**
-- [ ] An end-to-end test runs `feature-compose new go-event-sourcing-service my-service --feature cli --no-prompt`
+- [x] An end-to-end test runs `feature-compose new go-event-sourcing-service my-service --feature cli --no-prompt`
   in an empty scratch folder. It exits with 0 and writes `./my-service`.
-- [ ] In `./my-service`, `gofmt -l .` lists no file, `go build ./...` exits with 0, and `task test:unit` exits
+- [x] In `./my-service`, `gofmt -l .` lists no file, `go build ./...` exits with 0, and `task test:unit` exits
   with 0. The output of `task test:unit` names the packages under `internal/cli` that have tests and the
   packages of the service that have tests.
-- [ ] In `./my-service`, `go run ./cmd/my-service` with no command exits with 0, reads no input, and prints the
+- [x] In `./my-service`, `go run ./cmd/my-service` with no command exits with 0, reads no input, and prints the
   commands `version` and `update` and no command other than those and `help`.
-- [ ] `feature-compose new go-event-sourcing-service x --feature no-such-feature` exits with a status other than
+- [x] `feature-compose new go-event-sourcing-service x --feature no-such-feature` exits with a status other than
   0, its output lists `cli`, and the scratch folder stays empty.
-- [ ] Only the full runs have a timeout longer than the 30 seconds of `e2e/vitest.config.ts`.
-- [ ] `docs/e2e-tests.md` of this repo describes the full run with `cli`: what it checks, what it needs, and
+- [x] Only the full runs have a timeout longer than the 30 seconds of `e2e/vitest.config.ts`.
+- [x] `docs/e2e-tests.md` of this repo describes the full run with `cli`: what it checks, what it needs, and
   about how long it takes.
 
 **Affected Files/Modules:**

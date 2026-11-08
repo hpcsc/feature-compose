@@ -52,6 +52,42 @@ describe('feature-compose new', () => {
     15 * 60 * 1000,
   )
 
+  it('an unknown feature stops new, and the message lists the features that target the starter', async () => {
+    const dir = scratchDir()
+
+    const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'x', '--feature', 'no-such-feature'])
+
+    expect(result.status).not.toBe(0)
+    expect(result.stdout + result.stderr).toContain('the features that target the starter go-event-sourcing-service are cli')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  it(
+    'makes a repo with cli that builds, passes the unit tests of the service and of the CLI, and runs the CLI',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      const repo = join(dir, 'my-service')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      const build = await runProgram(repo, 'go', ['build', './...'], env)
+      expect(build.status, build.stdout + build.stderr).toBe(0)
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      expect(passedPackages(unit.stdout)).toEqual(
+        expect.arrayContaining(['internal/cli', 'internal/cli/release', 'internal/cli/version', 'internal/cli/progress', 'internal/use_cases/account', 'internal/domain/projection']),
+      )
+      const cli = await runProgram(repo, 'go', ['run', './cmd/my-service'], env)
+      expect(cli.status, cli.stdout + cli.stderr).toBe(0)
+      expect(commandsIn(cli.stdout)).toEqual(['version', 'update', 'help, h'])
+    },
+    15 * 60 * 1000,
+  )
+
   it('a SIGTERM during the folder commands stops the commands too, and new ends with an error', async () => {
     const dir = scratchDir()
     const proxy = await silentGoProxy()
@@ -103,4 +139,21 @@ async function until(condition: () => boolean): Promise<void> {
     if (waited > 20000) throw new Error('the condition did not hold within 20 seconds')
     await new Promise((done) => setTimeout(done, 50))
   }
+}
+
+// gotestsum starts the line of a package with ✓ when its tests pass, and with ∅ when the package has no test
+// that the build tags let run.
+function passedPackages(output: string): string[] {
+  return output
+    .split('\n')
+    .filter((line) => line.startsWith('✓'))
+    .map((line) => line.split(/\s+/)[1])
+}
+
+function commandsIn(help: string): string[] {
+  const section = help.split('COMMANDS:\n')[1]?.split('\n\n')[0] ?? ''
+  return section
+    .split('\n')
+    .map((line) => line.trim().split(/\s{2,}/)[0])
+    .filter((name) => name !== '')
 }

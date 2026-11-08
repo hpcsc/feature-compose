@@ -79,7 +79,8 @@ tests keep the original binary.
 
 ## The full run of `new`
 
-One test in `e2e/tests/new.test.ts` makes a repo from `go-event-sourcing-service` and checks it:
+Two tests in `e2e/tests/new.test.ts` make a repo from `go-event-sourcing-service` and check it. The first
+makes the repo from the starter alone:
 
 1. `feature-compose new go-event-sourcing-service my-service --no-prompt` makes the repo. Its `after_render`
    commands run `go mod tidy`, which downloads the modules of the repo.
@@ -87,10 +88,19 @@ One test in `e2e/tests/new.test.ts` makes a repo from `go-event-sourcing-service
 3. `task --list` and `task test:unit` stop with the exit status 0. `task test:unit` runs gotestsum, and
    gotestsum runs `go test -race`, which needs a C compiler.
 
-So this test needs Go, Task, gotestsum, a C compiler and the network. It takes about 15 seconds when the Go
-module cache has the modules of the new repo, and some minutes when it does not, for example in Docker.
-It is the only test with a timeout longer than the 30 seconds of `e2e/vitest.config.ts`: its timeout is 15
-minutes.
+The second adds `--feature cli`, and checks that the feature fits the starter:
+
+1. `gofmt -l .` lists no file, and `go build ./...` builds the service and the CLI.
+2. `task test:unit` stops with the exit status 0, and its output names the tested packages of the CLI
+   under `internal/cli` and of the service.
+3. `go run ./cmd/my-service` with no command prints the commands of the CLI, which are only `version`,
+   `update` and `help`, and reads no input.
+
+So these tests need Go, Task, gotestsum, a C compiler and the network. Each takes less than a minute when
+the Go module cache has the modules of the new repo, and some minutes when it does not, for example in
+Docker.
+They are the only tests with a timeout longer than the 30 seconds of `e2e/vitest.config.ts`: their timeout
+is 15 minutes.
 
 The new repo has its own `mise.toml`. On a machine where `go` or `task` runs through a mise shim, mise
 refuses a config that nobody trusted. The test sets `MISE_TRUSTED_CONFIG_PATHS` to its scratch folder, so

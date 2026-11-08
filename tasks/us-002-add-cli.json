@@ -147,7 +147,7 @@
     },
     {
       "n": 7,
-      "done": false,
+      "done": true,
       "title": "Check end to end that a repo with `cli` builds and passes the unit tests of the service and of the CLI",
       "language": "TypeScript",
       "testable": true,

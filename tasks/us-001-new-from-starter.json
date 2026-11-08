@@ -1,0 +1,212 @@
+{
+  "story": "Make a repo from the go-event-sourcing-service starter",
+  "story_id": "feature-compose/US-001",
+  "tasks_file": "tasks/us-001-new-from-starter.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Write a starter's templates into a new repo folder",
+      "language": "Go",
+      "testable": true,
+      "certainty": "low",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "internal/release/updater_test.go:110-137",
+        "internal/release/updater_test.go:255-275",
+        "PROPOSAL.md:99-150",
+        "PROPOSAL.md:295-326"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "catalog/",
+        "go.mod",
+        "go.sum"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Run the after_render commands of each folder",
+      "language": "Go",
+      "testable": true,
+      "certainty": "low",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "task:1"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Set the starter options from their defaults and from given values",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1",
+        "PROPOSAL.md:104-110",
+        "PROPOSAL.md:254-273",
+        "PROPOSAL.md:295-326"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/"
+      ]
+    },
+    {
+      "n": 4,
+      "done": false,
+      "title": "Render the templates that match a delimiters glob with their own delimiters",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1",
+        "PROPOSAL.md:131-134"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/",
+        "go.mod",
+        "go.sum"
+      ]
+    },
+    {
+      "n": 5,
+      "done": false,
+      "title": "Write `.tmpl` templates without the suffix, and scripts as executables",
+      "language": "Go",
+      "testable": true,
+      "certainty": "low",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/"
+      ]
+    },
+    {
+      "n": 6,
+      "done": false,
+      "title": "Port the go-event-sourcing-service starter, without the process manager, into the catalog in the binary",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "PROPOSAL.md:101-135",
+        "task:3",
+        "task:4",
+        "task:5"
+      ],
+      "depends_on": [
+        3,
+        4,
+        5
+      ],
+      "affected_files": [
+        "catalog/starters/go-event-sourcing-service/starter.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/",
+        "catalog/"
+      ]
+    },
+    {
+      "n": 7,
+      "done": false,
+      "title": "Remove the shared-token check from the starter",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "task:6"
+      ],
+      "depends_on": [
+        6
+      ],
+      "affected_files": [
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/middleware/",
+        "catalog/starters/go-event-sourcing-service/files/go/local/api/token",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/use_cases/register.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/config.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/test/common.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/Taskfile.api.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/docker-compose.local.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/docs/event-model-account.md",
+        "catalog/starters/go-event-sourcing-service/files/go/docs/event-model-account.emod",
+        "catalog/"
+      ]
+    },
+    {
+      "n": 8,
+      "done": false,
+      "title": "Replace the sample command with `new`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/cmd/update.go:21-32",
+        "internal/cmd/adapter.go:28-37",
+        "internal/cmd/root.go:25-46",
+        "internal/cmd/adapter_test.go:14-20",
+        "e2e/tests/cli.test.ts:17-30",
+        "e2e/tests/update.test.ts:91-100"
+      ],
+      "depends_on": [
+        2,
+        6
+      ],
+      "affected_files": [
+        "internal/cmd/root.go",
+        "internal/cmd/new.go",
+        "internal/cmd/new_test.go",
+        "e2e/tests/cli.test.ts",
+        "e2e/tests/new.test.ts"
+      ]
+    },
+    {
+      "n": 9,
+      "done": false,
+      "title": "Check end to end that a new repo passes `task test:unit` and `task --list`",
+      "language": "TypeScript",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "e2e/tests/cli.test.ts:17-30",
+        "e2e/testUtils.ts:36-53",
+        "e2e/Dockerfile:1-24",
+        "Taskfile.test.yml:11-23"
+      ],
+      "depends_on": [
+        7,
+        8
+      ],
+      "affected_files": [
+        "e2e/tests/new.test.ts",
+        "e2e/testUtils.ts",
+        "e2e/Dockerfile",
+        "docs/e2e-tests.md"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-001-new-from-starter.design.yaml"
+}

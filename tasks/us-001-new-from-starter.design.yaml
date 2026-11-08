@@ -1,0 +1,96 @@
+design: planned
+types:
+  - name: Catalog
+    package: catalog
+    change: new
+    does: finds a starter by name among the starters of a file system
+    owns:
+      - an unknown starter name stops the tool, and the message lists the starters of the catalog
+    fields: []
+    methods: [Starter]
+  - name: Starter
+    package: catalog
+    change: new
+    does: reads one starter.yml and the templates under the files folder of the starter
+    owns:
+      - each given value names an option of the starter and matches the pattern of that option
+    fields: []
+    methods: [Select]
+  - name: Selection
+    package: catalog
+    change: new
+    does: makes one repo from a starter, a name and the values of the starter options
+    owns:
+      - each option has one value, the given value or else its default rendered with the name
+      - the tool never writes into an output folder that has an entry
+      - a template that fails, or two templates with one path, stop the write before the first file
+      - the after_render commands of a folder run in that folder of the repo, after the last file
+    fields: []
+    methods: [Write, RunAfterRender]
+  - name: template
+    package: catalog
+    change: new
+    does: one file under the files folder of a starter, which renders to one file of the repo
+    owns:
+      - the first path segment names a folder of the starter, and the file goes to the path of that folder
+      - a name that ends in .tmpl loses that suffix
+      - "a template that matches a delimiters glob renders with its delimiters, and with {{ and }} otherwise"
+      - "a rendered file that starts with #! is an executable"
+    fields: [path, contents]
+    methods: []
+  - name: option
+    package: catalog
+    change: new
+    does: one question of a starter, with its default and its pattern
+    owns:
+      - a value matches the pattern, when the option has one
+    fields: [defaultValue, pattern]
+    methods: []
+  - name: folder
+    package: catalog
+    change: new
+    does: one named folder of a starter, with its path in the repo and its commands
+    owns:
+      - a command that fails stops the run, and the message names the folder, the command and its output
+      - the test commands are data, and the tool does not run them
+    fields: [path, afterRender, test]
+    methods: []
+functions:
+  - New(files fs.FS) Catalog
+  - Embedded() Catalog
+words:
+  - concept: the starters that the binary carries, and later the features
+    word: catalog
+    not: [registry, library, templates folder]
+  - concept: the files that a new repo of one kind starts from, with its starter.yml
+    word: starter
+    not: [template, base, app, project]
+  - concept: one file under the files folder of a starter
+    word: template
+    not: [source, part, asset]
+  - concept: the name of the new repo, from new <starter> <name>
+    word: name
+    not: [project, project name, ProjectKebab]
+  - concept: a question that a starter asks, set with --option
+    word: option
+    not: [question, variable, setting, answer]
+  - concept: a named folder of a starter, with its path in the repo and its commands
+    word: folder
+    not: [directory, component, module]
+  - concept: the starter, the name and the option values of one repo
+    word: selection
+    not: [answers, config, preset]
+  - concept: turn the templates into the files of the repo
+    word: render
+    not: [generate, scaffold, compile, expand]
+  - concept: the commands that run in a folder after the render
+    word: after_render commands
+    not: [hooks, post_scaffold, post-render]
+  - concept: the folder that the tool writes the new repo into
+    word: output folder
+    not: [target, destination]
+  - concept: the two strings that start and end an action in a template
+    word: delimiters
+    not: [braces, tags, markers]
+dependencies:
+  - internal/cmd -> catalog

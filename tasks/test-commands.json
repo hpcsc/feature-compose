@@ -1,0 +1,4 @@
+{
+  "default": "task test:unit",
+  "Go": "task test:unit"
+}

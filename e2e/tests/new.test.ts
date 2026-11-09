@@ -182,6 +182,16 @@ describe('feature-compose new', () => {
     expect(readdirSync(dir)).toEqual([])
   })
 
+  it('--dry-run shows each option with its value and its source, and writes nothing', async () => {
+    const dir = scratchDir()
+
+    const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--option', 'go-version=1.28', '--feature', 'cli-auth', '--dry-run'])
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toContain('Options:\n  starter.go-version: 1.28 (command line)\n  starter.module: github.com/hpcsc/my-service (default)\n  api-auth.method: api-key (default)\n\n')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
   for (const [name, args] of [
     ['an unknown feature', ['--feature', 'no-such-feature']],
     ['a go-version that does not match its pattern', ['--option', 'go-version=1.20']],

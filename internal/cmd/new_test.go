@@ -344,7 +344,7 @@ folders:
 			printed, err := runNew(t, withFeatures(), "service", "my-service", "--feature", "cli", "--dry-run")
 
 			require.NoError(t, err)
-			require.Equal(t, "Repo: my-service\nStarter: service\n\nFeatures:\n  cli: command line\n\nFiles:\n  cmd/my-service/main.go: the feature cli\n  go.mod: the starter\n", printed)
+			require.Equal(t, "Repo: my-service\nStarter: service\n\nFeatures:\n  cli: command line\n\nOptions:\n  starter.go-version: 1.27.1 (default)\n  starter.module: github.com/hpcsc/my-service (default)\n\nFiles:\n  cmd/my-service/main.go: the feature cli\n  go.mod: the starter\n", printed)
 			require.Empty(t, filesIn(t, workingFolder))
 		})
 
@@ -393,6 +393,15 @@ folders:
 			require.NoError(t, err)
 			require.Equal(t, "b: needed by a, w\nc: needed by w\nMade my-service from the starter service.\n", made)
 			require.Contains(t, printed, "Features:\n  b: needed by a, w\n  a: command line\n  c: needed by w\n  w: command line\n\n")
+		})
+
+		t.Run("--dry-run shows each option with the value that the templates read and its source, for --option and for --feature", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			printed, err := runNew(t, withFeatures(), "service", "my-service", "--option", "go-version=1.28.0", "--feature", "auth:method=oauth", "--dry-run")
+
+			require.NoError(t, err)
+			require.Contains(t, printed, "Options:\n  starter.go-version: 1.28.0 (command line)\n  starter.module: github.com/hpcsc/my-service (default)\n  auth.method: oauth (command line)\n  auth.realm: api (default)\n\n")
 		})
 
 		t.Run("the two orders of the flags of a feature and its need give the same preview", func(t *testing.T) {

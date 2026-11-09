@@ -101,7 +101,7 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	if err != nil {
 		return Selection{}, err
 	}
-	return Selection{folders: s.folders, name: name, starterName: s.name, featureNames: featureNames, starterValues: starterValues, featureValues: featureValues, templates: templates, extensionPoints: extensionPoints, addedByNeeds: s.addedByNeeds(selected, givenByFeature), needs: needs}, nil
+	return Selection{folders: s.folders, name: name, starterName: s.name, featureNames: featureNames, starterValues: starterValues, givenStarterValues: maps.Clone(given), givenFeatureValues: maps.Clone(givenByFeature), featureValues: featureValues, templates: templates, extensionPoints: extensionPoints, addedByNeeds: s.addedByNeeds(selected, givenByFeature), needs: needs}, nil
 }
 
 func (s Starter) combinations() []Combination {

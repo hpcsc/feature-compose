@@ -46,7 +46,7 @@ machine.
 and runs no command, so the output folder does not exist after the run:
 
 ```shell
-feature-compose new go-event-sourcing-service my-service --feature cli-auth --dry-run
+feature-compose new go-event-sourcing-service my-service --option go-version=1.28 --feature cli-auth --dry-run
 ```
 
 ```text
@@ -57,6 +57,11 @@ Features:
   api-auth: needed by cli-auth
   cli: needed by cli-auth
   cli-auth: command line
+
+Options:
+  starter.go-version: 1.28 (command line)
+  starter.module: github.com/hpcsc/my-service (default)
+  api-auth.method: api-key (default)
 
 Files:
   .dockerignore: the feature cli
@@ -73,6 +78,15 @@ that it needs, with its source:
 | --- | --- |
 | `command line` | A `--feature` flag selects the feature, also when another selected feature needs it. |
 | `needed by <features>` | Only a need selects the feature. The line is the line that `new` prints for it. |
+
+Then the preview gives each option by the name with which a template reads it: the options of the starter as
+`starter.<option>`, and then the options of each feature as `<feature>.<option>`, with the features in the order
+above. Each option shows the value that the templates read, and its source:
+
+| Source | Meaning |
+| --- | --- |
+| `command line` | `--option <name>=<value>` or `--feature <name>:<option>=<value>` gives the value, also when it is the same as the default. |
+| `default` | No flag gives the value, so the option has its default. A default that holds `{{ .Name }}` shows with the name of the repo. |
 
 Last, the preview gives each file of the repo by its path, in the order of the paths, with its owner: the starter,
 or the feature whose template writes the file.

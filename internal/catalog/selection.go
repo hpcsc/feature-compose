@@ -17,16 +17,18 @@ import (
 )
 
 type Selection struct {
-	folders         map[string]folder
-	name            string
-	starterName     string
-	featureNames    []string
-	starterValues   map[string]string
-	featureValues   map[string]map[string]string
-	templates       []template
-	extensionPoints map[string]extensionPoint
-	addedByNeeds    []Need
-	needs           map[string][]string
+	folders            map[string]folder
+	name               string
+	starterName        string
+	featureNames       []string
+	starterValues      map[string]string
+	featureValues      map[string]map[string]string
+	givenStarterValues map[string]string
+	givenFeatureValues map[string]map[string]string
+	templates          []template
+	extensionPoints    map[string]extensionPoint
+	addedByNeeds       []Need
+	needs              map[string][]string
 }
 
 func (s Selection) AddedByNeeds() []Need {
@@ -58,25 +60,11 @@ func (s Selection) Preview() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	slices.SortFunc(files, func(a, b file) int { return strings.Compare(a.path, b.path) })
 	var preview strings.Builder
 	fmt.Fprintf(&preview, "Repo: %s\nStarter: %s\n", s.name, s.starterName)
-	if len(s.featureNames) == 0 {
-		preview.WriteString("\nFeatures: none\n")
-	} else {
-		preview.WriteString("\nFeatures:\n")
-	}
-	for _, featureName := range s.featureNames {
-		fmt.Fprintf(&preview, "  %s: %s\n", featureName, s.featureSource(featureName))
-	}
-	if len(files) == 0 {
-		preview.WriteString("\nFiles: none\n")
-	} else {
-		preview.WriteString("\nFiles:\n")
-	}
-	for _, f := range files {
-		fmt.Fprintf(&preview, "  %s: %s\n", f.path, f.owner)
-	}
+	s.writeSection(&preview, "Features", s.featureLines())
+	s.writeSection(&preview, "Options", s.optionLines())
+	s.writeSection(&preview, "Files", s.fileLines(files))
 	return preview.String(), nil
 }
 
@@ -98,6 +86,25 @@ func (s Selection) RunTests(ctx context.Context, output string) error {
 	return nil
 }
 
+func (s Selection) writeSection(preview *strings.Builder, heading string, lines []string) {
+	if len(lines) == 0 {
+		fmt.Fprintf(preview, "\n%s: none\n", heading)
+		return
+	}
+	fmt.Fprintf(preview, "\n%s:\n", heading)
+	for _, line := range lines {
+		fmt.Fprintf(preview, "  %s\n", line)
+	}
+}
+
+func (s Selection) featureLines() []string {
+	lines := make([]string, 0, len(s.featureNames))
+	for _, featureName := range s.featureNames {
+		lines = append(lines, featureName+": "+s.featureSource(featureName))
+	}
+	return lines
+}
+
 func (s Selection) featureSource(featureName string) string {
 	for _, need := range s.addedByNeeds {
 		if need.Feature == featureName {
@@ -105,6 +112,35 @@ func (s Selection) featureSource(featureName string) string {
 		}
 	}
 	return "command line"
+}
+
+func (s Selection) optionLines() []string {
+	var lines []string
+	for _, optionName := range slices.Sorted(maps.Keys(s.starterValues)) {
+		lines = append(lines, s.optionLine("starter."+optionName, s.starterValues[optionName], s.givenStarterValues, optionName))
+	}
+	for _, featureName := range s.featureNames {
+		for _, optionName := range slices.Sorted(maps.Keys(s.featureValues[featureName])) {
+			lines = append(lines, s.optionLine(featureName+"."+optionName, s.featureValues[featureName][optionName], s.givenFeatureValues[featureName], optionName))
+		}
+	}
+	return lines
+}
+
+func (s Selection) optionLine(reference, value string, given map[string]string, optionName string) string {
+	source := "default"
+	if _, ok := given[optionName]; ok {
+		source = "command line"
+	}
+	return fmt.Sprintf("%s: %s (%s)", reference, value, source)
+}
+
+func (s Selection) fileLines(files []file) []string {
+	lines := make([]string, 0, len(files))
+	for _, f := range slices.SortedFunc(slices.Values(files), func(a, b file) int { return strings.Compare(a.path, b.path) }) {
+		lines = append(lines, f.path+": "+f.owner)
+	}
+	return lines
 }
 
 func (s Selection) files() ([]file, error) {

@@ -81,7 +81,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Show each option of the preview with its value and its source",
       "language": "Go",
       "testable": true,

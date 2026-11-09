@@ -329,19 +329,19 @@ and its source: `command line` for a value that a flag gives, and `default` for 
 does not occur, because a need sets no value in the catalog format of today (Deferred).
 
 **Acceptance Criteria:**
-- [ ] The preview lists each option of the starter by the name `starter.<option>`, in the order of the names, and
+- [x] The preview lists each option of the starter by the name `starter.<option>`, in the order of the names, and
   then each option of each feature by the name `<feature>.<option>`, with the features in the order of Task 2 and
   the options of one feature in the order of the names. These are the names with which a template reads the
   options (`internal/catalog/selection.go:110-136`).
-- [ ] Each option shows the value that the templates of the repo read. A default shows rendered with the name of the
+- [x] Each option shows the value that the templates of the repo read. A default shows rendered with the name of the
   repo, for example `github.com/hpcsc/my-service` for the default of `module`.
-- [ ] The source of a value is `command line` when `--option <name>=<value>` or
+- [x] The source of a value is `command line` when `--option <name>=<value>` or
   `--feature <name>:<option>=<value>` gives it, also when the value equals the default, and `default` for each other
   value. Each option of a feature that a need added shows `default`.
-- [ ] A starter or a feature with no option adds no option to the preview, and a selection with no option shows
+- [x] A starter or a feature with no option adds no option to the preview, and a selection with no option shows
   that the repo has no option.
-- [ ] The section "Preview a Repo" of `README.md` names the options, their values, and their two sources.
-- [ ] `e2e/tests/new.test.ts`:
+- [x] The section "Preview a Repo" of `README.md` names the options, their values, and their two sources.
+- [x] `e2e/tests/new.test.ts`:
   `new go-event-sourcing-service my-service --option go-version=1.28 --feature cli-auth --dry-run` prints
   `starter.go-version` with `1.28` and `command line`, `starter.module` with `github.com/hpcsc/my-service` and
   `default`, and `api-auth.method` with `api-key` and `default`, and the scratch folder holds no entry after the

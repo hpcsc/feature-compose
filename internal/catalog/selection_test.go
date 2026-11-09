@@ -820,6 +820,8 @@ Starter: service
 Features:
   cli: command line
 
+Options: none
+
 Files:
   cmd/my-service/main.go: the feature cli
   frontend/index.html: the starter
@@ -844,6 +846,19 @@ Files:
 			require.Equal(t, slices.Sorted(maps.Keys(filesIn(t, output))), previewed)
 		})
 
+		t.Run("a path that starts with the text of another path comes after it", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":       oneFolder,
+				"starters/service/files/go/notes.md": &fstest.MapFile{Data: []byte("notes\n")},
+				"starters/service/files/go/notes":    &fstest.MapFile{Data: []byte("notes\n")},
+			}
+
+			preview, err := selectionWith(t, files).Preview()
+
+			require.NoError(t, err)
+			require.True(t, strings.HasSuffix(preview, "\nFiles:\n  notes: the starter\n  notes.md: the starter\n"), preview)
+		})
+
 		t.Run("a starter with no template gives a repo with no file", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml": oneFolder,
@@ -853,7 +868,7 @@ Files:
 			preview, err := selectionWith(t, files).Preview()
 
 			require.NoError(t, err)
-			require.Equal(t, "Repo: my-service\nStarter: service\n\nFeatures: none\n\nFiles: none\n", preview)
+			require.Equal(t, "Repo: my-service\nStarter: service\n\nFeatures: none\n\nOptions: none\n\nFiles: none\n", preview)
 		})
 
 		withNeeds := func(definitions map[string]string) fstest.MapFS {
@@ -882,6 +897,8 @@ Features:
   y: needed by x
   x: command line
 
+Options: none
+
 Files:
   main.go: the starter
 `, preview)
@@ -894,6 +911,50 @@ Files:
 
 			require.NoError(t, err)
 			require.Contains(t, preview, "Features:\n  c: needed by b\n  b: command line\n  a: command line\n\n")
+		})
+
+		withOptions := func() fstest.MapFS {
+			return fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("options:\n  module:\n    default: example.com/{{ .Name }}\n  go-version:\n    default: 1.27.1\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"features/a/feature.yml":            &fstest.MapFile{Data: []byte("summary: A.\ntargets: [service]\nneeds: [b]\noptions:\n  level:\n    default: \"1\"\n")},
+				"features/b/feature.yml":            &fstest.MapFile{Data: []byte("summary: B.\ntargets: [service]\noptions:\n  zeta:\n    default: z\n  mode:\n    values: [fast, slow]\n    default: fast\n")},
+				"features/c/feature.yml":            &fstest.MapFile{Data: []byte("summary: C.\ntargets: [service]\n")},
+			}
+		}
+
+		t.Run("gives each option of the starter as starter.<option>, then each option of each feature as <feature>.<option> with the features in their order, each with the value that the templates read and its source", func(t *testing.T) {
+			starter, err := catalog.New(withOptions()).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", map[string]string{"go-version": "1.28"}, map[string]map[string]string{"a": {"level": "2"}, "c": {}})
+			require.NoError(t, err)
+
+			preview, err := selection.Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, `
+Options:
+  starter.go-version: 1.28 (command line)
+  starter.module: example.com/my-service (default)
+  b.mode: fast (default)
+  b.zeta: z (default)
+  a.level: 2 (command line)
+
+`)
+		})
+
+		t.Run("a value that a flag gives with the text of the default shows the source command line", func(t *testing.T) {
+			starter, err := catalog.New(withOptions()).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", map[string]string{"module": "example.com/my-service"}, map[string]map[string]string{"b": {"mode": "fast"}})
+			require.NoError(t, err)
+
+			preview, err := selection.Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, "  starter.module: example.com/my-service (command line)\n")
+			require.Contains(t, preview, "  b.mode: fast (command line)\n")
+			require.Contains(t, preview, "  b.zeta: z (default)\n")
 		})
 
 		for name, test := range map[string]struct {

@@ -136,7 +136,7 @@ delimiters:
 
 | Field | Meaning |
 | --- | --- |
-| `summary` | One sentence about what the repo gets. `show` prints it. |
+| `summary` | One sentence about what the repo gets. `show` shows it. |
 | `options` | The questions of the starter. Section 8 tells how options work. |
 | `folders.<name>.path` | The path of the folder in the repo. |
 | `folders.<name>.after_render` | The commands that run in the folder after the tool renders all files. |
@@ -238,7 +238,7 @@ add_to:
 
 | Field | Meaning |
 | --- | --- |
-| `summary` | One sentence about what the repo gets. `show` prints it. |
+| `summary` | One sentence about what the repo gets. `show` shows it. |
 | `targets` | The starters that the feature works with. |
 | `needs` | The features that this feature cannot work without. A need can set option values, for example `needs: {api-auth: {method: oauth}}`. |
 | `options` | The questions of the feature. |
@@ -358,8 +358,8 @@ extension points.
 | Command | Job |
 | --- | --- |
 | `feature-compose new <starter> <name>` | Makes a new repo. In a terminal, a TUI asks for each answer that the arguments do not give. |
-| `feature-compose show` | Prints the starters, the extension points, and the features that use them. |
-| `feature-compose show <starter>` | Prints one starter, its extension points, and the features that target it. |
+| `feature-compose show` | In a terminal, opens a TUI to browse the starters, the features, and the extension points. With `--output json`, or when stdout is not a terminal, prints the catalog as JSON. |
+| `feature-compose show <starter>` | Opens the TUI at one starter, or prints that starter and the features that target it as JSON. |
 | `feature-compose check` | Checks the catalog. Section 14 lists the checks. |
 | `feature-compose add <feature>` | Adds a feature to a repo that you changed. Phase 3 adds this command. |
 
@@ -382,20 +382,15 @@ extension points.
 5. It runs the commands of each folder.
 6. It writes the selection file.
 
-`show` prints the catalog from the same files that the tool uses, so the output is always correct:
+`show` reads the same files that `new` reads, so its output is always correct. It has two forms:
 
-```
-$ feature-compose show
-starters
-  chi-api                     features: api-auth, cli, cli-auth
-  go-event-sourcing-service   features: api-auth, cli, cli-auth, process-manager
-
-extension points     declared by                          features that add to it
-  api.middleware     chi-api, go-event-sourcing-service   api-auth
-  api.config         chi-api, go-event-sourcing-service   api-auth
-  catchup.consumers  go-event-sourcing-service            process-manager
-  cli.commands       cli                                  cli-auth
-```
+- **The TUI, for a person.** It starts with the list of the starters, each with its summary, and typing filters
+  the list. `l` or Enter opens the view of a starter or of a feature, and `h` or Esc goes back one view. `j` and
+  `k` move in a list, as the arrow keys do, and `q` stops. The view of a starter shows its summary, folders,
+  options, extension points, and the features that target it. The view of a feature shows its summary, needs,
+  options, and the extension points that it declares or adds items to.
+- **JSON, for a script.** `--output json` prints the same data. `show` prints JSON with no flag when stdout is
+  not a terminal, so a script never waits on a TUI.
 
 ## 12. The TUI
 
@@ -532,7 +527,7 @@ files. `repo-templates` stays until each template that moves has its replacement
 
 | Phase | Scope |
 | --- | --- |
-| 1 | The format of the catalog. The commands `new`, `show`, and `check`. The TUI for `new`. The starter `go-event-sourcing-service`. The features `cli`, `api-auth`, and `cli-auth`. A CI job that renders and tests each pair. |
+| 1 | The format of the catalog. The commands `new`, `show`, and `check`. The TUIs for `new` and `show`. The starter `go-event-sourcing-service`. The features `cli`, `api-auth`, and `cli-auth`. A CI job that renders and tests each pair. |
 | 2 | The starters `chi-api` and `go`. The feature `process-manager`. The other templates from section 16. |
 | 3 | The command `add`, with a three-way merge. The tool renders the old selection and the new selection, and it applies the difference to the repo. |
 

@@ -11,8 +11,8 @@ time, and renders all files in one pass.
 
 These stories cover phases 1 and 2 of the proposal:
 
-- The commands `new`, `show`, and `check`, the TUI of `new`, and the CI job that tests each starter with
-  each feature
+- The commands `new`, `show`, and `check`, the TUIs of `new` and `show`, and the CI job that tests each
+  starter with each feature
 - The starters `go-event-sourcing-service`, `chi-api`, and `go`
 - The features `cli`, `api-auth`, `cli-auth`, and `process-manager`
 
@@ -437,21 +437,38 @@ reads an option of a need.
 
 **Goals:** G1, G3
 
-**Description:** As a developer or a catalog author, I want `feature-compose show` to print the starters,
-the extension points, and the features, so that I can see which features I can select for a starter.
+**Description:** As a developer or a catalog author, I want `feature-compose show` to let me browse the starters,
+the features, and the extension points of the catalog, and to give the same data as JSON to a script, so that I
+can see which features I can select for a starter without knowing the names first.
 
 **Acceptance Criteria:**
 
-- [ ] `feature-compose show` prints each starter with the features that target it. It also prints each
-  extension point with the starters or features that declare it and the features that add to it.
-- [ ] `feature-compose show <starter>` prints the summary and the folders of the starter, and each extension
-  point with its summary and its item fields. It also prints each feature that targets the starter, with
-  its summary, its needs, and its options with their values and defaults.
-- [ ] The output comes from the catalog folder that the config file names. A new feature in the catalog
-  appears in the output with no other change.
-- [ ] An unknown starter stops the command, and the message lists the starters.
+- [ ] In a terminal, `feature-compose show` opens a TUI with the list of the starters, each with its summary.
+  Typing filters the list by name.
+- [ ] `l` or Enter on a starter opens the view of the starter: its summary, its folders with their commands, its
+  options with their defaults and their values or patterns, its extension points, and the features that target
+  it. Each extension point shows its summary, its item fields, and its declarer. The list also holds the
+  extension points that a feature declares, for example `cli.commands` of `cli`.
+- [ ] `l` or Enter on a feature opens the view of the feature: its summary, its needs, its options with their
+  defaults and their values or patterns, and the extension points that it declares or adds items to.
+- [ ] `j` and `k` move down and up in a list, as the arrow keys do. `h` or Esc goes back one view. `q` stops the
+  TUI from each view. The TUI writes no file.
+- [ ] `feature-compose show <starter>` opens the TUI at the view of that starter. An unknown starter stops the
+  command before the TUI starts, and the message lists the starters.
+- [ ] `feature-compose show --output json` prints the catalog as JSON: each starter with its summary, folders,
+  options, and extension points, and each feature with its summary, targets, needs, options, and the extension
+  points that it declares and adds items to. `show <starter> --output json` prints only that starter and the
+  features that target it. When stdout is not a terminal, `show` prints the same JSON with no flag.
+- [ ] The docs of the tool name each field of the JSON, and a test fails when a field changes its name or goes
+  away.
+- [ ] The TUI and the JSON come from the catalog folder that the config file names. A new starter or feature
+  appears in both with no other change.
 
-**Context:** Section 11 of the proposal shows the output of `show`.
+**Context:** The TUI is for a person, who can find a starter and its features without knowing their names. The
+JSON is for a script, which must not parse a layout or wait on a TUI. This follows the rule of section 12 of the
+proposal: `new` starts no TUI when there is no terminal. The keys `h`, `j`, `k`, and `l` are the keys of vim.
+The TUI of `new` (US-012) also lists the starters with their summaries and the features of one starter. The two
+stories can share these lists, and the story that comes first builds them.
 
 **Depends on:** US-005
 

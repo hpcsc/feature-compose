@@ -66,10 +66,9 @@
 ## Fold the fixes of an audit round hunk by hunk
 - Type: pattern
 - Recorded: 2026-11-09
-- Observed: us-002-add-cli
-- Learning: A fix that changes code of several task commits is split by the commit that last changed each hunk (git blame on the parent of the fixes), and each part becomes a fixup of that commit; only a part whose fold gives a conflict stays its own commit. A test added at the line where a later commit also adds a test gives a conflict, so put it next to lines of its own target commit.
-- Apply when: folding the fixes of an audit round, most of all in catalog/catalog_test.go, which holds tests of every task
-
+- Observed: us-003-api-keys
+- Learning: A fix that changes code of several task commits is split by the commit that last changed each hunk (git blame at the tip before the fold), and each part becomes a fixup of that commit; only a part whose fold gives a conflict stays its own commit. Build each fixup from the fixed SHA of the tip and never from HEAD, which moves with each fixup commit, and check that the index of the last fixup equals the work tree before the rebase. A test added at the line where a later commit also adds a test gives a conflict, so put it next to lines of its own target commit. clerk fixup mark refuses these files as ambiguous, because catalog_test.go, starter_test.go and selection_test.go hold tests of every task.
+- Apply when: folding the fixes of an audit round or a design check, most of all in the umbrella test files of catalog/
 ## A struct that a template function returns has exported fields in the design
 - Type: constraint
 - Recorded: 2026-11-09
@@ -83,3 +82,45 @@
 - Observed: task 6 — us-002-add-cli
 - Learning: A template function is one FuncMap entry in catalog/selection.go, a unit test of its parse and one render test; in US-002 the task that added githubRepository was called low certainty and passed on the first attempt. A breakdown can call such a task high certainty.
 - Apply when: decomposing a story that adds a template function to the catalog
+
+## clerk mutants does not change the templates of the catalog
+- Type: constraint
+- Recorded: 2026-11-09
+- Observed: task 6 — us-003-api-keys
+- Learning: clerk mutants changes only the Go code of the tool, so a task whose code is a .go.tmpl of a starter or a feature gets 'not checked'. Prove its tests on a written repo: write the repo with the real binary, apply a list of breaks to the written files one at a time, run go test after each, and copy the file back. A break that leaves a variable unused does not build; write it as a condition with && false or || true.
+- Apply when: a task changes the Go templates of a starter or a feature, or adds a feature with its own Go package
+
+## New Go code of a feature costs proof, not construction
+- Type: pattern
+- Recorded: 2026-11-09
+- Observed: task 6 — us-003-api-keys
+- Learning: The task that added api-auth, with a new Go package and no precedent, was called low certainty and went green on the first attempt. Its cost was the proof: a written repo, a list of breaks by hand, and an e2e run that starts the API. A breakdown can call the code of such a feature medium, and plan the proof as part of the task.
+- Apply when: decomposing a story that adds a feature with new Go code to the catalog
+
+## env v6 reads a config field through UnmarshalText
+- Type: constraint
+- Recorded: 2026-11-09
+- Observed: task 6 — us-003-api-keys
+- Learning: The config loader of go-event-sourcing-service is caarlos0/env v6, which reads a field whose type implements encoding.TextUnmarshaler through UnmarshalText, also for a slice type. So a feature puts the parse and the check of a setting in UnmarshalText of its config type, and a bad value stops config.Load at the start of the API; the error of env names the field and holds the text that UnmarshalText returns.
+- Apply when: a feature adds a field to api.Config that needs a parse or a check
+
+## An e2e test can start the written API without Postgres
+- Type: pattern
+- Recorded: 2026-11-09
+- Observed: task 7 — us-003-api-keys
+- Learning: pgxpool.New opens no connection before the first query, and POST /accounts with the body {} gets the 400 of the handler before any query. So an e2e test builds ./cmd/api of a written repo, starts it on a free port with DB settings that point to no database, and checks the answers of a middleware; startedApi in e2e/tests/new.test.ts does this.
+- Apply when: writing an e2e test that checks a request to the API of a written go-event-sourcing-service repo
+
+## task run starts the local API with task api:run
+- Type: constraint
+- Recorded: 2026-11-09
+- Observed: task 6 — us-003-api-keys
+- Learning: In go-event-sourcing-service, task run loads .tmuxp.yaml, whose pane runs task api:run, which runs go run ./cmd/api with the env of Taskfile.api.yml; docker-compose.local.yml does not start that API. task passes the variables of the shell to its command. So a doc that tells how to give the local API a setting names task api:run, for example API_KEY_HASHES=<hash> task api:run.
+- Apply when: writing the docs of a feature that needs a setting of the API on the machine of a developer
+
+## A test that reads an env variable must clear it first
+- Type: recurring-finding
+- Recorded: 2026-11-09
+- Observed: task 6 — us-003-api-keys
+- Learning: A generated test that checks the absence of an environment variable, such as API_KEY_HASHES, fails on a machine whose shell sets it. The audit raised this as a medium runtime finding. The test calls t.Setenv(name, "") and then os.Unsetenv(name), so t.Setenv puts the old value back at the end.
+- Apply when: writing a test, in the tool or in a template, that reads or checks the absence of an environment variable

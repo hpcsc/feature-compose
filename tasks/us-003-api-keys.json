@@ -31,7 +31,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Render each value of one item field one time with `unique`",
       "language": "Go",
       "testable": true,

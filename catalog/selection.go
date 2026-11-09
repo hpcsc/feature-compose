@@ -71,7 +71,7 @@ func (s Selection) checkEmpty(output string) error {
 }
 
 func (s Selection) render(label, text string, d delimiters) (string, error) {
-	funcs := texttemplate.FuncMap{"option": s.option, "items": s.items, "githubRepository": parseGitHubRepository, "kebab": kebab, "snake": snake, "camel": camel, "pascal": pascal}
+	funcs := texttemplate.FuncMap{"option": s.option, "items": s.items, "unique": s.unique, "githubRepository": parseGitHubRepository, "kebab": kebab, "snake": snake, "camel": camel, "pascal": pascal}
 	parsed, err := texttemplate.New(label).Delims(d.left, d.right).Funcs(funcs).Option("missingkey=error").Parse(text)
 	if err != nil {
 		return "", fmt.Errorf("parse %w", err)
@@ -94,13 +94,44 @@ func (s Selection) option(reference string) (string, error) {
 }
 
 func (s Selection) items(name string) ([]map[string]string, error) {
+	declared, err := s.extensionPoint(name)
+	if err != nil {
+		return nil, err
+	}
+	return declared.items, nil
+}
+
+func (s Selection) unique(field string, names ...string) ([]string, error) {
+	if len(names) == 0 {
+		return nil, fmt.Errorf("unique %q names no extension point", field)
+	}
+	var unique []string
+	for _, name := range names {
+		declared, err := s.extensionPoint(name)
+		if err != nil {
+			return nil, err
+		}
+		values, err := declared.values(field)
+		if err != nil {
+			return nil, err
+		}
+		for _, value := range values {
+			if !slices.Contains(unique, value) {
+				unique = append(unique, value)
+			}
+		}
+	}
+	return unique, nil
+}
+
+func (s Selection) extensionPoint(name string) (extensionPoint, error) {
 	declared, ok := s.extensionPoints[name]
 	if !ok {
 		if len(s.extensionPoints) == 0 {
-			return nil, fmt.Errorf("unknown extension point %q: neither the starter nor a selected feature declares an extension point", name)
+			return extensionPoint{}, fmt.Errorf("unknown extension point %q: neither the starter nor a selected feature declares an extension point", name)
 		}
-		return nil, fmt.Errorf("unknown extension point %q: the starter and the selected features declare %s",
+		return extensionPoint{}, fmt.Errorf("unknown extension point %q: the starter and the selected features declare %s",
 			name, strings.Join(slices.Sorted(maps.Keys(s.extensionPoints)), ", "))
 	}
-	return declared.items, nil
+	return declared, nil
 }

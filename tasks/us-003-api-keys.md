@@ -226,16 +226,16 @@ the items of several features
 of one or more extension points, each value one time. So a file imports a package one time when two items need it.
 
 **Acceptance Criteria:**
-- [ ] `unique "<field>" "<a>" "<b>"` gives each value of the field in the items of the extension points, one time
+- [x] `unique "<field>" "<a>" "<b>"` gives each value of the field in the items of the extension points, one time
   each, in the order in which the values first come: the extension points in the order given, and the items in
   the order of `items`.
-- [ ] With no item in the extension points, the range renders nothing, and the rest of the template renders as
+- [x] With no item in the extension points, the range renders nothing, and the rest of the template renders as
   without it.
-- [ ] An extension point that neither the starter nor a selected feature declares stops the write before the first
+- [x] An extension point that neither the starter nor a selected feature declares stops the write before the first
   file is written, and the message names the template and the extension point, as for `items`.
-- [ ] A field that one of the extension points does not declare stops the write before the first file is written,
+- [x] A field that one of the extension points does not declare stops the write before the first file is written,
   and the message names the template, the field and the extension point.
-- [ ] `unique` with a field and no extension point stops the write before the first file is written, and the
+- [x] `unique` with a field and no extension point stops the write before the first file is written, and the
   message names the template.
 
 **Affected Files/Modules:**

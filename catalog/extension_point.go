@@ -26,3 +26,14 @@ func (e extensionPoint) add(featureName string, items []map[string]string) (exte
 	e.items = append(slices.Clone(e.items), items...)
 	return e, nil
 }
+
+func (e extensionPoint) values(field string) ([]string, error) {
+	if !slices.Contains(e.itemFields, field) {
+		return nil, fmt.Errorf("unknown field %q: the extension point %q declares the fields [%s]", field, e.name, strings.Join(e.itemFields, ", "))
+	}
+	values := make([]string, 0, len(e.items))
+	for _, item := range e.items {
+		values = append(values, item[field])
+	}
+	return values, nil
+}

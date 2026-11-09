@@ -557,6 +557,66 @@ func TestSelection(t *testing.T) {
 			})
 		}
 
+		for extensionPoints, expected := range map[string]string{
+			`"api.middleware" "api.config"`: "internal/auth;internal/log;internal/audit;",
+			`"api.config" "api.middleware"`: "internal/audit;internal/auth;internal/log;",
+		} {
+			t.Run("unique gives each value of a field one time, in the order in which it first comes over the extension points "+extensionPoints, func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":        withMiddleware,
+					"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range unique "import" ` + extensionPoints + ` }}{{ . }};{{ end }}`)},
+					"features/auth/feature.yml":           &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [service]\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n  api.config:\n    - name: Auth\n      type: auth.Config\n      import: internal/auth\n")},
+					"features/log/feature.yml":            &fstest.MapFile{Data: []byte("summary: Log.\ntargets: [service]\nadd_to:\n  api.middleware:\n    - code: log.Middleware\n      import: internal/log\n  api.config:\n    - name: Log\n      type: log.Config\n      import: internal/log\n")},
+					"features/audit/feature.yml":          &fstest.MapFile{Data: []byte("summary: Audit.\ntargets: [service]\nadd_to:\n  api.config:\n    - name: Audit\n      type: audit.Config\n      import: internal/audit\n")},
+				}
+				output := filepath.Join(t.TempDir(), "my-service")
+
+				err := featureSelection(t, files, "log", "auth", "audit").Write(output)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"server.go": expected}, filesIn(t, output))
+			})
+		}
+
+		t.Run("unique over extension points with no item renders nothing, and the rest renders as without it", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":        withMiddleware,
+				"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range unique "import" "api.middleware" "api.config" }}{{ . }}{{ end }}server`)},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := featureSelection(t, files).Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"server.go": "server"}, filesIn(t, output))
+		})
+
+		for name, call := range map[string]struct {
+			template string
+			message  []string
+		}{
+			"an extension point that nothing declares":          {`unique "import" "api.middleware" "api.routes"`, []string{`"api.routes"`, "the starter and the selected features declare api.config, api.middleware"}},
+			"a field that one extension point does not declare": {`unique "code" "api.middleware" "api.config"`, []string{`unknown field "code"`, `the extension point "api.config" declares the fields [name, type, import]`}},
+			"no extension point":                                {`unique "import"`, []string{`unique "import" names no extension point`}},
+		} {
+			t.Run("unique with "+name+" stops the write before the first file, and the message names the template", func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":        withMiddleware,
+					"starters/service/files/go/a.md":      &fstest.MapFile{Data: []byte("a\n")},
+					"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range ` + call.template + ` }}{{ . }}{{ end }}`)},
+				}
+				output := filepath.Join(t.TempDir(), "my-service")
+
+				err := featureSelection(t, files).Write(output)
+
+				require.ErrorContains(t, err, "go/server.go of the starter")
+				for _, part := range call.message {
+					require.ErrorContains(t, err, part)
+				}
+				require.NoDirExists(t, output)
+			})
+		}
+
 		t.Run("items in a selection with no extension point stops the write, and the message says that neither the starter nor a selected feature declares one", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":        twoFolders,

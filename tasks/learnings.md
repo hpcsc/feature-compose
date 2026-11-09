@@ -164,3 +164,31 @@
 - Observed: us-005-cli-auth
 - Learning: clerk mutants accept records the key for the task that is in build. After the audit fixes, a fold or a rename in the same function makes clerk audit accept refuse on the same timed-out rows; accept them again in the audit step, and check that the last run has complete: true in .git/clerk/runs/<run>/mutants.json, because an incomplete run is also an open row.
 - Apply when: clerk audit accept refuses on a row of clerk mutants after the audit fixes
+
+## The list of bubbles binds h, l, q and Esc, and its help shows the default bindings
+- Type: constraint
+- Recorded: 2026-11-09
+- Observed: us-014-show-catalog
+- Learning: bubbles v1.0.0 list.DefaultKeyMap binds h and l to the previous and next page, and q and Esc to quit, and the full help (?) of a list with more than one page shows each binding with its own help text. A TUI with vim keys in internal/browser replaces PrevPage, NextPage and Quit with bindings that have no h, l or Esc, each with its own help text; the model catches l and Enter before the list. Without the new NextPage, ? tells the user that l goes to the next page.
+- Apply when: adding or changing a key of a list of bubbles in the TUI of show (US-014) or of new (US-012)
+
+## A test of a bubbletea model sends the window size first and runs the commands with a short timeout
+- Type: pattern
+- Recorded: 2026-11-09
+- Observed: us-014-show-catalog
+- Learning: internal/browser/model_test.go tests the model through Update and View: it sends tea.WindowSizeMsg first, because a list draws nothing before it has a size, and it runs each command that Update returns in a goroutine with a 100 ms limit, because the filter of the list comes back as a message of a command (FilteredItemsMsg) while the blink of the cursor waits about half a second. A tea.QuitMsg from a command is how a test sees that the TUI stops. Remove the escape codes of View before a test compares text, so the tests pass with CLICOLOR_FORCE=1 and NO_COLOR=1.
+- Apply when: writing a test of a bubbletea model, in internal/browser or in the TUI of new
+
+## clerk mutants kills a mutant only with the tests of its own package
+- Type: constraint
+- Recorded: 2026-11-09
+- Observed: us-014-show-catalog
+- Learning: A mutant in internal/catalog runs only the tests of internal/catalog (and caller gaps report the rest), so the [] and {} of catalog.Definitions lived although TestShowCommand in internal/cmd checks the whole JSON. The package of the code needs its own test of the behaviour, here a JSON test of the definitions in TestCatalog.
+- Apply when: a task adds code in one package whose behaviour another package tests, for example internal/catalog and internal/cmd
+
+## fatih/color decides the colour from stdout, also for text that goes to stderr
+- Type: constraint
+- Recorded: 2026-11-09
+- Observed: us-014-show-catalog
+- Learning: color.NoColor is set from whether stdout is a terminal, so color.New(...).Fprintln(os.Stderr, ...) colours by the wrong stream. Run in internal/cmd/root.go writes errors through writeError, which disables or enables the colour from its own stream and from NO_COLOR.
+- Apply when: writing coloured text to stderr or to any stream other than stdout in the tool

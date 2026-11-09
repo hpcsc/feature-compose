@@ -133,7 +133,7 @@ func (t tree) isOpen(r row) bool {
 	if isOpen, ok := t.open[r]; ok {
 		return isOpen
 	}
-	return r.isGroup()
+	return true
 }
 
 func (t tree) selectedIndex() int {

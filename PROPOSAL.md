@@ -384,13 +384,14 @@ extension points.
 
 `show` reads the same files that `new` reads, so its output is always correct. It has two forms:
 
-- **The TUI, for a person.** It has two panes. The left pane is a tree of the starters. Under each starter, it
-  has a group of the features and a group of the extension points, and `/` starts a filter on the names. The
-  right pane shows the details of the selected row. `j` and `k` move in the tree, as the arrow keys do. `l` or
-  Enter opens a row, and `h` or Esc closes it. `q` stops, except while a filter is typed, where ctrl+c stops. The
-  details of a starter show its summary, folders and options. The details of a feature show its summary, needs,
-  options, and the extension points that it declares or adds items to. The details of an extension point show
-  its contract, its file, its item fields, its declarer, and the features that add items to it.
+- **The TUI, for a person.** It has two panes. The left pane is a tree of the starters. Under each starter, it has
+  a group of the features and a group of the extension points. Each starter and each group starts open, and `/`
+  starts a filter on the names. The right pane shows the details of the selected row. `j` and `k` move in the
+  tree, as the arrow keys do. `l` or Enter opens a row, and `h` or Esc closes it. `q` stops, except while a filter
+  is typed, where ctrl+c stops. The details of a starter show its summary, folders and options. The details of a
+  feature show its summary, needs, options, and the extension points that it declares or adds items to. The
+  details of an extension point show its contract, its file, its item fields, its declarer, and the features that
+  add items to it.
 - **JSON, for a script.** `--output json` prints the same data. `show` prints JSON with no flag when stdout is
   not a terminal, so a script never waits on a TUI.
 

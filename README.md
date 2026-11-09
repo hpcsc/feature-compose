@@ -46,8 +46,8 @@ machine.
 
 - **A TUI, for a person.** When stdin and stdout are both terminals, `show` opens a TUI with two panes. The left
   pane is a tree of the starters. Under each starter, the tree has two groups: its features and its extension
-  points. The right pane shows the details of the selected row. `feature-compose show <starter>` opens the TUI
-  with that starter selected and open.
+  points. Each starter and each group starts open. The right pane shows the details of the selected row.
+  `feature-compose show <starter>` opens the TUI with that starter selected.
 - **JSON, for a script.** `--output json` prints the catalog as JSON. When stdin or stdout is not a terminal,
   for example in a pipe, `show` prints JSON with no flag. `feature-compose show <starter>` prints only that
   starter and the features whose `targets` name it.

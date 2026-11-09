@@ -41,28 +41,25 @@ describe('feature-compose show', () => {
 })
 
 describe('feature-compose show in a terminal', () => {
-  it('opens the tree with the details of the first starter, filters it with /, opens the starter with l, and closes it with h', async () => {
+  it('opens the tree with each starter open and the details of the first starter, filters it with /, closes the starter with h, and opens it with l', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show'])
 
     await session.waitForText('A Go service with an event store, an HTTP API, and a catchup process.')
-    const details = await session.text()
-    for (const part of ['╭─ Catalog ', '▸ go-event-sourcing-service', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
-      expect(details).toContain(part)
+    const screen = await session.text()
+    for (const part of ['╭─ Catalog ', '▾ go-event-sourcing-service', '├─ ▾ features', '│  ├─ api-auth', '│  └─ cli-auth', '└─ ▾ extension points', '├─ api.middleware', '└─ cli.commands', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
+      expect(screen).toContain(part)
     }
     await session.press('/')
     await session.type('zzz')
     await session.waitForText('No name matches the filter.')
     await session.press('escape')
-    await session.waitForText('▸ go-event-sourcing-service')
-    await session.press('l')
-    await session.waitForText('└─ ▾ extension points')
-    const tree = await session.text()
-    for (const part of ['├─ ▾ features', '│  ├─ api-auth', '│  └─ cli-auth', '├─ api.middleware', '└─ cli.commands']) {
-      expect(tree).toContain(part)
-    }
+    await session.waitForText('▾ go-event-sourcing-service')
     await session.press('h')
     await session.waitForText('▸ go-event-sourcing-service')
+    expect(await session.text()).not.toContain('api-auth')
+    await session.press('l')
+    await session.waitForText('└─ ▾ extension points')
     await session.press('q')
     await session.waitForText('EXIT:0')
     expect(readdirSync(dir)).toEqual([])
@@ -121,7 +118,7 @@ describe('feature-compose show in a terminal', () => {
     await session.waitForText('EXIT:0')
   })
 
-  it('show <starter> opens the TUI with that starter selected and open', async () => {
+  it('show <starter> opens the TUI with that starter selected', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
 

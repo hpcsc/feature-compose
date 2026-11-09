@@ -60,7 +60,6 @@ func NewAtStarter(definitions catalog.Definitions, starterName string) (Model, e
 	}
 	m := New(definitions)
 	m.tree.selected = row{starter: starterName}
-	m.tree = m.tree.withOpen(row{starter: starterName}, true)
 	return m, nil
 }
 

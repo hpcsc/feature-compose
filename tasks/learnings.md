@@ -9,11 +9,10 @@
 
 ## The catalog holds Go files as .tmpl and marks scripts with #!
 - Type: convention
-- Recorded: 2026-11-08
-- Observed: task 5 — us-001-new-from-starter
-- Learning: go:embed refuses a folder with its own go.mod, and go build ./... compiles any .go file under catalog/, so go.mod and each .go file of a starter or feature end in .tmpl, which the write removes. go:embed keeps no file mode, so only a rendered file that starts with #! is written as an executable.
+- Recorded: 2026-11-09
+- Observed: this run
+- Learning: catalog/ is inside the Go module of the tool, so go build ./... and go vet ./... compile any .go file under it, and a go.mod under it splits the module. So go.mod and each .go file of a starter or a feature end in .tmpl, which the write removes. The write sets the mode from the contents and not from the catalog file: only a rendered file that starts with #! is written as an executable.
 - Apply when: adding a starter or a feature to catalog/
-
 ## A delimiters glob matches the catalog path, .tmpl included
 - Type: constraint
 - Recorded: 2026-11-08

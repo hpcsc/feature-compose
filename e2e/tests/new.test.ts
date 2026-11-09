@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { type AddressInfo, createServer as createNetServer, type Socket } from 'node:net'
 import { join } from 'node:path'
@@ -110,7 +110,7 @@ describe('feature-compose new', () => {
   })
 
   it(
-    'makes a repo with cli-auth, which also selects cli and api-auth, passes its unit tests, and whose CLI shows where the API key comes from',
+    'makes a repo with cli-auth, which also selects cli and api-auth, passes its unit tests, shows where the API key comes from, and calls its API with the key',
     async () => {
       const dir = scratchDir()
       const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
@@ -127,7 +127,7 @@ describe('feature-compose new', () => {
       const unit = await runProgram(repo, 'task', ['test:unit'], env)
       expect(unit.status, unit.stdout + unit.stderr).toBe(0)
       expect(passedPackages(unit.stdout)).toEqual(
-        expect.arrayContaining(['internal/credential', 'internal/auth', 'internal/cli', 'internal/use_cases/account', 'internal/domain/projection']),
+        expect.arrayContaining(['internal/credential', 'internal/apiclient', 'internal/auth', 'internal/cli', 'internal/use_cases/account', 'internal/domain/projection']),
       )
       const cli = join(repo, 'bin', 'my-service')
       const help = await runProgram(repo, cli, [], env)
@@ -145,6 +145,17 @@ describe('feature-compose new', () => {
       const statusHelp = await runProgram(repo, cli, ['auth', 'status', '--help'], env)
       expect(statusHelp.stdout).toContain('--help')
       expect(statusHelp.stdout).not.toMatch(/--\S*key/i)
+
+      const api = await startedApi(repo, { ...env, API_KEY_HASHES: createHash('sha256').update(key).digest('hex') })
+      const call = await builtCall(repo, env)
+      const withKey = await runProgram(repo, call, [api], { ...env, XDG_CONFIG_HOME: scratchDir(), MY_SERVICE_API_KEY: key })
+      expect(withKey, 'POST /accounts with {} gets the answer 400 of the handler').toMatchObject({ status: 0, stdout: '400\n' })
+      const wrongKey = await runProgram(repo, call, [api], { ...env, XDG_CONFIG_HOME: scratchDir(), MY_SERVICE_API_KEY: 'an-unknown-key' })
+      expect(wrongKey.status).not.toBe(0)
+      expect(wrongKey.stdout).toContain('the API refused the API key from MY_SERVICE_API_KEY: set MY_SERVICE_API_KEY, or set credentialCommand in')
+      const noKey = await runProgram(repo, call, [api], { ...env, XDG_CONFIG_HOME: scratchDir(), MY_SERVICE_API_KEY: '' })
+      expect(noKey.status).not.toBe(0)
+      expect(noKey.stdout).toContain('no API key: set MY_SERVICE_API_KEY, or set credentialCommand in')
     },
     15 * 60 * 1000,
   )
@@ -295,6 +306,38 @@ function freePort(): Promise<number> {
 
 // POST /accounts with the body {} gets the answer 400 of the handler, because the owner is missing, before any
 // query to the database.
+async function builtCall(repo: string, env: Record<string, string>): Promise<string> {
+  mkdirSync(join(repo, 'cmd', 'call-of-the-test'))
+  writeFileSync(
+    join(repo, 'cmd', 'call-of-the-test', 'main.go'),
+    `package main
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"strings"
+
+	"github.com/hpcsc/my-service/internal/apiclient"
+)
+
+func main() {
+	response, err := apiclient.New(os.Args[1]).Do(context.Background(), http.MethodPost, "/accounts", strings.NewReader("{}"))
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer response.Body.Close()
+	fmt.Println(response.StatusCode)
+}
+`,
+  )
+  const build = await runProgram(repo, 'go', ['build', '-o', join(repo, 'call-of-the-test'), './cmd/call-of-the-test'], env)
+  expect(build.status, build.stdout + build.stderr).toBe(0)
+  return join(repo, 'call-of-the-test')
+}
+
 function openAccount(api: string, authorization?: string): Promise<Response> {
   return fetch(`${api}/accounts`, {
     method: 'POST',

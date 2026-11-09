@@ -31,20 +31,29 @@ repository.
 ## How the CLI Gets Its API Key
 
 `credential.Resolve` gives the API key that `{{ kebab .Name }}` sends to its API. It tries a fixed list of sources
-and takes the first that gives a value. The code is in `internal/credential`, and the `auth` command is in
-`internal/cli/auth.go`, in the package of the root command.
+and takes the first that gives a value. The code is in `internal/credential`, the API client is in
+`internal/apiclient`, and the `auth` command is in `internal/cli/auth.go`, in the package of the root command.
 
-### Use the API Key in an API Client
+### Call the API from a Command
 
-Call `credential.Resolve` before each request. Send `found.Value` in the header that the API asks for:
+A command of the CLI calls the API through `apiclient.Client`. Before each request, the client calls
+`credential.Resolve` and sends the key as `Authorization: Bearer <key>`:
 
 ```go
-found, err := credential.Resolve(ctx)
+client := apiclient.New("http://localhost:3333")
+response, err := client.Do(ctx, http.MethodPost, "/accounts", body)
 if err != nil {
 	return err
 }
-request.Header.Set("Authorization", "Bearer "+found.Value)
+defer response.Body.Close()
 ```
+
+- With no API key, `Do` sends no request, and its error is `credential.ErrMissing` with the ways to give a key.
+- When the API answers 401, `Do` returns no response. Its error is `credential.ErrRefused`, with the source of the
+  refused key and the ways to give a key.
+- `Do` gives each other answer to the command as the API gave it, for example 400 or 403.
+- The client keeps no key. Each call resolves the key again, so a changed variable or password manager takes effect
+  at the next call.
 
 ### The Files
 
@@ -53,6 +62,7 @@ request.Header.Set("Authorization", "Bearer "+found.Value)
 | `internal/credential/credential.go` | `Resolve`, which tries the sources in order. `Credential`, which holds the value and the name of its source. |
 | `internal/credential/config.go` | Finds the user config, and reads `credentialCommand` from it. |
 | `internal/credential/command.go` | Runs `credentialCommand` through `sh`. |
+| `internal/apiclient/client.go` | `Client`, which sends the API key on each call to the API, and turns the answer 401 into `credential.ErrRefused`. |
 | `internal/cli/auth.go` | The `auth` command. It calls `credential.Resolve` and prints the source. |
 
 ### The Order of the Sources
@@ -94,7 +104,10 @@ prints it. No command prints the API key itself.
 
 ### The Tests
 
-The unit tests are in `internal/credential`. Run them with `go test -tags=unit ./internal/credential`.
+The unit tests are in `internal/credential` and `internal/apiclient`. Run them with
+`go test -tags=unit ./internal/credential ./internal/apiclient`. The tests of the client call a test server that
+runs `auth.Middleware` of `internal/auth`, with the hashes of two keys of the test, so they check the client
+against the check of the API of this repo.
 
 - Each test calls `isolate`. It sets `XDG_CONFIG_HOME` to a new temporary folder and clears
   `{{ upper (snake .Name) }}_API_KEY`. So no test reads your config.

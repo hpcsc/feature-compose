@@ -112,7 +112,8 @@ The fourth adds only `--feature cli-auth`, which needs `cli` and `api-auth`:
 1. `new` prints `api-auth: needed by cli-auth` and `cli: needed by cli-auth` before the line that names the
    output folder.
 2. `gofmt -l .` lists no file, and the CLI builds. `task test:unit` stops with the exit status 0, and the
-   tests of `internal/credential`, `internal/auth`, `internal/cli` and of the service ran and passed.
+   tests of `internal/credential`, `internal/apiclient`, `internal/auth`, `internal/cli` and of the service ran
+   and passed. The tests of `internal/apiclient` call a test server behind `auth.Middleware` of the repo.
 3. The CLI lists the commands `version`, `update`, `auth` and `help`. With `MY_SERVICE_API_KEY` set,
    `auth status` names the variable and does not print the key. With no variable and an empty config folder,
    it stops with an exit status other than 0, and its message names `MY_SERVICE_API_KEY` and

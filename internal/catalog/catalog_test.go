@@ -676,6 +676,7 @@ add_to:
 			require.ElementsMatch(t, []string{
 				"internal/credential/credential.go", "internal/credential/command.go", "internal/credential/config.go",
 				"internal/credential/credential_test.go", "internal/cli/auth.go", "e2e/tests/auth.test.ts", "docs/cli-auth.md",
+				"internal/apiclient/client.go", "internal/apiclient/client_test.go",
 			}, slices.Collect(maps.Keys(added)))
 			require.Equal(t, []string{"internal/cli/root.go"}, changed)
 			require.Len(t, withCLIAuth, len(withoutCLIAuth)+len(added))
@@ -705,17 +706,24 @@ add_to:
 			}
 		})
 
-		t.Run("the Go files of cli-auth import only packages of the module that cli-auth, cli or api-auth writes", func(t *testing.T) {
+		t.Run("the Go files of cli-auth import only its own packages and cli, and only a test imports internal/auth of api-auth", func(t *testing.T) {
 			files := writtenWithFeatures(t, withoutValues("cli-auth"))
 
-			for _, path := range []string{"internal/credential/credential.go", "internal/credential/command.go", "internal/credential/config.go", "internal/credential/credential_test.go", "internal/cli/auth.go"} {
+			for _, path := range []string{
+				"internal/credential/credential.go", "internal/credential/command.go", "internal/credential/config.go", "internal/credential/credential_test.go",
+				"internal/cli/auth.go", "internal/apiclient/client.go", "internal/apiclient/client_test.go",
+			} {
+				allowed := `^internal/(credential|cli|apiclient)$`
+				if strings.HasSuffix(path, "_test.go") {
+					allowed = `^internal/(credential|cli|apiclient|auth)$`
+				}
 				parsed, err := parser.ParseFile(token.NewFileSet(), path, files[path], parser.ImportsOnly)
 				require.NoError(t, err, path)
 				for _, imported := range parsed.Imports {
 					importPath, err := strconv.Unquote(imported.Path.Value)
 					require.NoError(t, err)
 					if inModule, ok := strings.CutPrefix(importPath, "github.com/hpcsc/my-service/"); ok {
-						require.Regexp(t, `^internal/(credential|cli|auth)(/|$)`, inModule, path+" imports "+importPath)
+						require.Regexp(t, allowed, inModule, path+" imports "+importPath)
 					}
 				}
 			}

@@ -471,26 +471,26 @@ source of the refused key and the ways to give a key. In the written repo, the u
 test server that runs the `auth.Middleware` of `api-auth`.
 
 **Acceptance Criteria:**
-- [ ] The written repo has one API client of the CLI, in a package of `cli-auth` that is not named `api`. It takes
+- [x] The written repo has one API client of the CLI, in a package of `cli-auth` that is not named `api`. It takes
   the URL of the API from the code that makes it (decision 9).
-- [ ] Each call through the client gets the key from its sources before the request, and sends it as
+- [x] Each call through the client gets the key from its sources before the request, and sends it as
   `Authorization: Bearer <key>`, the only `Authorization` header of the request. The client keeps no key: when
   `MY_SERVICE_API_KEY` changes between two calls, the second call sends the new key.
-- [ ] With no key, the call fails, no request reaches the server, and the error names `MY_SERVICE_API_KEY` and
+- [x] With no key, the call fails, no request reaches the server, and the error names `MY_SERVICE_API_KEY` and
   `credentialCommand`, as in Task 4.
-- [ ] An answer 401 fails the call. The message says that the API refused the key from its source, and names
+- [x] An answer 401 fails the call. The message says that the API refused the key from its source, and names
   `MY_SERVICE_API_KEY` and `credentialCommand` as the ways to give the key. Each other answer, for example 200, 400
   or 403, goes to the caller as the API gave it.
-- [ ] In the written repo, `task test:unit` runs the unit tests of the client against an `httptest` server whose
+- [x] In the written repo, `task test:unit` runs the unit tests of the client against an `httptest` server whose
   handler goes through `auth.Middleware` of `internal/auth`, with a config that holds the key hash of a key of the
   test (decision 1, decision 10). With that key, from the variable and from `credentialCommand`, the call gets the
   answer of the handler. With a wrong key, it fails with the message of a 401. With no key, it fails before a
   request.
-- [ ] `docs/cli-auth.md` tells a developer how a command of the CLI calls the API through the client, and names only
+- [x] `docs/cli-auth.md` tells a developer how a command of the CLI calls the API through the client, and names only
   files that the written repo has.
-- [ ] The only package of `api-auth` that a file of `cli-auth` imports is `internal/auth`, and only a test file
+- [x] The only package of `api-auth` that a file of `cli-auth` imports is `internal/auth`, and only a test file
   imports it. The check of the imports of Task 4 states this.
-- [ ] The full run of Task 4 passes, with the package of the client among the packages that pass.
+- [x] The full run of Task 4 passes, with the package of the client among the packages that pass.
 
 **Affected Files/Modules:**
 - `catalog/features/cli-auth/files/common/go/internal/` — the API client and its unit tests, in a package of

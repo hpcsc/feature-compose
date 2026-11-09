@@ -152,7 +152,7 @@
     },
     {
       "n": 5,
-      "done": false,
+      "done": true,
       "title": "Send the API key on each call of the CLI to the API, and tell the user how to give the key when the API refuses it",
       "language": "Go",
       "testable": true,

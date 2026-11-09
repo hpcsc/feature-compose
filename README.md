@@ -23,7 +23,7 @@ available in the channel, the installer lists them for you to pick.
 
 ## Configure the catalog
 
-`feature-compose new` reads the starters and the features from a catalog folder. The config file
+`feature-compose new` and `feature-compose show` read the starters and the features from a catalog folder. The config file
 `~/.config/feature-compose/config.yml` names the folder (`$XDG_CONFIG_HOME/feature-compose/config.yml` when
 `XDG_CONFIG_HOME` is set):
 
@@ -33,11 +33,53 @@ catalog: ~/code/feature-compose/catalog
 
 The folder holds `starters/` and `features/`. The catalog of this repo is in `catalog/`. A path that starts
 with `~/` is in your home folder, and another relative path is relative to the folder of the config file.
-Without the config file, `new` stops and names the path of the file. `version` and `update` do not read it.
+Without the config file, `new` and `show` stop and name the path of the file. `version` and `update` do not
+read it.
 
 `feature-compose update` also installs from a release, and it replaces this very binary, so the
 installer and the update command do the same kind of job; use whichever you find convenient on a fresh
 machine.
+
+## Show the Catalog
+
+`feature-compose show` prints the starters and the features of the catalog as JSON, for a script.
+`feature-compose show <starter>` prints only that starter and the features whose `targets` name it. An unknown
+starter stops the command, and the message lists the starters.
+
+```shell
+feature-compose show --output json
+feature-compose show go-event-sourcing-service --output json | jq '.features | keys'
+```
+
+`--output json` asks for JSON, which is the only output form of `show` today. When stdout is not a terminal, for
+example in a pipe, `show` prints JSON with no flag.
+
+The JSON has the keys of `starter.yml` and `feature.yml`. Each object has each of its fields: a list with no entry
+is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each list keeps the order of its file.
+`<name>` is the name of a starter, a feature, a folder, an option or an extension point.
+
+| Field | Meaning |
+| --- | --- |
+| `starters.<name>.summary` | One sentence about what a repo from the starter gets. |
+| `starters.<name>.folders.<name>.path` | The path of the folder in the repo. |
+| `starters.<name>.folders.<name>.after_render` | The commands that run in the folder after the tool writes the files. |
+| `starters.<name>.folders.<name>.test` | The commands that CI runs in the folder to test a repo. |
+| `starters.<name>.options.<name>.default` | The default of the option, as the file writes it, for example `github.com/hpcsc/{{ .Name }}`. |
+| `starters.<name>.options.<name>.pattern` | The regular expression that a value must match, or `""`. |
+| `starters.<name>.options.<name>.values` | The values that the option accepts, or `[]` for any value. |
+| `starters.<name>.extension_points.<name>.summary` | The contract of an item of the extension point. |
+| `starters.<name>.extension_points.<name>.file` | The file that renders the items. |
+| `starters.<name>.extension_points.<name>.item` | The fields of each item. |
+| `features.<name>.summary` | One sentence about what the feature adds. |
+| `features.<name>.targets` | The starters that the feature works with. |
+| `features.<name>.needs` | The features that the tool also selects when you select this feature. |
+| `features.<name>.options.<name>.default` | The default of the option, as the file writes it. |
+| `features.<name>.options.<name>.pattern` | The regular expression that a value must match, or `""`. |
+| `features.<name>.options.<name>.values` | The values that the option accepts, or `[]` for any value. |
+| `features.<name>.extension_points.<name>.summary` | The contract of an item of an extension point that the feature declares. |
+| `features.<name>.extension_points.<name>.file` | The file of the feature that renders the items. |
+| `features.<name>.extension_points.<name>.item` | The fields of each item. |
+| `features.<name>.add_to.<name>` | The items that the feature adds to the extension point, each with the fields of that extension point. |
 
 ## Build
 

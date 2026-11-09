@@ -1,0 +1,109 @@
+design: planned
+types:
+  - name: Catalog
+    package: internal/catalog
+    change: changed
+    does: finds a starter by name with the features that target it, lists the combinations that CI makes a repo from, and reads the definitions of each starter and each feature
+    owns:
+      - each folder under starters/ is a starter and each folder under features/ is a feature; a file there is not one, and a catalog with no features folder has no features
+      - the definitions come from starter.yml and feature.yml only; a template does not stop their read
+      - a starter.yml or a feature.yml that is not valid YAML stops the read, and the message names the file
+    fields: [fsys]
+    methods: [Starter, Combinations, Definitions]
+  - name: Definitions
+    package: internal/catalog
+    change: new
+    does: what the starter.yml and the feature.yml files of a catalog declare, by the name of each starter and each feature, which show prints as JSON and shows in its TUI
+    owns:
+      - ForStarter keeps only the given starter and the features whose targets name it; an unknown starter stops, and the message lists the starters of the catalog
+      - each field is present on each definition; a list or a map with no entry is empty, never nil
+      - the lists keep the order of the file
+    fields: [Starters, Features]
+    methods: [ForStarter]
+  - name: StarterDefinition
+    package: internal/catalog
+    change: new
+    does: what one starter.yml declares that a person or a script reads
+    owns: []
+    fields: [Summary, Folders, Options, ExtensionPoints]
+    methods: []
+  - name: FeatureDefinition
+    package: internal/catalog
+    change: new
+    does: what one feature.yml declares that a person or a script reads
+    owns: []
+    fields: [Summary, Targets, Needs, Options, ExtensionPoints, AddTo]
+    methods: []
+  - name: FolderDefinition
+    package: internal/catalog
+    change: new
+    does: one folder of a starter, with its path in the repo and its commands
+    owns: []
+    fields: [Path, AfterRender, Test]
+    methods: []
+  - name: OptionDefinition
+    package: internal/catalog
+    change: new
+    does: one option of a starter or a feature, with its default as the file writes it, and its pattern or its values
+    owns: []
+    fields: [Default, Pattern, Values]
+    methods: []
+  - name: ExtensionPointDefinition
+    package: internal/catalog
+    change: new
+    does: one extension point that a starter or a feature declares, with its contract, the file that renders it, and its item fields
+    owns: []
+    fields: [Summary, File, Item]
+    methods: []
+  - name: Model
+    package: internal/browser
+    change: new
+    does: the TUI of show, which shows one view at a time, the list of the starters or a view that the person opened from it, and answers each key
+    owns:
+      - / starts the filter of the list of the starters, which matches the name only; while the filter is typed, each key goes to it
+      - l or Enter opens the view of the selected starter or feature; h or Esc goes back one view with the selection kept; q stops from each view when no filter is typed, and ctrl+c always
+      - the browser writes no file
+    fields: [starters, views]
+    methods: [Init, Update, View]
+  - name: starterView
+    package: internal/browser
+    change: new
+    does: the view of one starter, with the features that target it in a list that j and k move in
+    owns:
+      - its extension points are those of the starter and those that a feature that targets it declares, each with its declarer
+    fields: [name, definition, features]
+    methods: [View]
+  - name: featureView
+    package: internal/browser
+    change: new
+    does: the view of one feature
+    owns:
+      - it names the extension points that the feature declares and those that it adds items to, apart
+    fields: [name, definition]
+    methods: [View]
+functions:
+  - New(definitions catalog.Definitions) Model
+  - NewAtStarter(definitions catalog.Definitions, starterName string) (Model, error)
+words:
+  - concept: what a starter.yml or a feature.yml declares, as show gives it
+    word: definition
+    not: [spec, manifest, descriptor, metadata, listing, info]
+  - concept: the starter or the feature that declares an extension point
+    word: declarer
+    not: [owner, provider, source, origin]
+  - concept: one screen of the TUI of show, the list of the starters, the view of a starter or the view of a feature
+    word: view
+    not: [page, screen, pane, panel]
+  - concept: the text that the names of the list of the starters must match, which / starts
+    word: filter
+    not: [search, query, find]
+  - concept: the TUI of show, in which a person browses the starters and the features of the catalog
+    word: browser
+    not: [explorer, viewer, navigator, tui]
+  - concept: the form in which show prints the catalog, json, which the flag --output names
+    word: format
+    not: [mode, style, kind]
+dependencies:
+  - internal/cmd -> internal/catalog
+  - internal/cmd -> internal/browser
+  - internal/browser -> internal/catalog

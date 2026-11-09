@@ -1,0 +1,125 @@
+{
+  "story": "Show the catalog",
+  "story_id": "feature-compose/US-014",
+  "tasks_file": "tasks/us-014-show-catalog.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Read the definitions of the catalog, and print them as JSON with `show`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "internal/cmd/new.go:13-65",
+        "internal/cmd/root.go:26-38",
+        "internal/cmd/root.go:51-57",
+        "internal/cmd/adapter.go:17-26",
+        "internal/cmd/new_test.go:40-50",
+        "internal/cmd/new_test.go:468-480",
+        "internal/cmd/root_test.go:19-36",
+        "internal/catalog/catalog.go:19-32",
+        "internal/catalog/catalog.go:50-72",
+        "internal/catalog/catalog.go:74-86",
+        "internal/catalog/starter.go:34-55",
+        "internal/catalog/feature.go:31-53",
+        "internal/catalog/combination.go:9-13",
+        "internal/catalog/catalog_test.go:39-49",
+        "internal/catalog/catalog_test.go:62-71",
+        "internal/catalog/catalog_test.go:208-217",
+        "internal/catalog/catalog_test.go:220-241",
+        "internal/catalog/catalog_test.go:525-538",
+        "README.md:24-40",
+        "README.md:91-110",
+        "e2e/tests/new.test.ts:11-19",
+        "e2e/testUtils.ts:62-69",
+        "PROPOSAL.md:137-147",
+        "PROPOSAL.md:239-249",
+        "PROPOSAL.md:385-393",
+        "tasks/learnings.md:58-63",
+        "tasks/learnings.md:64-69",
+        "tasks/learnings.md:133-138",
+        "tasks/learnings.md:119-124"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "internal/catalog/definitions.go",
+        "internal/catalog/catalog.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/feature.go",
+        "internal/catalog/catalog_test.go",
+        "internal/catalog/definitions_test.go",
+        "internal/cmd/show.go",
+        "internal/cmd/show_test.go",
+        "internal/cmd/root.go",
+        "internal/cmd/root_test.go",
+        "README.md",
+        "e2e/tests/show.test.ts"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Open the TUI of `show` in a terminal, with the list of the starters, its filter, and the view of a starter",
+      "language": "Go",
+      "testable": true,
+      "certainty": "low",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "internal/cmd/update.go:90-93",
+        "internal/cmd/new.go:13-65",
+        "e2e/testUtils.ts:71-90",
+        "docs/e2e-tests.md:31-55",
+        "docs/e2e-tests.md:177-192",
+        "PROPOSAL.md:385-393",
+        "task:1",
+        "tasks/learnings.md:58-63",
+        "tasks/learnings.md:119-124",
+        "tasks/learnings.md:133-138",
+        "tasks/learnings.md:147-152"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "go.mod",
+        "go.sum",
+        "internal/browser/model.go",
+        "internal/browser/starter_view.go",
+        "internal/browser/model_test.go",
+        "internal/cmd/show.go",
+        "internal/cmd/update.go",
+        "internal/cmd/show_test.go",
+        "README.md",
+        "e2e/tests/show.test.ts"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Open the view of a feature from the view of a starter",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:2",
+        "task:1",
+        "e2e/testUtils.ts:71-90",
+        "tasks/learnings.md:58-63"
+      ],
+      "depends_on": [
+        2
+      ],
+      "affected_files": [
+        "internal/browser/feature_view.go",
+        "internal/browser/starter_view.go",
+        "internal/browser/model_test.go",
+        "e2e/tests/show.test.ts",
+        "README.md"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-014-show-catalog.design.yaml"
+}

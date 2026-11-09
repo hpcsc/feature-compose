@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"slices"
-	"strings"
 )
 
 type Catalog struct {
@@ -22,7 +21,7 @@ func (c Catalog) Starter(starterName string) (Starter, error) {
 		return Starter{}, err
 	}
 	if !slices.Contains(names, starterName) {
-		return Starter{}, fmt.Errorf("unknown starter %q: the catalog has %s", starterName, strings.Join(names, ", "))
+		return Starter{}, unknownStarter(starterName, names)
 	}
 	features, err := c.featuresTargeting(starterName)
 	if err != nil {
@@ -47,20 +46,41 @@ func (c Catalog) Combinations() ([]Combination, error) {
 	return combinations, nil
 }
 
-func (c Catalog) featuresTargeting(starterName string) (map[string]feature, error) {
-	entries, err := fs.ReadDir(c.fsys, "features")
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil
-	}
+func (c Catalog) Definitions() (Definitions, error) {
+	starterNames, err := c.starterNames()
 	if err != nil {
-		return nil, fmt.Errorf("read the features of the catalog: %w", err)
+		return Definitions{}, err
+	}
+	featureNames, err := c.featureNames()
+	if err != nil {
+		return Definitions{}, err
+	}
+	definitions := Definitions{Starters: make(map[string]StarterDefinition, len(starterNames)), Features: make(map[string]FeatureDefinition, len(featureNames))}
+	for _, starterName := range starterNames {
+		parsed, err := readStarterYML(c.fsys, starterName)
+		if err != nil {
+			return Definitions{}, err
+		}
+		definitions.Starters[starterName] = parsed.StarterDefinition.filled()
+	}
+	for _, featureName := range featureNames {
+		parsed, err := readFeatureYML(c.fsys, featureName)
+		if err != nil {
+			return Definitions{}, err
+		}
+		definitions.Features[featureName] = parsed.FeatureDefinition.filled()
+	}
+	return definitions, nil
+}
+
+func (c Catalog) featuresTargeting(starterName string) (map[string]feature, error) {
+	featureNames, err := c.featureNames()
+	if err != nil {
+		return nil, err
 	}
 	features := map[string]feature{}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		f, targets, err := readFeatureFor(c.fsys, entry.Name(), starterName)
+	for _, featureName := range featureNames {
+		f, targets, err := readFeatureFor(c.fsys, featureName, starterName)
 		if err != nil {
 			return nil, err
 		}
@@ -75,6 +95,23 @@ func (c Catalog) starterNames() ([]string, error) {
 	entries, err := fs.ReadDir(c.fsys, "starters")
 	if err != nil {
 		return nil, fmt.Errorf("read the starters of the catalog: %w", err)
+	}
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			names = append(names, entry.Name())
+		}
+	}
+	return names, nil
+}
+
+func (c Catalog) featureNames() ([]string, error) {
+	entries, err := fs.ReadDir(c.fsys, "features")
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read the features of the catalog: %w", err)
 	}
 	var names []string
 	for _, entry := range entries {

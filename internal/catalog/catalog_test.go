@@ -3,6 +3,7 @@
 package catalog_test
 
 import (
+	"encoding/json"
 	"errors"
 	"go/parser"
 	"go/token"
@@ -238,6 +239,56 @@ func TestCatalog(t *testing.T) {
 				require.ErrorContains(t, err, "disk failure")
 			})
 		}
+	})
+
+	t.Run("definitions", func(t *testing.T) {
+		for _, failing := range []string{"starters", "starters/api/starter.yml", "features", "features/cli/feature.yml"} {
+			t.Run("a read of "+failing+" that fails stops with its cause", func(t *testing.T) {
+				files := failingFS{failing: failing, files: fstest.MapFS{
+					"starters/api/starter.yml": &fstest.MapFile{Data: []byte("summary: An API.\n")},
+					"features/cli/feature.yml": &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [api]\n")},
+				}}
+
+				_, err := catalog.New(files).Definitions()
+
+				require.ErrorContains(t, err, "disk failure")
+			})
+		}
+
+		t.Run("a field with no value is an empty list, an empty object or an empty text, so the JSON of the definitions holds no null", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/api/starter.yml":  &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n  web:\n    path: web\noptions:\n  module:\n    default: x\n  region:\n    default: us\nextension_points:\n  api.middleware:\n    file: go/server.go\n  api.config:\n    file: go/config.go\n")},
+				"starters/bare/starter.yml": &fstest.MapFile{Data: []byte("summary: Bare.\n")},
+				"features/auth/feature.yml": &fstest.MapFile{Data: []byte("options:\n  method:\n    default: api-key\nextension_points:\n  auth.checks:\n    file: go/auth.go\nadd_to:\n  api.middleware:\n  api.config:\n")},
+				"features/bare/feature.yml": &fstest.MapFile{Data: []byte("summary: Bare.\n")},
+			}
+			definitions, err := catalog.New(files).Definitions()
+			require.NoError(t, err)
+
+			encoded, err := json.Marshal(definitions)
+
+			require.NoError(t, err)
+			require.JSONEq(t, `{
+				"starters": {
+					"api": {
+						"summary": "",
+						"folders": {"go": {"path": ".", "after_render": [], "test": []}, "web": {"path": "web", "after_render": [], "test": []}},
+						"options": {"module": {"default": "x", "pattern": "", "values": []}, "region": {"default": "us", "pattern": "", "values": []}},
+						"extension_points": {"api.middleware": {"summary": "", "file": "go/server.go", "item": []}, "api.config": {"summary": "", "file": "go/config.go", "item": []}}
+					},
+					"bare": {"summary": "Bare.", "folders": {}, "options": {}, "extension_points": {}}
+				},
+				"features": {
+					"auth": {
+						"summary": "", "targets": [], "needs": [],
+						"options": {"method": {"default": "api-key", "pattern": "", "values": []}},
+						"extension_points": {"auth.checks": {"summary": "", "file": "go/auth.go", "item": []}},
+						"add_to": {"api.middleware": [], "api.config": []}
+					},
+					"bare": {"summary": "Bare.", "targets": [], "needs": [], "options": {}, "extension_points": {}, "add_to": {}}
+				}
+			}`, string(encoded))
+		})
 	})
 
 	t.Run("embedded", func(t *testing.T) {

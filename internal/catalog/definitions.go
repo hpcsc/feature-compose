@@ -1,0 +1,112 @@
+package catalog
+
+import (
+	"fmt"
+	"maps"
+	"slices"
+	"strings"
+)
+
+type FolderDefinition struct {
+	Path        string   `json:"path" yaml:"path"`
+	AfterRender []string `json:"after_render" yaml:"after_render"`
+	Test        []string `json:"test" yaml:"test"`
+}
+
+func (f FolderDefinition) filled() FolderDefinition {
+	f.AfterRender = nonNil(f.AfterRender)
+	f.Test = nonNil(f.Test)
+	return f
+}
+
+type OptionDefinition struct {
+	Default string   `json:"default" yaml:"default"`
+	Pattern string   `json:"pattern" yaml:"pattern"`
+	Values  []string `json:"values" yaml:"values"`
+}
+
+func (o OptionDefinition) filled() OptionDefinition {
+	o.Values = nonNil(o.Values)
+	return o
+}
+
+type ExtensionPointDefinition struct {
+	Summary string   `json:"summary" yaml:"summary"`
+	File    string   `json:"file" yaml:"file"`
+	Item    []string `json:"item" yaml:"item"`
+}
+
+func (e ExtensionPointDefinition) filled() ExtensionPointDefinition {
+	e.Item = nonNil(e.Item)
+	return e
+}
+
+type StarterDefinition struct {
+	Summary         string                              `json:"summary" yaml:"summary"`
+	Folders         map[string]FolderDefinition         `json:"folders" yaml:"folders"`
+	Options         map[string]OptionDefinition         `json:"options" yaml:"options"`
+	ExtensionPoints map[string]ExtensionPointDefinition `json:"extension_points" yaml:"extension_points"`
+}
+
+func (s StarterDefinition) filled() StarterDefinition {
+	s.Folders = filled(s.Folders, FolderDefinition.filled)
+	s.Options = filled(s.Options, OptionDefinition.filled)
+	s.ExtensionPoints = filled(s.ExtensionPoints, ExtensionPointDefinition.filled)
+	return s
+}
+
+type FeatureDefinition struct {
+	Summary         string                              `json:"summary" yaml:"summary"`
+	Targets         []string                            `json:"targets" yaml:"targets"`
+	Needs           []string                            `json:"needs" yaml:"needs"`
+	Options         map[string]OptionDefinition         `json:"options" yaml:"options"`
+	ExtensionPoints map[string]ExtensionPointDefinition `json:"extension_points" yaml:"extension_points"`
+	AddTo           map[string][]map[string]string      `json:"add_to" yaml:"add_to"`
+}
+
+func (f FeatureDefinition) filled() FeatureDefinition {
+	f.Targets = nonNil(f.Targets)
+	f.Needs = nonNil(f.Needs)
+	f.Options = filled(f.Options, OptionDefinition.filled)
+	f.ExtensionPoints = filled(f.ExtensionPoints, ExtensionPointDefinition.filled)
+	f.AddTo = filled(f.AddTo, nonNil[map[string]string])
+	return f
+}
+
+type Definitions struct {
+	Starters map[string]StarterDefinition `json:"starters"`
+	Features map[string]FeatureDefinition `json:"features"`
+}
+
+func (d Definitions) ForStarter(starterName string) (Definitions, error) {
+	starter, ok := d.Starters[starterName]
+	if !ok {
+		return Definitions{}, unknownStarter(starterName, slices.Sorted(maps.Keys(d.Starters)))
+	}
+	features := map[string]FeatureDefinition{}
+	for featureName, f := range d.Features {
+		if slices.Contains(f.Targets, starterName) {
+			features[featureName] = f
+		}
+	}
+	return Definitions{Starters: map[string]StarterDefinition{starterName: starter}, Features: features}, nil
+}
+
+func unknownStarter(starterName string, starterNames []string) error {
+	return fmt.Errorf("unknown starter %q: the catalog has %s", starterName, strings.Join(starterNames, ", "))
+}
+
+func nonNil[T any](values []T) []T {
+	if values == nil {
+		return []T{}
+	}
+	return values
+}
+
+func filled[V any](byName map[string]V, fill func(V) V) map[string]V {
+	result := make(map[string]V, len(byName))
+	for name, value := range byName {
+		result[name] = fill(value)
+	}
+	return result
+}

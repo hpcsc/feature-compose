@@ -5,6 +5,7 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -35,6 +36,29 @@ func TestRootCommand(t *testing.T) {
 			require.Empty(t, filesIn(t, workingFolder))
 		})
 
+		t.Run("show prints the starters and the features of the catalog folder that the config file names", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			configHome := t.TempDir()
+			catalogDir := t.TempDir()
+			t.Setenv("XDG_CONFIG_HOME", configHome)
+			writeFile := func(path, contents string) {
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+				require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
+			}
+			writeFile(filepath.Join(catalogDir, "starters", "alpha", "starter.yml"), "summary: Alpha.\nfolders:\n  go:\n    path: .\n")
+			writeFile(filepath.Join(catalogDir, "features", "extra", "feature.yml"), "summary: Extra.\ntargets: [alpha]\n")
+			writeFile(filepath.Join(configHome, "feature-compose", "config.yml"), "catalog: "+catalogDir+"\n")
+			var printed bytes.Buffer
+			command := newCommand()
+			command.Writer, command.ErrWriter = &printed, io.Discard
+
+			err := command.Run(context.Background(), []string{"feature-compose", "show"})
+
+			require.NoError(t, err)
+			require.Contains(t, printed.String(), `"alpha": {`)
+			require.Contains(t, printed.String(), `"extra": {`)
+		})
+
 		t.Run("with no config file, new stops, names the path of the config file, and makes no output folder", func(t *testing.T) {
 			workingFolder := t.TempDir()
 			t.Chdir(workingFolder)
@@ -47,6 +71,14 @@ func TestRootCommand(t *testing.T) {
 
 			require.ErrorContains(t, err, "no config file at "+filepath.Join(configHome, "feature-compose", "config.yml"))
 			require.Empty(t, filesIn(t, workingFolder))
+		})
+
+		t.Run("an error to a stream that is not a terminal has no colour codes, also when stdout is a terminal", func(t *testing.T) {
+			var written bytes.Buffer
+
+			writeError(&written, errors.New("unknown starter \"nope\""))
+
+			require.Equal(t, "unknown starter \"nope\"\n", written.String())
 		})
 
 		t.Run("--version prints the name of the tool and its version", func(t *testing.T) {
@@ -69,6 +101,7 @@ func TestRootCommand(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Contains(t, printed.String(), "make a new repo from a starter")
+			require.Contains(t, printed.String(), "show the starters, the features and the extension points of the catalog")
 			require.Contains(t, printed.String(), "replace feature-compose with the latest release")
 		})
 	})

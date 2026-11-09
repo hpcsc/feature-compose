@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/fatih/color"
@@ -16,7 +17,7 @@ const releaseRepository = "hpcsc/feature-compose"
 
 func Run(ctx context.Context) int {
 	if err := newCommand().Run(ctx, os.Args); err != nil {
-		color.Red(err.Error())
+		writeError(os.Stderr, err)
 		return 1
 	}
 
@@ -31,6 +32,7 @@ func newCommand() *cli.Command {
 		EnableShellCompletion: true,
 		Commands: []*cli.Command{
 			newNewCommand(catalogInConfig),
+			newShowCommand(catalogInConfig),
 			newVersionCommand(),
 			newUpdateCommand(),
 		},
@@ -54,4 +56,14 @@ func catalogInConfig() (catalog.Catalog, error) {
 		return catalog.Catalog{}, err
 	}
 	return catalog.New(os.DirFS(file.CatalogDir)), nil
+}
+
+func writeError(w io.Writer, err error) {
+	red := color.New(color.FgRed)
+	if os.Getenv("NO_COLOR") != "" || !isTerminal(w) {
+		red.DisableColor()
+	} else {
+		red.EnableColor()
+	}
+	_, _ = red.Fprintln(w, err.Error())
 }

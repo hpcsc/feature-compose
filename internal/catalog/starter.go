@@ -9,8 +9,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-
-	"go.yaml.in/yaml/v3"
 )
 
 var repoName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
@@ -26,55 +24,30 @@ type Starter struct {
 
 func readStarter(fsys fs.FS, starterName string, features map[string]feature) (Starter, error) {
 	root := path.Join("starters", starterName)
-	definitionPath := path.Join(root, "starter.yml")
-	definitionYAML, err := fs.ReadFile(fsys, definitionPath)
+	ymlPath := starterYMLPath(starterName)
+	parsed, err := readStarterYML(fsys, starterName)
 	if err != nil {
-		return Starter{}, fmt.Errorf("read %s: %w", definitionPath, err)
+		return Starter{}, err
 	}
-	var definition struct {
-		Options map[string]struct {
-			Default string   `yaml:"default"`
-			Pattern string   `yaml:"pattern"`
-			Values  []string `yaml:"values"`
-		} `yaml:"options"`
-		Folders map[string]struct {
-			Path        string   `yaml:"path"`
-			AfterRender []string `yaml:"after_render"`
-			Test        []string `yaml:"test"`
-		} `yaml:"folders"`
-		Delimiters []struct {
-			Glob  string `yaml:"glob"`
-			Left  string `yaml:"left"`
-			Right string `yaml:"right"`
-		} `yaml:"delimiters"`
-		ExtensionPoints map[string]struct {
-			Summary string   `yaml:"summary"`
-			File    string   `yaml:"file"`
-			Item    []string `yaml:"item"`
-		} `yaml:"extension_points"`
-	}
-	if err := yaml.Unmarshal(definitionYAML, &definition); err != nil {
-		return Starter{}, fmt.Errorf("read %s: %w", definitionPath, err)
-	}
-	declaredOptions := options{declarer: "the starter " + starterName, declared: make(map[string]option, len(definition.Options))}
-	for optionName, declared := range definition.Options {
+	declaredOptions := options{declarer: "the starter " + starterName, declared: make(map[string]option, len(parsed.Options))}
+	for optionName, declared := range parsed.Options {
 		declaredOptions.declared[optionName], err = newOption(optionName, declared.Default, declared.Pattern, declared.Values)
 		if err != nil {
-			return Starter{}, fmt.Errorf("read %s: %w", definitionPath, err)
+			return Starter{}, fmt.Errorf("read %s: %w", ymlPath, err)
 		}
 	}
-	folders := make(map[string]folder, len(definition.Folders))
-	for folderName, declared := range definition.Folders {
+	folders := make(map[string]folder, len(parsed.Folders))
+	for folderName, declared := range parsed.Folders {
 		if !filepath.IsLocal(filepath.FromSlash(declared.Path)) {
-			return Starter{}, fmt.Errorf("read %s: the path %q of the folder %s is outside the repo", definitionPath, declared.Path, folderName)
+			return Starter{}, fmt.Errorf("read %s: the path %q of the folder %s is outside the repo", ymlPath, declared.Path, folderName)
 		}
 		folders[folderName] = folder{name: folderName, path: declared.Path, afterRender: declared.AfterRender, test: declared.Test}
 	}
 	var rules []delimitersRule
-	for _, declared := range definition.Delimiters {
+	for _, declared := range parsed.Delimiters {
 		rule, err := newDelimitersRule(declared.Glob, delimiters{left: declared.Left, right: declared.Right})
 		if err != nil {
-			return Starter{}, fmt.Errorf("read %s: %w", definitionPath, err)
+			return Starter{}, fmt.Errorf("read %s: %w", ymlPath, err)
 		}
 		rules = append(rules, rule)
 	}
@@ -90,8 +63,8 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature) (S
 		}
 		templates = append(templates, placed)
 	}
-	extensionPoints := make(map[string]extensionPoint, len(definition.ExtensionPoints))
-	for name, declared := range definition.ExtensionPoints {
+	extensionPoints := make(map[string]extensionPoint, len(parsed.ExtensionPoints))
+	for name, declared := range parsed.ExtensionPoints {
 		extensionPoints[name] = extensionPoint{name: name, declarer: "the starter " + starterName, itemFields: declared.Item}
 	}
 	return Starter{name: starterName, options: declaredOptions, folders: folders, templates: templates, features: features, extensionPoints: extensionPoints}, nil

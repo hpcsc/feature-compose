@@ -63,7 +63,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Make and test the repo of each combination in CI, and name each combination that fails",
       "language": "Go",
       "testable": true,

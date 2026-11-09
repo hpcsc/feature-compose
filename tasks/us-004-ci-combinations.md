@@ -272,26 +272,26 @@ and `Write`, and runs its `after_render` commands and then its `test` commands. 
 test, and a job of the CI workflow runs the task on each push.
 
 **Acceptance Criteria:**
-- [ ] A test file in `catalog/` under its own build tag, and not `unit`, takes `Combinations` of `catalog.Embedded()`.
+- [x] A test file in `catalog/` under its own build tag, and not `unit`, takes `Combinations` of `catalog.Embedded()`.
   For each combination it gets the starter, selects with the values of the combination, writes the repo into a
   temporary folder, and runs `RunAfterRender` and then `RunTests`. A step that returns an error fails the subtest of
   that combination with that error.
-- [ ] Each combination is its own subtest, whose name is the name of the combination. A combination that fails does
+- [x] Each combination is its own subtest, whose name is the name of the combination. A combination that fails does
   not stop the others.
-- [ ] `task test:combinations` runs the test, and the 10 minutes that `go test` allows by default do not cut the run
+- [x] `task test:combinations` runs the test, and the 10 minutes that `go test` allows by default do not cut the run
   short. On this machine it passes, with one subtest for each combination of the catalog in the binary: today the
   starter alone, the starter with `api-auth` and `method=api-key`, and the starter with `cli`.
-- [ ] When a change to a template of one feature makes the tests of its repo fail, `task test:combinations` exits with
+- [x] When a change to a template of one feature makes the tests of its repo fail, `task test:combinations` exits with
   a status that is not zero. Its output names the starter, the features and the option values of that combination,
   with the output of the `test` command that failed, and the other combinations pass.
-- [ ] On a machine where `go` and `task` run through mise shims, the test trusts its temporary folder, so mise accepts
+- [x] On a machine where `go` and `task` run through mise shims, the test trusts its temporary folder, so mise accepts
   the `mise.toml` of each written repo.
-- [ ] `.github/workflows/ci.yml` has a job beside `build` and `e2e` that runs `task test:combinations` on
+- [x] `.github/workflows/ci.yml` has a job beside `build` and `e2e` that runs `task test:combinations` on
   `ubuntu-latest`. It installs Go from `go.mod`, and Task and gotestsum without mise (decision 7). The workflow and
   the task name no starter, no feature and no option value, so a new starter or a new feature gets its repos with no
   change to them. `actionlint` finds no error in the workflow.
-- [ ] `task test:unit` passes, and runs none of these subtests.
-- [ ] `README.md` says what `task test:combinations` makes and runs, what it needs (Go, Task, gotestsum, a C
+- [x] `task test:unit` passes, and runs none of these subtests.
+- [x] `README.md` says what `task test:combinations` makes and runs, what it needs (Go, Task, gotestsum, a C
   compiler and the network), and that a catalog author runs it after a change to a starter or a feature.
 
 **Affected Files/Modules:**

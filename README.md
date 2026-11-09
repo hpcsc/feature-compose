@@ -74,6 +74,26 @@ prerelease, and then keeps only the 5 newest prereleases.
 
 `On Demand Build` builds a snapshot of any ref from Github Actions and uploads the archives as artifacts.
 
+## Test the Combinations of the Catalog
+
+`task test:combinations` makes one repo for each combination of the catalog in the binary. In each repo, it
+runs the `after_render` commands and then the `test` commands of each folder. These are the combinations:
+
+- Each starter alone
+- Each starter with each feature that targets it
+- One for each value of an option that has `values`, with the other options at their defaults
+- Each pair of features that add items to one extension point
+
+Run it after you change a starter or a feature. CI runs it on each push, in the job `combinations`. The
+catalog gives the list, so a new starter, feature or value needs no change to the task or to CI.
+
+The output names each combination that fails as the arguments of `new` that make the same repo, for
+example `go-event-sourcing-service --feature api-auth:method=api-key`, and shows the output of the command
+that failed.
+
+The task needs Go, Task, gotestsum, a C compiler and the network. Each repo takes some seconds when the Go
+module cache has its modules, and some minutes when it does not.
+
 ## E2E Test
 
 The end-to-end tests run the built binary in a terminal, send keys to it, and read the screen. They are

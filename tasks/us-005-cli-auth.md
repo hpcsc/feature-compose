@@ -308,18 +308,18 @@ of `new`
 selection.
 
 **Acceptance Criteria:**
-- [ ] A template of a feature reads an option of a need that its `feature.yml` names as `<need>.<option>`, in its
+- [x] A template of a feature reads an option of a need that its `feature.yml` names as `<need>.<option>`, in its
   contents and in its path. The value is the value of that option in the selection: the default of the need, or the
   value that `--feature <need>:<option>=<value>` gives. The test uses a value that is not the default.
-- [ ] A template of a feature still reads its own options by their names, and the options of the starter as
+- [x] A template of a feature still reads its own options by their names, and the options of the starter as
   `starter.<option>`.
-- [ ] `<feature>.<option>` stops the write before the first file when the feature is selected but is not a need of
+- [x] `<feature>.<option>` stops the write before the first file when the feature is selected but is not a need of
   the feature of the template, when it is a need of a need (decision 5), or when the need does not declare the
   option. The message names the template and lists the names that the template can read, which include
   `<need>.<option>` for each option of each need of its feature.
-- [ ] A template of the starter still reads only the options of the starter: `<feature>.<option>` in a template of
+- [x] A template of the starter still reads only the options of the starter: `<feature>.<option>` in a template of
   the starter stops the write, and the message lists the options of the starter.
-- [ ] The default of an option still reads only the name of the repo.
+- [x] The default of an option still reads only the name of the repo.
 
 **Affected Files/Modules:**
 - `internal/catalog/selection.go` — `option` reads the options of the needs of the feature

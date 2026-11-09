@@ -24,6 +24,7 @@ type Selection struct {
 	templates       []template
 	extensionPoints map[string]extensionPoint
 	addedByNeeds    []Need
+	needs           map[string][]string
 }
 
 func (s Selection) AddedByNeeds() []Need {
@@ -111,10 +112,19 @@ func (s Selection) option(featureName, reference string) (string, error) {
 		if value, ok := s.starterValues[optionName]; ok {
 			return value, nil
 		}
+	} else if needName, optionName, ok := strings.Cut(reference, "."); ok {
+		if value, ok := s.featureValues[needName][optionName]; ok && slices.Contains(s.needs[featureName], needName) {
+			return value, nil
+		}
 	} else if value, ok := s.featureValues[featureName][reference]; ok {
 		return value, nil
 	}
 	readable := slices.Collect(maps.Keys(s.featureValues[featureName]))
+	for _, needName := range s.needs[featureName] {
+		for optionName := range s.featureValues[needName] {
+			readable = append(readable, needName+"."+optionName)
+		}
+	}
 	for optionName := range s.starterValues {
 		readable = append(readable, "starter."+optionName)
 	}

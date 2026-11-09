@@ -71,7 +71,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Read the options of a need in the templates of a feature",
       "language": "Go",
       "testable": true,

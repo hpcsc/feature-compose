@@ -459,6 +459,63 @@ folders:
 			})
 		}
 
+		withNeedOptions := func(templatePath, template string) fstest.MapFS {
+			return fstest.MapFS{
+				"starters/service/starter.yml":               &fstest.MapFile{Data: []byte("options:\n  module:\n    default: example.com/{{ .Name }}\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/go.mod":           &fstest.MapFile{Data: []byte(`module {{ option "starter.module" }}`)},
+				"features/base/feature.yml":                  &fstest.MapFile{Data: []byte("summary: Base.\ntargets: [service]\noptions:\n  tier:\n    default: free\n")},
+				"features/auth/feature.yml":                  &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [service]\nneeds: [base]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n  store:\n    default: keychain\n")},
+				"features/keys/feature.yml":                  &fstest.MapFile{Data: []byte("summary: Keys.\ntargets: [service]\noptions:\n  format:\n    default: hex\n")},
+				"features/docs/feature.yml":                  &fstest.MapFile{Data: []byte("summary: Docs.\ntargets: [service]\noptions:\n  mode:\n    default: short\n")},
+				"features/cli-auth/feature.yml":              &fstest.MapFile{Data: []byte("summary: CLI auth.\ntargets: [service]\nneeds: [auth, keys]\nfiles:\n  - path: files/\noptions:\n  realm:\n    default: \"{{ .Name }}-cli\"\n")},
+				"features/cli-auth/files/go/" + templatePath: &fstest.MapFile{Data: []byte(template)},
+			}
+		}
+
+		t.Run("a template of a feature reads an option of its need as <need>.<option>, in its contents and in its path, with the value of the selection", func(t *testing.T) {
+			starter, err := catalog.New(withNeedOptions(`{{ option "auth.method" }}.txt`, `{{ option "auth.method" }} {{ option "realm" }} {{ option "starter.module" }}`)).Starter("service")
+			require.NoError(t, err)
+
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil, "auth": {"method": "oauth"}})
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"go.mod": "module example.com/my-service", "oauth.txt": "oauth my-service-cli example.com/my-service"}, written(t, selection))
+		})
+
+		for name, reference := range map[string]string{
+			"a need of a need":                   "base.tier",
+			"a selected feature that is no need": "docs.mode",
+			"an option that the need lacks":      "auth.missing",
+		} {
+			t.Run("an option of "+name+" in a template of a feature stops the write, and the message lists the options of the feature, of its needs and of the starter", func(t *testing.T) {
+				starter, err := catalog.New(withNeedOptions("cli-auth.txt", `{{ option "`+reference+`" }}`)).Starter("service")
+				require.NoError(t, err)
+				selection, err := starter.Select("my-service", nil, withoutValues("cli-auth", "docs"))
+				require.NoError(t, err)
+				output := filepath.Join(t.TempDir(), "repo")
+
+				err = selection.Write(output)
+
+				require.ErrorContains(t, err, "go/cli-auth.txt of the feature cli-auth")
+				require.ErrorContains(t, err, `unknown option "`+reference+`": the template can read auth.method, auth.store, keys.format, realm, starter.module`)
+				require.NoDirExists(t, output)
+			})
+		}
+
+		t.Run("an option of a feature in a template of the starter stops the write, and the message lists only the options of the starter", func(t *testing.T) {
+			files := withNeedOptions("cli-auth.txt", "cli-auth")
+			files["starters/service/files/go/go.mod"] = &fstest.MapFile{Data: []byte(`module {{ option "auth.method" }}`)}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, withoutValues("cli-auth"))
+			require.NoError(t, err)
+
+			err = selection.Write(filepath.Join(t.TempDir(), "repo"))
+
+			require.ErrorContains(t, err, "go/go.mod of the starter")
+			require.ErrorContains(t, err, `unknown option "auth.method": the template can read starter.module`)
+		})
+
 		t.Run("option with the name of a feature option in a template of the starter stops the write, and the message lists the options of the starter", func(t *testing.T) {
 			files := withFeatureOptions(authTemplate)
 			files["starters/service/files/go/go.mod"] = &fstest.MapFile{Data: []byte(`module {{ option "method" }}`)}

@@ -1,19 +1,19 @@
-package catalog
+package textcase
 
 import (
 	"strings"
 	"unicode"
 )
 
-func kebab(name string) string {
+func Kebab(name string) string {
 	return strings.Join(words(name), "-")
 }
 
-func snake(name string) string {
+func Snake(name string) string {
 	return strings.Join(words(name), "_")
 }
 
-func camel(name string) string {
+func Camel(name string) string {
 	parts := words(name)
 	for i := 1; i < len(parts); i++ {
 		parts[i] = capitalize(parts[i])
@@ -21,7 +21,7 @@ func camel(name string) string {
 	return strings.Join(parts, "")
 }
 
-func pascal(name string) string {
+func Pascal(name string) string {
 	parts := words(name)
 	for i := range parts {
 		parts[i] = capitalize(parts[i])

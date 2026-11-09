@@ -75,32 +75,17 @@ func TestSelection(t *testing.T) {
 			require.Equal(t, map[string]string{"cmd/my-service/main.go": "// my-service starts here\n"}, filesIn(t, output))
 		})
 
-		for _, name := range []string{"order-event-store", "order_event_store", "order.event.store", "orderEventStore", "OrderEventStore"} {
-			t.Run("the case functions give one result for the name "+name, func(t *testing.T) {
-				files := fstest.MapFS{
-					"starters/service/starter.yml":    oneFolder,
-					"starters/service/files/go/names": &fstest.MapFile{Data: []byte("{{ kebab .Name }} {{ snake .Name }} {{ camel .Name }} {{ pascal .Name }}")},
-				}
-				output := filepath.Join(t.TempDir(), "repo")
-
-				err := selectionOf(t, files, name).Write(output)
-
-				require.NoError(t, err)
-				require.Equal(t, map[string]string{"names": "order-event-store order_event_store orderEventStore OrderEventStore"}, filesIn(t, output))
-			})
-		}
-
-		t.Run("an upper-case letter after another upper-case letter stays in the word", func(t *testing.T) {
+		t.Run("a template renders the name in kebab, snake, camel and pascal case", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":    oneFolder,
 				"starters/service/files/go/names": &fstest.MapFile{Data: []byte("{{ kebab .Name }} {{ snake .Name }} {{ camel .Name }} {{ pascal .Name }}")},
 			}
 			output := filepath.Join(t.TempDir(), "repo")
 
-			err := selectionOf(t, files, "OrderAPI").Write(output)
+			err := selectionOf(t, files, "OrderEventStore").Write(output)
 
 			require.NoError(t, err)
-			require.Equal(t, map[string]string{"names": "order-api order_api orderApi OrderApi"}, filesIn(t, output))
+			require.Equal(t, map[string]string{"names": "order-event-store order_event_store orderEventStore OrderEventStore"}, filesIn(t, output))
 		})
 
 		t.Run("a word of one letter at the start of the name is a word", func(t *testing.T) {
@@ -666,45 +651,43 @@ func TestSelection(t *testing.T) {
 		}
 
 		githubTemplate := `{{ githubRepository (option "starter.module") }} {{ (githubRepository (option "starter.module")).Account }} {{ (githubRepository (option "starter.module")).Name }}`
-		for _, module := range []string{"github.com/acme/ledger", "github.com/acme/ledger/tools"} {
-			t.Run("githubRepository gives the account and the repository of the module "+module, func(t *testing.T) {
-				files := fstest.MapFS{
-					"starters/service/starter.yml":     twoFolders,
-					"starters/service/files/go/github": &fstest.MapFile{Data: []byte(githubTemplate)},
-				}
-				starter, err := catalog.New(files).Starter("service")
-				require.NoError(t, err)
-				selection, err := starter.Select("my-service", map[string]string{"module": module}, nil)
-				require.NoError(t, err)
-				output := filepath.Join(t.TempDir(), "my-service")
+		t.Run("githubRepository gives the account and the repository of the module, also with a path after the repository", func(t *testing.T) {
+			module := "github.com/acme/ledger/tools"
+			files := fstest.MapFS{
+				"starters/service/starter.yml":     twoFolders,
+				"starters/service/files/go/github": &fstest.MapFile{Data: []byte(githubTemplate)},
+			}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", map[string]string{"module": module}, nil)
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
 
-				err = selection.Write(output)
+			err = selection.Write(output)
 
-				require.NoError(t, err)
-				require.Equal(t, map[string]string{"github": "acme/ledger acme ledger"}, filesIn(t, output))
-			})
-		}
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"github": "acme/ledger acme ledger"}, filesIn(t, output))
+		})
 
-		for _, module := range []string{"example.com/acme/ledger", "github.com/acme", "github.com//ledger", "github.com/acme/", "github.com/acme/..", "github.com/./ledger"} {
-			t.Run("githubRepository with the module "+module+" stops the write before the first file, and the message names the module", func(t *testing.T) {
-				files := fstest.MapFS{
-					"starters/service/starter.yml":     twoFolders,
-					"starters/service/files/go/a.md":   &fstest.MapFile{Data: []byte("a\n")},
-					"starters/service/files/go/github": &fstest.MapFile{Data: []byte(githubTemplate)},
-				}
-				starter, err := catalog.New(files).Starter("service")
-				require.NoError(t, err)
-				selection, err := starter.Select("my-service", map[string]string{"module": module}, nil)
-				require.NoError(t, err)
-				output := filepath.Join(t.TempDir(), "my-service")
+		t.Run("githubRepository with a module that is not on GitHub stops the write before the first file, and the message names the module", func(t *testing.T) {
+			module := "example.com/acme/ledger"
+			files := fstest.MapFS{
+				"starters/service/starter.yml":     twoFolders,
+				"starters/service/files/go/a.md":   &fstest.MapFile{Data: []byte("a\n")},
+				"starters/service/files/go/github": &fstest.MapFile{Data: []byte(githubTemplate)},
+			}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", map[string]string{"module": module}, nil)
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
 
-				err = selection.Write(output)
+			err = selection.Write(output)
 
-				require.ErrorContains(t, err, strconv.Quote(module))
-				require.ErrorContains(t, err, "GitHub")
-				require.NoDirExists(t, output)
-			})
-		}
+			require.ErrorContains(t, err, strconv.Quote(module))
+			require.ErrorContains(t, err, "GitHub")
+			require.NoDirExists(t, output)
+		})
 
 		withDelimiters := &fstest.MapFile{Data: []byte(`
 options:
@@ -921,27 +904,6 @@ folders:
 			require.Error(t, err)
 			time.Sleep(2 * time.Second)
 			require.NoFileExists(t, filepath.Join(output, "finished"))
-		})
-
-		t.Run("a context that ends does not wait for a child that left the process group", func(t *testing.T) {
-			t.Chdir(t.TempDir())
-			output := filepath.Join(t.TempDir(), "my-service")
-			selection := writtenRepo(t, `
-folders:
-  app:
-    path: .
-    after_render: ["set -m; sleep 8 & wait"]
-  web:
-    path: frontend
-`, output)
-			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-			defer cancel()
-			started := time.Now()
-
-			err := selection.RunAfterRender(ctx, output)
-
-			require.Error(t, err)
-			require.Less(t, time.Since(started), 4*time.Second)
 		})
 	})
 

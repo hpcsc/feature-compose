@@ -11,6 +11,9 @@ import (
 	"slices"
 	"strings"
 	texttemplate "text/template"
+
+	"github.com/hpcsc/feature-compose/internal/github"
+	"github.com/hpcsc/feature-compose/internal/textcase"
 )
 
 type Selection struct {
@@ -82,7 +85,7 @@ func (s Selection) checkEmpty(output string) error {
 
 func (s Selection) render(label, text string, d delimiters, featureName string) (string, error) {
 	option := func(reference string) (string, error) { return s.option(featureName, reference) }
-	funcs := texttemplate.FuncMap{"option": option, "items": s.items, "unique": s.unique, "githubRepository": parseGitHubRepository, "kebab": kebab, "snake": snake, "camel": camel, "pascal": pascal}
+	funcs := texttemplate.FuncMap{"option": option, "items": s.items, "unique": s.unique, "githubRepository": github.RepositoryOf, "kebab": textcase.Kebab, "snake": textcase.Snake, "camel": textcase.Camel, "pascal": textcase.Pascal}
 	parsed, err := texttemplate.New(label).Delims(d.left, d.right).Funcs(funcs).Option("missingkey=error").Parse(text)
 	if err != nil {
 		return "", fmt.Errorf("parse %w", err)

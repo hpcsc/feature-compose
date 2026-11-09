@@ -291,45 +291,45 @@ back one view, and `q` stops. `show <starter>` opens the TUI at the view of that
 `l` on a feature opens nothing until Task 3.
 
 **Acceptance Criteria:**
-- [ ] go.mod requires `github.com/charmbracelet/bubbletea` v1.3.10 and `github.com/charmbracelet/bubbles` v1.0.0,
+- [x] go.mod requires `github.com/charmbracelet/bubbletea` v1.3.10 and `github.com/charmbracelet/bubbles` v1.0.0,
   with `github.com/charmbracelet/lipgloss` at v1.1.0 (decision 1). `go mod tidy` leaves go.mod and go.sum as they
   are.
-- [ ] The first view lists each starter of the definitions that the browser gets, in the order of the names, each
+- [x] The first view lists each starter of the definitions that the browser gets, in the order of the names, each
   with its summary. The browser names no starter of its own: a starter that the definitions hold is in the list.
-- [ ] `/` starts the filter. While the filter is typed, each key goes to the filter, also `h`, `j`, `k`, `l` and
+- [x] `/` starts the filter. While the filter is typed, each key goes to the filter, also `h`, `j`, `k`, `l` and
   `q`, and the list holds only the starters whose name matches it. A starter whose summary holds the text, but whose
   name does not, is not in the list. Enter ends the typing and keeps the filtered list, where `j`, `k`, `l` and `q`
   work as before. Esc clears the filter, and the list holds each starter again.
-- [ ] `j` and `k` move the selection down and up, as the down and up arrows do, in the list of the starters and in
+- [x] `j` and `k` move the selection down and up, as the down and up arrows do, in the list of the starters and in
   the list of the features of a starter: from the first starter, `j` and then `l` opens the view of the second
   starter, and `j`, `k` and then `l` opens the first.
-- [ ] `l` or Enter on a starter opens the view of that starter. It shows the summary of the starter; each folder
+- [x] `l` or Enter on a starter opens the view of that starter. It shows the summary of the starter; each folder
   with its path, its `after_render` commands and its `test` commands; each option with its default and its values or
   its pattern; each extension point with its summary, its item fields and its declarer, where the list also holds
   each extension point that a feature that targets the starter declares, with that feature as its declarer; and
   each feature that targets the starter, with its summary. A starter that no feature targets says so.
-- [ ] `h` or Esc in the view of a starter goes back to the list of the starters, with the same starter selected and
+- [x] `h` or Esc in the view of a starter goes back to the list of the starters, with the same starter selected and
   the same filter. At the list of the starters, `h` does nothing, and Esc clears the filter (decision 10).
-- [ ] `q` stops the TUI from the list of the starters, when no filter is typed, and from the view of a starter.
+- [x] `q` stops the TUI from the list of the starters, when no filter is typed, and from the view of a starter.
   ctrl+c stops it from each view.
-- [ ] `show <starter>` in a terminal opens the TUI at the view of that starter, and `h` then shows the list of all
+- [x] `show <starter>` in a terminal opens the TUI at the view of that starter, and `h` then shows the list of all
   starters. An unknown starter stops `show` before the TUI starts, and the message lists the starters.
-- [ ] `show` opens the TUI only when stdin and stdout are both terminals (decision 3). Else, and with
+- [x] `show` opens the TUI only when stdin and stdout are both terminals (decision 3). Else, and with
   `--output json` in a terminal, it prints the JSON of Task 1 and starts no TUI. The tests of Task 1 pass with their
   expected values unchanged.
-- [ ] The TUI writes no file: after a session that opens views and stops with `q`, the working folder and the config
+- [x] The TUI writes no file: after a session that opens views and stops with `q`, the working folder and the config
   folder hold only what they held before.
-- [ ] The tests of `internal/browser` pass when the shell sets `CLICOLOR_FORCE=1`, and when it sets `NO_COLOR=1`.
-- [ ] `e2e/tests/show.test.ts` opens `show` with `openCli`. The screen shows `go-event-sourcing-service` and its
+- [x] The tests of `internal/browser` pass when the shell sets `CLICOLOR_FORCE=1`, and when it sets `NO_COLOR=1`.
+- [x] `e2e/tests/show.test.ts` opens `show` with `openCli`. The screen shows `go-event-sourcing-service` and its
   summary. `/` and a text that matches no name of the catalog hide the starter, and Esc shows it again. `l` opens the
   view of the starter, which shows `go mod tidy`, `task test:unit`, `1.27.1`, `api.middleware`, `cli.commands` with
   the declarer `cli`, and `cli-auth`. `h` shows the list again, and `q` ends with `EXIT:0`.
   `show go-event-sourcing-service` opens at the view of the starter. `show no-such-starter` shows the starters of
   the catalog and an exit status other than 0, and no view of the TUI. The working folder holds no file after each
   test.
-- [ ] The section "Show the catalog" of `README.md` tells when `show` opens the TUI, the keys of the TUI, and the
+- [x] The section "Show the catalog" of `README.md` tells when `show` opens the TUI, the keys of the TUI, and the
   filter with `/`.
-- [ ] In this repo, `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] In this repo, `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `go.mod`, `go.sum` — bubbletea, bubbles and lipgloss

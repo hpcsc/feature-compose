@@ -60,7 +60,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Open the TUI of `show` in a terminal, with the list of the starters, its filter, and the view of a starter",
       "language": "Go",
       "testable": true,

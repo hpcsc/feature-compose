@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"maps"
 	"os"
 	"regexp"
@@ -15,8 +16,10 @@ import (
 	"testing"
 	"testing/fstest"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/hpcsc/feature-compose/internal/catalog"
 	"github.com/stretchr/testify/require"
+	"github.com/urfave/cli/v3"
 )
 
 func TestShowCommand(t *testing.T) {
@@ -81,7 +84,7 @@ add_to:
 	}
 	const workerAndCLI = `
 		"worker": {"summary": "A worker.", "folders": {"go": {"path": ".", "after_render": [], "test": []}}, "options": {}, "extension_points": {}}`
-	const cli = `
+	const cliJSON = `
 		"cli": {"summary": "A CLI.", "targets": ["worker", "api"], "needs": [], "options": {}, "extension_points": {}, "add_to": {}}`
 
 	t.Run("json", func(t *testing.T) {
@@ -109,7 +112,7 @@ add_to:
 						"options": {"method": {"default": "api-key", "pattern": "", "values": ["oauth", "api-key"]}},
 						"extension_points": {"auth.checks": {"summary": "A check.", "file": "go/auth.go", "item": ["code"]}},
 						"add_to": {"api.middleware": [{"code": "auth.Middleware", "import": "internal/auth"}]}
-					},`+cli+`
+					},`+cliJSON+`
 				}
 			}`, printed)
 		})
@@ -118,7 +121,7 @@ add_to:
 			printed, err := runShow(t, withEachField(), "worker", "--output", "json")
 
 			require.NoError(t, err)
-			require.JSONEq(t, `{"starters": {`+workerAndCLI+`}, "features": {`+cli+`}}`, printed)
+			require.JSONEq(t, `{"starters": {`+workerAndCLI+`}, "features": {`+cliJSON+`}}`, printed)
 		})
 
 		for _, arguments := range [][]string{{}, {"worker"}} {
@@ -212,6 +215,26 @@ add_to:
 			for _, part := range []string{"show - show the starters, the features and the extension points of the catalog\n", "options] [<starter>]\n", "--output string  print the catalog in this format: json\n"} {
 				require.Contains(t, printed, part)
 			}
+		})
+	})
+
+	t.Run("tui", func(t *testing.T) {
+		t.Run("a TUI that stops with an error gives that error to show", func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			command := &cli.Command{Reader: strings.NewReader(""), Writer: io.Discard}
+
+			err := browse(ctx, command, catalog.Definitions{}, "")
+
+			require.ErrorIs(t, err, tea.ErrProgramKilled)
+		})
+
+		t.Run("an unknown starter stops the TUI before it starts", func(t *testing.T) {
+			command := &cli.Command{Reader: strings.NewReader(""), Writer: io.Discard}
+
+			err := browse(context.Background(), command, catalog.Definitions{Starters: map[string]catalog.StarterDefinition{"api": {}}}, "nope")
+
+			require.EqualError(t, err, `unknown starter "nope": the catalog has api`)
 		})
 	})
 

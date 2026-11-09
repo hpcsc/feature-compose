@@ -1,0 +1,33 @@
+package cli
+
+import (
+	"context"
+	"fmt"
+
+	"{{ option "starter.module" }}/internal/credential"
+	"github.com/urfave/cli/v3"
+)
+
+func newAuthCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "auth",
+		Usage: "show where the API key comes from",
+		Commands: []*cli.Command{
+			{
+				Name:   "status",
+				Usage:  "show where the API key comes from, but not the API key",
+				Action: authStatus,
+			},
+		},
+	}
+}
+
+func authStatus(ctx context.Context, cmd *cli.Command) error {
+	found, err := credential.Resolve(ctx)
+	if err != nil {
+		return err
+	}
+	out := cmd.Root().Writer
+	_, err = fmt.Fprintf(out, "The API key comes from %s.\n", found.Source)
+	return err
+}

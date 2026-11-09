@@ -79,7 +79,7 @@ tests keep the original binary.
 
 ## The full run of `new`
 
-Three tests in `e2e/tests/new.test.ts` make a repo from `go-event-sourcing-service` and check it. The first
+Four tests in `e2e/tests/new.test.ts` make a repo from `go-event-sourcing-service` and check it. The first
 makes the repo from the starter alone:
 
 1. `feature-compose new go-event-sourcing-service my-service --no-prompt` makes the repo. Its `after_render`
@@ -106,6 +106,17 @@ The third adds `--feature cli`, and checks that the feature fits the starter:
    not count.
 3. `go run ./cmd/my-service` with no command prints the commands of the CLI, which are only `version`,
    `update` and `help`, and reads no input.
+
+The fourth adds only `--feature cli-auth`, which needs `cli` and `api-auth`:
+
+1. `new` prints `api-auth: needed by cli-auth` and `cli: needed by cli-auth` before the line that names the
+   output folder.
+2. `gofmt -l .` lists no file, and the CLI builds. `task test:unit` stops with the exit status 0, and the
+   tests of `internal/credential`, `internal/auth`, `internal/cli` and of the service ran and passed.
+3. The CLI lists the commands `version`, `update`, `auth` and `help`. With `MY_SERVICE_API_KEY` set,
+   `auth status` names the variable and does not print the key. With no variable and an empty config folder,
+   it stops with an exit status other than 0, and its message names `MY_SERVICE_API_KEY` and
+   `credentialCommand`.
 
 To start an API, a test builds `./cmd/api` of the repo and runs it on a free port of `127.0.0.1`. Its
 database settings point to no database. The pool of the API opens no connection before the first query, and

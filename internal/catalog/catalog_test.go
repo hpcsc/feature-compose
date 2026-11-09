@@ -646,6 +646,113 @@ add_to:
 			require.NoError(t, err)
 		})
 
+		writtenWithFeatures := func(t *testing.T, givenByFeature map[string]map[string]string) map[string]string {
+			t.Helper()
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, givenByFeature)
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+			require.NoError(t, selection.Write(output))
+			return filesIn(t, output)
+		}
+
+		t.Run("cli-auth adds its files to the repo with cli and api-auth, and only the root command of the CLI changes, which lists auth after version and update", func(t *testing.T) {
+			withoutCLIAuth := writtenWithFeatures(t, withoutValues("cli", "api-auth"))
+
+			withCLIAuth := writtenWithFeatures(t, withoutValues("cli-auth"))
+
+			added := map[string]string{}
+			var changed []string
+			for path, contents := range withCLIAuth {
+				before, ok := withoutCLIAuth[path]
+				switch {
+				case !ok:
+					added[path] = contents
+				case before != contents:
+					changed = append(changed, path)
+				}
+			}
+			require.ElementsMatch(t, []string{
+				"internal/credential/credential.go", "internal/credential/command.go", "internal/credential/config.go",
+				"internal/credential/credential_test.go", "internal/cli/auth.go", "e2e/tests/auth.test.ts", "docs/cli-auth.md",
+			}, slices.Collect(maps.Keys(added)))
+			require.Equal(t, []string{"internal/cli/root.go"}, changed)
+			require.Len(t, withCLIAuth, len(withoutCLIAuth)+len(added))
+			require.Contains(t, withCLIAuth["internal/cli/root.go"], "\t\t\tnewVersionCommand(),\n\t\t\tnewUpdateCommand(),\n\t\t\tnewAuthCommand(),\n\t\t},")
+		})
+
+		t.Run("cli-auth alone, and cli-auth with cli and api-auth, give the same files", func(t *testing.T) {
+			require.Equal(t, writtenWithFeatures(t, withoutValues("cli-auth")), writtenWithFeatures(t, withoutValues("cli-auth", "cli", "api-auth")))
+		})
+
+		t.Run("cli-auth has no option, so a value of method for it stops, and the message says that it has no option", func(t *testing.T) {
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": {"method": "api-key"}})
+
+			require.ErrorContains(t, err, `unknown option "method": the feature cli-auth has no option`)
+		})
+
+		t.Run("the files of a repo with cli-auth hold no value of scaffold", func(t *testing.T) {
+			files := writtenWithFeatures(t, withoutValues("cli-auth"))
+
+			for path, contents := range files {
+				for _, value := range []string{".Scaffold.", ".Computed.", "go-cli-project", "GO_CLI_PROJECT", "zzsentinel", "<no value>"} {
+					require.NotContains(t, contents, value, path)
+				}
+			}
+		})
+
+		t.Run("the Go files of cli-auth import only packages of the module that cli-auth, cli or api-auth writes", func(t *testing.T) {
+			files := writtenWithFeatures(t, withoutValues("cli-auth"))
+
+			for _, path := range []string{"internal/credential/credential.go", "internal/credential/command.go", "internal/credential/config.go", "internal/credential/credential_test.go", "internal/cli/auth.go"} {
+				parsed, err := parser.ParseFile(token.NewFileSet(), path, files[path], parser.ImportsOnly)
+				require.NoError(t, err, path)
+				for _, imported := range parsed.Imports {
+					importPath, err := strconv.Unquote(imported.Path.Value)
+					require.NoError(t, err)
+					if inModule, ok := strings.CutPrefix(importPath, "github.com/hpcsc/my-service/"); ok {
+						require.Regexp(t, `^internal/(credential|cli|auth)(/|$)`, inModule, path+" imports "+importPath)
+					}
+				}
+			}
+		})
+
+		t.Run("the docs of cli-auth name the variable, credentialCommand, auth status and the method of api-auth, and only paths that the repo has", func(t *testing.T) {
+			files := writtenWithFeatures(t, withoutValues("cli-auth"))
+			docs := files["docs/cli-auth.md"]
+
+			for _, part := range []string{
+				"MY_SERVICE_API_KEY", "credentialCommand", "my-service auth status", "Authorization: Bearer <key>",
+				"the method `api-key`", "the CLI follows the method of the API", "[api-auth.md](api-auth.md)",
+			} {
+				require.Contains(t, docs, part)
+			}
+			for _, path := range regexp.MustCompile("`([A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+)`").FindAllStringSubmatch(docs, -1) {
+				require.True(t, slices.ContainsFunc(slices.Collect(maps.Keys(files)), func(written string) bool {
+					return written == path[1] || strings.HasPrefix(written, path[1]+"/")
+				}), path[1])
+			}
+		})
+
+		t.Run("the docs of cli-auth name the method that api-auth has in the selection", func(t *testing.T) {
+			files := catalogOnDisk(t)
+			apiAuth := string(files["features/api-auth/feature.yml"].Data)
+			require.Contains(t, apiAuth, "values: [api-key]")
+			files["features/api-auth/feature.yml"] = &fstest.MapFile{Data: []byte(strings.Replace(apiAuth, "values: [api-key]", "values: [api-key, zzmethod]", 1))}
+			starter, err := catalog.New(files).Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil, "api-auth": {"method": "zzmethod"}})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+			require.NoError(t, selection.Write(output))
+
+			require.Contains(t, filesIn(t, output)["docs/cli-auth.md"], "the method `zzmethod`")
+		})
+
 		t.Run("the files of cli hold no value of scaffold", func(t *testing.T) {
 			_, files := writtenWithCLI(t, "my-service", nil)
 

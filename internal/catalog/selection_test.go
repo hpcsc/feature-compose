@@ -75,6 +75,21 @@ func TestSelection(t *testing.T) {
 			require.Equal(t, map[string]string{"cmd/my-service/main.go": "// my-service starts here\n"}, filesIn(t, output))
 		})
 
+		for _, name := range []string{"my-service", "My.Service"} {
+			t.Run("upper gives the snake case of the name "+name+" in capitals", func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":       oneFolder,
+					"starters/service/files/go/variable": &fstest.MapFile{Data: []byte(`{{ upper (snake .Name) }}_API_KEY`)},
+				}
+				output := filepath.Join(t.TempDir(), "repo")
+
+				err := selectionOf(t, files, name).Write(output)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"variable": "MY_SERVICE_API_KEY"}, filesIn(t, output))
+			})
+		}
+
 		t.Run("a template renders the name in kebab, snake, camel and pascal case", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":    oneFolder,

@@ -354,41 +354,41 @@ comes from, and never the key. The files are the preset `api-key` of `global/go-
 values. An end-to-end test makes a repo with `--feature cli-auth` with the real binary.
 
 **Acceptance Criteria:**
-- [ ] `catalog/features/cli-auth/feature.yml` has a `summary` that says what the repo gets; `targets` with only
+- [x] `catalog/features/cli-auth/feature.yml` has a `summary` that says what the repo gets; `targets` with only
   `go-event-sourcing-service`; `needs: [cli, api-auth]`; no option; `files` with the one entry `files/common/`; and
   the item `newAuthCommand()` for `cli.commands` in `add_to`. It names no language.
-- [ ] Written with `go-event-sourcing-service`, the name `my-service` and `cli-auth` alone, the repo has the files of
+- [x] Written with `go-event-sourcing-service`, the name `my-service` and `cli-auth` alone, the repo has the files of
   the starter, of `cli`, of `api-auth` and of `cli-auth`. Each file of the repo written with `cli` and `api-auth`
   and without `cli-auth` has the same contents, except `internal/cli/root.go`, which lists `newAuthCommand()` after
   `newVersionCommand()` and `newUpdateCommand()`. `cli-auth` alone and `cli-auth` with `api-auth` give the same
   files.
-- [ ] The template function `upper` gives its text in capitals, so `{{ upper (snake .Name) }}` gives `MY_SERVICE`
+- [x] The template function `upper` gives its text in capitals, so `{{ upper (snake .Name) }}` gives `MY_SERVICE`
   for the names `my-service` and `My.Service` (decision 7).
-- [ ] In the written repo, the CLI takes the key from `MY_SERVICE_API_KEY` when it is not empty. Else it runs the
+- [x] In the written repo, the CLI takes the key from `MY_SERVICE_API_KEY` when it is not empty. Else it runs the
   `credentialCommand` of `$XDG_CONFIG_HOME/my-service/config.yaml` through `sh`, or of
   `~/.config/my-service/config.yaml` when `XDG_CONFIG_HOME` is not an absolute path, and takes what the command
   prints without the white space at its ends. The variable comes before the command. A command that fails, or that
   prints nothing, is an error that names the config file, and the user sees what the command writes to stderr.
   With no source, the error says how to give the key: it names `MY_SERVICE_API_KEY` and `credentialCommand` in the
   path of the config file.
-- [ ] The CLI has no flag for the key, and writes no file: after `auth status` and after the unit tests, the config
+- [x] The CLI has no flag for the key, and writes no file: after `auth status` and after the unit tests, the config
   folder holds only what the test wrote.
-- [ ] The root command of the CLI lists `auth` after `version` and `update`. `auth status` prints
+- [x] The root command of the CLI lists `auth` after `version` and `update`. `auth status` prints
   `The API key comes from <source>.`, where the source is `MY_SERVICE_API_KEY` or
   `the credentialCommand in <path>`, and it never prints the key. With no source, it exits with a status other than
   0, and its message is the error above.
-- [ ] `cli-auth` has no option for the method: `--feature cli-auth:method=api-key` stops, and the message says that
+- [x] `cli-auth` has no option for the method: `--feature cli-auth:method=api-key` stops, and the message says that
   the feature `cli-auth` has no option. `docs/cli-auth.md` names the method of the API, which it reads as
   `api-auth.method` (Task 3), and says that the CLI follows the method of the API.
-- [ ] `docs/cli-auth.md` tells a user how to give the key with the variable and with `credentialCommand`, for
+- [x] `docs/cli-auth.md` tells a user how to give the key with the variable and with `credentialCommand`, for
   example from a password manager, and what `auth status` shows. It tells a developer where the code is. It names no
   task, file or setting that the written repo does not have.
-- [ ] No written file holds a value of scaffold: `.Scaffold.`, `.Computed.`, `go-cli-project`, `GO_CLI_PROJECT`,
+- [x] No written file holds a value of scaffold: `.Scaffold.`, `.Computed.`, `go-cli-project`, `GO_CLI_PROJECT`,
   `zzsentinel` or `<no value>`. No Go file of `cli-auth` imports a package of the starter: each package of the
   module that it imports belongs to `cli-auth`, to `cli` or to `api-auth` (rule 6).
-- [ ] In the written repo, `task test:unit` runs the unit tests of the package that gets the key, and the e2e test
+- [x] In the written repo, `task test:unit` runs the unit tests of the package that gets the key, and the e2e test
   `e2e/tests/auth.test.ts` passes on the host against the built CLI.
-- [ ] An end-to-end test of this repo runs `feature-compose new go-event-sourcing-service my-service --feature
+- [x] An end-to-end test of this repo runs `feature-compose new go-event-sourcing-service my-service --feature
   cli-auth --no-prompt`. It exits with 0, and its output has the lines `api-auth: needed by cli-auth` and
   `cli: needed by cli-auth`. In that repo, `gofmt -l .` lists no file, `go build ./...` exits with 0, and
   `task test:unit` exits with 0, with the package that gets the key, `internal/auth`, `internal/cli` and the
@@ -396,10 +396,10 @@ values. An end-to-end test makes a repo with `--feature cli-auth` with the real 
   `update`, `auth` and `help`. `auth status` of the built CLI, with `MY_SERVICE_API_KEY` set, names the variable
   and does not print the key. With the variable empty and an empty config folder, it exits with a status other
   than 0, and its output names `MY_SERVICE_API_KEY` and `credentialCommand`.
-- [ ] The end-to-end test of an unknown feature expects the features `api-auth, cli, cli-auth`. `docs/e2e-tests.md`
+- [x] The end-to-end test of an unknown feature expects the features `api-auth, cli, cli-auth`. `docs/e2e-tests.md`
   describes the full run with `cli-auth`.
-- [ ] `task test:combinations` passes, with `go-event-sourcing-service --feature cli-auth` among its subtests.
-- [ ] In this repo, `go build ./...`, `go vet ./...` and `task test:unit` pass, and `git status --ignored catalog/`
+- [x] `task test:combinations` passes, with `go-event-sourcing-service --feature cli-auth` among its subtests.
+- [x] In this repo, `go build ./...`, `go vet ./...` and `task test:unit` pass, and `git status --ignored catalog/`
   shows no file of `cli-auth` as ignored.
 
 **Affected Files/Modules:**

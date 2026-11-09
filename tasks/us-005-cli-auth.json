@@ -95,7 +95,7 @@
     },
     {
       "n": 4,
-      "done": false,
+      "done": true,
       "title": "Add the feature `cli-auth`, whose CLI takes the API key from a variable or a credential command and shows its source with `auth status`",
       "language": "Go",
       "testable": true,

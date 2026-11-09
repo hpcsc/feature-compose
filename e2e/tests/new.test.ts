@@ -109,13 +109,53 @@ describe('feature-compose new', () => {
     expect(readdirSync(dir)).toEqual([])
   })
 
+  it(
+    'makes a repo with cli-auth, which also selects cli and api-auth, passes its unit tests, and whose CLI shows where the API key comes from',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      expect(made.stdout).toBe('api-auth: needed by cli-auth\ncli: needed by cli-auth\nMade my-service from the starter go-event-sourcing-service.\n')
+      const repo = join(dir, 'my-service')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      const build = await runProgram(repo, 'go', ['build', '-o', 'bin/my-service', './cmd/my-service'], env)
+      expect(build.status, build.stdout + build.stderr).toBe(0)
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      expect(passedPackages(unit.stdout)).toEqual(
+        expect.arrayContaining(['internal/credential', 'internal/auth', 'internal/cli', 'internal/use_cases/account', 'internal/domain/projection']),
+      )
+      const cli = join(repo, 'bin', 'my-service')
+      const help = await runProgram(repo, cli, [], env)
+      expect(commandsIn(help.stdout)).toEqual(['version', 'update', 'auth', 'help, h'])
+      const key = 'the-key-of-the-e2e-test'
+      const configHomes = [scratchDir(), scratchDir()]
+      const fromVariable = await runProgram(repo, cli, ['auth', 'status'], { ...env, XDG_CONFIG_HOME: configHomes[0], MY_SERVICE_API_KEY: key })
+      expect(fromVariable).toMatchObject({ status: 0, stdout: 'The API key comes from MY_SERVICE_API_KEY.\n' })
+      expect(fromVariable.stdout + fromVariable.stderr).not.toContain(key)
+      const noSource = await runProgram(repo, cli, ['auth', 'status'], { ...env, XDG_CONFIG_HOME: configHomes[1], MY_SERVICE_API_KEY: '' })
+      expect(noSource.status).not.toBe(0)
+      expect(noSource.stdout + noSource.stderr).toContain('MY_SERVICE_API_KEY')
+      expect(noSource.stdout + noSource.stderr).toContain('credentialCommand')
+      expect(configHomes.map((home) => readdirSync(home))).toEqual([[], []])
+      const statusHelp = await runProgram(repo, cli, ['auth', 'status', '--help'], env)
+      expect(statusHelp.stdout).toContain('--help')
+      expect(statusHelp.stdout).not.toMatch(/--\S*key/i)
+    },
+    15 * 60 * 1000,
+  )
+
   it('an unknown feature stops new, and the message lists the features that target the starter', async () => {
     const dir = scratchDir()
 
     const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'x', '--feature', 'no-such-feature'])
 
     expect(result.status).not.toBe(0)
-    expect(result.stdout + result.stderr).toContain('the features that target the starter go-event-sourcing-service are api-auth, cli')
+    expect(result.stdout + result.stderr).toContain('the features that target the starter go-event-sourcing-service are api-auth, cli, cli-auth\n')
     expect(readdirSync(dir)).toEqual([])
   })
 

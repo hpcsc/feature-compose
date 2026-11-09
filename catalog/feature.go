@@ -3,7 +3,6 @@ package catalog
 import (
 	"fmt"
 	"io/fs"
-	"maps"
 	"path"
 	"slices"
 	"strings"
@@ -15,7 +14,8 @@ type feature struct {
 	name            string
 	templates       []template
 	rules           []delimitersRule
-	extensionPoints []string
+	extensionPoints map[string]extensionPoint
+	addTo           map[string][]map[string]string
 }
 
 func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool, error) {
@@ -40,6 +40,7 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 			File    string   `yaml:"file"`
 			Item    []string `yaml:"item"`
 		} `yaml:"extension_points"`
+		AddTo map[string][]map[string]string `yaml:"add_to"`
 	}
 	if err := yaml.Unmarshal(definitionYAML, &definition); err != nil {
 		return feature{}, false, fmt.Errorf("read %s: %w", definitionPath, err)
@@ -67,7 +68,11 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 		}
 		templates = append(templates, read...)
 	}
-	return feature{name: featureName, templates: templates, rules: rules, extensionPoints: slices.Sorted(maps.Keys(definition.ExtensionPoints))}, true, nil
+	extensionPoints := make(map[string]extensionPoint, len(definition.ExtensionPoints))
+	for name, declared := range definition.ExtensionPoints {
+		extensionPoints[name] = extensionPoint{name: name, declarer: "the feature " + featureName, itemFields: declared.Item}
+	}
+	return feature{name: featureName, templates: templates, rules: rules, extensionPoints: extensionPoints, addTo: definition.AddTo}, true, nil
 }
 
 func (f feature) placedIn(folders map[string]folder) ([]template, error) {

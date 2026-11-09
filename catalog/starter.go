@@ -16,11 +16,12 @@ import (
 var repoName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
 type Starter struct {
-	name      string
-	options   map[string]option
-	folders   map[string]folder
-	templates []template
-	features  map[string]feature
+	name            string
+	options         map[string]option
+	folders         map[string]folder
+	templates       []template
+	features        map[string]feature
+	extensionPoints map[string]extensionPoint
 }
 
 func readStarter(fsys fs.FS, starterName string, features map[string]feature) (Starter, error) {
@@ -44,6 +45,11 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature) (S
 			Left  string `yaml:"left"`
 			Right string `yaml:"right"`
 		} `yaml:"delimiters"`
+		ExtensionPoints map[string]struct {
+			Summary string   `yaml:"summary"`
+			File    string   `yaml:"file"`
+			Item    []string `yaml:"item"`
+		} `yaml:"extension_points"`
 	}
 	if err := yaml.Unmarshal(definitionYAML, &definition); err != nil {
 		return Starter{}, fmt.Errorf("read %s: %w", definitionPath, err)
@@ -86,7 +92,11 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature) (S
 		}
 		templates = append(templates, placed)
 	}
-	return Starter{name: starterName, options: options, folders: folders, templates: templates, features: features}, nil
+	extensionPoints := make(map[string]extensionPoint, len(definition.ExtensionPoints))
+	for name, declared := range definition.ExtensionPoints {
+		extensionPoints[name] = extensionPoint{name: name, declarer: "the starter " + starterName, itemFields: declared.Item}
+	}
+	return Starter{name: starterName, options: options, folders: folders, templates: templates, features: features, extensionPoints: extensionPoints}, nil
 }
 
 func (s Starter) Select(name string, given map[string]string, featureNames []string) (Selection, error) {
@@ -160,17 +170,30 @@ func (s Starter) templatesOf(selected []feature) ([]template, error) {
 	return templates, nil
 }
 
-func (s Starter) extensionPointsOf(selected []feature) ([]string, error) {
-	declarers := map[string]string{}
+func (s Starter) extensionPointsOf(selected []feature) (map[string]extensionPoint, error) {
+	extensionPoints := maps.Clone(s.extensionPoints)
 	for _, f := range selected {
-		for _, extensionPoint := range f.extensionPoints {
-			if other, ok := declarers[extensionPoint]; ok {
-				return nil, fmt.Errorf("the features %s and %s both declare the extension point %q", other, f.name, extensionPoint)
+		for _, name := range slices.Sorted(maps.Keys(f.extensionPoints)) {
+			if other, ok := extensionPoints[name]; ok {
+				return nil, fmt.Errorf("%s and %s both declare the extension point %q", other.declarer, f.extensionPoints[name].declarer, name)
 			}
-			declarers[extensionPoint] = f.name
+			extensionPoints[name] = f.extensionPoints[name]
 		}
 	}
-	return slices.Sorted(maps.Keys(declarers)), nil
+	for _, f := range selected {
+		for _, name := range slices.Sorted(maps.Keys(f.addTo)) {
+			declared, ok := extensionPoints[name]
+			if !ok {
+				return nil, fmt.Errorf("the feature %s adds to the extension point %q, which neither the starter nor a selected feature declares", f.name, name)
+			}
+			added, err := declared.add(f.name, f.addTo[name])
+			if err != nil {
+				return nil, err
+			}
+			extensionPoints[name] = added
+		}
+	}
+	return extensionPoints, nil
 }
 
 func (s Starter) unknownFeature(featureName string) error {

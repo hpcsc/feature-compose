@@ -1,0 +1,205 @@
+{
+  "story": "Protect the API with API keys",
+  "story_id": "feature-compose/US-003",
+  "tasks_file": "tasks/us-003-api-keys.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Declare extension points in a starter, and add items to them with `add_to`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "catalog/feature.go:38-42",
+        "catalog/feature.go:70",
+        "catalog/starter.go:163-174",
+        "catalog/selection.go:96-105",
+        "catalog/starter_test.go:193-208",
+        "catalog/selection_test.go:508-558",
+        "catalog/features/cli/files/go/internal/cli/root.go.tmpl:29-35",
+        "catalog/catalog_test.go:448-456",
+        "PROPOSAL.md:117-130",
+        "PROPOSAL.md:169-177",
+        "PROPOSAL.md:328-346"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "catalog/"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Render each value of one item field one time with `unique`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "catalog/selection.go:73-105",
+        "catalog/selection_test.go:508-558",
+        "tasks/learnings.md:80-85",
+        "PROPOSAL.md:306-326",
+        "task:1"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Declare options in a feature, and read them in the templates of the feature",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "catalog/starter.go:33-37",
+        "catalog/starter.go:51-61",
+        "catalog/starter.go:96-105",
+        "catalog/starter.go:119-131",
+        "catalog/option.go:8-19",
+        "catalog/selection.go:86-94",
+        "catalog/starter_test.go:45-123",
+        "catalog/selection_test.go:338-353",
+        "PROPOSAL.md:159-162",
+        "PROPOSAL.md:254-273",
+        "PROPOSAL.md:300-305"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "catalog/",
+        "internal/cmd/new.go",
+        "internal/cmd/new_test.go"
+      ]
+    },
+    {
+      "n": 4,
+      "done": false,
+      "title": "Set the options of a feature with `--feature <name>:<option>=<value>`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/cmd/new.go:53-63",
+        "internal/cmd/new.go:18-19",
+        "internal/cmd/new_test.go:101-112",
+        "internal/cmd/new_test.go:145-154",
+        "internal/cmd/new_test.go:235-244",
+        "internal/cmd/new_test.go:262-271",
+        "internal/cmd/new_test.go:195-203",
+        "PROPOSAL.md:366-374"
+      ],
+      "depends_on": [
+        3
+      ],
+      "affected_files": [
+        "internal/cmd/new.go",
+        "internal/cmd/new_test.go"
+      ]
+    },
+    {
+      "n": 5,
+      "done": false,
+      "title": "Render the items of `api.middleware` and `api.config` in the server and the config of the starter",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/server/server.go.tmpl:31-41",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/use_cases/register.go.tmpl:19-38",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/config.go.tmpl:1-8",
+        "catalog/features/cli/files/go/internal/cli/root.go.tmpl:29-35",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/middleware/request_logger_test.go.tmpl:25-60",
+        "catalog/catalog_test.go:238-248",
+        "catalog/catalog_test.go:354-366",
+        "PROPOSAL.md:117-130",
+        "PROPOSAL.md:310-326",
+        "task:1",
+        "task:2"
+      ],
+      "depends_on": [
+        1,
+        2
+      ],
+      "affected_files": [
+        "catalog/starters/go-event-sourcing-service/starter.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/server/server.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/use_cases/register.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/config.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/",
+        "catalog/catalog_test.go"
+      ]
+    },
+    {
+      "n": 6,
+      "done": false,
+      "title": "Add the feature `api-auth`, whose method `api-key` lets only a request with a known key reach a protected route",
+      "language": "Go",
+      "testable": true,
+      "certainty": "low",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "tasks/learnings.md:10-15",
+        "catalog/features/cli/feature.yml",
+        "catalog/catalog_test.go:368-404",
+        "catalog/catalog_test.go:426-438",
+        "catalog/catalog_test.go:468-476",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/middleware/request_logger_test.go.tmpl:25-60",
+        "e2e/tests/new.test.ts:55-63",
+        "PROPOSAL.md:154-177",
+        "PROPOSAL.md:488-500",
+        "task:3",
+        "task:5"
+      ],
+      "depends_on": [
+        3,
+        5
+      ],
+      "affected_files": [
+        "catalog/features/api-auth/feature.yml",
+        "catalog/features/api-auth/files/common/go/internal/auth/",
+        "catalog/features/api-auth/files/common/go/docs/api-auth.md",
+        "catalog/catalog_test.go",
+        "e2e/tests/new.test.ts"
+      ]
+    },
+    {
+      "n": 7,
+      "done": false,
+      "title": "Check end to end that a repo with `api-auth` refuses a request without a known key, and that repos with and without it pass their tests",
+      "language": "TypeScript",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "e2e/tests/new.test.ts:31-53",
+        "e2e/tests/new.test.ts:65-89",
+        "e2e/tests/new.test.ts:91-114",
+        "e2e/tests/new.test.ts:10-18",
+        "e2e/testUtils.ts:38-57",
+        "tasks/learnings.md:38-43",
+        "tasks/learnings.md:52-57",
+        "tasks/learnings.md:59-64",
+        "docs/e2e-tests.md:80-108"
+      ],
+      "depends_on": [
+        4,
+        6
+      ],
+      "affected_files": [
+        "e2e/tests/new.test.ts",
+        "docs/e2e-tests.md"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-003-api-keys.design.yaml"
+}

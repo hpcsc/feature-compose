@@ -4,6 +4,7 @@ package catalog_test
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"maps"
 	"os"
@@ -520,7 +521,43 @@ func TestSelection(t *testing.T) {
 			require.Equal(t, map[string]string{"README.md": "service", "root.go": "commands: [version] flags: []"}, filesIn(t, output))
 		})
 
-		t.Run("items in a selection with no extension point stops the write, and the message says that no selected feature declares one", func(t *testing.T) {
+		withMiddleware := &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    summary: A middleware.\n    file: go/server.go\n    item: [code, import]\n  api.config:\n    summary: A field of the config.\n    file: go/config.go\n    item: [name, type, import]\n")}
+
+		t.Run("a range over the items of an extension point of the starter with no selected feature renders nothing, and the rest renders as without it", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":        withMiddleware,
+				"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range items "api.middleware" }}{{ .code }}{{ end }}server`)},
+			}
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := featureSelection(t, files).Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"server.go": "server"}, filesIn(t, output))
+		})
+
+		for _, order := range [][]string{{"log", "auth", "docs"}, {"docs", "auth", "log"}} {
+			t.Run(fmt.Sprintf("items gives each item that a selected feature adds, by the name of the feature and then in the order of its add_to, for the selection %v", order), func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":        withMiddleware,
+					"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range items "api.middleware" }}{{ .code }} from {{ .import }}; {{ end }}| {{ range items "docs.pages" }}{{ .path }} {{ end }}`)},
+					"features/log/feature.yml":            &fstest.MapFile{Data: []byte("summary: Log.\ntargets: [service]\nadd_to:\n  api.middleware:\n    - code: log.Middleware\n      import: internal/log\n  docs.pages:\n    - path: log.md\n")},
+					"features/auth/feature.yml":           &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [service]\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n    - code: audit.Middleware\n      import: internal/audit\n")},
+					"features/docs/feature.yml":           &fstest.MapFile{Data: []byte("summary: Docs.\ntargets: [service]\nextension_points:\n  docs.pages:\n    summary: A page.\n    file: go/server.go\n    item: [path]\n")},
+					"features/metrics/feature.yml":        &fstest.MapFile{Data: []byte("summary: Metrics.\ntargets: [service]\nadd_to:\n  api.middleware:\n    - code: metrics.Middleware\n      import: internal/metrics\n")},
+				}
+				output := filepath.Join(t.TempDir(), "my-service")
+
+				err := featureSelection(t, files, order...).Write(output)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{
+					"server.go": "auth.Middleware from internal/auth; audit.Middleware from internal/audit; log.Middleware from internal/log; | log.md ",
+				}, filesIn(t, output))
+			})
+		}
+
+		t.Run("items in a selection with no extension point stops the write, and the message says that neither the starter nor a selected feature declares one", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":        twoFolders,
 				"starters/service/files/go/README.md": &fstest.MapFile{Data: []byte(`{{ range items "cli.commands" }}x{{ end }}`)},
@@ -529,17 +566,17 @@ func TestSelection(t *testing.T) {
 
 			err := featureSelection(t, files).Write(output)
 
-			require.ErrorContains(t, err, "no selected feature declares an extension point")
+			require.ErrorContains(t, err, "neither the starter nor a selected feature declares an extension point")
 			require.NoDirExists(t, output)
 		})
 
 		for name, extensionPoint := range map[string]string{
-			"that no feature declares":          "api.middleware",
+			"that nothing declares":             "api.routes",
 			"of a feature that is not selected": "docs.pages",
 		} {
-			t.Run("items with an extension point "+name+" stops the write before the first file, and the message names the template and the extension point", func(t *testing.T) {
+			t.Run("items with an extension point "+name+" stops the write before the first file, and the message names the template and the extension point, and lists the extension points of the selection", func(t *testing.T) {
 				files := fstest.MapFS{
-					"starters/service/starter.yml":         twoFolders,
+					"starters/service/starter.yml":         withMiddleware,
 					"starters/service/files/go/README.md":  &fstest.MapFile{Data: []byte("service\n")},
 					"features/cli/feature.yml":             &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\nextension_points:\n  cli.commands:\n    summary: An expression of type *cli.Command.\n    file: go/root.go\n    item: [code]\n")},
 					"features/cli/files/go/root.go":        &fstest.MapFile{Data: []byte(`{{ range items "` + extensionPoint + `" }}x{{ end }}`)},
@@ -552,7 +589,7 @@ func TestSelection(t *testing.T) {
 
 				require.ErrorContains(t, err, "go/root.go of the feature cli")
 				require.ErrorContains(t, err, strconv.Quote(extensionPoint))
-				require.ErrorContains(t, err, "the selected features declare cli.commands")
+				require.ErrorContains(t, err, "the starter and the selected features declare api.config, api.middleware, cli.commands")
 				require.NoDirExists(t, output)
 			})
 		}

@@ -4,6 +4,8 @@ package catalog_test
 
 import (
 	"errors"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"maps"
 	"os"
@@ -455,6 +457,24 @@ func TestCatalog(t *testing.T) {
 			require.NotContains(t, files["e2e/tests/cli.test.ts"], "hello world")
 		})
 
+		t.Run("the root command of the CLI lists each command that a selected feature adds to cli.commands after version and update, and root.go parses as Go", func(t *testing.T) {
+			files := catalogOnDisk(t)
+			files["features/accounts/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Accounts.\ntargets: [go-event-sourcing-service]\nadd_to:\n  cli.commands:\n    - code: newOpenCommand()\n    - code: newCloseCommand()\n")}
+			starter, err := catalog.New(files).Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, []string{"cli", "accounts"})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			require.NoError(t, selection.Write(output))
+
+			root, err := os.ReadFile(filepath.Join(output, "internal", "cli", "root.go"))
+			require.NoError(t, err)
+			require.Contains(t, string(root), "\t\t\tnewVersionCommand(),\n\t\t\tnewUpdateCommand(),\n\t\t\tnewOpenCommand(),\n\t\t\tnewCloseCommand(),\n\t\t},")
+			_, err = parser.ParseFile(token.NewFileSet(), "root.go", root, parser.AllErrors)
+			require.NoError(t, err)
+		})
+
 		t.Run("the files of cli hold no value of scaffold", func(t *testing.T) {
 			_, files := writtenWithCLI(t, "my-service", nil)
 
@@ -572,4 +592,22 @@ func TestCatalog(t *testing.T) {
 			}
 		})
 	})
+}
+
+func catalogOnDisk(t *testing.T) fstest.MapFS {
+	t.Helper()
+	files := fstest.MapFS{}
+	err := fs.WalkDir(os.DirFS("."), ".", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		if !strings.HasPrefix(path, "starters/") && !strings.HasPrefix(path, "features/") {
+			return nil
+		}
+		contents, err := fs.ReadFile(os.DirFS("."), path)
+		files[path] = &fstest.MapFile{Data: contents}
+		return err
+	})
+	require.NoError(t, err)
+	return files
 }

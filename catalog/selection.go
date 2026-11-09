@@ -18,7 +18,7 @@ type Selection struct {
 	name            string
 	values          map[string]string
 	templates       []template
-	extensionPoints []string
+	extensionPoints map[string]extensionPoint
 }
 
 func (s Selection) Write(output string) error {
@@ -93,13 +93,14 @@ func (s Selection) option(reference string) (string, error) {
 	return value, nil
 }
 
-func (s Selection) items(extensionPoint string) ([]map[string]string, error) {
-	if !slices.Contains(s.extensionPoints, extensionPoint) {
+func (s Selection) items(name string) ([]map[string]string, error) {
+	declared, ok := s.extensionPoints[name]
+	if !ok {
 		if len(s.extensionPoints) == 0 {
-			return nil, fmt.Errorf("unknown extension point %q: no selected feature declares an extension point", extensionPoint)
+			return nil, fmt.Errorf("unknown extension point %q: neither the starter nor a selected feature declares an extension point", name)
 		}
-		return nil, fmt.Errorf("unknown extension point %q: the selected features declare %s",
-			extensionPoint, strings.Join(s.extensionPoints, ", "))
+		return nil, fmt.Errorf("unknown extension point %q: the starter and the selected features declare %s",
+			name, strings.Join(slices.Sorted(maps.Keys(s.extensionPoints)), ", "))
 	}
-	return nil, nil
+	return declared.items, nil
 }

@@ -204,7 +204,81 @@ folders:
 
 			_, err = starter.Select("my-service", nil, []string{"cli", "tools"})
 
-			require.ErrorContains(t, err, `the features cli and tools both declare the extension point "cli.commands"`)
+			require.ErrorContains(t, err, `the feature cli and the feature tools both declare the extension point "cli.commands"`)
+		})
+
+		withExtensionPoints := func(addTo string) fstest.MapFS {
+			return fstest.MapFS{
+				"starters/service/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    summary: A middleware.\n    file: go/server.go\n    item: [code, import]\n")},
+				"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte("package server\n")},
+				"features/auth/feature.yml":           &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [service]\nadd_to:\n" + addTo)},
+				"features/docs/feature.yml":           &fstest.MapFile{Data: []byte("summary: Docs.\ntargets: [service]\nextension_points:\n  docs.pages:\n    summary: A page.\n    file: go/index.md\n    item: [path]\n")},
+			}
+		}
+
+		for name, item := range map[string]string{
+			"an item that lacks a field of its extension point":              "    - code: auth.Middleware\n",
+			"an item with a field that its extension point does not declare": "    - code: auth.Middleware\n      import: internal/auth\n      order: first\n",
+		} {
+			t.Run(name+" stops, and the message names the feature, the extension point and the fields it declares", func(t *testing.T) {
+				starter, err := catalog.New(withExtensionPoints("  api.middleware:\n" + item)).Starter("service")
+				require.NoError(t, err)
+
+				_, err = starter.Select("my-service", nil, []string{"auth"})
+
+				require.ErrorContains(t, err, "the feature auth")
+				require.ErrorContains(t, err, `"api.middleware"`)
+				require.ErrorContains(t, err, "declares the fields [code, import]")
+			})
+		}
+
+		t.Run("each item is checked, also after an item with the fields of its extension point, and the message gives the number of the item", func(t *testing.T) {
+			starter, err := catalog.New(withExtensionPoints("  docs.pages:\n    - path: auth.md\n    - path: keys.md\n      title: Keys\n")).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, []string{"auth", "docs"})
+
+			require.ErrorContains(t, err, `the item 2 that the feature auth adds to the extension point "docs.pages" has the fields [path, title], but the extension point declares the fields [path]`)
+		})
+
+		t.Run("a second selection of one starter holds none of the items that the features of the first selection add", func(t *testing.T) {
+			files := withExtensionPoints("  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n")
+			files["starters/service/files/go/server.go"] = &fstest.MapFile{Data: []byte(`{{ range items "api.middleware" }}{{ .code }};{{ end }}`)}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			first, err := starter.Select("my-service", nil, []string{"auth"})
+			require.NoError(t, err)
+
+			second, err := starter.Select("my-service", nil, nil)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"server.go": "auth.Middleware;"}, written(t, first))
+			require.Equal(t, map[string]string{"server.go": ""}, written(t, second))
+		})
+
+		for name, extensionPoint := range map[string]string{
+			"that nothing declares":                             "cli.commands",
+			"that only a feature that is not selected declares": "docs.pages",
+		} {
+			t.Run("an add_to to an extension point "+name+" stops, and the message names the feature and the extension point", func(t *testing.T) {
+				starter, err := catalog.New(withExtensionPoints("  " + extensionPoint + ":\n    - path: auth.md\n")).Starter("service")
+				require.NoError(t, err)
+
+				_, err = starter.Select("my-service", nil, []string{"auth"})
+
+				require.ErrorContains(t, err, `the feature auth adds to the extension point "`+extensionPoint+`", which neither the starter nor a selected feature declares`)
+			})
+		}
+
+		t.Run("the starter and a selected feature that declare one extension point stop, and the message names it, the starter and the feature", func(t *testing.T) {
+			files := withExtensionPoints("  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n")
+			files["features/proxy/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Proxy.\ntargets: [service]\nextension_points:\n  api.middleware:\n    summary: A middleware.\n    file: go/proxy.go\n    item: [code]\n")}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, []string{"proxy"})
+
+			require.ErrorContains(t, err, `the starter service and the feature proxy both declare the extension point "api.middleware"`)
 		})
 
 		t.Run("a default that fails to render stops, and the message names the option", func(t *testing.T) {

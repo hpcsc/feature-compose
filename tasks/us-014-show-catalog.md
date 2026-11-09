@@ -381,18 +381,18 @@ the extension points that it adds items to. `h` or Esc goes back to the view of 
 selected, and `q` stops.
 
 **Acceptance Criteria:**
-- [ ] `l` or Enter on a feature in the view of a starter opens the view of that feature. It shows the summary of the
+- [x] `l` or Enter on a feature in the view of a starter opens the view of that feature. It shows the summary of the
   feature; its needs, or that it has none; each option with its default and its values or its pattern; each
   extension point that it declares, with its summary and its item fields; and each extension point that it adds
   items to.
-- [ ] `j` and then `l` in the view of a starter opens the view of the second feature in the list.
-- [ ] `h` or Esc in the view of a feature goes back to the view of the starter, with the same feature selected. A
+- [x] `j` and then `l` in the view of a starter opens the view of the second feature in the list.
+- [x] `h` or Esc in the view of a feature goes back to the view of the starter, with the same feature selected. A
   second `h` goes back to the list of the starters. The same holds after `show <starter>`.
-- [ ] `q` stops the TUI from the view of a feature.
-- [ ] `e2e/tests/show.test.ts` opens the view of `go-event-sourcing-service`, selects `cli-auth`, and opens it with
+- [x] `q` stops the TUI from the view of a feature.
+- [x] `e2e/tests/show.test.ts` opens the view of `go-event-sourcing-service`, selects `cli-auth`, and opens it with
   `l`: the screen shows the needs `cli` and `api-auth` and the extension point `cli.commands`. `h` shows the view of
   the starter again, and `q` ends with `EXIT:0`.
-- [ ] The section "Show the catalog" of `README.md` names the view of a feature.
+- [x] The section "Show the catalog" of `README.md` names the view of a feature.
 
 **Affected Files/Modules:**
 - `internal/browser/feature_view.go` — new: the view of a feature

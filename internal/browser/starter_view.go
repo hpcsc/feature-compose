@@ -30,6 +30,14 @@ func (v *starterView) moved(by int) *starterView {
 	return &moved
 }
 
+func (v *starterView) selectedFeature() *featureView {
+	if len(v.featureNames) == 0 {
+		return nil
+	}
+	name := v.featureNames[v.selected]
+	return &featureView{name: name, definition: v.definitions.Features[name]}
+}
+
 func (v *starterView) view() string {
 	starter := v.definitions.Starters[v.name]
 	var b strings.Builder
@@ -83,6 +91,6 @@ func (v *starterView) view() string {
 		fmt.Fprintf(&b, "%s%s  %s\n", cursor, name, v.definitions.Features[name].Summary)
 	}
 
-	b.WriteString("\nh back · j/k move · q quit\n")
+	b.WriteString("\nh back · j/k move · l open · q quit\n")
 	return b.String()
 }

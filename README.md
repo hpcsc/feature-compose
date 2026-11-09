@@ -63,7 +63,7 @@ The keys of the TUI:
 | Key | Action |
 | --- | --- |
 | `j`, `k`, or the arrow keys | Move down and up in a list. |
-| `l` or Enter | Open the view of the selected starter. |
+| `l` or Enter | Open the view of the selected starter, or of the selected feature in the view of a starter. |
 | `h` or Esc | Go back one view. At the list of the starters, Esc clears the filter. |
 | `/` | Start a filter on the names of the starters. While you type the filter, each key goes to the filter. Enter ends the typing and keeps the filtered list. |
 | `q` | Stop the TUI. While you type the filter, `q` goes to the filter, and ctrl+c stops the TUI. |
@@ -71,6 +71,8 @@ The keys of the TUI:
 The view of a starter shows its summary, its folders with their commands, its options with their defaults and
 their values or patterns, its extension points with their item fields and their declarers, and the features that
 target it. The extension points include those that a feature declares, for example `cli.commands` of `cli`.
+The view of a feature shows its summary, its needs, its options, and the extension points that it declares or
+adds items to.
 
 The JSON has the keys of `starter.yml` and `feature.yml`. Each object has each of its fields: a list with no entry
 is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each list keeps the order of its file.

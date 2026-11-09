@@ -16,6 +16,7 @@ type Model struct {
 	definitions catalog.Definitions
 	starters    list.Model
 	starterView *starterView
+	featureView *featureView
 }
 
 func New(definitions catalog.Definitions) Model {
@@ -55,6 +56,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
+		if m.featureView != nil {
+			return m.updateFeatureView(msg)
+		}
 		if m.starterView != nil {
 			return m.updateStarterView(msg)
 		}
@@ -71,6 +75,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
+	if m.featureView != nil {
+		return m.featureView.view()
+	}
 	if m.starterView != nil {
 		return m.starterView.view()
 	}
@@ -87,6 +94,18 @@ func (m Model) updateStarterView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.starterView = m.starterView.moved(1)
 	case "k", "up":
 		m.starterView = m.starterView.moved(-1)
+	case "l", "enter":
+		m.featureView = m.starterView.selectedFeature()
+	}
+	return m, nil
+}
+
+func (m Model) updateFeatureView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q":
+		return m, tea.Quit
+	case "h", "esc":
+		m.featureView = nil
 	}
 	return m, nil
 }

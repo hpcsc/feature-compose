@@ -44,7 +44,11 @@ func TestModel(t *testing.T) {
 					"cli.commands": {Summary: "A command.", File: "go/root.go", Item: []string{"code"}},
 					"cli.flags":    {Summary: "A flag.", File: "go/flags.go", Item: []string{"name"}},
 				}},
-				"auth":       {Summary: "API keys.", Targets: []string{"api"}},
+				"auth": {
+					Summary: "API keys.", Targets: []string{"api"}, Needs: []string{"cli"},
+					Options: map[string]catalog.OptionDefinition{"method": {Default: "api-key", Values: []string{"api-key", "oauth"}}},
+					AddTo:   map[string][]map[string]string{"api.middleware": {{"code": "auth.Middleware"}}, "api.config": {{"name": "Auth"}}},
+				},
 				"docs":       {Summary: "Docs.", Targets: []string{"api"}},
 				"zone-tools": {Summary: "Tools of the zone.", Targets: []string{"zone"}},
 				"other":      {Summary: "Only for another starter.", Targets: []string{"web"}},
@@ -207,7 +211,7 @@ Features
   cli  A command line program.
   docs  Docs.
 
-h back · j/k move · q quit
+h back · j/k move · l open · q quit
 `, screen)
 		})
 
@@ -229,7 +233,7 @@ Extension points
 Features
   No feature targets this starter.
 
-h back · j/k move · q quit
+h back · j/k move · l open · q quit
 `, screen)
 		})
 
@@ -272,6 +276,100 @@ h back · j/k move · q quit
 				require.True(t, quit)
 			})
 		}
+	})
+
+	t.Run("view of a feature", func(t *testing.T) {
+		t.Run("l on a feature opens its view: the summary, the needs, the options, and the extension points that it declares or adds items to", func(t *testing.T) {
+			screen := screenOf(pressed(opened(browser.New(definitions())), "l", "l"))
+
+			require.Equal(t, `auth
+API keys.
+
+Needs
+  cli
+
+Options
+  method  default: api-key  values: api-key, oauth
+
+Extension points that it declares
+  none
+
+Extension points that it adds items to
+  api.config
+  api.middleware
+
+h back · q quit
+`, screen)
+		})
+
+		t.Run("j and then enter opens the view of the second feature, which says none where it has nothing", func(t *testing.T) {
+			screen := screenOf(pressed(opened(browser.New(definitions())), "l", "j", "enter"))
+
+			require.Equal(t, `cli
+A command line program.
+
+Needs
+  none
+
+Options
+  none
+
+Extension points that it declares
+  cli.commands  item: code
+    A command.
+  cli.flags  item: name
+    A flag.
+
+Extension points that it adds items to
+  none
+
+h back · q quit
+`, screen)
+		})
+
+		for _, back := range []string{"h", "esc"} {
+			t.Run(back+" goes back to the view of the starter with the same feature selected, and a second h goes back to the list of the starters", func(t *testing.T) {
+				atStarter := pressed(opened(browser.New(definitions())), "l", "j", "l", back)
+
+				require.Contains(t, screenOf(atStarter), "> cli  A command line program.")
+				require.Contains(t, screenOf(pressed(atStarter, "h")), "A worker for jobs.")
+			})
+		}
+
+		t.Run("after show <starter>, h goes back from the view of a feature to the view of that starter, and then to the list", func(t *testing.T) {
+			atStarter, err := browser.NewAtStarter(definitions(), "api")
+			require.NoError(t, err)
+			m := pressed(opened(atStarter), "l", "h")
+
+			require.Contains(t, screenOf(m), "> auth  API keys.")
+			require.Contains(t, screenOf(pressed(m, "h")), "A worker for jobs.")
+		})
+
+		t.Run("l at a starter with no feature keeps the view of the starter", func(t *testing.T) {
+			screen := screenOf(pressed(opened(browser.New(definitions())), "j", "l", "l"))
+
+			require.Contains(t, screen, "No feature targets this starter.")
+		})
+
+		for _, stop := range []string{"q", "ctrl+c"} {
+			t.Run(stop+" stops the TUI from the view of a feature", func(t *testing.T) {
+				_, quit := pressedAndQuit(opened(browser.New(definitions())), "l", "l", stop)
+
+				require.True(t, quit)
+			})
+		}
+
+		t.Run("j and k in the view of a feature do not change the view", func(t *testing.T) {
+			m := pressed(opened(browser.New(definitions())), "l", "l")
+
+			require.Equal(t, screenOf(m), screenOf(pressed(m, "j", "k")))
+		})
+
+		t.Run("j in the view of a feature does not move the selection that h goes back to", func(t *testing.T) {
+			screen := screenOf(pressed(opened(browser.New(definitions())), "l", "l", "j", "h"))
+
+			require.Contains(t, screen, "> auth  API keys.")
+		})
 	})
 
 	t.Run("at a starter", func(t *testing.T) {

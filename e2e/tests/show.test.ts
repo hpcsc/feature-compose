@@ -81,6 +81,26 @@ describe('feature-compose show in a terminal', () => {
     })
   }
 
+  it('opens the view of cli-auth from the view of the starter with l, and goes back with h', async () => {
+    const dir = scratchDir()
+    const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
+
+    await session.waitForText('declared by the feature cli')
+    await session.press('j')
+    await session.press('j')
+    await session.waitForText('> cli-auth')
+    await session.press('l')
+    await session.waitForText('Extension points that it adds items to')
+    const view = await session.text()
+    expect(view).toContain('cli, api-auth')
+    expect(view).toContain('cli.commands')
+    await session.press('h')
+    await session.waitForText('> cli-auth')
+    await session.press('q')
+    await session.waitForText('EXIT:0')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
   it('show <starter> opens the view of that starter', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'])

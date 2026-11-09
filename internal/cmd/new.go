@@ -15,7 +15,7 @@ func newNewCommand(c catalog.Catalog) *cli.Command {
 		Usage:     "make a new repo from a starter",
 		ArgsUsage: "<starter> <name>",
 		Flags: []cli.Flag{
-			&cli.StringSliceFlag{Name: "feature", Usage: "select a feature of the catalog by its name; give the flag one time for each feature"},
+			&cli.StringSliceFlag{Name: "feature", Usage: "select a feature of the catalog, as <name>[:<option>=<value>,...]; give the flag one time for each feature"},
 			&cli.StringSliceFlag{Name: "option", Usage: "set an option of the starter, as <name>=<value>; give the flag one time for each option"},
 			&cli.StringFlag{Name: "output-dir", Usage: "the folder for the new repo (default: ./<name>)"},
 			&cli.BoolFlag{Name: "no-prompt", Usage: "ask no question, and give each option without a value its default"},
@@ -26,11 +26,15 @@ func newNewCommand(c catalog.Catalog) *cli.Command {
 			if err != nil {
 				return err
 			}
+			givenByFeature, err := featureOptionValues(cmd.StringSlice("feature"))
+			if err != nil {
+				return err
+			}
 			starter, err := c.Starter(starterName)
 			if err != nil {
 				return err
 			}
-			selection, err := starter.Select(name, values, featureValues(cmd.StringSlice("feature")))
+			selection, err := starter.Select(name, values, givenByFeature)
 			if err != nil {
 				return err
 			}
@@ -62,10 +66,27 @@ func optionValues(flags []string) (map[string]string, error) {
 	return values, nil
 }
 
-func featureValues(flags []string) map[string]map[string]string {
-	features := make(map[string]map[string]string, len(flags))
-	for _, featureName := range flags {
-		features[featureName] = nil
+func featureOptionValues(flags []string) (map[string]map[string]string, error) {
+	given := make(map[string]map[string]string, len(flags))
+	for _, flag := range flags {
+		featureName, pairs, hasOptions := strings.Cut(flag, ":")
+		values := given[featureName]
+		if values == nil {
+			values = map[string]string{}
+		}
+		if hasOptions {
+			for _, pair := range strings.Split(pairs, ",") {
+				optionName, value, ok := strings.Cut(pair, "=")
+				if !ok || optionName == "" {
+					return nil, fmt.Errorf("the --feature value %q has the pair %q, which is not <option>=<value>: give the flag as <name>:<option>=<value>", flag, pair)
+				}
+				if earlier, ok := values[optionName]; ok && earlier != value {
+					return nil, fmt.Errorf("the option %s of the feature %s has two values: %q and %q", optionName, featureName, earlier, value)
+				}
+				values[optionName] = value
+			}
+		}
+		given[featureName] = values
 	}
-	return features
+	return given, nil
 }

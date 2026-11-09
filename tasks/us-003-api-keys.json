@@ -81,7 +81,7 @@
     },
     {
       "n": 4,
-      "done": false,
+      "done": true,
       "title": "Set the options of a feature with `--feature <name>:<option>=<value>`",
       "language": "Go",
       "testable": true,

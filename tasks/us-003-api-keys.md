@@ -324,19 +324,19 @@ owner of the template
 feature. A value of `--feature` with no `:` is the name of a feature, as in US-002.
 
 **Acceptance Criteria:**
-- [ ] `--feature <feature>:<option>=<value>` selects the feature and sets the option. After the `:`, a `,`
+- [x] `--feature <feature>:<option>=<value>` selects the feature and sets the option. After the `:`, a `,`
   separates two `<option>=<value>` pairs, and each pair sets one option.
-- [ ] A value of `--feature` with no `:` names one feature and keeps its commas: `--feature a,b` names the feature
+- [x] A value of `--feature` with no `:` names one feature and keeps its commas: `--feature a,b` names the feature
   `a,b`, as before.
-- [ ] A pair with no `=`, or an empty pair, stops `new` before the first file with an exit status other than 0.
+- [x] A pair with no `=`, or an empty pair, stops `new` before the first file with an exit status other than 0.
   The message names the value of the flag and shows the form `<name>:<option>=<value>`. The output folder is not
   made.
-- [ ] A feature given in more than one flag is selected one time, with the values of all its flags. One option of
+- [x] A feature given in more than one flag is selected one time, with the values of all its flags. One option of
   one feature given two different values, in one flag or in two, stops `new`, and the message names the feature,
   the option and both values. The output folder is not made.
-- [ ] A value that is not one of the values of its option, or an option that the feature does not declare, stops
+- [x] A value that is not one of the values of its option, or an option that the feature does not declare, stops
   `new` with the message of Task 3, and the output folder is not made.
-- [ ] `new --help` shows the form `<name>[:<option>=<value>,...]` of `--feature`.
+- [x] `new --help` shows the form `<name>[:<option>=<value>,...]` of `--feature`.
 
 **Affected Files/Modules:**
 - `internal/cmd/new.go` — the form of `--feature`

@@ -54,6 +54,8 @@ folders:
 		files["features/docs/files/go/docs/index.md"] = &fstest.MapFile{Data: []byte("docs\n")}
 		files["features/a,b/feature.yml"] = &fstest.MapFile{Data: []byte("summary: A comma.\ntargets: [service]\nfiles:\n  - path: files/\n")}
 		files["features/a,b/files/go/comma.md"] = &fstest.MapFile{Data: []byte("comma\n")}
+		files["features/auth/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [service]\nfiles:\n  - path: files/\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n  realm:\n    default: api\n")}
+		files["features/auth/files/go/auth.txt"] = &fstest.MapFile{Data: []byte(`{{ option "method" }} {{ option "realm" }}`)}
 		return files
 	}
 
@@ -93,6 +95,49 @@ folders:
 				"go.mod":        "module github.com/hpcsc/my-service\ngo 1.27.1\n",
 				"docs/index.md": "docs\n",
 			}, filesIn(t, output))
+		})
+
+		for name, flags := range map[string][]string{
+			"one flag with two pairs":                           {"--feature", "auth:method=oauth,realm=accounts"},
+			"two flags of one feature":                          {"--feature", "auth:method=oauth", "--feature", "auth:realm=accounts"},
+			"a flag with a value and a flag with only the name": {"--feature", "auth", "--feature", "auth:method=oauth,realm=accounts"},
+			"one value given two times":                         {"--feature", "auth:method=oauth,realm=accounts", "--feature", "auth:method=oauth"},
+		} {
+			t.Run("--feature <name>:<option>=<value> sets the options of the feature, with "+name, func(t *testing.T) {
+				t.Chdir(t.TempDir())
+				output := filepath.Join(t.TempDir(), "my-service")
+
+				_, err := runNew(t, withFeatures(), append([]string{"service", "my-service", "--output-dir", output}, flags...)...)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{
+					"go.mod":   "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+					"auth.txt": "oauth accounts",
+				}, filesIn(t, output))
+			})
+		}
+
+		t.Run("--feature with only the name gives each option of the feature its default", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			_, err := runNew(t, withFeatures(), "service", "my-service", "--output-dir", output, "--feature", "auth")
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"go.mod":   "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				"auth.txt": "api-key api",
+			}, filesIn(t, output))
+		})
+
+		t.Run("a value of an option of a feature keeps its = signs", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			_, err := runNew(t, withFeatures(), "service", "my-service", "--output-dir", output, "--feature", "auth:realm=a=b")
+
+			require.NoError(t, err)
+			require.Equal(t, "api-key a=b", filesIn(t, output)["auth.txt"])
 		})
 
 		t.Run("new renders the templates of a feature with its delimiters, its extension points, githubRepository and the case functions", func(t *testing.T) {
@@ -206,12 +251,13 @@ folders:
 	})
 
 	t.Run("help", func(t *testing.T) {
-		t.Run("--help shows --feature and its form", func(t *testing.T) {
+		t.Run("--help shows --feature and its form <name>[:<option>=<value>,...]", func(t *testing.T) {
 			printed, err := runNew(t, withFeatures(), "--help")
 
 			require.NoError(t, err)
 			require.Contains(t, printed, "--feature")
 			require.Contains(t, printed, "select a feature of the catalog")
+			require.Contains(t, printed, "<name>[:<option>=<value>,...]")
 		})
 	})
 
@@ -279,9 +325,59 @@ folders:
 			_, err := runNew(t, withFeatures(), "service", "my-service", "--feature", "cli", "--feature", "no-such-feature")
 
 			require.ErrorContains(t, err, `unknown feature "no-such-feature"`)
-			require.ErrorContains(t, err, "a,b, cli, docs")
+			require.ErrorContains(t, err, "a,b, auth, cli, docs")
 			require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
 		})
+
+		for flag, message := range map[string]string{
+			"auth:method":             `the pair "method"`,
+			"auth:":                   `the pair ""`,
+			"auth:method=oauth,":      `the pair ""`,
+			"auth:=oauth":             `the pair "=oauth"`,
+			"auth:method=oauth,realm": `the pair "realm"`,
+		} {
+			t.Run("the --feature value "+strconv.Quote(flag)+" stops new, names the value and shows the form, and makes no output folder", func(t *testing.T) {
+				workingFolder := t.TempDir()
+				t.Chdir(workingFolder)
+
+				_, err := runNew(t, withFeatures(), "service", "my-service", "--feature", flag)
+
+				require.ErrorContains(t, err, strconv.Quote(flag))
+				require.ErrorContains(t, err, message)
+				require.ErrorContains(t, err, "<name>:<option>=<value>")
+				require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
+			})
+		}
+
+		for name, flags := range map[string][]string{
+			"in one flag":  {"--feature", "auth:method=oauth,method=api-key"},
+			"in two flags": {"--feature", "auth:method=oauth", "--feature", "auth:method=api-key"},
+		} {
+			t.Run("one option of a feature with two different values "+name+" stops new, names the feature, the option and both values, and makes no output folder", func(t *testing.T) {
+				workingFolder := t.TempDir()
+				t.Chdir(workingFolder)
+
+				_, err := runNew(t, withFeatures(), append([]string{"service", "my-service"}, flags...)...)
+
+				require.ErrorContains(t, err, `the option method of the feature auth has two values: "oauth" and "api-key"`)
+				require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
+			})
+		}
+
+		for name, flag := range map[string]string{
+			"a value that is not one of the values of its option": "auth:method=basic",
+			"an option that the feature does not declare":         "auth:metod=oauth",
+		} {
+			t.Run(name+" stops new with the message of the catalog, and makes no output folder", func(t *testing.T) {
+				workingFolder := t.TempDir()
+				t.Chdir(workingFolder)
+
+				_, err := runNew(t, withFeatures(), "service", "my-service", "--feature", flag)
+
+				require.ErrorContains(t, err, "the feature auth")
+				require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
+			})
+		}
 
 		t.Run("an output folder that has entries stops new, and keeps its contents", func(t *testing.T) {
 			t.Chdir(t.TempDir())

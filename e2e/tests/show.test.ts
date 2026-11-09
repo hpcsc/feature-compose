@@ -41,25 +41,28 @@ describe('feature-compose show', () => {
 })
 
 describe('feature-compose show in a terminal', () => {
-  it('opens the list of the starters, filters it with /, opens the view of a starter with l, and goes back with h', async () => {
+  it('opens the tree with the details of the first starter, filters it with /, opens the starter with l, and closes it with h', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show'])
 
     await session.waitForText('A Go service with an event store, an HTTP API, and a catchup process.')
+    const details = await session.text()
+    for (const part of ['╭─ Catalog ', '▸ go-event-sourcing-service', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
+      expect(details).toContain(part)
+    }
     await session.press('/')
     await session.type('zzz')
-    await session.waitForText('zzz')
-    expect(await session.text()).not.toContain('A Go service with an event store')
+    await session.waitForText('No name matches the filter.')
     await session.press('escape')
-    await session.waitForText('A Go service with an event store')
+    await session.waitForText('▸ go-event-sourcing-service')
     await session.press('l')
-    await session.waitForText('declared by the feature cli')
-    const view = await session.text()
-    for (const part of ['after_render: go mod tidy, gofmt -w .', 'test: task test:unit', 'go-version  default: 1.27.1', 'api.middleware', 'cli.commands  item: code  declared by the feature cli', 'cli-auth']) {
-      expect(view).toContain(part)
+    await session.waitForText('└─ ▾ extension points')
+    const tree = await session.text()
+    for (const part of ['├─ ▾ features', '│  ├─ api-auth', '│  └─ cli-auth', '├─ api.middleware', '└─ cli.commands']) {
+      expect(tree).toContain(part)
     }
     await session.press('h')
-    await session.waitForText('Starters')
+    await session.waitForText('▸ go-event-sourcing-service')
     await session.press('q')
     await session.waitForText('EXIT:0')
     expect(readdirSync(dir)).toEqual([])
@@ -77,35 +80,53 @@ describe('feature-compose show in a terminal', () => {
       await session.waitForText('EXIT:0')
       const screen = await session.text()
       expect(screen).toContain('"starters": {')
-      expect(screen).not.toContain('Starters')
+      expect(screen).not.toContain('╭─ Catalog')
     })
   }
 
-  it('opens the view of cli-auth from the view of the starter with l, and goes back with h', async () => {
+  it('shows the details of cli-auth when j selects it, and h selects its group', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
 
-    await session.waitForText('declared by the feature cli')
-    await session.press('j')
-    await session.press('j')
-    await session.waitForText('> cli-auth')
-    await session.press('l')
-    await session.waitForText('Extension points that it adds items to')
-    const view = await session.text()
-    expect(view).toContain('cli, api-auth')
-    expect(view).toContain('cli.commands')
+    await session.waitForText('└─ cli-auth')
+    for (let i = 0; i < 4; i++) {
+      await session.press('j')
+    }
+    await session.waitForText('╭─ cli-auth ')
+    const details = await session.text()
+    for (const part of ['Needs', '  api-auth', 'Extension points that it adds items to', '  cli.commands']) {
+      expect(details).toContain(part)
+    }
     await session.press('h')
-    await session.waitForText('> cli-auth')
+    await session.waitForText('╭─ go-event-sourcing-service › features ')
     await session.press('q')
     await session.waitForText('EXIT:0')
     expect(readdirSync(dir)).toEqual([])
   })
 
-  it('show <starter> opens the view of that starter', async () => {
+  it('shows the contract of api.middleware and the features that add items to it', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
 
-    await session.waitForText('declared by the feature cli')
+    await session.waitForText('└─ cli.commands')
+    for (let i = 0; i < 7; i++) {
+      await session.press('j')
+    }
+    await session.waitForText('╭─ api.middleware ')
+    const details = await session.text()
+    for (const part of ['An expression of type func(http.Handler) http.Handler', 'item         code, import', 'declared by  the starter', 'added to by  api-auth']) {
+      expect(details).toContain(part)
+    }
+    await session.press('q')
+    await session.waitForText('EXIT:0')
+  })
+
+  it('show <starter> opens the TUI with that starter selected and open', async () => {
+    const dir = scratchDir()
+    const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
+
+    await session.waitForText('▾ go-event-sourcing-service')
+    expect(await session.text()).toContain('╭─ go-event-sourcing-service ')
     await session.press('q')
     await session.waitForText('EXIT:0')
   })
@@ -117,6 +138,6 @@ describe('feature-compose show in a terminal', () => {
     await session.waitForText(/EXIT:[1-9]/)
     const screen = await session.text()
     expect(screen).toContain('unknown starter "no-such-starter": the catalog has go-event-sourcing-service')
-    expect(screen).not.toContain('Starters')
+    expect(screen).not.toContain('╭─ Catalog')
   })
 })

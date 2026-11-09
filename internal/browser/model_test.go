@@ -55,258 +55,242 @@ func TestModel(t *testing.T) {
 			},
 		}
 	}
+	manyStarters := func(count int) catalog.Definitions {
+		many := catalog.Definitions{Starters: map[string]catalog.StarterDefinition{}}
+		for i := range count {
+			many.Starters[fmt.Sprintf("starter-%02d", i)] = catalog.StarterDefinition{Summary: fmt.Sprintf("Summary %02d.", i)}
+		}
+		return many
+	}
 
-	t.Run("list of the starters", func(t *testing.T) {
-		t.Run("shows each starter with its summary, in the order of the names", func(t *testing.T) {
-			screen := screenOf(opened(browser.New(definitions())))
+	t.Run("layout", func(t *testing.T) {
+		t.Run("the screen holds a title line with the counts, the tree pane, the details pane of the selected row, and the keys", func(t *testing.T) {
+			screen := screenOf(sized(browser.New(definitions()), 80, 10))
 
-			require.Contains(t, screen, "api")
-			require.Contains(t, screen, "An API that a worker calls.")
-			require.Contains(t, screen, "A worker for jobs.")
-			require.Less(t, strings.Index(screen, "An API that a worker calls."), strings.Index(screen, "A worker for jobs."))
-			require.Contains(t, screen, "Starters")
-			require.Contains(t, screen, "3 starters")
+			require.Equal(t, ` feature-compose show                                   3 starters · 5 features
+╭─ Catalog ────────────────╮╭─ api ────────────────────────────────────────────╮
+│ ▌▸ api                   ││ An API that a worker calls.                      │
+│    worker                ││                                                  │
+│  ▸ zone                  ││ Folders                                          │
+│                          ││   docs  path          docs                       │
+│                          ││   go    path          .                          │
+│                          ││         after_render  go mod tidy                │
+╰──────────────────────────╯╰───────────────────────────────────────────── 0% ─╯
+ j/k move • l open • h close • / filter • ctrl+d/u scroll details • q quit`, screen)
 		})
 
-		t.Run("/ starts a filter on the name, and a starter whose summary holds the text but whose name does not is hidden", func(t *testing.T) {
-			m := pressed(opened(browser.New(definitions())), "/", "w", "o", "r")
+		t.Run("the title line counts one starter and one feature in the singular", func(t *testing.T) {
+			one := catalog.Definitions{
+				Starters: map[string]catalog.StarterDefinition{"api": {}},
+				Features: map[string]catalog.FeatureDefinition{"cli": {Targets: []string{"api"}}},
+			}
 
-			screen := screenOf(m)
-			require.Contains(t, screen, "A worker for jobs.")
-			require.NotContains(t, screen, "An API that a worker calls.")
+			require.True(t, strings.HasSuffix(linesOf(opened(browser.New(one)))[0], " 1 starter · 1 feature"))
 		})
 
-		t.Run("while the filter is typed, h, j, k, l and q go to the filter and do not stop the TUI", func(t *testing.T) {
-			m, quit := pressedAndQuit(opened(browser.New(definitions())), "/", "h", "j", "k", "l", "q")
-
-			require.False(t, quit)
-			screen := screenOf(m)
-			require.Contains(t, screen, "hjklq")
-			require.NotContains(t, screen, "A worker for jobs.")
-			require.NotContains(t, screen, "An API that a worker calls.")
-		})
-
-		t.Run("enter ends the typing and keeps the filtered list, where l opens the view of the starter", func(t *testing.T) {
-			m := pressed(opened(browser.New(definitions())), "/", "w", "o", "enter", "l")
-
-			require.Contains(t, screenOf(m), "No feature targets this starter.")
-		})
-
-		t.Run("esc clears the filter, and the list holds each starter again", func(t *testing.T) {
-			m := pressed(opened(browser.New(definitions())), "/", "w", "o", "enter", "esc")
-
-			screen := screenOf(m)
-			require.Contains(t, screen, "A worker for jobs.")
-			require.Contains(t, screen, "An API that a worker calls.")
-		})
-
-		for name, keys := range map[string][]string{
-			"j and then l opens the view of the second starter":        {"j", "l"},
-			"down and then enter opens the view of the second starter": {"down", "enter"},
+		for name, size := range map[string][2]int{
+			"39 columns": {39, 20},
+			"7 rows":     {80, 7},
 		} {
-			t.Run(name, func(t *testing.T) {
-				require.Contains(t, screenOf(pressed(opened(browser.New(definitions())), keys...)), "No feature targets this starter.")
+			t.Run("a terminal of "+name+" shows only a message that asks for a larger terminal", func(t *testing.T) {
+				require.Equal(t, "The terminal is too small for show. Make it at least 40 columns wide and 8 rows high.", strings.Join(strings.Fields(screenOf(sized(browser.New(definitions()), size[0], size[1]))), " "))
 			})
 		}
 
-		for name, keys := range map[string][]string{
-			"j, k and then l opens the view of the first starter":     {"j", "k", "l"},
-			"down, up and then l opens the view of the first starter": {"down", "up", "l"},
-		} {
-			t.Run(name, func(t *testing.T) {
-				require.Contains(t, screenOf(pressed(opened(browser.New(definitions())), keys...)), "Extension points")
-				require.Contains(t, screenOf(pressed(opened(browser.New(definitions())), keys...)), "An API that a worker calls.")
-			})
-		}
+		t.Run("the tree pane takes at most two fifths of the width, and a longer name ends with …", func(t *testing.T) {
+			long := catalog.Definitions{Starters: map[string]catalog.StarterDefinition{"a-very-long-starter-name": {}}}
 
-		t.Run("h does nothing at the list of the starters", func(t *testing.T) {
-			m, quit := pressedAndQuit(opened(browser.New(definitions())), "h")
-
-			require.False(t, quit)
-			require.Equal(t, screenOf(opened(browser.New(definitions()))), screenOf(m))
-		})
-
-		t.Run("the full help of a list with more than one page names no h or l for the pages", func(t *testing.T) {
-			many := catalog.Definitions{Starters: map[string]catalog.StarterDefinition{}}
-			for i := range 12 {
-				many.Starters[fmt.Sprintf("starter-%02d", i)] = catalog.StarterDefinition{Summary: fmt.Sprintf("Summary %02d.", i)}
-			}
-
-			help := screenOf(pressed(sized(browser.New(many), 120, 14), "?"))
-
-			require.Contains(t, help, "←/pgup")
-			require.Contains(t, help, "→/pgdn")
-			require.NotContains(t, help, "←/h/pgup")
-			require.NotContains(t, help, "→/l/pgdn")
-		})
-
-		t.Run("esc at the list with no filter does not stop the TUI", func(t *testing.T) {
-			_, quit := pressedAndQuit(opened(browser.New(definitions())), "esc")
-
-			require.False(t, quit)
-		})
-
-		t.Run("l at a list with no starter keeps the list", func(t *testing.T) {
-			empty := opened(browser.New(catalog.Definitions{}))
-
-			require.Equal(t, screenOf(empty), screenOf(pressed(empty, "l")))
-		})
-
-		t.Run("h does not change the page of a list with more than one page", func(t *testing.T) {
-			many := catalog.Definitions{Starters: map[string]catalog.StarterDefinition{}}
-			for i := range 12 {
-				many.Starters[fmt.Sprintf("starter-%02d", i)] = catalog.StarterDefinition{Summary: fmt.Sprintf("Summary %02d.", i)}
-			}
-			onSecondPage := pressed(sized(browser.New(many), 80, 12), "right")
-
-			require.NotEqual(t, screenOf(sized(browser.New(many), 80, 12)), screenOf(onSecondPage))
-			require.Equal(t, screenOf(onSecondPage), screenOf(pressed(onSecondPage, "h")))
-		})
-
-		t.Run("q stops the TUI when no filter is typed", func(t *testing.T) {
-			_, quit := pressedAndQuit(opened(browser.New(definitions())), "q")
-
-			require.True(t, quit)
-		})
-
-		t.Run("ctrl+c stops the TUI also while the filter is typed", func(t *testing.T) {
-			_, quit := pressedAndQuit(opened(browser.New(definitions())), "/", "w", "ctrl+c")
-
-			require.True(t, quit)
+			require.Equal(t, []string{"▌  a-very-long-…"}, treeOf(sized(browser.New(long), 50, 10)))
 		})
 	})
 
-	t.Run("view of a starter", func(t *testing.T) {
-		t.Run("shows the summary, the folders with their commands, the options, the extension points of the starter and of its features, and its features", func(t *testing.T) {
-			screen := screenOf(pressed(opened(browser.New(definitions())), "l"))
-
-			require.Equal(t, `api
-An API that a worker calls.
-
-Folders
-  docs  path: docs
-  go  path: .
-    after_render: go mod tidy, gofmt -w .
-    test: task test:unit
-  web  path: web
-    after_render: npm install
-
-Options
-  module  default: example.com/{{ .Name }}  pattern: ^[a-z./]+$
-  region  default: us  values: us, eu
-  tier  default: standard  values: standard
-
-Extension points
-  api.config  item: name  declared by the starter
-    A config field.
-  api.middleware  item: code, import  declared by the starter
-    A middleware.
-  cli.commands  item: code  declared by the feature cli
-    A command.
-  cli.flags  item: name  declared by the feature cli
-    A flag.
-
-Features
-> auth  API keys.
-  cli  A command line program.
-  docs  Docs.
-
-h back · j/k move · l open · q quit
-`, screen)
+	t.Run("tree", func(t *testing.T) {
+		t.Run("shows each starter in the order of the names, closed, with the first starter selected, and a starter with no feature and no extension point has no ▸", func(t *testing.T) {
+			require.Equal(t, []string{"▌▸ api", "   worker", " ▸ zone"}, treeOf(opened(browser.New(definitions()))))
 		})
 
-		t.Run("a starter with no folder, option, extension point or feature says none for each", func(t *testing.T) {
-			screen := screenOf(pressed(opened(browser.New(definitions())), "j", "l"))
+		for _, open := range []string{"l", "enter", "right"} {
+			t.Run(open+" opens the selected starter, which shows its features and its extension points in two open groups, in the order of the names", func(t *testing.T) {
+				require.Equal(t, []string{"▌▾ api", "   ├─ ▾ features", "   │  ├─ auth", "   │  ├─ cli", "   │  └─ docs", "   └─ ▾ extension points", "      ├─ api.config", "      ├─ api.middleware", "      ├─ cli.commands", "      └─ cli.flags", "   worker", " ▸ zone"}, treeOf(pressed(opened(browser.New(definitions())), open)))
+			})
+		}
 
-			require.Equal(t, `worker
-A worker for jobs.
+		t.Run("the extension points of a starter include those that its features declare", func(t *testing.T) {
+			require.Contains(t, treeOf(pressed(opened(browser.New(definitions())), "l")), "      ├─ cli.commands")
+		})
 
-Folders
-  none
-
-Options
-  none
-
-Extension points
-  none
-
-Features
-  No feature targets this starter.
-
-h back · j/k move · l open · q quit
-`, screen)
+		t.Run("a starter shows only the groups that have an entry", func(t *testing.T) {
+			require.Equal(t, []string{" ▸ api", "   worker", "▌▾ zone", "   └─ ▾ features", "      └─ zone-tools"}, treeOf(pressed(opened(browser.New(definitions())), "j", "j", "l")))
 		})
 
 		for keys, selected := range map[string]string{
-			"j":            "> cli  A command line program.",
-			"j j":          "> docs  Docs.",
-			"j j j down":   "> docs  Docs.",
-			"j j k":        "> cli  A command line program.",
-			"down down up": "> cli  A command line program.",
-			"up k":         "> auth  API keys.",
+			"l l":   "▌  ├─ ▾ features",
+			"l l l": "▌  │  ├─ auth",
 		} {
-			t.Run("j and k move the selection in the list of the features by one, as down and up do, and stop at its ends: "+keys, func(t *testing.T) {
-				screen := screenOf(pressed(opened(browser.New(definitions())), append([]string{"l"}, strings.Fields(keys)...)...))
-
-				require.Contains(t, screen, selected)
+			t.Run("l at an open row selects its first child: "+keys, func(t *testing.T) {
+				require.Equal(t, selected, selectedRowOf(pressed(opened(browser.New(definitions())), strings.Fields(keys)...)))
 			})
 		}
 
-		t.Run("with one feature, j and k keep the selection on it", func(t *testing.T) {
-			screen := screenOf(pressed(opened(browser.New(definitions())), "j", "j", "l", "j", "k", "j"))
+		for keys, selected := range map[string]string{
+			"j":                     "▌  worker",
+			"j j":                   "▌▸ zone",
+			"j j j down":            "▌▸ zone",
+			"j j k":                 "▌  worker",
+			"down down up":          "▌  worker",
+			"up k":                  "▌▸ api",
+			"l j":                   "▌  ├─ ▾ features",
+			"l j j j j j j":         "▌     ├─ api.config",
+			"l j j j j j j j j j j": "▌  worker",
+			"l l l j j j k k k k k": "▌▾ api",
+		} {
+			t.Run("j and k move the selection by one row, as down and up do, and stop at the ends: "+keys, func(t *testing.T) {
+				require.Equal(t, selected, selectedRowOf(pressed(opened(browser.New(definitions())), strings.Fields(keys)...)))
+			})
+		}
 
-			require.Contains(t, screen, "> zone-tools  Tools of the zone.")
+		for _, back := range []string{"h", "left", "esc"} {
+			t.Run(back+" at a feature or an extension point selects its group, which stays open", func(t *testing.T) {
+				atFeature := pressed(opened(browser.New(definitions())), "l", "l", "l", "j", back)
+				atExtensionPoint := pressed(opened(browser.New(definitions())), "l", "j", "j", "j", "j", "j", "j", back)
+
+				require.Equal(t, []string{"▌  ├─ ▾ features", "▌  └─ ▾ extension points"}, []string{selectedRowOf(atFeature), selectedRowOf(atExtensionPoint)})
+				require.Equal(t, withoutSelection(treeOf(pressed(opened(browser.New(definitions())), "l"))), withoutSelection(treeOf(atFeature)))
+			})
+
+			t.Run(back+" at an open group closes it, and a second "+back+" selects its starter", func(t *testing.T) {
+				closed := pressed(opened(browser.New(definitions())), "l", "l", back)
+
+				require.Equal(t, []string{" ▾ api", "▌  ├─ ▸ features", "   └─ ▾ extension points", "      ├─ api.config", "      ├─ api.middleware", "      ├─ cli.commands", "      └─ cli.flags", "   worker", " ▸ zone"}, treeOf(closed))
+				require.Equal(t, "▌▾ api", selectedRowOf(pressed(closed, back)))
+			})
+
+			t.Run(back+" at an open starter closes it", func(t *testing.T) {
+				require.Equal(t, []string{"▌▸ api", "   worker", " ▸ zone"}, treeOf(pressed(opened(browser.New(definitions())), "l", back)))
+			})
+		}
+
+		t.Run("a closed group stays closed when its starter closes and opens again", func(t *testing.T) {
+			m := pressed(opened(browser.New(definitions())), "l", "l", "h", "h", "h", "l")
+
+			require.Equal(t, []string{"▌▾ api", "   ├─ ▸ features", "   └─ ▾ extension points"}, treeOf(m)[:3])
 		})
 
-		for _, back := range []string{"h", "esc"} {
-			t.Run(back+" goes back to the list of the starters, with the same starter selected and the same filter", func(t *testing.T) {
-				m := pressed(opened(browser.New(definitions())), "/", "w", "o", "enter", "l", back)
+		t.Run("h at a closed starter, and l at a starter with no feature and no extension point, change nothing", func(t *testing.T) {
+			atWorker := pressed(opened(browser.New(definitions())), "j")
 
-				screen := screenOf(m)
-				require.Contains(t, screen, "A worker for jobs.")
-				require.NotContains(t, screen, "An API that a worker calls.")
-				require.Contains(t, screenOf(pressed(m, "l")), "No feature targets this starter.")
-			})
-		}
+			require.Equal(t, screenOf(atWorker), screenOf(pressed(atWorker, "l", "h")))
+		})
 
-		for _, stop := range []string{"q", "ctrl+c"} {
-			t.Run(stop+" stops the TUI from the view of a starter", func(t *testing.T) {
-				_, quit := pressedAndQuit(opened(browser.New(definitions())), "l", stop)
+		t.Run("l at a feature changes nothing", func(t *testing.T) {
+			atFeature := pressed(opened(browser.New(definitions())), "l", "l", "l")
 
-				require.True(t, quit)
-			})
-		}
+			require.Equal(t, screenOf(atFeature), screenOf(pressed(atFeature, "l")))
+		})
+
+		t.Run("a tree taller than its pane moves with the selection, so the selected row stays in view", func(t *testing.T) {
+			screen := pressed(sized(browser.New(manyStarters(12)), 80, 8), "j", "j", "j", "j", "j", "j")
+
+			require.Equal(t, []string{"   starter-03", "   starter-04", "   starter-05", "▌  starter-06"}, treeOf(screen))
+		})
+
+		t.Run("an empty catalog says that it has no starter, and the keys change nothing", func(t *testing.T) {
+			empty := opened(browser.New(catalog.Definitions{}))
+
+			require.Equal(t, "The catalog has no starter.", strings.Join(treeOf(empty), " "))
+			require.Equal(t, screenOf(empty), screenOf(pressed(empty, "j", "k", "l", "h", "ctrl+d")))
+		})
 	})
 
-	t.Run("view of a feature", func(t *testing.T) {
-		t.Run("l on a feature opens its view: the summary, the needs, the options, and the extension points that it declares or adds items to", func(t *testing.T) {
-			screen := screenOf(pressed(opened(browser.New(definitions())), "l", "l"))
+	t.Run("details", func(t *testing.T) {
+		t.Run("a starter shows its summary, its folders with their commands, and its options", func(t *testing.T) {
+			require.Equal(t, `An API that a worker calls.
 
-			require.Equal(t, `auth
-API keys.
+Folders
+  docs  path          docs
+  go    path          .
+        after_render  go mod tidy
+                      gofmt -w .
+        test          task test:unit
+  web   path          web
+        after_render  npm install
+
+Options
+  module  default  example.com/{{ .Name }}
+          pattern  ^[a-z./]+$
+  region  default  us
+          values   us, eu
+  tier    default  standard
+          values   standard`, detailsOf(opened(browser.New(definitions()))))
+		})
+
+		t.Run("a starter with no folder and no option says none for each", func(t *testing.T) {
+			require.Equal(t, `A worker for jobs.
+
+Folders
+  none
+
+Options
+  none`, detailsOf(pressed(opened(browser.New(definitions())), "j")))
+		})
+
+		t.Run("the group of the features lists each feature that targets the starter, with its summary", func(t *testing.T) {
+			require.Equal(t, `Features
+  auth  API keys.
+  cli   A command line program.
+  docs  Docs.`, detailsOf(pressed(opened(browser.New(definitions())), "l", "l")))
+		})
+
+		t.Run("the group of the extension points lists each extension point of the starter and of its features, with its item fields and its declarer", func(t *testing.T) {
+			require.Equal(t, `Extension points
+  api.config      item         name
+                  declared by  the starter
+  api.middleware  item         code, import
+                  declared by  the starter
+  cli.commands    item         code
+                  declared by  the feature cli
+  cli.flags       item         name
+                  declared by  the feature cli`, detailsOf(pressed(opened(browser.New(definitions())), "l", "j", "j", "j", "j", "j")))
+		})
+
+		t.Run("an extension point shows its summary, its file, its item fields, its declarer, and the features that add items to it", func(t *testing.T) {
+			require.Equal(t, `A middleware.
+
+file         go/server.go
+item         code, import
+declared by  the starter
+added to by  auth`, detailsOf(pressed(opened(browser.New(definitions())), "l", "j", "j", "j", "j", "j", "j", "j")))
+		})
+
+		t.Run("an extension point that no feature adds items to says none", func(t *testing.T) {
+			require.Equal(t, `A flag.
+
+file         go/flags.go
+item         name
+declared by  the feature cli
+added to by  none`, detailsOf(pressed(opened(browser.New(definitions())), "l", "j", "j", "j", "j", "j", "j", "j", "j", "j")))
+		})
+
+		t.Run("a feature shows its summary, its needs, its options, and the extension points that it declares or adds items to", func(t *testing.T) {
+			require.Equal(t, `API keys.
 
 Needs
   cli
 
 Options
-  method  default: api-key  values: api-key, oauth
+  method  default  api-key
+          values   api-key, oauth
 
 Extension points that it declares
   none
 
 Extension points that it adds items to
   api.config
-  api.middleware
-
-h back · q quit
-`, screen)
+  api.middleware`, detailsOf(pressed(opened(browser.New(definitions())), "l", "l", "l")))
 		})
 
-		t.Run("j and then enter opens the view of the second feature, which says none where it has nothing", func(t *testing.T) {
-			screen := screenOf(pressed(opened(browser.New(definitions())), "l", "j", "enter"))
-
-			require.Equal(t, `cli
-A command line program.
+		t.Run("a feature with no need, option or added item says none for each, and shows the summary and the item fields of the extension points that it declares", func(t *testing.T) {
+			require.Equal(t, `A command line program.
 
 Needs
   none
@@ -315,74 +299,156 @@ Options
   none
 
 Extension points that it declares
-  cli.commands  item: code
-    A command.
-  cli.flags  item: name
-    A flag.
+  cli.commands  A command.
+                item  code
+  cli.flags     A flag.
+                item  name
 
 Extension points that it adds items to
-  none
-
-h back · q quit
-`, screen)
+  none`, detailsOf(pressed(opened(browser.New(definitions())), "l", "l", "l", "j")))
 		})
 
-		for _, back := range []string{"h", "esc"} {
-			t.Run(back+" goes back to the view of the starter with the same feature selected, and a second h goes back to the list of the starters", func(t *testing.T) {
-				atStarter := pressed(opened(browser.New(definitions())), "l", "j", "l", back)
+		for keys, title := range map[string]string{
+			"j j":             "zone",
+			"j j l j":         "zone › features",
+			"j j l j j":       "zone-tools",
+			"l j j j j j":     "api › extension points",
+			"l j j j j j j j": "api.middleware",
+		} {
+			t.Run("the title of the details pane names the selected row: "+keys, func(t *testing.T) {
+				_, details := paneTitlesOf(pressed(opened(browser.New(definitions())), strings.Fields(keys)...))
 
-				require.Contains(t, screenOf(atStarter), "> cli  A command line program.")
-				require.Contains(t, screenOf(pressed(atStarter, "h")), "A worker for jobs.")
+				require.Equal(t, title, details)
 			})
 		}
 
-		t.Run("after show <starter>, h goes back from the view of a feature to the view of that starter, and then to the list", func(t *testing.T) {
-			atStarter, err := browser.NewAtStarter(definitions(), "api")
-			require.NoError(t, err)
-			m := pressed(opened(atStarter), "l", "h")
+		t.Run("a summary longer than the details pane wraps at a space", func(t *testing.T) {
+			long := catalog.Definitions{Starters: map[string]catalog.StarterDefinition{"api": {Summary: "An API with a summary that is longer than the pane is wide."}}}
 
-			require.Contains(t, screenOf(m), "> auth  API keys.")
-			require.Contains(t, screenOf(pressed(m, "h")), "A worker for jobs.")
+			require.Equal(t, []string{"An API with a summary that", "is longer than the pane is", "wide."}, strings.Split(detailsOf(sized(browser.New(long), 50, 12)), "\n")[:3])
 		})
 
-		t.Run("l at a starter with no feature keeps the view of the starter", func(t *testing.T) {
-			screen := screenOf(pressed(opened(browser.New(definitions())), "j", "l", "l"))
+		t.Run("a details pane too narrow for a name and its value puts the value under the name", func(t *testing.T) {
+			screen := pressed(sized(browser.New(definitions()), 56, 60), "l", "j", "j", "j", "j", "j")
 
-			require.Contains(t, screen, "No feature targets this starter.")
+			require.True(t, strings.HasPrefix(detailsOf(screen), `Extension points
+  api.config
+    item         name
+    declared by  the starter
+  api.middleware`), detailsOf(screen))
 		})
 
-		for _, stop := range []string{"q", "ctrl+c"} {
-			t.Run(stop+" stops the TUI from the view of a feature", func(t *testing.T) {
-				_, quit := pressedAndQuit(opened(browser.New(definitions())), "l", "l", stop)
+		t.Run("ctrl+d scrolls the details down by half the pane, ctrl+u scrolls them up again, and the bottom border shows how far they are scrolled", func(t *testing.T) {
+			top := sized(browser.New(definitions()), 80, 12)
+			scrolled := pressed(top, "ctrl+d")
+
+			require.Equal(t, []string{"An API that a worker calls.", "  go    path          ."}, []string{firstDetailsLineOf(top), firstDetailsLineOf(scrolled)})
+			require.Equal(t, []string{"0%", "40%"}, []string{scrollNoteOf(top), scrollNoteOf(scrolled)})
+			require.Equal(t, screenOf(top), screenOf(pressed(scrolled, "ctrl+u")))
+		})
+
+		t.Run("a new selection shows its details from the top", func(t *testing.T) {
+			screen := pressed(sized(browser.New(definitions()), 80, 12), "ctrl+d", "l", "l", "l")
+
+			require.Equal(t, "API keys.", firstDetailsLineOf(screen))
+		})
+
+		t.Run("details that fit the pane show no scroll position", func(t *testing.T) {
+			require.Equal(t, "", scrollNoteOf(pressed(opened(browser.New(definitions())), "j")))
+		})
+	})
+
+	t.Run("filter", func(t *testing.T) {
+		t.Run("/ starts a filter on the names, and a starter whose summary holds the text but whose name does not is hidden", func(t *testing.T) {
+			require.Equal(t, []string{"▌  worker"}, treeOf(pressed(opened(browser.New(definitions())), "/", "w", "o", "r")))
+		})
+
+		t.Run("a feature whose name matches shows in its group under its starter, and both open", func(t *testing.T) {
+			require.Equal(t, []string{"▌▾ zone", "   └─ ▾ features", "      └─ zone-tools"}, treeOf(pressed(opened(browser.New(definitions())), "/", "t", "o", "o", "l")))
+		})
+
+		t.Run("an extension point whose name matches shows in its group under its starter, and both open", func(t *testing.T) {
+			require.Equal(t, []string{"▌▾ api", "   └─ ▾ extension points", "      └─ cli.flags"}, treeOf(pressed(opened(browser.New(definitions())), "/", "f", "l", "a", "g")))
+		})
+
+		t.Run("a starter whose name matches keeps each of its features and extension points", func(t *testing.T) {
+			require.Equal(t, []string{"▌▾ api", "   ├─ ▾ features", "   │  ├─ auth", "   │  ├─ cli", "   │  └─ docs", "   └─ ▾ extension points", "      ├─ api.config", "      ├─ api.middleware", "      ├─ cli.commands", "      └─ cli.flags"}, treeOf(pressed(opened(browser.New(definitions())), "/", "a", "p", "i", "enter", "l")))
+		})
+
+		t.Run("the filter ignores case", func(t *testing.T) {
+			require.Equal(t, []string{"▌  worker"}, treeOf(pressed(opened(browser.New(definitions())), "/", "W", "O")))
+		})
+
+		t.Run("while the filter is typed, h, j, k, l and q go to the filter and do not stop the TUI", func(t *testing.T) {
+			m, quit := pressedAndQuit(opened(browser.New(definitions())), "/", "h", "j", "k", "l", "q")
+
+			require.False(t, quit)
+			require.Equal(t, "No name matches the filter.", strings.Join(treeOf(m), " "))
+			require.True(t, strings.HasPrefix(footerOf(m), " /hjklq"))
+		})
+
+		t.Run("enter keeps the filter, the title of the tree pane shows it, and the keys of the tree work again", func(t *testing.T) {
+			m := pressed(opened(browser.New(definitions())), "/", "s", "enter", "j")
+
+			treeTitle, _ := paneTitlesOf(m)
+			require.Equal(t, "Catalog /s", treeTitle)
+			require.Equal(t, []string{" ▾ api", "▌  ├─ ▾ features", "   │  └─ docs", "   └─ ▾ extension points", "      ├─ cli.commands", "      └─ cli.flags", " ▾ zone", "   └─ ▾ features", "      └─ zone-tools"}, treeOf(m))
+			require.Equal(t, " esc clear filter • j/k move • l open • h close • / filter • ctrl+d/u scroll details • q quit", footerOf(m))
+		})
+
+		for name, keys := range map[string][]string{
+			"esc while the filter is typed": {"/", "w", "o", "esc"},
+			"esc after enter":               {"/", "w", "o", "enter", "esc"},
+		} {
+			t.Run(name+" clears the filter, and the tree holds each starter again with the same row selected", func(t *testing.T) {
+				require.Equal(t, []string{" ▸ api", "▌  worker", " ▸ zone"}, treeOf(pressed(opened(browser.New(definitions())), keys...)))
+			})
+		}
+
+		t.Run("the rows that the filter opens close again when the filter clears, and a hidden selection moves to its starter", func(t *testing.T) {
+			m := pressed(opened(browser.New(definitions())), "/", "f", "l", "a", "g", "enter", "j", "j", "esc")
+
+			require.Equal(t, []string{"▌▸ api", "   worker", " ▸ zone"}, treeOf(m))
+		})
+
+		t.Run("a row that the filter opens is closed by h while the filter is kept", func(t *testing.T) {
+			m := pressed(opened(browser.New(definitions())), "/", "f", "l", "a", "g", "enter", "h")
+
+			require.Equal(t, []string{"▌▸ api"}, treeOf(m))
+		})
+
+		t.Run("the footer shows the keys of the filter while it is typed", func(t *testing.T) {
+			require.Equal(t, " /w   enter keep filter • esc clear filter", footerOf(pressed(opened(browser.New(definitions())), "/", "w")))
+		})
+	})
+
+	t.Run("stop", func(t *testing.T) {
+		for name, keys := range map[string][]string{
+			"q":                                {"q"},
+			"q at a feature":                   {"l", "l", "l", "q"},
+			"ctrl+c":                           {"ctrl+c"},
+			"ctrl+c while the filter is typed": {"/", "w", "ctrl+c"},
+		} {
+			t.Run(name+" stops the TUI", func(t *testing.T) {
+				_, quit := pressedAndQuit(opened(browser.New(definitions())), keys...)
 
 				require.True(t, quit)
 			})
 		}
 
-		t.Run("j and k in the view of a feature do not change the view", func(t *testing.T) {
-			m := pressed(opened(browser.New(definitions())), "l", "l")
+		t.Run("esc at a closed starter with no filter does not stop the TUI", func(t *testing.T) {
+			_, quit := pressedAndQuit(opened(browser.New(definitions())), "esc")
 
-			require.Equal(t, screenOf(m), screenOf(pressed(m, "j", "k")))
-		})
-
-		t.Run("j in the view of a feature does not move the selection that h goes back to", func(t *testing.T) {
-			screen := screenOf(pressed(opened(browser.New(definitions())), "l", "l", "j", "h"))
-
-			require.Contains(t, screen, "> auth  API keys.")
+			require.False(t, quit)
 		})
 	})
 
 	t.Run("at a starter", func(t *testing.T) {
-		t.Run("opens the view of that starter, and h then shows the list of all starters", func(t *testing.T) {
-			atStarter, err := browser.NewAtStarter(definitions(), "worker")
+		t.Run("opens the TUI with that starter selected and open", func(t *testing.T) {
+			atStarter, err := browser.NewAtStarter(definitions(), "zone")
 			require.NoError(t, err)
-			m := opened(atStarter)
 
-			require.Contains(t, screenOf(m), "No feature targets this starter.")
-			screen := screenOf(pressed(m, "h"))
-			require.Contains(t, screen, "A worker for jobs.")
-			require.Contains(t, screen, "An API that a worker calls.")
-			require.Contains(t, screenOf(pressed(m, "h", "l")), "No feature targets this starter.")
+			require.Equal(t, []string{" ▸ api", "   worker", "▌▾ zone", "   └─ ▾ features", "      └─ zone-tools"}, treeOf(opened(atStarter)))
 		})
 
 		t.Run("an unknown starter is an error that lists the starters", func(t *testing.T) {
@@ -405,7 +471,86 @@ func sized(m browser.Model, width, height int) browser.Model {
 var escapeCode = regexp.MustCompile(`\x1b\[[0-9;?]*[a-zA-Z]`)
 
 func screenOf(m browser.Model) string {
-	return escapeCode.ReplaceAllString(m.View(), "")
+	return strings.Join(linesOf(m), "\n")
+}
+
+func linesOf(m browser.Model) []string {
+	lines := strings.Split(escapeCode.ReplaceAllString(m.View(), ""), "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " ")
+	}
+	return lines
+}
+
+func panesOf(m browser.Model) (tree, details []string) {
+	lines := linesOf(m)
+	for _, line := range lines[2 : len(lines)-2] {
+		left, right, _ := strings.Cut(line, "││")
+		tree = append(tree, strings.TrimRight(strings.TrimPrefix(left, "│ "), " "))
+		details = append(details, strings.TrimRight(strings.TrimSuffix(strings.TrimPrefix(right, " "), "│"), " "))
+	}
+	return withoutEmptyEnd(tree), withoutEmptyEnd(details)
+}
+
+func treeOf(m browser.Model) []string {
+	tree, _ := panesOf(m)
+	return tree
+}
+
+func detailsOf(m browser.Model) string {
+	_, details := panesOf(m)
+	return strings.Join(details, "\n")
+}
+
+func firstDetailsLineOf(m browser.Model) string {
+	_, details := panesOf(m)
+	return details[0]
+}
+
+func selectedRowOf(m browser.Model) string {
+	for _, row := range treeOf(m) {
+		if strings.HasPrefix(row, "▌") {
+			return row
+		}
+	}
+	return ""
+}
+
+var panelTitles = regexp.MustCompile(`^╭─ (.*?) ─*╮╭─ (.*?) ─*╮$`)
+
+func paneTitlesOf(m browser.Model) (tree, details string) {
+	found := panelTitles.FindStringSubmatch(linesOf(m)[1])
+	return found[1], found[2]
+}
+
+var scrollNote = regexp.MustCompile(`─ (\d+%) ─╯$`)
+
+func scrollNoteOf(m browser.Model) string {
+	lines := linesOf(m)
+	if found := scrollNote.FindStringSubmatch(lines[len(lines)-2]); found != nil {
+		return found[1]
+	}
+	return ""
+}
+
+func footerOf(m browser.Model) string {
+	lines := linesOf(m)
+	return lines[len(lines)-1]
+}
+
+func withoutSelection(rows []string) []string {
+	unselected := make([]string, 0, len(rows))
+	for _, row := range rows {
+		unselected = append(unselected, strings.Replace(row, "▌", " ", 1))
+	}
+	return unselected
+}
+
+func withoutEmptyEnd(lines []string) []string {
+	for len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
 }
 
 func pressed(m browser.Model, keys ...string) browser.Model {
@@ -440,8 +585,16 @@ func keyMsg(name string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyUp}
 	case "down":
 		return tea.KeyMsg{Type: tea.KeyDown}
+	case "left":
+		return tea.KeyMsg{Type: tea.KeyLeft}
+	case "right":
+		return tea.KeyMsg{Type: tea.KeyRight}
 	case "ctrl+c":
 		return tea.KeyMsg{Type: tea.KeyCtrlC}
+	case "ctrl+d":
+		return tea.KeyMsg{Type: tea.KeyCtrlD}
+	case "ctrl+u":
+		return tea.KeyMsg{Type: tea.KeyCtrlU}
 	}
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(name)}
 }

@@ -44,8 +44,10 @@ machine.
 
 `feature-compose show` shows the starters and the features of the catalog. It has two forms:
 
-- **A TUI, for a person.** When stdin and stdout are both terminals, `show` opens a list of the starters, each
-  with its summary. `feature-compose show <starter>` opens the TUI at the view of that starter.
+- **A TUI, for a person.** When stdin and stdout are both terminals, `show` opens a TUI with two panes. The left
+  pane is a tree of the starters. Under each starter, the tree has two groups: its features and its extension
+  points. The right pane shows the details of the selected row. `feature-compose show <starter>` opens the TUI
+  with that starter selected and open.
 - **JSON, for a script.** `--output json` prints the catalog as JSON. When stdin or stdout is not a terminal,
   for example in a pipe, `show` prints JSON with no flag. `feature-compose show <starter>` prints only that
   starter and the features whose `targets` name it.
@@ -62,17 +64,29 @@ The keys of the TUI:
 
 | Key | Action |
 | --- | --- |
-| `j`, `k`, or the arrow keys | Move down and up in a list. |
-| `l` or Enter | Open the view of the selected starter, or of the selected feature in the view of a starter. |
-| `h` or Esc | Go back one view. At the list of the starters, Esc clears the filter. |
-| `/` | Start a filter on the names of the starters. While you type the filter, each key goes to the filter. Enter ends the typing and keeps the filtered list. |
+| `j`, `k`, or the up and down arrows | Move down and up in the tree. |
+| `l`, Enter, or the right arrow | Open the selected starter or group. At an open starter or group, select its first row. |
+| `h`, Esc, or the left arrow | At a feature or an extension point, select its group. At an open starter or group, close it. At a closed group, select its starter. |
+| `/` | Start a filter on the names of the starters, the features and the extension points. While you type the filter, each key goes to the filter. Enter keeps the filter, and Esc clears it. |
+| Esc, with a filter | Clear the filter. |
+| ctrl+d and ctrl+u, or Page Down and Page Up | Scroll the details down and up by half the pane. |
 | `q` | Stop the TUI. While you type the filter, `q` goes to the filter, and ctrl+c stops the TUI. |
 
-The view of a starter shows its summary, its folders with their commands, its options with their defaults and
-their values or patterns, its extension points with their item fields and their declarers, and the features that
-target it. The extension points include those that a feature declares, for example `cli.commands` of `cli`.
-The view of a feature shows its summary, its needs, its options, and the extension points that it declares or
-adds items to.
+The filter keeps a starter whose name holds the text, with all its features and extension points. It also keeps
+a feature or an extension point whose name holds the text, and opens its group and its starter. The filter ignores
+case. When the filter clears, the rows that it opened close again.
+
+The right pane shows these details:
+
+| Row | Details |
+| --- | --- |
+| A starter | Its summary, its folders with their commands, and its options with their defaults and their values or patterns. |
+| The group of the features | Each feature that targets the starter, with its summary. |
+| A feature | Its summary, its needs, its options, and the extension points that it declares or adds items to. |
+| The group of the extension points | Each extension point of the starter and of its features, with its item fields and its declarer, for example `cli.commands` of `cli`. |
+| An extension point | Its summary, its file, its item fields, its declarer, and the features that add items to it. |
+
+When the details do not fit the pane, its bottom border shows how far they are scrolled.
 
 The JSON has the keys of `starter.yml` and `feature.yml`. Each object has each of its fields: a list with no entry
 is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each list keeps the order of its file.

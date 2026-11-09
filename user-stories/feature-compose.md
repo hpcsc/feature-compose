@@ -443,19 +443,25 @@ can see which features I can select for a starter without knowing the names firs
 
 **Acceptance Criteria:**
 
-- [ ] In a terminal, `feature-compose show` opens a TUI with the list of the starters, each with its summary.
-  `/` starts a filter on the names. While the filter is typed, each key goes to it, and Enter keeps the
-  filtered list.
-- [ ] `l` or Enter on a starter opens the view of the starter: its summary, its folders with their commands, its
-  options with their defaults and their values or patterns, its extension points, and the features that target
-  it. Each extension point shows its summary, its item fields, and its declarer. The list also holds the
-  extension points that a feature declares, for example `cli.commands` of `cli`.
-- [ ] `l` or Enter on a feature opens the view of the feature: its summary, its needs, its options with their
-  defaults and their values or patterns, and the extension points that it declares or adds items to.
-- [ ] `j` and `k` move down and up in a list, as the arrow keys do. `h` or Esc goes back one view. `q` stops the
-  TUI from each view, except while a filter is typed, where ctrl+c stops it. The TUI writes no file.
-- [ ] `feature-compose show <starter>` opens the TUI at the view of that starter. An unknown starter stops the
-  command before the TUI starts, and the message lists the starters.
+- [ ] In a terminal, `feature-compose show` opens a TUI with two panes. The left pane is a tree of the starters.
+  Under each starter, the tree has a group of the features that target it and a group of its extension points.
+  The right pane shows the details of the selected row. `/` starts a filter on the names of the starters, the
+  features and the extension points. While the filter is typed, each key goes to it, Enter keeps the filtered
+  tree, and Esc clears the filter.
+- [ ] The details of a starter show its summary, its folders with their commands, and its options with their
+  defaults and their values or patterns. The details of the group of the features show each feature with its
+  summary.
+- [ ] The group of the extension points holds those of the starter and those that its features declare, for
+  example `cli.commands` of `cli`. The details of an extension point show its summary, its file, its item fields,
+  its declarer, and the features that add items to it.
+- [ ] The details of a feature show its summary, its needs, its options with their defaults and their values or
+  patterns, and the extension points that it declares or adds items to.
+- [ ] `j` and `k` move down and up in the tree, as the arrow keys do. `l` or Enter opens the selected starter or
+  group, and at an open row selects its first child. `h` or Esc closes an open row, and at another row selects
+  its parent. ctrl+d and ctrl+u scroll the details. `q` stops the TUI, except while a filter is typed, where
+  ctrl+c stops it. The TUI writes no file.
+- [ ] `feature-compose show <starter>` opens the TUI with that starter selected and open. An unknown starter stops
+  the command before the TUI starts, and the message lists the starters.
 - [ ] `feature-compose show --output json` prints the catalog as JSON: each starter with its summary, folders,
   options, and extension points, and each feature with its summary, targets, needs, options, and the extension
   points that it declares and adds items to. `show <starter> --output json` prints only that starter and the

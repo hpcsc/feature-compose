@@ -1,0 +1,67 @@
+design: planned
+types:
+  - name: Starter
+    package: internal/catalog
+    change: changed
+    does: one starter of the catalog, which each selection of a repo starts from
+    owns:
+      - each given feature names the starter in its targets; any other name stops, and the message lists the features that target the starter
+      - a selection holds each given feature and each need of a feature that it holds, one time each; a need that is not a feature that targets the starter stops, and the message names the feature, the need and the features that target the starter
+      - needs that form a cycle among the features of a selection stop the selection, and the message names each feature of the cycle
+      - each feature of a selection comes after its needs, and of the orders that this allows the selection takes the first in the order of the names (rule 8); the items of an extension point follow that order
+      - a pair of features in which one needs the other, directly or through its needs, gives no combination of its own
+    fields: [name, options, folders, templates, features, extensionPoints]
+    methods: [Select, combinations]
+  - name: feature
+    package: internal/catalog
+    change: changed
+    does: one feature.yml with its templates, its options, its needs, the extension points that it declares and the items that it adds
+    owns:
+      - the needs of a feature are the names in the needs list of its feature.yml
+    fields: [name, templates, rules, options, extensionPoints, addTo, needs]
+    methods: [placedIn, addsToOneExtensionPointWith]
+  - name: Selection
+    package: internal/catalog
+    change: changed
+    does: makes one repo from a starter, the selected features with the values of their options, a name and the values of the starter options
+    owns:
+      - a template of a feature reads the options of its feature by their names, the options of each need that its feature.yml names as <need>.<option>, and the options of the starter as starter.<option>; any other name stops the write before the first file, and the message lists the names that the template can read
+      - AddedByNeeds gives each feature that the selection holds only because a selected feature needs it, with the selected features that need it, in the order of rule 8; a given feature is not in it
+    fields: [folders, name, starterValues, featureValues, templates, extensionPoints, needs]
+    methods: [Write, RunAfterRender, RunTests, AddedByNeeds]
+  - name: Need
+    package: internal/catalog
+    change: new
+    does: one feature that a selection holds because other selected features need it, with the names of those features
+    owns: []
+    fields: [Feature, NeededBy]
+    methods: []
+functions:
+  - New(fsys fs.FS) Catalog
+words:
+  - concept: a feature that another feature cannot work without, named in the needs list of the feature.yml of that feature
+    word: need
+    not: [dependency, requirement, prerequisite, depends on, requires]
+  - concept: the features of a selection that name a feature in their needs, as new prints them
+    word: needed by
+    not: [required by, pulled in by, implied by, depended on by]
+  - concept: a feature that a --feature flag names, as against a feature that a need adds
+    word: given
+    not: [explicit, chosen, user-selected, direct]
+  - concept: the program in credentialCommand of the user config of the CLI, whose output is the key
+    word: credential command
+    not: [key command, secret command, helper, key provider]
+  - concept: where the CLI got the key, the variable or the credential command, which auth status prints
+    word: source
+    not: [origin, provider, location, backend]
+  - concept: the secret that the CLI sends as Authorization Bearer <key>, with the method api-key of api-auth
+    word: key
+    not: [token, secret, password, api token]
+  - concept: the HTTP client of the CLI through which each command calls the API of the repo with the key
+    word: API client
+    not: [transport, session, connection, sdk]
+  - concept: how the API of a repo checks a credential; the CLI follows the method of api-auth
+    word: method
+    not: [mode, strategy, provider, scheme]
+dependencies:
+  - internal/cmd -> internal/catalog

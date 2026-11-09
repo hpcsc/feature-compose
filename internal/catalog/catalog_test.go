@@ -888,6 +888,45 @@ add_to:
 			}, names)
 		})
 
+		t.Run("a pair in which one feature needs the other, also through a need of a need, gives no combination, and the repo of a feature holds its needs", func(t *testing.T) {
+			adds := func(featureName, needs string) *fstest.MapFile {
+				return &fstest.MapFile{Data: []byte("summary: A feature.\ntargets: [api]\n" + needs + "add_to:\n  api.middleware:\n    - code: " + featureName + "\n")}
+			}
+			files := fstest.MapFS{
+				"starters/api/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n")},
+				"starters/api/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range items "api.middleware" }}{{ .code }};{{ end }}`)},
+				"features/app/feature.yml":        adds("app", "needs: [side, mid]\n"),
+				"features/side/feature.yml":       &fstest.MapFile{Data: []byte("summary: Side.\ntargets: [api]\n")},
+				"features/mid/feature.yml":        &fstest.MapFile{Data: []byte("summary: Mid.\ntargets: [api]\nneeds: [base]\n")},
+				"features/base/feature.yml":       adds("base", ""),
+				"features/other/feature.yml":      adds("other", ""),
+				"features/zone/feature.yml":       adds("zone", "needs: [base]\n"),
+			}
+
+			names := namesOf(t, files)
+			starter, err := catalog.New(files).Starter("api")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"app": {}})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+			require.NoError(t, selection.Write(output))
+
+			require.Equal(t, []string{
+				"api",
+				"api --feature app",
+				"api --feature base",
+				"api --feature mid",
+				"api --feature other",
+				"api --feature side",
+				"api --feature zone",
+				"api --feature app --feature other",
+				"api --feature app --feature zone",
+				"api --feature base --feature other",
+				"api --feature other --feature zone",
+			}, names)
+			require.Equal(t, map[string]string{"server.go": "base;app;"}, filesIn(t, output))
+		})
+
 		for _, failing := range []string{"starters", "starters/api/starter.yml", "features", "features/cli/feature.yml"} {
 			t.Run("a read of "+failing+" that fails stops the list with its cause", func(t *testing.T) {
 				files := failingFS{failing: failing, files: fstest.MapFS{

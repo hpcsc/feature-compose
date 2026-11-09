@@ -94,9 +94,10 @@ prerelease, and then keeps only the 5 newest prereleases.
 runs the `after_render` commands and then the `test` commands of each folder. These are the combinations:
 
 - Each starter alone
-- Each starter with each feature that targets it
+- Each starter with each feature that targets it, and the needs of the feature
 - One for each value of an option that has `values`, with the other options at their defaults
-- Each pair of features that add items to one extension point
+- Each pair of features that add items to one extension point, except a pair in which one feature needs the
+  other: the repo of that feature already holds both
 
 Run it after you change a starter or a feature. CI runs it on each push, in the job `combinations`. The
 catalog gives the list, so a new starter, feature or value needs no change to the task or to CI.

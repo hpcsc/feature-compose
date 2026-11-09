@@ -1,0 +1,183 @@
+{
+  "story": "The CLI sends the API key",
+  "story_id": "feature-compose/US-005",
+  "tasks_file": "tasks/us-005-cli-auth.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Select the needs of each selected feature, in the order of rule 8",
+      "language": "Go",
+      "testable": true,
+      "certainty": "low",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/catalog/starter.go:100-128",
+        "internal/catalog/starter.go:160-170",
+        "internal/catalog/starter.go:184-216",
+        "internal/catalog/starter.go:130-158",
+        "internal/catalog/feature.go:23-90",
+        "internal/catalog/feature.go:104-111",
+        "internal/catalog/starter_test.go:155-197",
+        "internal/catalog/selection_test.go:534-553",
+        "internal/catalog/catalog_test.go:858-890",
+        "PROPOSAL.md:243",
+        "PROPOSAL.md:337",
+        "PROPOSAL.md:343-345",
+        "PROPOSAL.md:378",
+        "PROPOSAL.md:479",
+        "README.md:91-102",
+        "tasks/learnings.md:133-138",
+        "tasks/learnings.md:64-69"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "internal/catalog/feature.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/starter_test.go",
+        "internal/catalog/selection_test.go",
+        "internal/catalog/catalog_test.go",
+        "README.md"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Name each feature that a need added in the output of `new`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/cmd/new.go:24-57",
+        "internal/cmd/new_test.go:176-184",
+        "internal/cmd/new_test.go:256-283",
+        "internal/cmd/new_test.go:354-370",
+        "internal/catalog/combination.go:9-13",
+        "PROPOSAL.md:409-413",
+        "task:1"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "internal/catalog/need.go",
+        "internal/catalog/selection.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/selection_test.go",
+        "internal/cmd/new.go",
+        "internal/cmd/new_test.go"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Read the options of a need in the templates of a feature",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/catalog/selection.go:86-117",
+        "internal/catalog/starter_test.go:310-364",
+        "internal/catalog/starter_test.go:445-475",
+        "PROPOSAL.md:286-307",
+        "PROPOSAL.md:338-339",
+        "task:1"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "internal/catalog/selection.go",
+        "internal/catalog/starter_test.go"
+      ]
+    },
+    {
+      "n": 4,
+      "done": false,
+      "title": "Add the feature `cli-auth`, whose CLI takes the API key from a variable or a credential command and shows its source with `auth status`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "catalog/features/api-auth/feature.yml",
+        "catalog/features/cli/feature.yml",
+        "catalog/features/cli/files/go/internal/cli/root.go.tmpl:24-37",
+        "internal/catalog/selection.go:86-98",
+        "internal/catalog/selection_test.go:78-103",
+        "internal/catalog/catalog_test.go:433-540",
+        "internal/catalog/catalog_test.go:621-657",
+        "internal/catalog/catalog_test.go:907-923",
+        "e2e/tests/new.test.ts:69-100",
+        "e2e/tests/new.test.ts:122-146",
+        "e2e/tests/new.test.ts:266-281",
+        "e2e/tests/new.test.ts:112-120",
+        "e2e/testUtils.ts:40-70",
+        "docs/e2e-tests.md:80-122",
+        "PROPOSAL.md:194-212",
+        "PROPOSAL.md:488-512",
+        "tasks/learnings.md:23-28",
+        "tasks/learnings.md:30-35",
+        "tasks/learnings.md:10-21",
+        "tasks/learnings.md:77-82",
+        "tasks/learnings.md:84-96",
+        "tasks/learnings.md:126-131",
+        "tasks/learnings.md:119-124",
+        "tasks/learnings.md:37-42",
+        "tasks/learnings.md:51-56",
+        "tasks/learnings.md:58-63",
+        "task:1",
+        "task:2",
+        "task:3"
+      ],
+      "depends_on": [
+        1,
+        2,
+        3
+      ],
+      "affected_files": [
+        "catalog/features/cli-auth/feature.yml",
+        "catalog/features/cli-auth/files/common/go/internal/credential/",
+        "catalog/features/cli-auth/files/common/go/internal/cli/auth.go.tmpl",
+        "catalog/features/cli-auth/files/common/go/e2e/tests/auth.test.ts",
+        "catalog/features/cli-auth/files/common/go/docs/cli-auth.md",
+        "internal/catalog/selection.go",
+        "internal/catalog/selection_test.go",
+        "internal/catalog/catalog_test.go",
+        "e2e/tests/new.test.ts",
+        "docs/e2e-tests.md"
+      ]
+    },
+    {
+      "n": 5,
+      "done": false,
+      "title": "Send the API key on each call of the CLI to the API, and tell the user how to give the key when the API refuses it",
+      "language": "Go",
+      "testable": true,
+      "certainty": "low",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "catalog/features/api-auth/files/common/go/internal/auth/middleware_test.go.tmpl:14-45",
+        "catalog/features/api-auth/files/common/go/internal/auth/middleware.go.tmpl",
+        "catalog/features/cli/files/go/internal/cli/release/client.go.tmpl:40-121",
+        "internal/catalog/catalog_test.go:506-523",
+        "tasks/learnings.md:84-96",
+        "tasks/learnings.md:126-131",
+        "tasks/learnings.md:119-124",
+        "task:4"
+      ],
+      "depends_on": [
+        4
+      ],
+      "affected_files": [
+        "catalog/features/cli-auth/files/common/go/internal/",
+        "catalog/features/cli-auth/files/common/go/docs/cli-auth.md",
+        "internal/catalog/catalog_test.go",
+        "e2e/tests/new.test.ts"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-005-cli-auth.design.yaml"
+}

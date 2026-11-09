@@ -146,7 +146,7 @@ func (s Starter) combinations() []Combination {
 	}
 	for i, first := range featureNames {
 		for _, second := range featureNames[i+1:] {
-			if s.features[first].addsToOneExtensionPointWith(s.features[second]) {
+			if s.features[first].addsToOneExtensionPointWith(s.features[second]) && !s.oneNeedsTheOther(first, second) {
 				combinations = append(combinations, withFeatures(map[string]map[string]string{
 					first:  s.features[first].options.defaultsOfOptionsWithValues(),
 					second: s.features[second].options.defaultsOfOptionsWithValues(),
@@ -157,16 +157,89 @@ func (s Starter) combinations() []Combination {
 	return combinations
 }
 
+func (s Starter) oneNeedsTheOther(first, second string) bool {
+	return s.allNeedsOf(first)[second] || s.allNeedsOf(second)[first]
+}
+
+func (s Starter) allNeedsOf(featureName string) map[string]bool {
+	needed := map[string]bool{}
+	s.addNeeds(needed, featureName)
+	return needed
+}
+
+func (s Starter) addNeeds(needed map[string]bool, featureName string) {
+	for _, need := range s.features[featureName].needs {
+		if !needed[need] {
+			needed[need] = true
+			s.addNeeds(needed, need)
+		}
+	}
+}
+
 func (s Starter) selectedFeatures(givenByFeature map[string]map[string]string) ([]feature, error) {
-	selected := make([]feature, 0, len(givenByFeature))
-	for _, featureName := range slices.Sorted(maps.Keys(givenByFeature)) {
-		f, ok := s.features[featureName]
-		if !ok {
+	given := slices.Sorted(maps.Keys(givenByFeature))
+	for _, featureName := range given {
+		if _, ok := s.features[featureName]; !ok {
 			return nil, s.unknownFeature(featureName)
 		}
-		selected = append(selected, f)
 	}
-	return selected, nil
+	selected := map[string]feature{}
+	for _, featureName := range given {
+		if err := s.selectWithNeeds(selected, s.features[featureName]); err != nil {
+			return nil, err
+		}
+	}
+	return s.inNeedsOrder(selected)
+}
+
+func (s Starter) selectWithNeeds(selected map[string]feature, f feature) error {
+	if _, ok := selected[f.name]; ok {
+		return nil
+	}
+	selected[f.name] = f
+	for _, need := range f.needs {
+		needed, ok := s.features[need]
+		if !ok {
+			return fmt.Errorf("the feature %s needs %q, which is not a feature that targets the starter %s: the features that target it are %s",
+				f.name, need, s.name, strings.Join(slices.Sorted(maps.Keys(s.features)), ", "))
+		}
+		if err := s.selectWithNeeds(selected, needed); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s Starter) inNeedsOrder(selected map[string]feature) ([]feature, error) {
+	names := slices.Sorted(maps.Keys(selected))
+	ordered := make([]feature, 0, len(selected))
+	placed := map[string]bool{}
+	for len(ordered) < len(selected) {
+		next := slices.IndexFunc(names, func(featureName string) bool {
+			return !placed[featureName] && !slices.ContainsFunc(selected[featureName].needs, func(need string) bool { return !placed[need] })
+		})
+		if next < 0 {
+			return nil, s.needsCycle(selected, placed)
+		}
+		ordered = append(ordered, selected[names[next]])
+		placed[names[next]] = true
+	}
+	return ordered, nil
+}
+
+func (s Starter) needsCycle(selected map[string]feature, placed map[string]bool) error {
+	unplaced := slices.DeleteFunc(slices.Sorted(maps.Keys(selected)), func(featureName string) bool { return placed[featureName] })
+	cycle := s.cycleFrom([]string{unplaced[0]}, selected, placed)
+	return fmt.Errorf("the needs of the features form a cycle: %s", strings.Join(cycle, " needs "))
+}
+
+func (s Starter) cycleFrom(path []string, selected map[string]feature, placed map[string]bool) []string {
+	needs := selected[path[len(path)-1]].needs
+	next := needs[slices.IndexFunc(needs, func(need string) bool { return !placed[need] })]
+	if start := slices.Index(path, next); start >= 0 {
+		return append(path[start:], next)
+	}
+	return s.cycleFrom(append(path, next), selected, placed)
 }
 
 func (s Starter) templatesOf(selected []feature) ([]template, error) {

@@ -18,6 +18,7 @@ type feature struct {
 	options         options
 	extensionPoints map[string]extensionPoint
 	addTo           map[string][]map[string]string
+	needs           []string
 }
 
 func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool, error) {
@@ -43,6 +44,7 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 			Item    []string `yaml:"item"`
 		} `yaml:"extension_points"`
 		AddTo   map[string][]map[string]string `yaml:"add_to"`
+		Needs   []string                       `yaml:"needs"`
 		Options map[string]struct {
 			Default string   `yaml:"default"`
 			Pattern string   `yaml:"pattern"`
@@ -86,7 +88,7 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 	for name, declared := range definition.ExtensionPoints {
 		extensionPoints[name] = extensionPoint{name: name, declarer: "the feature " + featureName, itemFields: declared.Item}
 	}
-	return feature{name: featureName, templates: templates, rules: rules, options: declaredOptions, extensionPoints: extensionPoints, addTo: definition.AddTo}, true, nil
+	return feature{name: featureName, templates: templates, rules: rules, options: declaredOptions, extensionPoints: extensionPoints, addTo: definition.AddTo, needs: definition.Needs}, true, nil
 }
 
 func (f feature) placedIn(folders map[string]folder) ([]template, error) {

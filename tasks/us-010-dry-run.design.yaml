@@ -1,0 +1,46 @@
+design: planned
+types:
+  - name: Selection
+    package: internal/catalog
+    change: changed
+    does: one repo that new makes, from a starter, its features with the values of their options, a name and the values of the starter options
+    owns:
+      - Write and Preview render each template, its path and its contents, through one step; each error of that step stops both with the same message before the first file, also two templates that write one path, whose message names both owners
+      - Write refuses an output folder that has entries before it renders; Preview reads no output folder, writes no file and runs no command
+      - Preview gives the name of the repo with its starter, then each feature in the order of rule 8 with its source, then each option by the name with which a template reads it, with its value and its source, then each file by its path in the repo, in the order of the paths, with its owner
+      - the source of a feature is command line when a --feature flag gives it, also when a selected feature needs it, and else the features that need it, as AddedByNeeds gives them
+      - the source of the value of an option is command line when a flag gives it, also when it equals the default, and default otherwise; no value comes from a need, because a need sets no value
+    fields: [name, starterName, featureNames, starterValues, featureValues, givenStarterValues, givenFeatureValues, templates, addedByNeeds]
+    methods: [Write, RunAfterRender, RunTests, AddedByNeeds, Preview]
+  - name: Starter
+    package: internal/catalog
+    change: changed
+    does: one starter of the catalog, which each selection of a repo starts from
+    owns:
+      - Select gives the selection the name of the starter, the names of the features in the order of rule 8, and the values that the caller gave, apart from the defaults
+    fields: [name, options, folders, templates, features, extensionPoints]
+    methods: [Select]
+  - name: file
+    package: internal/catalog
+    change: changed
+    does: one rendered file of the repo, with its path in the repo, its contents and its owner
+    owns:
+      - its owner is the starter or the feature whose template renders it (rule 7), as the messages of the tool name it
+    fields: [path, contents, owner]
+    methods: [write]
+functions: []
+words:
+  - concept: the text that new --dry-run prints and that the confirm step of the TUI of new shows, with the starter, the features, the options and the files of the repo that new would make
+    word: preview
+    not: [plan, summary, report, overview, listing]
+  - concept: where a feature or the value of an option comes from, which the preview shows as command line, needed by or default
+    word: source
+    not: [origin, provenance, reason, cause]
+  - concept: the starter or the feature whose template renders a file of the repo
+    word: owner
+    not: [author, writer, declarer, creator]
+  - concept: a feature or a value that the caller of Select passes, which the flags of new give and the preview names command line
+    word: given
+    not: [explicit, chosen, user-selected, direct]
+dependencies:
+  - internal/cmd -> internal/catalog

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"testing/fstest"
@@ -788,6 +789,113 @@ delimiters:
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{"cmd/my-service/Taskfile.yml": "name: my-service\n"}, filesIn(t, output))
 		})
+	})
+
+	t.Run("preview", func(t *testing.T) {
+		withFeature := func() fstest.MapFS {
+			return fstest.MapFS{
+				"starters/service/starter.yml":                       &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n  web:\n    path: frontend\n")},
+				"starters/service/files/go/go.mod.tmpl":              &fstest.MapFile{Data: []byte("module {{ .Name }}\n")},
+				"starters/service/files/web/index.html":              &fstest.MapFile{Data: []byte("<html></html>\n")},
+				"features/cli/feature.yml":                           &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\n")},
+				"features/cli/files/go/cmd/{{ .Name }}/main.go.tmpl": &fstest.MapFile{Data: []byte("package main\n")},
+			}
+		}
+		selectionWith := func(t *testing.T, files fstest.MapFS, features ...string) catalog.Selection {
+			t.Helper()
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, withoutValues(features...))
+			require.NoError(t, err)
+			return selection
+		}
+
+		t.Run("gives the name of the repo, its starter, and each file by its path in the repo, in the order of the paths, with its owner", func(t *testing.T) {
+			preview, err := selectionWith(t, withFeature(), "cli").Preview()
+
+			require.NoError(t, err)
+			require.Equal(t, `Repo: my-service
+Starter: service
+
+Files:
+  cmd/my-service/main.go: the feature cli
+  frontend/index.html: the starter
+  go.mod: the starter
+`, preview)
+		})
+
+		t.Run("gives the path of each file that the write of the same selection writes, one time each", func(t *testing.T) {
+			selection := selectionWith(t, withFeature(), "cli")
+			output := filepath.Join(t.TempDir(), "my-service")
+			require.NoError(t, selection.Write(output))
+
+			preview, err := selection.Preview()
+
+			require.NoError(t, err)
+			_, filesPart, _ := strings.Cut(preview, "Files:\n")
+			var previewed []string
+			for _, line := range strings.Split(strings.TrimSuffix(filesPart, "\n"), "\n") {
+				path, _, _ := strings.Cut(strings.TrimPrefix(line, "  "), ": ")
+				previewed = append(previewed, path)
+			}
+			require.Equal(t, slices.Sorted(maps.Keys(filesIn(t, output))), previewed)
+		})
+
+		t.Run("a starter with no template gives a repo with no file", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml": oneFolder,
+				"starters/service/files":       &fstest.MapFile{Mode: fs.ModeDir | 0o755},
+			}
+
+			preview, err := selectionWith(t, files).Preview()
+
+			require.NoError(t, err)
+			require.Equal(t, "Repo: my-service\nStarter: service\n\nFiles: none\n", preview)
+		})
+
+		for name, test := range map[string]struct {
+			files    fstest.MapFS
+			features []string
+		}{
+			"a template whose path fails to render": {files: fstest.MapFS{
+				"starters/service/starter.yml":               oneFolder,
+				"starters/service/files/go/{{ .Nmae }}/a.go": &fstest.MapFile{Data: []byte("package a\n")},
+			}},
+			"a template that does not parse": {files: fstest.MapFS{
+				"starters/service/starter.yml":   oneFolder,
+				"starters/service/files/go/b.go": &fstest.MapFile{Data: []byte("package {{ .Name\n")},
+			}},
+			"a template that fails to render": {files: fstest.MapFS{
+				"starters/service/starter.yml":   oneFolder,
+				"starters/service/files/go/b.go": &fstest.MapFile{Data: []byte("package {{ .Nmae }}\n")},
+			}},
+			"a path that leads out of the repo": {files: fstest.MapFS{
+				"starters/service/starter.yml":                                 &fstest.MapFile{Data: []byte("options:\n  app:\n    default: ../../escape\nfolders:\n  go:\n    path: .\n")},
+				`starters/service/files/go/{{ option "starter.app" }}/main.go`: &fstest.MapFile{Data: []byte("package main\n")},
+			}},
+			"two templates of the starter that write one path": {files: fstest.MapFS{
+				"starters/service/starter.yml":           oneFolder,
+				"starters/service/files/go/main.go":      &fstest.MapFile{Data: []byte("package main\n")},
+				"starters/service/files/go/main.go.tmpl": &fstest.MapFile{Data: []byte("package main\n")},
+			}},
+			"a template of the starter and a template of a feature that write one path": {files: fstest.MapFS{
+				"starters/service/starter.yml":       oneFolder,
+				"starters/service/files/go/main.go":  &fstest.MapFile{Data: []byte("package main\n")},
+				"features/cli/feature.yml":           &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\n")},
+				"features/cli/files/go/main.go.tmpl": &fstest.MapFile{Data: []byte("package cli\n")},
+			}, features: []string{"cli"}},
+		} {
+			t.Run(name+" stops the preview with the message that stops the write of the same selection", func(t *testing.T) {
+				selection := selectionWith(t, test.files, test.features...)
+				writeErr := selection.Write(filepath.Join(t.TempDir(), "my-service"))
+				require.Error(t, writeErr)
+
+				preview, err := selection.Preview()
+
+				require.EqualError(t, err, writeErr.Error())
+				require.Empty(t, preview)
+			})
+		}
 	})
 
 	t.Run("run after render", func(t *testing.T) {

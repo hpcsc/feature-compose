@@ -10,6 +10,7 @@ import (
 type file struct {
 	path     string
 	contents string
+	owner    string
 }
 
 func (f file) write(output string) error {

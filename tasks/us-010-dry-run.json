@@ -1,0 +1,117 @@
+{
+  "story": "Preview a repo before the tool writes it",
+  "story_id": "feature-compose/US-010",
+  "tasks_file": "tasks/us-010-dry-run.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Preview the starter and the files with `new --dry-run`, and write nothing",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "internal/catalog/selection.go:38-62",
+        "internal/catalog/template.go:23-27",
+        "internal/catalog/template.go:64-79",
+        "internal/catalog/combination.go:15-33",
+        "internal/cmd/new.go:13-65",
+        "internal/catalog/selection_test.go:23-44",
+        "internal/catalog/selection_test.go:171-186",
+        "internal/catalog/selection_test.go:266-306",
+        "internal/cmd/new_test.go:21-52",
+        "internal/cmd/new_test.go:285-296",
+        "internal/cmd/new_test.go:339-348",
+        "internal/cmd/new_test.go:350-503",
+        "e2e/tests/new.test.ts:11-19",
+        "e2e/tests/new.test.ts:32-41",
+        "e2e/tests/new.test.ts:163-171",
+        "e2e/testUtils.ts:62-69",
+        "README.md:43-117",
+        "tasks/learnings.md:3-8",
+        "tasks/learnings.md:182-187",
+        "tasks/learnings.md:58-63"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "internal/catalog/selection.go",
+        "internal/catalog/file.go",
+        "internal/catalog/template.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/selection_test.go",
+        "internal/cmd/new.go",
+        "internal/cmd/new_test.go",
+        "README.md",
+        "e2e/tests/new.test.ts"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Show each feature of the preview with its source",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/catalog/selection.go:30-36",
+        "internal/catalog/starter.go:220-236",
+        "internal/catalog/starter.go:188-203",
+        "internal/cmd/new.go:56-62",
+        "internal/catalog/selection_test.go:925-975",
+        "internal/cmd/new_test.go:186-237",
+        "e2e/tests/new.test.ts:112-125",
+        "task:1",
+        "tasks/learnings.md:133-138",
+        "tasks/learnings.md:147-152",
+        "tasks/learnings.md:182-187"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "internal/catalog/selection.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/selection_test.go",
+        "internal/cmd/new_test.go",
+        "README.md",
+        "e2e/tests/new.test.ts"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Show each option of the preview with its value and its source",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/catalog/option.go:49-75",
+        "internal/catalog/selection.go:110-136",
+        "internal/catalog/starter.go:73-103",
+        "internal/catalog/starter_test.go:15-62",
+        "internal/cmd/new_test.go:104-135",
+        "e2e/tests/new.test.ts:32-41",
+        "task:2",
+        "task:1",
+        "tasks/learnings.md:133-138",
+        "tasks/learnings.md:182-187"
+      ],
+      "depends_on": [
+        2
+      ],
+      "affected_files": [
+        "internal/catalog/selection.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/option.go",
+        "internal/catalog/selection_test.go",
+        "internal/cmd/new_test.go",
+        "README.md",
+        "e2e/tests/new.test.ts"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-010-dry-run.design.yaml"
+}

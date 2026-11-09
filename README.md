@@ -40,6 +40,38 @@ read it.
 installer and the update command do the same kind of job; use whichever you find convenient on a fresh
 machine.
 
+## Preview a Repo
+
+`feature-compose new <starter> <name> --dry-run` prints a preview of the repo that `new` makes. It writes no file
+and runs no command, so the output folder does not exist after the run:
+
+```shell
+feature-compose new go-event-sourcing-service my-service --feature cli --dry-run
+```
+
+```text
+Repo: my-service
+Starter: go-event-sourcing-service
+
+Files:
+  .dockerignore: the feature cli
+  .env.integration: the starter
+  ...
+  cmd/my-service/main.go: the feature cli
+  ...
+```
+
+The preview gives the name of the repo and its starter. Then it gives each file of the repo by its path, in the
+order of the paths, with its owner: the starter, or the feature whose template writes the file.
+
+Before it prints, `--dry-run` does the same checks as `new`. A selection that stops `new`, for example an unknown
+feature or a value that does not match its pattern, stops `--dry-run` with the same message, and `--dry-run` then
+prints nothing. `--dry-run` does not read the output folder, so an output folder that has files stops `new` but not
+`--dry-run`.
+
+The preview is text for a person, and its layout can change. A script reads the catalog with
+`feature-compose show --output json`.
+
 ## Show the Catalog
 
 `feature-compose show` shows the starters and the features of the catalog. It has two forms:

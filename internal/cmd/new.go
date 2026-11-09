@@ -20,6 +20,7 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			&cli.StringSliceFlag{Name: "option", Usage: "set an option of the starter, as <name>=<value>; give the flag one time for each option"},
 			&cli.StringFlag{Name: "output-dir", Usage: "the folder for the new repo (default: ./<name>)"},
 			&cli.BoolFlag{Name: "no-prompt", Usage: "ask no question, and give each option without a value its default"},
+			&cli.BoolFlag{Name: "dry-run", Usage: "print a preview of the repo, and write no file and run no command"},
 		},
 		DisableSliceFlagSeparator: true,
 		Action: asTwoArgumentsAction(func(ctx context.Context, cmd *cli.Command, starterName, name string) error {
@@ -41,6 +42,14 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			}
 			selection, err := starter.Select(name, values, givenByFeature)
 			if err != nil {
+				return err
+			}
+			if cmd.Bool("dry-run") {
+				preview, err := selection.Preview()
+				if err != nil {
+					return err
+				}
+				_, err = io.WriteString(cmd.Root().Writer, preview)
 				return err
 			}
 			output := cmd.String("output-dir")

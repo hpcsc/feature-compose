@@ -160,6 +160,36 @@ describe('feature-compose new', () => {
     15 * 60 * 1000,
   )
 
+  it('--dry-run prints the repo, its starter, and each file with its owner, and writes nothing', async () => {
+    const dir = scratchDir()
+
+    const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli', '--dry-run'])
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toContain('Repo: my-service\nStarter: go-event-sourcing-service\n')
+    expect(result.stdout).toContain('\n  go.mod: the starter\n')
+    expect(result.stdout).toContain('\n  cmd/my-service/main.go: the feature cli\n')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  for (const [name, args] of [
+    ['an unknown feature', ['--feature', 'no-such-feature']],
+    ['a go-version that does not match its pattern', ['--option', 'go-version=1.20']],
+  ]) {
+    it(`${name} stops --dry-run with the message that stops new, and makes no folder`, async () => {
+      const dir = scratchDir()
+
+      const made = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', ...args])
+      const previewed = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', ...args, '--dry-run'])
+
+      expect(made.status).not.toBe(0)
+      expect(previewed.status).not.toBe(0)
+      expect(previewed.stderr).toBe(made.stderr)
+      expect(previewed.stdout).toBe('')
+      expect(readdirSync(dir)).toEqual([])
+    })
+  }
+
   it('an unknown feature stops new, and the message lists the features that target the starter', async () => {
     const dir = scratchDir()
 

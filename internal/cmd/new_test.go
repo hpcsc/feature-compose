@@ -336,6 +336,114 @@ folders:
 		})
 	})
 
+	t.Run("dry run", func(t *testing.T) {
+		t.Run("--dry-run prints the preview of the repo, and writes no file and makes no output folder", func(t *testing.T) {
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+
+			printed, err := runNew(t, withFeatures(), "service", "my-service", "--feature", "cli", "--dry-run")
+
+			require.NoError(t, err)
+			require.Equal(t, "Repo: my-service\nStarter: service\n\nFiles:\n  cmd/my-service/main.go: the feature cli\n  go.mod: the starter\n", printed)
+			require.Empty(t, filesIn(t, workingFolder))
+		})
+
+		t.Run("with --output-dir set to an empty folder that exists, --dry-run runs no after_render command, so the folder and the working folder stay empty", func(t *testing.T) {
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+			output := t.TempDir()
+
+			_, err := runNew(t, starterFiles(`"touch ran"`), "service", "my-service", "--output-dir", output, "--dry-run")
+
+			require.NoError(t, err)
+			require.Empty(t, filesIn(t, output))
+			require.Empty(t, filesIn(t, workingFolder))
+		})
+
+		t.Run("an output folder that has entries does not stop --dry-run, and keeps its contents", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(output, "notes.txt"), []byte("my notes\n"), 0o644))
+
+			printed, err := runNew(t, starterFiles(`"touch ran"`), "service", "my-service", "--output-dir", output, "--dry-run")
+
+			require.NoError(t, err)
+			require.Contains(t, printed, "  go.mod: the starter\n")
+			require.Equal(t, map[string]string{"notes.txt": "my notes\n"}, filesIn(t, output))
+		})
+
+		t.Run("the two orders of the flags give the same preview", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			first, err := runNew(t, withFeatures(), "service", "my-service", "--feature", "cli", "--feature", "docs", "--dry-run")
+			require.NoError(t, err)
+			second, err := runNew(t, withFeatures(), "service", "my-service", "--dry-run", "--feature", "docs", "--feature", "cli")
+			require.NoError(t, err)
+
+			require.Equal(t, first, second)
+		})
+
+		withBadTemplate := func(path, contents string) fstest.MapFS {
+			files := starterFiles("")
+			files[path] = &fstest.MapFile{Data: []byte(contents)}
+			return files
+		}
+		for name, test := range map[string]struct {
+			files     fstest.MapFS
+			arguments []string
+		}{
+			"one argument":                                   {starterFiles(""), []string{"service"}},
+			"a name of the repo that is not valid":           {starterFiles(""), []string{"service", "../escape"}},
+			"an --option value without =":                    {starterFiles(""), []string{"service", "my-service", "--option", "module"}},
+			"an unknown starter":                             {starterFiles(""), []string{"no-such-starter", "my-service"}},
+			"an unknown option":                              {starterFiles(""), []string{"service", "my-service", "--option", "modul=x"}},
+			"a value that does not match its pattern":        {starterFiles(""), []string{"service", "my-service", "--option", "go-version=1.20"}},
+			"an unknown feature":                             {withFeatures(), []string{"service", "my-service", "--feature", "no-such-feature"}},
+			"a --feature value that is not <option>=<value>": {withFeatures(), []string{"service", "my-service", "--feature", "auth:method"}},
+			"one option of a feature with two values":        {withFeatures(), []string{"service", "my-service", "--feature", "auth:method=oauth,method=api-key"}},
+			"a value that is not one of its values":          {withFeatures(), []string{"service", "my-service", "--feature", "auth:method=basic"}},
+			"a template that fails to render":                {withBadTemplate("starters/service/files/go/bad.go", "package {{ .Nmae }}\n"), []string{"service", "my-service"}},
+			"two templates that write one path":              {withBadTemplate("starters/service/files/go/go.mod", "module mine\n"), []string{"service", "my-service"}},
+		} {
+			t.Run(name+" stops --dry-run with the message that stops new, prints nothing, and makes no output folder", func(t *testing.T) {
+				workingFolder := t.TempDir()
+				t.Chdir(workingFolder)
+				_, newErr := runNew(t, test.files, test.arguments...)
+				require.Error(t, newErr)
+
+				printed, err := runNew(t, test.files, append(test.arguments, "--dry-run")...)
+
+				require.EqualError(t, err, newErr.Error())
+				require.Empty(t, printed)
+				require.Empty(t, filesIn(t, workingFolder))
+			})
+		}
+
+		t.Run("a catalog that cannot load stops --dry-run with its error, and prints nothing", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			var printed bytes.Buffer
+			command := newNewCommand(func() (catalog.Catalog, error) {
+				return catalog.Catalog{}, errors.New("no config file at /home/config.yml")
+			})
+			command.Writer, command.ErrWriter = &printed, &printed
+
+			err := command.Run(context.Background(), []string{"new", "service", "my-service", "--dry-run"})
+
+			require.EqualError(t, err, "no config file at /home/config.yml")
+			require.Empty(t, printed.String())
+		})
+
+		t.Run("a preview that cannot be written stops --dry-run with an error", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			command := newNewCommand(loaded(starterFiles("")))
+			command.Writer, command.ErrWriter = failingWriter{}, io.Discard
+
+			err := command.Run(context.Background(), []string{"new", "service", "my-service", "--dry-run"})
+
+			require.ErrorContains(t, err, "closed output")
+		})
+	})
+
 	t.Run("help", func(t *testing.T) {
 		t.Run("--help shows --feature and its form <name>[:<option>=<value>,...]", func(t *testing.T) {
 			printed, err := runNew(t, withFeatures(), "--help")
@@ -344,6 +452,14 @@ folders:
 			require.Contains(t, printed, "--feature")
 			require.Contains(t, printed, "select a feature of the catalog")
 			require.Contains(t, printed, "<name>[:<option>=<value>,...]")
+		})
+
+		t.Run("--help shows --dry-run and what it does", func(t *testing.T) {
+			printed, err := runNew(t, withFeatures(), "--help")
+
+			require.NoError(t, err)
+			require.Contains(t, printed, "--dry-run")
+			require.Contains(t, printed, "print a preview of the repo, and write no file and run no command")
 		})
 	})
 

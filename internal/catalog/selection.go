@@ -19,6 +19,7 @@ import (
 type Selection struct {
 	folders         map[string]folder
 	name            string
+	starterName     string
 	starterValues   map[string]string
 	featureValues   map[string]map[string]string
 	templates       []template
@@ -39,26 +40,35 @@ func (s Selection) Write(output string) error {
 	if err := s.checkEmpty(output); err != nil {
 		return err
 	}
-	rendered := make([]file, 0, len(s.templates))
-	writers := make(map[string]template, len(s.templates))
-	for _, t := range s.templates {
-		f, err := t.render(s)
-		if err != nil {
-			return err
-		}
-		if other, ok := writers[f.path]; ok {
-			return fmt.Errorf("the template %s of %s and the template %s of %s both write %s",
-				other.catalogPath, other.owner, t.catalogPath, t.owner, f.path)
-		}
-		writers[f.path] = t
-		rendered = append(rendered, f)
+	files, err := s.files()
+	if err != nil {
+		return err
 	}
-	for _, f := range rendered {
+	for _, f := range files {
 		if err := f.write(output); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (s Selection) Preview() (string, error) {
+	files, err := s.files()
+	if err != nil {
+		return "", err
+	}
+	slices.SortFunc(files, func(a, b file) int { return strings.Compare(a.path, b.path) })
+	var preview strings.Builder
+	fmt.Fprintf(&preview, "Repo: %s\nStarter: %s\n", s.name, s.starterName)
+	if len(files) == 0 {
+		preview.WriteString("\nFiles: none\n")
+	} else {
+		preview.WriteString("\nFiles:\n")
+	}
+	for _, f := range files {
+		fmt.Fprintf(&preview, "  %s: %s\n", f.path, f.owner)
+	}
+	return preview.String(), nil
 }
 
 func (s Selection) RunAfterRender(ctx context.Context, output string) error {
@@ -77,6 +87,24 @@ func (s Selection) RunTests(ctx context.Context, output string) error {
 		}
 	}
 	return nil
+}
+
+func (s Selection) files() ([]file, error) {
+	files := make([]file, 0, len(s.templates))
+	writers := make(map[string]template, len(s.templates))
+	for _, t := range s.templates {
+		f, err := t.render(s)
+		if err != nil {
+			return nil, err
+		}
+		if other, ok := writers[f.path]; ok {
+			return nil, fmt.Errorf("the template %s of %s and the template %s of %s both write %s",
+				other.catalogPath, other.owner, t.catalogPath, t.owner, f.path)
+		}
+		writers[f.path] = t
+		files = append(files, f)
+	}
+	return files, nil
 }
 
 func (s Selection) checkEmpty(output string) error {

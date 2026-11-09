@@ -174,7 +174,7 @@
     },
     {
       "n": 7,
-      "done": false,
+      "done": true,
       "title": "Check end to end that a repo with `api-auth` refuses a request without a known key, and that repos with and without it pass their tests",
       "language": "TypeScript",
       "testable": true,

@@ -79,7 +79,7 @@ tests keep the original binary.
 
 ## The full run of `new`
 
-Two tests in `e2e/tests/new.test.ts` make a repo from `go-event-sourcing-service` and check it. The first
+Three tests in `e2e/tests/new.test.ts` make a repo from `go-event-sourcing-service` and check it. The first
 makes the repo from the starter alone:
 
 1. `feature-compose new go-event-sourcing-service my-service --no-prompt` makes the repo. Its `after_render`
@@ -87,18 +87,33 @@ makes the repo from the starter alone:
 2. `gofmt -l .` lists no file.
 3. `task --list` and `task test:unit` stop with the exit status 0. `task test:unit` runs gotestsum, and
    gotestsum runs `go test -race`, which needs a C compiler.
+4. The test starts the API of the repo, and `POST /accounts` with no `Authorization` header gets the answer
+   400 of the handler. The API of a repo without `api-auth` accepts each request.
 
-The second adds `--feature cli`, and checks that the feature fits the starter:
+The second adds `--feature api-auth`, and checks the API key:
+
+1. `gofmt -l .` lists no file, `go build ./...` builds, and `task test:unit` stops with the exit status 0.
+   The output of gotestsum shows that the tests of `internal/auth` and of the service ran and passed.
+2. The test starts the API with `API_KEY_HASHES` set to the SHA-256 hash of a key of the test. `GET /` gets
+   200 with no key. `POST /accounts` gets 401 with `WWW-Authenticate: Bearer` with no `Authorization` header
+   and with an unknown key, and it gets the answer 400 of the handler with the key of the test.
+
+The third adds `--feature cli`, and checks that the feature fits the starter:
 
 1. `gofmt -l .` lists no file, and `go build ./...` builds the service and the CLI.
-2. `task test:unit` stops with the exit status 0, and its output names the tested packages of the CLI
-   under `internal/cli` and of the service.
+2. `task test:unit` stops with the exit status 0. The output of gotestsum shows that the tests of the CLI
+   under `internal/cli` and of the service ran and passed. A package whose tests the build tags exclude does
+   not count.
 3. `go run ./cmd/my-service` with no command prints the commands of the CLI, which are only `version`,
    `update` and `help`, and reads no input.
 
-So these tests need Go, Task, gotestsum, a C compiler and the network. Each takes less than a minute when
-the Go module cache has the modules of the new repo, and some minutes when it does not, for example in
-Docker.
+To start an API, a test builds `./cmd/api` of the repo and runs it on a free port of `127.0.0.1`. Its
+database settings point to no database. The pool of the API opens no connection before the first query, and
+`POST /accounts` with the body `{}` stops in the handler, because the owner is missing, before any query. So
+the test needs no Postgres. The API stops when the test ends.
+
+So these tests need Go, Task, gotestsum, a C compiler and the network. Each takes about a minute when the Go
+module cache has the modules of the new repo, and some minutes when it does not, for example in Docker.
 They are the only tests with a timeout longer than the 30 seconds of `e2e/vitest.config.ts`: their timeout
 is 15 minutes.
 

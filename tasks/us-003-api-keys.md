@@ -519,21 +519,21 @@ and sees that a protected route accepts a request with no key. A third test show
 not have stops the real binary.
 
 **Acceptance Criteria:**
-- [ ] An end-to-end test runs `feature-compose new go-event-sourcing-service my-service --feature api-auth
+- [x] An end-to-end test runs `feature-compose new go-event-sourcing-service my-service --feature api-auth
   --no-prompt` in an empty scratch folder, and the run exits with 0.
-- [ ] In that repo, `gofmt -l .` lists no file, `go build ./...` exits with 0, and `task test:unit` exits with 0.
+- [x] In that repo, `gofmt -l .` lists no file, `go build ./...` exits with 0, and `task test:unit` exits with 0.
   The packages that pass include `internal/auth` and the packages of the service that have tests.
-- [ ] The test starts the API of that repo on a free port, with DB settings that point to no database and
+- [x] The test starts the API of that repo on a free port, with DB settings that point to no database and
   `API_KEY_HASHES` set to the hash of a key of the test. `GET /` with no `Authorization` header gets 200.
   `POST /accounts` with the body `{}` gets 401 with `WWW-Authenticate: Bearer` with no `Authorization` header and
   with an unknown key, and gets the answer 400 of the handler with `Authorization: Bearer <the key of the test>`.
   The API stops when the test ends.
-- [ ] The full run of the starter alone also starts its API, and `POST /accounts` with the body `{}` and no
+- [x] The full run of the starter alone also starts its API, and `POST /accounts` with the body `{}` and no
   `Authorization` header gets the answer 400 of the handler.
-- [ ] `feature-compose new go-event-sourcing-service x --feature api-auth:method=oauth` exits with a status other
+- [x] `feature-compose new go-event-sourcing-service x --feature api-auth:method=oauth` exits with a status other
   than 0, its output names `method` and `api-key`, and the scratch folder stays empty.
-- [ ] Only the full runs have a timeout longer than the 30 seconds of `e2e/vitest.config.ts`.
-- [ ] `docs/e2e-tests.md` of this repo describes the full run with `api-auth`: what it checks, how it starts the API,
+- [x] Only the full runs have a timeout longer than the 30 seconds of `e2e/vitest.config.ts`.
+- [x] `docs/e2e-tests.md` of this repo describes the full run with `api-auth`: what it checks, how it starts the API,
   what it needs, and about how long it takes.
 
 **Affected Files/Modules:**

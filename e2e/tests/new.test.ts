@@ -1,7 +1,8 @@
 import { type ChildProcess, spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
-import type { AddressInfo, Socket } from 'node:net'
+import { type AddressInfo, createServer as createNetServer, type Socket } from 'node:net'
 import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { getExecutablePath, runCli, runProgram, scratchDir } from '../testUtils'
@@ -48,9 +49,54 @@ describe('feature-compose new', () => {
       expect(list.status, list.stdout + list.stderr).toBe(0)
       const unit = await runProgram(repo, 'task', ['test:unit'], env)
       expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      const api = await startedApi(repo, env)
+      expect((await openAccount(api)).status).toBe(400)
     },
     15 * 60 * 1000,
   )
+
+  it(
+    'makes a repo with api-auth that passes its unit tests, and whose API answers 401 to a request without a known key',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+      const key = 'the-key-of-the-e2e-test'
+
+      const made = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'api-auth', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      const repo = join(dir, 'my-service')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      const build = await runProgram(repo, 'go', ['build', './...'], env)
+      expect(build.status, build.stdout + build.stderr).toBe(0)
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      expect(passedPackages(unit.stdout)).toEqual(
+        expect.arrayContaining(['internal/auth', 'internal/api/use_cases', 'internal/use_cases/account', 'internal/domain/projection']),
+      )
+      const api = await startedApi(repo, { ...env, API_KEY_HASHES: createHash('sha256').update(key).digest('hex') })
+      expect((await fetch(`${api}/`)).status).toBe(200)
+      for (const authorization of [undefined, 'Bearer an-unknown-key']) {
+        const refused = await openAccount(api, authorization)
+        const label = authorization ?? 'no Authorization header'
+        expect(refused.status, label).toBe(401)
+        expect(refused.headers.get('www-authenticate'), label).toBe('Bearer')
+      }
+      expect((await openAccount(api, `Bearer ${key}`)).status).toBe(400)
+    },
+    15 * 60 * 1000,
+  )
+
+  it('a value that the option method of api-auth does not have stops new, names method and its values, and makes no folder', async () => {
+    const dir = scratchDir()
+
+    const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'x', '--feature', 'api-auth:method=oauth'])
+
+    expect(result.status).not.toBe(0)
+    expect(result.stdout + result.stderr).toContain('the option method is not one of its values: api-key')
+    expect(readdirSync(dir)).toEqual([])
+  })
 
   it('an unknown feature stops new, and the message lists the features that target the starter', async () => {
     const dir = scratchDir()
@@ -139,6 +185,70 @@ async function until(condition: () => boolean): Promise<void> {
     if (waited > 20000) throw new Error('the condition did not hold within 20 seconds')
     await new Promise((done) => setTimeout(done, 50))
   }
+}
+
+// startedApi builds the API of a written repo and starts it on a free port. The database settings point to no
+// database: the pool of the API opens no connection before the first query, and the requests of the tests
+// stop before a query.
+async function startedApi(repo: string, env: Record<string, string>): Promise<string> {
+  const build = await runProgram(repo, 'go', ['build', '-o', join(repo, 'api-of-the-test'), './cmd/api'], env)
+  expect(build.status, build.stdout + build.stderr).toBe(0)
+  const port = await freePort()
+  const api = spawn(join(repo, 'api-of-the-test'), [], {
+    cwd: repo,
+    env: {
+      ...process.env,
+      ...env,
+      PORT: String(port),
+      DB_USERNAME: 'nobody',
+      DB_PASSWORD: 'nothing',
+      DB_HOST: '127.0.0.1',
+      DB_HOST_PORT: '1',
+      DB_NAME: 'none',
+    },
+  })
+  let printed = ''
+  api.stdout?.on('data', (chunk) => (printed += chunk))
+  api.stderr?.on('data', (chunk) => (printed += chunk))
+  onTestFinished(() => {
+    api.kill('SIGKILL')
+  })
+  const url = `http://127.0.0.1:${port}`
+  for (let waited = 0; ; waited += 100) {
+    if (api.exitCode !== null) throw new Error(`the API stopped with the exit status ${api.exitCode}: ${printed}`)
+    if (await answers(url)) return url
+    if (waited > 20000) throw new Error(`the API did not answer within 20 seconds: ${printed}`)
+    await new Promise((done) => setTimeout(done, 100))
+  }
+}
+
+async function answers(url: string): Promise<boolean> {
+  try {
+    return (await fetch(`${url}/`)).ok
+  } catch {
+    return false
+  }
+}
+
+function freePort(): Promise<number> {
+  return new Promise((done, fail) => {
+    const server = createNetServer()
+    server.on('error', fail)
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as AddressInfo
+      server.close(() => done(port))
+    })
+  })
+}
+
+// POST /accounts with the body {} gets the answer 400 of the handler, because the owner is missing, before any
+// query to the database.
+function openAccount(api: string, authorization?: string): Promise<Response> {
+  return fetch(`${api}/accounts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}) },
+    body: '{}',
+  })
 }
 
 // gotestsum starts the line of a package with ✓ when its tests pass, and with ∅ when the package has no test

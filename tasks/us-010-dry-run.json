@@ -48,7 +48,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Show each feature of the preview with its source",
       "language": "Go",
       "testable": true,

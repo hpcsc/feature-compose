@@ -20,6 +20,7 @@ type Selection struct {
 	folders         map[string]folder
 	name            string
 	starterName     string
+	featureNames    []string
 	starterValues   map[string]string
 	featureValues   map[string]map[string]string
 	templates       []template
@@ -60,6 +61,14 @@ func (s Selection) Preview() (string, error) {
 	slices.SortFunc(files, func(a, b file) int { return strings.Compare(a.path, b.path) })
 	var preview strings.Builder
 	fmt.Fprintf(&preview, "Repo: %s\nStarter: %s\n", s.name, s.starterName)
+	if len(s.featureNames) == 0 {
+		preview.WriteString("\nFeatures: none\n")
+	} else {
+		preview.WriteString("\nFeatures:\n")
+	}
+	for _, featureName := range s.featureNames {
+		fmt.Fprintf(&preview, "  %s: %s\n", featureName, s.featureSource(featureName))
+	}
 	if len(files) == 0 {
 		preview.WriteString("\nFiles: none\n")
 	} else {
@@ -87,6 +96,15 @@ func (s Selection) RunTests(ctx context.Context, output string) error {
 		}
 	}
 	return nil
+}
+
+func (s Selection) featureSource(featureName string) string {
+	for _, need := range s.addedByNeeds {
+		if need.Feature == featureName {
+			return "needed by " + strings.Join(need.NeededBy, ", ")
+		}
+	}
+	return "command line"
 }
 
 func (s Selection) files() ([]file, error) {

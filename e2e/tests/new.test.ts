@@ -172,6 +172,16 @@ describe('feature-compose new', () => {
     expect(readdirSync(dir)).toEqual([])
   })
 
+  it('--dry-run lists each feature of cli-auth with its source, and writes nothing', async () => {
+    const dir = scratchDir()
+
+    const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--dry-run'])
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toContain('Features:\n  api-auth: needed by cli-auth\n  cli: needed by cli-auth\n  cli-auth: command line\n\n')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
   for (const [name, args] of [
     ['an unknown feature', ['--feature', 'no-such-feature']],
     ['a go-version that does not match its pattern', ['--option', 'go-version=1.20']],

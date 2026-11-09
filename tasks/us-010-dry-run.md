@@ -271,15 +271,15 @@ selection after the starter, in the order of rule 8. A feature that a `--feature
 that `new` prints for it (decision 4).
 
 **Acceptance Criteria:**
-- [ ] The preview lists each feature of the selection one time, after its needs and otherwise in the order of the
+- [x] The preview lists each feature of the selection one time, after its needs and otherwise in the order of the
   names (rule 8), which is the order of `AddedByNeeds` and of the items of an extension point.
-- [ ] A feature that a `--feature` flag gives shows the source `command line`, also when a selected feature needs
+- [x] A feature that a `--feature` flag gives shows the source `command line`, also when a selected feature needs
   it. A feature that only a need added shows `needed by` with each selected feature that needs it, in the order of
   their names, as the line that `new` prints for it, for example `api-auth: needed by cli-auth`.
-- [ ] A selection with no feature shows that the repo has no feature.
-- [ ] The two orders of the flags of a feature and its need give the same text.
-- [ ] The section "Preview a Repo" of `README.md` names the features and their two sources.
-- [ ] `e2e/tests/new.test.ts`: `new go-event-sourcing-service my-service --feature cli-auth --dry-run` prints
+- [x] A selection with no feature shows that the repo has no feature.
+- [x] The two orders of the flags of a feature and its need give the same text.
+- [x] The section "Preview a Repo" of `README.md` names the features and their two sources.
+- [x] `e2e/tests/new.test.ts`: `new go-event-sourcing-service my-service --feature cli-auth --dry-run` prints
   `api-auth: needed by cli-auth`, `cli: needed by cli-auth`, and `cli-auth` with the source `command line`, and the
   scratch folder holds no entry after the run.
 

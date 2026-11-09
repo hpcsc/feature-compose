@@ -817,6 +817,9 @@ delimiters:
 			require.Equal(t, `Repo: my-service
 Starter: service
 
+Features:
+  cli: command line
+
 Files:
   cmd/my-service/main.go: the feature cli
   frontend/index.html: the starter
@@ -850,7 +853,47 @@ Files:
 			preview, err := selectionWith(t, files).Preview()
 
 			require.NoError(t, err)
-			require.Equal(t, "Repo: my-service\nStarter: service\n\nFiles: none\n", preview)
+			require.Equal(t, "Repo: my-service\nStarter: service\n\nFeatures: none\n\nFiles: none\n", preview)
+		})
+
+		withNeeds := func(definitions map[string]string) fstest.MapFS {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":      oneFolder,
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			}
+			for featureName, definition := range definitions {
+				files["features/"+featureName+"/feature.yml"] = &fstest.MapFile{Data: []byte("summary: A feature.\ntargets: [service]\n" + definition)}
+			}
+			return files
+		}
+
+		t.Run("gives each feature after its needs and otherwise in the order of the names, a given feature with the source command line, and a feature that a need added with the features that need it", func(t *testing.T) {
+			files := withNeeds(map[string]string{"x": "needs: [z, y]\n", "y": "needs: [z]\n", "z": "", "w": ""})
+
+			preview, err := selectionWith(t, files, "x", "w").Preview()
+
+			require.NoError(t, err)
+			require.Equal(t, `Repo: my-service
+Starter: service
+
+Features:
+  w: command line
+  z: needed by x, y
+  y: needed by x
+  x: command line
+
+Files:
+  main.go: the starter
+`, preview)
+		})
+
+		t.Run("a given feature shows the source command line, also when a selected feature needs it", func(t *testing.T) {
+			files := withNeeds(map[string]string{"a": "needs: [b]\n", "b": "needs: [c]\n", "c": ""})
+
+			preview, err := selectionWith(t, files, "a", "b").Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, "Features:\n  c: needed by b\n  b: command line\n  a: command line\n\n")
 		})
 
 		for name, test := range map[string]struct {

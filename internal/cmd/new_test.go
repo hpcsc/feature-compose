@@ -63,6 +63,19 @@ folders:
 		return files
 	}
 
+	withNeeds := func() fstest.MapFS {
+		files := fstest.MapFS{
+			"starters/service/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n")},
+			"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range items "api.middleware" }}{{ .code }};{{ end }}`)},
+			"features/a/feature.yml":              &fstest.MapFile{Data: []byte("summary: A.\ntargets: [service]\nneeds: [b]\nadd_to:\n  api.middleware:\n    - code: a\n")},
+			"features/b/feature.yml":              &fstest.MapFile{Data: []byte("summary: B.\ntargets: [service]\nfiles:\n  - path: files/\noptions:\n  mode:\n    values: [fast, slow]\n    default: fast\nadd_to:\n  api.middleware:\n    - code: b\n")},
+			"features/b/files/go/mode.txt":        &fstest.MapFile{Data: []byte(`{{ option "mode" }}`)},
+			"features/w/feature.yml":              &fstest.MapFile{Data: []byte("summary: W.\ntargets: [service]\nneeds: [b, c]\n")},
+			"features/c/feature.yml":              &fstest.MapFile{Data: []byte("summary: C.\ntargets: [service]\n")},
+		}
+		return files
+	}
+
 	t.Run("write", func(t *testing.T) {
 		t.Run("writes the repo to a folder with the name of the repo in the working folder", func(t *testing.T) {
 			workingFolder := t.TempDir()
@@ -182,19 +195,6 @@ folders:
 			require.NoError(t, err)
 			require.Contains(t, printed, output)
 		})
-
-		withNeeds := func() fstest.MapFS {
-			files := fstest.MapFS{
-				"starters/service/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n")},
-				"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range items "api.middleware" }}{{ .code }};{{ end }}`)},
-				"features/a/feature.yml":              &fstest.MapFile{Data: []byte("summary: A.\ntargets: [service]\nneeds: [b]\nadd_to:\n  api.middleware:\n    - code: a\n")},
-				"features/b/feature.yml":              &fstest.MapFile{Data: []byte("summary: B.\ntargets: [service]\nfiles:\n  - path: files/\noptions:\n  mode:\n    values: [fast, slow]\n    default: fast\nadd_to:\n  api.middleware:\n    - code: b\n")},
-				"features/b/files/go/mode.txt":        &fstest.MapFile{Data: []byte(`{{ option "mode" }}`)},
-				"features/w/feature.yml":              &fstest.MapFile{Data: []byte("summary: W.\ntargets: [service]\nneeds: [b, c]\n")},
-				"features/c/feature.yml":              &fstest.MapFile{Data: []byte("summary: C.\ntargets: [service]\n")},
-			}
-			return files
-		}
 
 		t.Run("prints a line for each feature that a need added, with the features that need it, before the line that names the output folder", func(t *testing.T) {
 			t.Chdir(t.TempDir())
@@ -344,7 +344,7 @@ folders:
 			printed, err := runNew(t, withFeatures(), "service", "my-service", "--feature", "cli", "--dry-run")
 
 			require.NoError(t, err)
-			require.Equal(t, "Repo: my-service\nStarter: service\n\nFiles:\n  cmd/my-service/main.go: the feature cli\n  go.mod: the starter\n", printed)
+			require.Equal(t, "Repo: my-service\nStarter: service\n\nFeatures:\n  cli: command line\n\nFiles:\n  cmd/my-service/main.go: the feature cli\n  go.mod: the starter\n", printed)
 			require.Empty(t, filesIn(t, workingFolder))
 		})
 
@@ -381,6 +381,30 @@ folders:
 			require.NoError(t, err)
 
 			require.Equal(t, first, second)
+		})
+
+		t.Run("--dry-run lists each feature with its source, and a feature that a need added shows the line that new prints for it", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			made, err := runNew(t, withNeeds(), "service", "my-service", "--feature", "w", "--feature", "a")
+			require.NoError(t, err)
+
+			printed, err := runNew(t, withNeeds(), "service", "my-service", "--feature", "w", "--feature", "a", "--dry-run")
+
+			require.NoError(t, err)
+			require.Equal(t, "b: needed by a, w\nc: needed by w\nMade my-service from the starter service.\n", made)
+			require.Contains(t, printed, "Features:\n  b: needed by a, w\n  a: command line\n  c: needed by w\n  w: command line\n\n")
+		})
+
+		t.Run("the two orders of the flags of a feature and its need give the same preview", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			first, err := runNew(t, withNeeds(), "service", "my-service", "--feature", "a", "--feature", "b:mode=slow", "--dry-run")
+			require.NoError(t, err)
+			second, err := runNew(t, withNeeds(), "service", "my-service", "--feature", "b:mode=slow", "--feature", "a", "--dry-run")
+			require.NoError(t, err)
+
+			require.Equal(t, first, second)
+			require.Contains(t, first, "Features:\n  b: command line\n  a: command line\n\n")
 		})
 
 		withBadTemplate := func(path, contents string) fstest.MapFS {

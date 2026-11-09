@@ -82,9 +82,11 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	if err != nil {
 		return Selection{}, err
 	}
+	featureNames := make([]string, 0, len(selected))
 	featureValues := make(map[string]map[string]string, len(selected))
 	needs := make(map[string][]string, len(selected))
 	for _, f := range selected {
+		featureNames = append(featureNames, f.name)
 		needs[f.name] = f.needs
 		featureValues[f.name], err = f.options.withDefaults(givenByFeature[f.name], name)
 		if err != nil {
@@ -99,7 +101,7 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	if err != nil {
 		return Selection{}, err
 	}
-	return Selection{folders: s.folders, name: name, starterName: s.name, starterValues: starterValues, featureValues: featureValues, templates: templates, extensionPoints: extensionPoints, addedByNeeds: s.addedByNeeds(selected, givenByFeature), needs: needs}, nil
+	return Selection{folders: s.folders, name: name, starterName: s.name, featureNames: featureNames, starterValues: starterValues, featureValues: featureValues, templates: templates, extensionPoints: extensionPoints, addedByNeeds: s.addedByNeeds(selected, givenByFeature), needs: needs}, nil
 }
 
 func (s Starter) combinations() []Combination {

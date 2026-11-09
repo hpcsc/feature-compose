@@ -46,12 +46,17 @@ machine.
 and runs no command, so the output folder does not exist after the run:
 
 ```shell
-feature-compose new go-event-sourcing-service my-service --feature cli --dry-run
+feature-compose new go-event-sourcing-service my-service --feature cli-auth --dry-run
 ```
 
 ```text
 Repo: my-service
 Starter: go-event-sourcing-service
+
+Features:
+  api-auth: needed by cli-auth
+  cli: needed by cli-auth
+  cli-auth: command line
 
 Files:
   .dockerignore: the feature cli
@@ -61,8 +66,16 @@ Files:
   ...
 ```
 
-The preview gives the name of the repo and its starter. Then it gives each file of the repo by its path, in the
-order of the paths, with its owner: the starter, or the feature whose template writes the file.
+The preview gives the name of the repo and its starter. Then it gives each feature of the repo, after the features
+that it needs, with its source:
+
+| Source | Meaning |
+| --- | --- |
+| `command line` | A `--feature` flag selects the feature, also when another selected feature needs it. |
+| `needed by <features>` | Only a need selects the feature. The line is the line that `new` prints for it. |
+
+Last, the preview gives each file of the repo by its path, in the order of the paths, with its owner: the starter,
+or the feature whose template writes the file.
 
 Before it prints, `--dry-run` does the same checks as `new`. A selection that stops `new`, for example an unknown
 feature or a value that does not match its pattern, stops `--dry-run` with the same message, and `--dry-run` then

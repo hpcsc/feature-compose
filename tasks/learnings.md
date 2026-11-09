@@ -124,3 +124,24 @@
 - Observed: task 6 — us-003-api-keys
 - Learning: A generated test that checks the absence of an environment variable, such as API_KEY_HASHES, fails on a machine whose shell sets it. The audit raised this as a medium runtime finding. The test calls t.Setenv(name, "") and then os.Unsetenv(name), so t.Setenv puts the old value back at the end.
 - Apply when: writing a test, in the tool or in a template, that reads or checks the absence of an environment variable
+
+## A break by hand counts only when its diff changes what the test checks
+- Type: constraint
+- Recorded: 2026-11-09
+- Observed: task 3 — us-004-ci-combinations
+- Learning: sed 's/A/B/' changes only the first match on each line. In middleware.go.tmpl of api-auth, the first match of http.StatusUnauthorized is inside http.StatusText(...), so the break changed only the body text, the status stayed 401, and task test:combinations passed. Read git diff of the break before the run, and use the g flag when one line holds the value two times.
+- Apply when: proving a test of a template or of the tool with a break by hand that sed or a script applies
+
+## A loop over a Go map that returns at the first match goes over sorted keys
+- Type: pattern
+- Recorded: 2026-11-09
+- Observed: task 2 — us-004-ci-combinations
+- Learning: clerk mutants puts a break at the end of a for range over a map. With a random key order, a test kills that mutant only in the runs where the matching key comes late, so a run can report it LIVED and the next run KILLED. feature.addsToOneExtensionPointWith loops over slices.Sorted(maps.Keys(f.addTo)), and its test gives the first feature a first sorted key that the second feature does not have.
+- Apply when: a task adds a loop over a map that returns or stops at the first match, in catalog/ or anywhere in the tool
+
+## clerk fixup mark refuses a file that no commit of the run touches
+- Type: constraint
+- Recorded: 2026-11-09
+- Observed: us-004-ci-combinations
+- Learning: A fix can need a test in a package that no task changed, for example the round-trip test of Combination.String in internal/cmd/new_test.go. clerk fixup mark answers reason untouched for that file. Stage it alone and run git commit --fixup=<sha of the task commit that the fix corrects>, then clerk fixup replay folds it with the other fixups.
+- Apply when: folding an audit fix that adds a test or a change in a file that no commit of the run touches

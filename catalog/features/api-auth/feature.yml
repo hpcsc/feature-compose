@@ -1,0 +1,19 @@
+summary: The API accepts a request to a protected route only when it carries a key that the API knows.
+targets: [go-event-sourcing-service]
+
+options:
+  method:
+    values: [api-key]
+    default: api-key
+
+files:
+  - path: files/common/
+
+add_to:
+  api.middleware:
+    - code: auth.Middleware(cfg.Auth)
+      import: internal/auth
+  api.config:
+    - name: Auth
+      type: auth.Config
+      import: internal/auth

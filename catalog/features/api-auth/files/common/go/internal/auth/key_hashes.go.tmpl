@@ -1,0 +1,33 @@
+package auth
+
+import (
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
+	"fmt"
+	"strings"
+)
+
+type KeyHashes [][sha256.Size]byte
+
+func (h *KeyHashes) UnmarshalText(text []byte) error {
+	var hashes KeyHashes
+	for i, entry := range strings.Split(string(text), ",") {
+		hash, err := hex.DecodeString(strings.TrimSpace(entry))
+		if err != nil || len(hash) != sha256.Size {
+			return fmt.Errorf("entry %d of API_KEY_HASHES is not the hex form of a SHA-256 hash, which has %d hex digits", i+1, 2*sha256.Size)
+		}
+		hashes = append(hashes, [sha256.Size]byte(hash))
+	}
+	*h = hashes
+	return nil
+}
+
+func (h KeyHashes) contain(key string) bool {
+	hash := sha256.Sum256([]byte(key))
+	found := 0
+	for _, known := range h {
+		found |= subtle.ConstantTimeCompare(hash[:], known[:])
+	}
+	return found == 1
+}

@@ -1,0 +1,104 @@
+//go:build unit
+
+package auth_test
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"strings"
+	"testing"
+
+	"{{ option "starter.module" }}/internal/auth"
+	"github.com/stretchr/testify/require"
+)
+
+func configWith(t *testing.T, keys ...string) auth.Config {
+	t.Helper()
+	hashes := make([]string, 0, len(keys))
+	for _, key := range keys {
+		hashes = append(hashes, hashOf(key))
+	}
+	var cfg auth.Config
+	require.NoError(t, cfg.KeyHashes.UnmarshalText([]byte(strings.Join(hashes, ","))))
+	return cfg
+}
+
+func serve(t *testing.T, cfg auth.Config, authorization string) (*httptest.ResponseRecorder, bool) {
+	t.Helper()
+	handled := false
+	handler := auth.Middleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		handled = true
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	request := httptest.NewRequest("POST", "/accounts", nil)
+	if authorization != "" {
+		request.Header.Set("Authorization", authorization)
+	}
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	return recorder, handled
+}
+
+func reachesHandler(t *testing.T, cfg auth.Config, authorization string) bool {
+	t.Helper()
+	_, handled := serve(t, cfg, authorization)
+	return handled
+}
+
+func TestMiddleware(t *testing.T) {
+	const knownKey = "known-key-of-the-test"
+	const otherKnownKey = "other-known-key-of-the-test"
+
+	t.Run("refuse", func(t *testing.T) {
+		for name, authorization := range map[string]string{
+			"no Authorization header":       "",
+			"a scheme other than Bearer":    "Basic " + knownKey,
+			"Bearer and no key":             "Bearer",
+			"Bearer and an empty key":       "Bearer ",
+			"a key whose hash is not known": "Bearer unknown-key",
+			"a known key with more text":    "Bearer " + knownKey + "x",
+			"a known key as the scheme":     knownKey,
+		} {
+			t.Run("a request with "+name+" gets 401 with WWW-Authenticate: Bearer, and the handler does not run", func(t *testing.T) {
+				recorder, handled := serve(t, configWith(t, knownKey, otherKnownKey), authorization)
+
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				require.Equal(t, "Bearer", recorder.Header().Get("WWW-Authenticate"))
+				require.False(t, handled)
+			})
+		}
+
+		for _, authorization := range []string{"Bearer", "Bearer "} {
+			t.Run("a request with "+strconv.Quote(authorization)+" gets 401, also when the hash of the empty key is in the config", func(t *testing.T) {
+				recorder, handled := serve(t, configWith(t, knownKey, ""), authorization)
+
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
+				require.False(t, handled)
+			})
+		}
+
+		t.Run("with no key hash in the config, a request with a key gets 401, and the handler does not run", func(t *testing.T) {
+			recorder, handled := serve(t, auth.Config{}, "Bearer "+knownKey)
+
+			require.Equal(t, http.StatusUnauthorized, recorder.Code)
+			require.False(t, handled)
+		})
+	})
+
+	t.Run("accept", func(t *testing.T) {
+		for name, authorization := range map[string]string{
+			"the first known key":      "Bearer " + knownKey,
+			"the second known key":     "Bearer " + otherKnownKey,
+			"the scheme in lower case": "bearer " + knownKey,
+			"the scheme in upper case": "BEARER " + knownKey,
+		} {
+			t.Run("a request with "+name+" gets to the handler, and gets the answer of the handler", func(t *testing.T) {
+				recorder, handled := serve(t, configWith(t, knownKey, otherKnownKey), authorization)
+
+				require.True(t, handled)
+				require.Equal(t, http.StatusAccepted, recorder.Code)
+			})
+		}
+	})
+}

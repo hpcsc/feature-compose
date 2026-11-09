@@ -439,20 +439,20 @@ protected route reaches the handler only with `Authorization: Bearer <key>` for 
 config of the API. Each other request gets 401 with `WWW-Authenticate: Bearer`.
 
 **Acceptance Criteria:**
-- [ ] `catalog/features/api-auth/feature.yml` has a `summary` that says what the repo gets; `targets` with only
+- [x] `catalog/features/api-auth/feature.yml` has a `summary` that says what the repo gets; `targets` with only
   `go-event-sourcing-service`; the option `method` with `values: [api-key]` and `default: api-key`; `files` with
   the one entry `files/common/`; and the `add_to` of section 7 of `PROPOSAL.md`: `auth.Middleware(cfg.Auth)` with
   the import `internal/auth` to `api.middleware`, and the field `Auth` of type `auth.Config` with the import
   `internal/auth` to `api.config`. It names no language.
-- [ ] Written with `go-event-sourcing-service`, the name `my-service` and `api-auth`, the repo has the files of
+- [x] Written with `go-event-sourcing-service`, the name `my-service` and `api-auth`, the repo has the files of
   `api-auth` under `internal/auth/` and `docs/api-auth.md`. Each file of the starter has the same contents as
   without `api-auth`, except `internal/api/server/server.go` and `internal/api/config.go`, which hold the items of
   `api-auth` and the import `github.com/hpcsc/my-service/internal/auth`. With `module=github.com/acme/ledger`, the
   import is `github.com/acme/ledger/internal/auth`, and no file holds `github.com/hpcsc/my-service`. With the value
   `api-key` given for `method`, the files are the same as with no value.
-- [ ] No Go file of `api-auth` imports a package of the module other than the packages under `internal/auth`
+- [x] No Go file of `api-auth` imports a package of the module other than the packages under `internal/auth`
   (rule 6).
-- [ ] In the written repo, the unit tests of `internal/auth` run in `task test:unit`, and they show on a handler
+- [x] In the written repo, the unit tests of `internal/auth` run in `task test:unit`, and they show on a handler
   of the test:
   - each request that does not carry `Authorization: Bearer <key>` for a key whose SHA-256 hash is in the config
     gets 401 with `WWW-Authenticate: Bearer`, and the handler does not run: for example no `Authorization` header,
@@ -461,17 +461,17 @@ config of the API. Each other request gets 401 with `WWW-Authenticate: Bearer`.
     answer is the answer of the handler; the scheme matches in any case;
   - with no hash in the config, each request gets 401;
   - no request gets 403.
-- [ ] The config of the API reads the key hashes from `API_KEY_HASHES`: the hex form of the SHA-256 hash of each
+- [x] The config of the API reads the key hashes from `API_KEY_HASHES`: the hex form of the SHA-256 hash of each
   key, with `,` between them. The API keeps the hashes and never a key, and it compares the hash of the key of a
   request with the key hashes in constant time. An entry of `API_KEY_HASHES` that is not the hex form of a SHA-256
   hash stops the API at start, and the message names `API_KEY_HASHES`.
-- [ ] No written file holds a key or a key hash that the API accepts. A new set of keys needs a new
+- [x] No written file holds a key or a key hash that the API accepts. A new set of keys needs a new
   `API_KEY_HASHES` and a restart of the API, and no new render.
-- [ ] `docs/api-auth.md` tells how to make a key and its hash, where the key hashes go, how to change the keys
+- [x] `docs/api-auth.md` tells how to make a key and its hash, where the key hashes go, how to change the keys
   without a new render, how a client sends a key, and which answers the API gives. It names no task, file or
   setting that the written repo does not have.
-- [ ] The end-to-end test of an unknown feature (`e2e/tests/new.test.ts:55-63`) expects the features `api-auth, cli`.
-- [ ] In this repo, `go build ./...`, `go vet ./...` and `task test:unit` pass with `api-auth` in the catalog, and
+- [x] The end-to-end test of an unknown feature (`e2e/tests/new.test.ts:55-63`) expects the features `api-auth, cli`.
+- [x] In this repo, `go build ./...`, `go vet ./...` and `task test:unit` pass with `api-auth` in the catalog, and
   `git status --ignored catalog/` shows no file of `api-auth` as ignored.
 
 **Affected Files/Modules:**

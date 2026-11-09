@@ -1,0 +1,72 @@
+//go:build unit
+
+package auth_test
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/caarlos0/env/v6"
+	"{{ option "starter.module" }}/internal/auth"
+	"github.com/stretchr/testify/require"
+)
+
+func hashOf(key string) string {
+	hash := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(hash[:])
+}
+
+func TestKeyHashes(t *testing.T) {
+	t.Run("read", func(t *testing.T) {
+		t.Run("the config loader reads API_KEY_HASHES as the hex SHA-256 hashes of the keys, with a comma between them", func(t *testing.T) {
+			t.Setenv("API_KEY_HASHES", hashOf("first-key")+", "+strings.ToUpper(hashOf("second-key")))
+			var cfg auth.Config
+
+			require.NoError(t, env.Parse(&cfg))
+
+			require.Equal(t, map[string]bool{"first-key": true, "second-key": true, "third-key": false}, map[string]bool{
+				"first-key":  reachesHandler(t, cfg, "Bearer first-key"),
+				"second-key": reachesHandler(t, cfg, "Bearer second-key"),
+				"third-key":  reachesHandler(t, cfg, "Bearer third-key"),
+			})
+		})
+
+		t.Run("with no API_KEY_HASHES, the config has no key hash", func(t *testing.T) {
+			t.Setenv("API_KEY_HASHES", "")
+			require.NoError(t, os.Unsetenv("API_KEY_HASHES"))
+			var cfg auth.Config
+
+			require.NoError(t, env.Parse(&cfg))
+
+			require.Empty(t, cfg.KeyHashes)
+		})
+
+		for name, entry := range map[string]string{
+			"not hex":                      strings.Repeat("z", 64),
+			"a hash that is too short":     strings.Repeat("ab", 31),
+			"the key in place of its hash": "the-secret-key-of-a-client",
+		} {
+			t.Run("an entry that is "+name+" stops the read, and the message names API_KEY_HASHES and the number of the entry, but not the entry", func(t *testing.T) {
+				t.Setenv("API_KEY_HASHES", hashOf("first-key")+","+entry)
+				var cfg auth.Config
+
+				err := env.Parse(&cfg)
+
+				require.ErrorContains(t, err, "entry 2 of API_KEY_HASHES is not the hex form of a SHA-256 hash")
+				require.NotContains(t, err.Error(), entry)
+			})
+		}
+
+		t.Run("an empty entry stops the read", func(t *testing.T) {
+			t.Setenv("API_KEY_HASHES", hashOf("first-key")+",")
+			var cfg auth.Config
+
+			err := env.Parse(&cfg)
+
+			require.ErrorContains(t, err, "entry 2 of API_KEY_HASHES")
+		})
+	})
+}

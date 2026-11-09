@@ -141,7 +141,7 @@
     },
     {
       "n": 6,
-      "done": false,
+      "done": true,
       "title": "Add the feature `api-auth`, whose method `api-key` lets only a request with a known key reach a protected route",
       "language": "Go",
       "testable": true,

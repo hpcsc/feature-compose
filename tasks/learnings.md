@@ -143,3 +143,24 @@
 - Observed: us-004-ci-combinations
 - Learning: A fix can need a test in a package that no task changed, for example the round-trip test of Combination.String in internal/cmd/new_test.go. clerk fixup mark answers reason untouched for that file. Stage it alone and run git commit --fixup=<sha of the task commit that the fix corrects>, then clerk fixup replay folds it with the other fixups.
 - Apply when: folding an audit fix that adds a test or a change in a file that no commit of the run touches
+
+## A loop over a growing queue makes mutants that time out the whole mutation run
+- Type: constraint
+- Recorded: 2026-11-09
+- Observed: us-005-cli-auth
+- Learning: clerk mutants stops at 10 minutes and then refuses clerk finish and clerk audit accept with an incomplete run. In US-005, the walks of the needs were loops over a queue (for len(unvisited) > 0 { ...; unvisited = unvisited[1:] }); removing the shift or the visited check made each loop endless, five mutants waited for their timeout, and the run never completed. The same walks written as recursion over a visited map (selectWithNeeds, addNeeds, cycleFrom in internal/catalog/starter.go) give no endless mutant, and the run completed with 149 mutants in time.
+- Apply when: writing a loop in the tool that walks a graph or a queue, most of all the needs of features in internal/catalog
+
+## A Go composite literal with {{ breaks a .go.tmpl of the catalog
+- Type: constraint
+- Recorded: 2026-11-09
+- Observed: us-005-cli-auth
+- Learning: The catalog renders each .go.tmpl with text/template and the delimiters {{ and }}, so a nested Go literal such as [][]string{{"Bearer " + key}} in a template stops the render with 'illegal number syntax'. Write the inner literals on their own lines ([][]string{ newline {"Bearer " + key}, newline }), or give the file other delimiters in feature.yml.
+- Apply when: writing a Go test or Go code in a .go.tmpl of a starter or a feature
+
+## An accept of a mutant belongs to the task, and a fold or a rename after it opens the row again
+- Type: constraint
+- Recorded: 2026-11-09
+- Observed: us-005-cli-auth
+- Learning: clerk mutants accept records the key for the task that is in build. After the audit fixes, a fold or a rename in the same function makes clerk audit accept refuse on the same timed-out rows; accept them again in the audit step, and check that the last run has complete: true in .git/clerk/runs/<run>/mutants.json, because an incomplete run is also an open row.
+- Apply when: clerk audit accept refuses on a row of clerk mutants after the audit fixes

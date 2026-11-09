@@ -25,7 +25,7 @@ tasks:
     cmds:
       - CGO_ENABLED=0 go build -ldflags "-X github.com/hpcsc/feature-compose/internal/version.releaseTag={{.E2E_TAG}}" -o ../bin/feature-compose-e2e ../cmd/feature-compose
       - npm install --no-audit --no-fund
-      - EXECUTABLE=../bin/feature-compose-e2e BUILD_TAG={{.E2E_TAG}} npx vitest run
+      - EXECUTABLE=../bin/feature-compose-e2e BUILD_TAG={{.E2E_TAG}} CATALOG_DIR=../catalog npx vitest run
 
   shellcheck:
     cmds:

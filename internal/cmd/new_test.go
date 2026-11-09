@@ -37,10 +37,13 @@ folders:
 			"starters/service/files/go/go.mod.tmpl": &fstest.MapFile{Data: []byte(`module {{ option "starter.module" }}` + "\n" + `go {{ option "starter.go-version" }}` + "\n")},
 		}
 	}
+	loaded := func(files fstest.MapFS) func() (catalog.Catalog, error) {
+		return func() (catalog.Catalog, error) { return catalog.New(files), nil }
+	}
 	runNew := func(t *testing.T, files fstest.MapFS, arguments ...string) (string, error) {
 		t.Helper()
 		var printed bytes.Buffer
-		command := newNewCommand(catalog.New(files))
+		command := newNewCommand(loaded(files))
 		command.Writer = &printed
 		command.ErrWriter = &printed
 		err := command.Run(context.Background(), append([]string{"new"}, arguments...))
@@ -183,7 +186,7 @@ folders:
 		t.Run("a closing message that cannot be written stops new with an error", func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			output := filepath.Join(t.TempDir(), "my-service")
-			command := newNewCommand(catalog.New(starterFiles("")))
+			command := newNewCommand(loaded(starterFiles("")))
 			command.Writer, command.ErrWriter = failingWriter{}, io.Discard
 
 			err := command.Run(context.Background(), []string{"new", "service", "my-service", "--output-dir", output})
@@ -216,7 +219,7 @@ folders:
 			for _, arguments := range [][]string{{"--no-prompt"}, {}} {
 				t.Chdir(t.TempDir())
 				output := filepath.Join(t.TempDir(), "my-service")
-				command := newNewCommand(catalog.New(starterFiles("")))
+				command := newNewCommand(loaded(starterFiles("")))
 				command.Writer, command.ErrWriter, command.Reader = io.Discard, io.Discard, failingReader{t: t}
 
 				err := command.Run(context.Background(), append([]string{"new", "service", "my-service", "--output-dir", output}, arguments...))
@@ -408,6 +411,20 @@ folders:
 				require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
 			})
 		}
+
+		t.Run("a catalog that cannot load stops new with its error, and makes no output folder", func(t *testing.T) {
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+			command := newNewCommand(func() (catalog.Catalog, error) {
+				return catalog.Catalog{}, errors.New("no config file at /home/config.yml")
+			})
+			command.Writer, command.ErrWriter = io.Discard, io.Discard
+
+			err := command.Run(context.Background(), []string{"new", "service", "my-service"})
+
+			require.ErrorContains(t, err, "no config file at /home/config.yml")
+			require.Empty(t, filesIn(t, workingFolder))
+		})
 
 		t.Run("an output folder that has entries stops new, and keeps its contents", func(t *testing.T) {
 			t.Chdir(t.TempDir())

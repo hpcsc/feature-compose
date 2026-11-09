@@ -8,13 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hpcsc/feature-compose/catalog"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCombination(t *testing.T) {
 	t.Run("the repo of each combination of the catalog in the binary passes its after_render and test commands", func(t *testing.T) {
-		combinations, err := catalog.Embedded().Combinations()
+		combinations, err := repoCatalog().Combinations()
 		require.NoError(t, err)
 
 		for _, combination := range combinations {
@@ -27,7 +26,7 @@ func TestCombination(t *testing.T) {
 				output := filepath.Join(folder, "my-service")
 				ctx, cancel := context.WithTimeout(t.Context(), 15*time.Minute)
 				defer cancel()
-				starter, err := catalog.Embedded().Starter(combination.StarterName)
+				starter, err := repoCatalog().Starter(combination.StarterName)
 				require.NoError(t, err)
 
 				selection, err := starter.Select("my-service", combination.StarterValues, combination.FeatureValues)

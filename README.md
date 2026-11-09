@@ -21,6 +21,20 @@ available in the channel, the installer lists them for you to pick.
 
 `GITHUB_TOKEN` or `GH_TOKEN` gives access to a private repository.
 
+## Configure the catalog
+
+`feature-compose new` reads the starters and the features from a catalog folder. The config file
+`~/.config/feature-compose/config.yml` names the folder (`$XDG_CONFIG_HOME/feature-compose/config.yml` when
+`XDG_CONFIG_HOME` is set):
+
+```yaml
+catalog: ~/code/feature-compose/catalog
+```
+
+The folder holds `starters/` and `features/`. The catalog of this repo is in `catalog/`. A path that starts
+with `~/` is in your home folder, and another relative path is relative to the folder of the config file.
+Without the config file, `new` stops and names the path of the file. `version` and `update` do not read it.
+
 `feature-compose update` also installs from a release, and it replaces this very binary, so the
 installer and the update command do the same kind of job; use whichever you find convenient on a fresh
 machine.
@@ -76,7 +90,7 @@ prerelease, and then keeps only the 5 newest prereleases.
 
 ## Test the Combinations of the Catalog
 
-`task test:combinations` makes one repo for each combination of the catalog in the binary. In each repo, it
+`task test:combinations` makes one repo for each combination of the catalog in `catalog/`. In each repo, it
 runs the `after_render` commands and then the `test` commands of each folder. These are the combinations:
 
 - Each starter alone

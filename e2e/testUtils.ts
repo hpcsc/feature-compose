@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { launchTerminal, type Session } from 'tuistory'
@@ -25,6 +25,18 @@ export function scratchDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'feature-compose-e2e-'))
   onTestFinished(() => rmSync(dir, { recursive: true, force: true }))
   return dir
+}
+
+// configHome gives a folder for XDG_CONFIG_HOME whose config file names the catalog folder of this repo.
+export function configHome(): string {
+  const catalogDir = process.env.CATALOG_DIR
+  if (!catalogDir) {
+    throw new Error('CATALOG_DIR environment variable is required. Set it to the catalog folder of this repo.')
+  }
+  const home = scratchDir()
+  mkdirSync(join(home, 'feature-compose'))
+  writeFileSync(join(home, 'feature-compose', 'config.yml'), `catalog: ${resolve(catalogDir)}\n`)
+  return home
 }
 
 export interface Result {
@@ -53,13 +65,13 @@ export function runCli(
   env: Record<string, string> = {},
   executable = getExecutablePath(),
 ): Promise<Result> {
-  return runProgram(cwd, executable, args, env)
+  return runProgram(cwd, executable, args, { XDG_CONFIG_HOME: configHome(), ...env })
 }
 
 // openCli starts the CLI in a pseudo-terminal. When the CLI stops, the shell
 // writes its exit status on the screen, so a test can wait for EXIT:0.
 export async function openCli(cwd: string, args: string[] = [], env: Record<string, string> = {}): Promise<Session> {
-  const assignments = Object.entries(env)
+  const assignments = Object.entries({ XDG_CONFIG_HOME: configHome(), ...env })
     .map(([name, value]) => `${name}='${value.replaceAll("'", `'\\''`)}'`)
     .join(' ')
   const session = await launchTerminal({

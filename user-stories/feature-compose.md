@@ -369,8 +369,8 @@ options, so that I can later see which choices made the repo.
   `features` and not in `requested`.
 - [ ] The same selection gives the same file, in each order of the flags.
 
-**Context:** The catalog is in the binary (decision D8), so the version of feature-compose is also the
-version of the catalog. Section 13 of the proposal shows the file.
+**Context:** The catalog is a folder that the config file names (decision D8), so the version of
+feature-compose is not the version of the catalog. Section 13 of the proposal shows the file.
 
 **Depends on:** US-005
 
@@ -447,8 +447,8 @@ the extension points, and the features, so that I can see which features I can s
 - [ ] `feature-compose show <starter>` prints the summary and the folders of the starter, and each extension
   point with its summary and its item fields. It also prints each feature that targets the starter, with
   its summary, its needs, and its options with their values and defaults.
-- [ ] The output comes from the catalog in the binary. A new feature in the catalog appears in the output
-  with no other change.
+- [ ] The output comes from the catalog folder that the config file names. A new feature in the catalog
+  appears in the output with no other change.
 - [ ] An unknown starter stops the command, and the message lists the starters.
 
 **Context:** Section 11 of the proposal shows the output of `show`.
@@ -535,7 +535,7 @@ in the starters that declare its extension points.
 - The command `add`, and an update of a repo to a new version of the catalog. Both need a three-way merge,
   which is phase 3.
 - Generators that you run many times in one repo, for example `go-cli-sub-command`. They stay in scaffold.
-- Catalogs from other repos. The catalog is in the binary.
+- More than one catalog at a time. The config file names one catalog folder.
 - A starter with more than one folder, for example a Go API in `api/` and a Svelte web app in `web/`. The
   feature `cli` shows G5 in one folder.
 - A check of the credential in a repo without `api-auth`. The API of such a repo accepts each request.

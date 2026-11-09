@@ -5,16 +5,27 @@ import { createServer, type Server } from 'node:http'
 import { type AddressInfo, createServer as createNetServer, type Socket } from 'node:net'
 import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { getExecutablePath, runCli, runProgram, scratchDir } from '../testUtils'
+import { configHome, getExecutablePath, runCli, runProgram, scratchDir } from '../testUtils'
 
 describe('feature-compose new', () => {
-  it('an unknown starter stops new, and the message lists the starters in the binary', async () => {
+  it('an unknown starter stops new, and the message lists the starters of the catalog folder that the config file names', async () => {
     const dir = scratchDir()
 
-    const result = await runCli(dir, ['new', 'no-such-starter', 'x'], { SCAFFOLD_DIR: '' })
+    const result = await runCli(dir, ['new', 'no-such-starter', 'x'])
 
     expect(result.status).not.toBe(0)
     expect(result.stdout + result.stderr).toContain('go-event-sourcing-service')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  it('with no config file, new stops, names the path of the config file, and makes no folder', async () => {
+    const dir = scratchDir()
+    const emptyConfigHome = scratchDir()
+
+    const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'x'], { XDG_CONFIG_HOME: emptyConfigHome })
+
+    expect(result.status).not.toBe(0)
+    expect(result.stdout + result.stderr).toContain(join(emptyConfigHome, 'feature-compose', 'config.yml'))
     expect(readdirSync(dir)).toEqual([])
   })
 
@@ -146,6 +157,7 @@ describe('feature-compose new', () => {
         GOMODCACHE: join(dir, 'modcache'),
         GOFLAGS: '-modcacherw',
         MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir),
+        XDG_CONFIG_HOME: configHome(),
       },
     })
     let printed = ''

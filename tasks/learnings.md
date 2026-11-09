@@ -59,10 +59,9 @@
 ## The e2e tests run on the host when Docker does not answer
 - Type: constraint
 - Recorded: 2026-11-09
-- Observed: task 7 — us-002-add-cli
-- Learning: task test:e2e runs vitest in Docker, and Docker does not answer on this machine. The e2e tests also run on the host: go build -o <bin> ./cmd/feature-compose, then EXECUTABLE=<bin> BUILD_TAG=dev npx vitest run <test file> -t <name> in e2e/. A run that skips them leaves the e2e criteria of the story unrun.
+- Observed: this run
+- Learning: task test:e2e runs vitest in Docker, and Docker does not answer on this machine. The e2e tests also run on the host: CGO_ENABLED=0 go build -ldflags '-X github.com/hpcsc/feature-compose/internal/version.releaseTag=v0.1.0' -o bin/feature-compose-e2e ./cmd/feature-compose, then EXECUTABLE=../bin/feature-compose-e2e BUILD_TAG=v0.1.0 CATALOG_DIR=../catalog npx vitest run <test file> in e2e/ (task test:e2e:local does the same). The update tests need the tag v0.1.0, and new needs CATALOG_DIR, because runCli writes a config file that names it. A run that skips them leaves the e2e criteria of the story unrun.
 - Apply when: a criterion of a story has an e2e test, or task test:e2e fails because Docker does not answer
-
 ## Fold the fixes of an audit round hunk by hunk
 - Type: pattern
 - Recorded: 2026-11-09

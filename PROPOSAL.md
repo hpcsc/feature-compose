@@ -46,7 +46,7 @@ These limits of scaffold cause the problem. Tests with scaffold 0.13.1 and 0.14.
 - **Update a generated repo to a new version of the catalog.** This needs the same merge.
 - **Generators that you run many times in a repo, for example `go-cli-sub-command`.** Scaffold does this
   job well, so these generators stay in scaffold.
-- **Catalogs from other repos.** The catalog is in the binary.
+- **More than one catalog at a time.** The config file names one catalog folder.
 
 ## 4. Concepts
 
@@ -461,7 +461,7 @@ requested: [cli-auth]
 
 | Field | Meaning |
 | --- | --- |
-| `version` | The version of feature-compose. The catalog is in the binary, so this is also the version of the catalog. |
+| `version` | The version of feature-compose. The catalog is a folder that the config file names, so this is not the version of the catalog. |
 | `starter`, `name` | The arguments of `new`. |
 | `options` | The options of the starter. |
 | `features` | Each feature in the repo, with its options. |
@@ -547,7 +547,7 @@ files. `repo-templates` stays until each template that moves has its replacement
 | D5 | Features have no language. Folders have commands. | A feature can add Go code, Svelte code, YAML, and Markdown. The commands and the delimiters depend on the folder, not on the feature. |
 | D6 | `api-auth` owns `method`, and `cli-auth` reads it. | The server decides the method. The CLI and the API cannot use different methods. |
 | D7 | The catalog has no `excludes`. | Two features that do the same job become one feature with an option. |
-| D8 | The catalog is in the binary, with `go:embed`. | The tool and the catalog have one version. The tool needs no `SCAFFOLD_DIR` and no URLs. |
+| D8 | The catalog is a folder that the config file `~/.config/feature-compose/config.yml` names, as `catalog: <folder>`. | A catalog author uses a changed starter or feature at once, with no release of the tool. The cost is that the tool and the catalog have different versions, and the tool does not check that a catalog fits it. |
 | D9 | `when` uses a small expression language of its own. | Names contain `-`. |
 | D10 | The tool uses Go and `text/template`. | The starters are in Go, and `text/template` is in the standard library. |
 | D11 | `add` comes in phase 3. | The three-way merge is the largest part of the tool. |

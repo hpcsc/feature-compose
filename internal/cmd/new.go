@@ -9,7 +9,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func newNewCommand(c catalog.Catalog) *cli.Command {
+func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 	return &cli.Command{
 		Name:      "new",
 		Usage:     "make a new repo from a starter",
@@ -27,6 +27,10 @@ func newNewCommand(c catalog.Catalog) *cli.Command {
 				return err
 			}
 			givenByFeature, err := featureOptionValues(cmd.StringSlice("feature"))
+			if err != nil {
+				return err
+			}
+			c, err := load()
 			if err != nil {
 				return err
 			}

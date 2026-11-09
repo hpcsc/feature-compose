@@ -7,6 +7,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/hpcsc/feature-compose/catalog"
+	"github.com/hpcsc/feature-compose/internal/config"
 	"github.com/hpcsc/feature-compose/internal/version"
 	"github.com/urfave/cli/v3"
 )
@@ -29,7 +30,7 @@ func newCommand() *cli.Command {
 		Version:               version.Current(),
 		EnableShellCompletion: true,
 		Commands: []*cli.Command{
-			newNewCommand(catalog.Embedded()),
+			newNewCommand(catalogInConfig),
 			newVersionCommand(),
 			newUpdateCommand(),
 		},
@@ -45,4 +46,12 @@ func newVersionCommand() *cli.Command {
 			return err
 		},
 	}
+}
+
+func catalogInConfig() (catalog.Catalog, error) {
+	file, err := config.Load()
+	if err != nil {
+		return catalog.Catalog{}, err
+	}
+	return catalog.New(os.DirFS(file.CatalogDir)), nil
 }

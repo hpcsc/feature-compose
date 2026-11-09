@@ -25,7 +25,8 @@ WORKDIR /e2e
 COPY e2e/package.json e2e/package-lock.json* ./
 RUN if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
 COPY e2e ./
+COPY catalog /catalog
 COPY --from=builder /feature-compose /usr/local/bin/feature-compose
 ARG BUILD_TAG=v0.1.0
-ENV EXECUTABLE=/usr/local/bin/feature-compose BUILD_TAG=${BUILD_TAG}
+ENV EXECUTABLE=/usr/local/bin/feature-compose BUILD_TAG=${BUILD_TAG} CATALOG_DIR=/catalog
 CMD ["npx", "vitest", "run"]

@@ -129,8 +129,10 @@ mise trusts the new repo.
 | `task test:e2e:local` | This machine | Node, Go, Task, gotestsum, a C compiler and the network |
 
 Both commands build the CLI with the tag in `E2E_TAG` in `Taskfile.test.yml`, which is `v0.1.0`. They set
-two environment variables for the tests: `EXECUTABLE`, the path of the binary, and `BUILD_TAG`, the tag.
-The `version` and `update` tests compare the output of the CLI with `BUILD_TAG`.
+three environment variables for the tests: `EXECUTABLE`, the path of the binary, `BUILD_TAG`, the tag, and
+`CATALOG_DIR`, the catalog folder of this repo. The `version` and `update` tests compare the output of the
+CLI with `BUILD_TAG`. `runCli` and `openCli` give the CLI a config file that names `CATALOG_DIR`, through
+`XDG_CONFIG_HOME`, and a test can give another `XDG_CONFIG_HOME` in its `env`.
 
 The Docker image has two stages:
 
@@ -144,6 +146,7 @@ flowchart LR
     subgraph runner["stage 2: node:24-trixie-slim"]
         APT["apt-get install python3 make g++"] --> NPM["npm ci"]
         NPM --> RUN["npx vitest run"]
+        CAT[/"catalog/ in /catalog"/] --> RUN
     end
     BIN --> RUN
     TOOLS --> RUN

@@ -243,7 +243,7 @@ func TestCatalog(t *testing.T) {
 	t.Run("embedded", func(t *testing.T) {
 		writtenStarter := func(t *testing.T, given map[string]string) (string, map[string]string) {
 			t.Helper()
-			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 			selection, err := starter.Select("my-service", given, nil)
 			require.NoError(t, err)
@@ -286,7 +286,7 @@ func TestCatalog(t *testing.T) {
 		})
 
 		t.Run("a module value that a Go module path cannot hold stops the selection", func(t *testing.T) {
-			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 
 			_, err = starter.Select("my-service", map[string]string{"module": "example.com/acme ledger;rm -rf ~"}, nil)
@@ -295,7 +295,7 @@ func TestCatalog(t *testing.T) {
 		})
 
 		t.Run("a name with capitals and dots gives a kebab-case name in the Docker names of the repo", func(t *testing.T) {
-			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 			selection, err := starter.Select("MyService.v2", nil, nil)
 			require.NoError(t, err)
@@ -432,7 +432,7 @@ add_to:
 
 		writtenWithAPIAuth := func(t *testing.T, given map[string]string, apiAuthValues map[string]string) map[string]string {
 			t.Helper()
-			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 			selection, err := starter.Select("my-service", given, map[string]map[string]string{"api-auth": apiAuthValues})
 			require.NoError(t, err)
@@ -495,7 +495,7 @@ add_to:
 		})
 
 		t.Run("a value that method does not have stops, and the message names method and its values", func(t *testing.T) {
-			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 
 			_, err = starter.Select("my-service", nil, map[string]map[string]string{"api-auth": {"method": "oauth"}})
@@ -540,7 +540,7 @@ add_to:
 
 		writtenWithCLI := func(t *testing.T, name string, given map[string]string) (string, map[string]string) {
 			t.Helper()
-			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 			selection, err := starter.Select(name, given, withoutValues("cli"))
 			require.NoError(t, err)
@@ -698,7 +698,7 @@ add_to:
 		}
 
 		t.Run("cli with a module that is not on github.com stops the write before the first file, and the message names the module", func(t *testing.T) {
-			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 			selection, err := starter.Select("my-service", map[string]string{"module": "example.com/acme/ledger"}, withoutValues("cli"))
 			require.NoError(t, err)
@@ -741,7 +741,7 @@ add_to:
 		})
 
 		t.Run("a repo named api with cli stops the write, because the starter and cli both write cmd/api/main.go", func(t *testing.T) {
-			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 			selection, err := starter.Select("api", nil, withoutValues("cli"))
 			require.NoError(t, err)
@@ -907,14 +907,14 @@ add_to:
 func catalogOnDisk(t *testing.T) fstest.MapFS {
 	t.Helper()
 	files := fstest.MapFS{}
-	err := fs.WalkDir(os.DirFS("."), ".", func(path string, entry fs.DirEntry, err error) error {
+	err := fs.WalkDir(os.DirFS(repoCatalogDir), ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
 			return err
 		}
 		if !strings.HasPrefix(path, "starters/") && !strings.HasPrefix(path, "features/") {
 			return nil
 		}
-		contents, err := fs.ReadFile(os.DirFS("."), path)
+		contents, err := fs.ReadFile(os.DirFS(repoCatalogDir), path)
 		files[path] = &fstest.MapFile{Data: contents}
 		return err
 	})

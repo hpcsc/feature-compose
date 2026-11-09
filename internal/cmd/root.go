@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/fatih/color"
-	"github.com/hpcsc/feature-compose/catalog"
+	"github.com/hpcsc/feature-compose/internal/catalog"
 	"github.com/hpcsc/feature-compose/internal/config"
 	"github.com/hpcsc/feature-compose/internal/version"
 	"github.com/urfave/cli/v3"

@@ -4,11 +4,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hpcsc/feature-compose/catalog"
+	"github.com/hpcsc/feature-compose/internal/catalog"
 )
 
 var repoCatalogDir = func() string {
-	dir, err := filepath.Abs(".")
+	dir, err := filepath.Abs("../../catalog")
 	if err != nil {
 		panic(err)
 	}

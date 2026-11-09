@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hpcsc/feature-compose/catalog"
+	"github.com/hpcsc/feature-compose/internal/catalog"
 	"github.com/urfave/cli/v3"
 )
 

@@ -67,7 +67,7 @@
 - Recorded: 2026-11-09
 - Observed: us-003-api-keys
 - Learning: A fix that changes code of several task commits is split by the commit that last changed each hunk (git blame at the tip before the fold), and each part becomes a fixup of that commit; only a part whose fold gives a conflict stays its own commit. Build each fixup from the fixed SHA of the tip and never from HEAD, which moves with each fixup commit, and check that the index of the last fixup equals the work tree before the rebase. A test added at the line where a later commit also adds a test gives a conflict, so put it next to lines of its own target commit. clerk fixup mark refuses these files as ambiguous, because catalog_test.go, starter_test.go and selection_test.go hold tests of every task.
-- Apply when: folding the fixes of an audit round or a design check, most of all in the umbrella test files of catalog/
+- Apply when: folding the fixes of an audit round or a design check, most of all in the umbrella test files of internal/catalog/
 ## A struct that a template function returns has exported fields in the design
 - Type: constraint
 - Recorded: 2026-11-09
@@ -79,7 +79,7 @@
 - Type: pattern
 - Recorded: 2026-11-09
 - Observed: task 6 — us-002-add-cli
-- Learning: A template function is one FuncMap entry in catalog/selection.go, a unit test of its parse and one render test; in US-002 the task that added githubRepository was called low certainty and passed on the first attempt. A breakdown can call such a task high certainty.
+- Learning: A template function is one FuncMap entry in internal/catalog/selection.go, a unit test of its parse and one render test; in US-002 the task that added githubRepository was called low certainty and passed on the first attempt. A breakdown can call such a task high certainty.
 - Apply when: decomposing a story that adds a template function to the catalog
 
 ## clerk mutants does not change the templates of the catalog

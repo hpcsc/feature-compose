@@ -18,7 +18,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/hpcsc/feature-compose/catalog"
+	"github.com/hpcsc/feature-compose/internal/catalog"
 	"github.com/stretchr/testify/require"
 )
 

@@ -39,6 +39,22 @@ func (c Catalog) Starter(starterName string) (Starter, error) {
 	return readStarter(c.fsys, starterName, features)
 }
 
+func (c Catalog) Combinations() ([]Combination, error) {
+	names, err := c.starterNames()
+	if err != nil {
+		return nil, err
+	}
+	var combinations []Combination
+	for _, starterName := range names {
+		starter, err := c.Starter(starterName)
+		if err != nil {
+			return nil, err
+		}
+		combinations = append(combinations, starter.combinations()...)
+	}
+	return combinations, nil
+}
+
 func (c Catalog) featuresTargeting(starterName string) (map[string]feature, error) {
 	entries, err := fs.ReadDir(c.fsys, "features")
 	if errors.Is(err, fs.ErrNotExist) {

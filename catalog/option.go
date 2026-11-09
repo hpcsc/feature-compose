@@ -37,6 +37,10 @@ func (o option) check(value string) error {
 	return nil
 }
 
+func (o option) hasValues() bool {
+	return len(o.accepted) > 0
+}
+
 type options struct {
 	declarer string
 	declared map[string]option
@@ -68,4 +72,30 @@ func (o options) withDefaults(given map[string]string, name string) (map[string]
 		values[optionName] = value
 	}
 	return values, nil
+}
+
+func (o options) defaultsOfOptionsWithValues() map[string]string {
+	defaults := map[string]string{}
+	for optionName, declared := range o.declared {
+		if declared.hasValues() {
+			defaults[optionName] = declared.defaultValue
+		}
+	}
+	return defaults
+}
+
+func (o options) otherValuesOfOptionsWithValues() []map[string]string {
+	var others []map[string]string
+	for _, optionName := range slices.Sorted(maps.Keys(o.declared)) {
+		declared := o.declared[optionName]
+		for _, value := range declared.accepted {
+			if value == declared.defaultValue {
+				continue
+			}
+			values := o.defaultsOfOptionsWithValues()
+			values[optionName] = value
+			others = append(others, values)
+		}
+	}
+	return others
 }

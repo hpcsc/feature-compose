@@ -127,6 +127,36 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	return Selection{folders: s.folders, name: name, starterValues: starterValues, featureValues: featureValues, templates: templates, extensionPoints: extensionPoints}, nil
 }
 
+func (s Starter) combinations() []Combination {
+	starterDefaults := s.options.defaultsOfOptionsWithValues()
+	combinations := []Combination{{StarterName: s.name, StarterValues: starterDefaults}}
+	for _, values := range s.options.otherValuesOfOptionsWithValues() {
+		combinations = append(combinations, Combination{StarterName: s.name, StarterValues: values})
+	}
+	withFeatures := func(featureValues map[string]map[string]string) Combination {
+		return Combination{StarterName: s.name, StarterValues: maps.Clone(starterDefaults), FeatureValues: featureValues}
+	}
+	featureNames := slices.Sorted(maps.Keys(s.features))
+	for _, featureName := range featureNames {
+		declared := s.features[featureName].options
+		combinations = append(combinations, withFeatures(map[string]map[string]string{featureName: declared.defaultsOfOptionsWithValues()}))
+		for _, values := range declared.otherValuesOfOptionsWithValues() {
+			combinations = append(combinations, withFeatures(map[string]map[string]string{featureName: values}))
+		}
+	}
+	for i, first := range featureNames {
+		for _, second := range featureNames[i+1:] {
+			if s.features[first].addsToOneExtensionPointWith(s.features[second]) {
+				combinations = append(combinations, withFeatures(map[string]map[string]string{
+					first:  s.features[first].options.defaultsOfOptionsWithValues(),
+					second: s.features[second].options.defaultsOfOptionsWithValues(),
+				}))
+			}
+		}
+	}
+	return combinations
+}
+
 func (s Starter) selectedFeatures(givenByFeature map[string]map[string]string) ([]feature, error) {
 	selected := make([]feature, 0, len(givenByFeature))
 	for _, featureName := range slices.Sorted(maps.Keys(givenByFeature)) {

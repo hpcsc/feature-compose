@@ -763,6 +763,145 @@ add_to:
 			}
 		})
 	})
+
+	t.Run("combinations", func(t *testing.T) {
+		namesOf := func(t *testing.T, files fs.FS) []string {
+			t.Helper()
+			combinations, err := catalog.New(files).Combinations()
+			require.NoError(t, err)
+			names := make([]string, 0, len(combinations))
+			for _, combination := range combinations {
+				names = append(names, combination.String())
+			}
+			return names
+		}
+		oneFolder := &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")}
+		mainGo := &fstest.MapFile{Data: []byte("package main\n")}
+
+		t.Run("each starter, in the order of the names, gives a combination of the starter alone and one of each feature that targets it alone", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/worker/starter.yml":         oneFolder,
+				"starters/worker/files/go/main.go":    mainGo,
+				"starters/api/starter.yml":            oneFolder,
+				"starters/api/files/go/main.go":       mainGo,
+				"starters/static/starter.yml":         oneFolder,
+				"starters/static/files/go/index.html": &fstest.MapFile{Data: []byte("<html></html>\n")},
+				"features/docs/feature.yml":           &fstest.MapFile{Data: []byte("summary: Docs.\ntargets: [api]\n")},
+				"features/cli/feature.yml":            &fstest.MapFile{Data: []byte("summary: CLI.\ntargets: [worker, api]\n")},
+			}
+
+			names := namesOf(t, files)
+
+			require.Equal(t, []string{
+				"api",
+				"api --feature cli",
+				"api --feature docs",
+				"static",
+				"worker",
+				"worker --feature cli",
+			}, names)
+		})
+
+		withValues := fstest.MapFS{
+			"starters/api/starter.yml":         &fstest.MapFile{Data: []byte("options:\n  region:\n    values: [eu, us]\n    default: us\n  module:\n    default: example.com/{{ .Name }}\n  tier:\n    values: [standard]\n    default: standard\n  database:\n    values: [postgres, sqlite, mysql]\n    default: postgres\nfolders:\n  go:\n    path: .\n")},
+			"starters/api/files/go/values.txt": &fstest.MapFile{Data: []byte(`{{ option "starter.database" }} {{ option "starter.region" }} {{ option "starter.tier" }}`)},
+			"features/plain/feature.yml":       &fstest.MapFile{Data: []byte("summary: Plain.\ntargets: [api]\n")},
+			"features/auth/feature.yml":        &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [api]\nfiles:\n  - path: files/\noptions:\n  store:\n    values: [file, keychain]\n    default: file\n  realm:\n    default: \"{{ .Name }}-api\"\n  method:\n    values: [api-key, oauth, none]\n    default: oauth\n")},
+			"features/auth/files/go/auth.txt":  &fstest.MapFile{Data: []byte(`{{ option "method" }} {{ option "store" }} {{ option "realm" }}`)},
+		}
+		defaults := "api --option database=postgres --option region=us --option tier=standard"
+
+		t.Run("each other value of an option with values gives one combination, with the other options at their defaults", func(t *testing.T) {
+			names := namesOf(t, withValues)
+
+			require.Equal(t, []string{
+				defaults,
+				"api --option database=sqlite --option region=us --option tier=standard",
+				"api --option database=mysql --option region=us --option tier=standard",
+				"api --option database=postgres --option region=eu --option tier=standard",
+				defaults + " --feature auth:method=oauth,store=file",
+				defaults + " --feature auth:method=api-key,store=file",
+				defaults + " --feature auth:method=none,store=file",
+				defaults + " --feature auth:method=oauth,store=keychain",
+				defaults + " --feature plain",
+			}, names)
+		})
+
+		t.Run("the repo of each combination holds the values that its name gives", func(t *testing.T) {
+			combinations, err := catalog.New(withValues).Combinations()
+			require.NoError(t, err)
+			written := map[string]map[string]string{}
+
+			for _, combination := range combinations {
+				starter, err := catalog.New(withValues).Starter(combination.StarterName)
+				require.NoError(t, err)
+				selection, err := starter.Select("my-service", combination.StarterValues, combination.FeatureValues)
+				require.NoError(t, err)
+				output := filepath.Join(t.TempDir(), "my-service")
+				require.NoError(t, selection.Write(output))
+				written[combination.String()] = filesIn(t, output)
+			}
+
+			require.Equal(t, map[string]map[string]string{
+				defaults: {"values.txt": "postgres us standard"},
+				"api --option database=sqlite --option region=us --option tier=standard":   {"values.txt": "sqlite us standard"},
+				"api --option database=mysql --option region=us --option tier=standard":    {"values.txt": "mysql us standard"},
+				"api --option database=postgres --option region=eu --option tier=standard": {"values.txt": "postgres eu standard"},
+				defaults + " --feature auth:method=oauth,store=file":                       {"values.txt": "postgres us standard", "auth.txt": "oauth file my-service-api"},
+				defaults + " --feature auth:method=api-key,store=file":                     {"values.txt": "postgres us standard", "auth.txt": "api-key file my-service-api"},
+				defaults + " --feature auth:method=none,store=file":                        {"values.txt": "postgres us standard", "auth.txt": "none file my-service-api"},
+				defaults + " --feature auth:method=oauth,store=keychain":                   {"values.txt": "postgres us standard", "auth.txt": "oauth keychain my-service-api"},
+				defaults + " --feature plain":                                              {"values.txt": "postgres us standard"},
+			}, written)
+		})
+
+		t.Run("each pair of features that add items to one extension point gives one combination with both", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/api/files/go/main.go": mainGo,
+				"starters/api/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n  api.config:\n    file: go/config.go\n    item: [name]\n")},
+				"features/auth/feature.yml":     &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [api]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n  api.config:\n    - name: Auth\n")},
+				"features/audit/feature.yml":    &fstest.MapFile{Data: []byte("summary: Audit.\ntargets: [api]\nadd_to:\n  api.config:\n    - name: Audit\n  api.middleware:\n    - code: audit.Middleware\n")},
+				"features/trace/feature.yml":    &fstest.MapFile{Data: []byte("summary: Trace.\ntargets: [api]\nadd_to:\n  api.middleware:\n    - code: trace.Middleware\n")},
+				"features/metrics/feature.yml":  &fstest.MapFile{Data: []byte("summary: Metrics.\ntargets: [api]\nadd_to:\n  metrics.collectors:\n    - code: runtime.Collector\n")},
+				"features/cli/feature.yml":      &fstest.MapFile{Data: []byte("summary: CLI.\ntargets: [api]\nextension_points:\n  cli.commands:\n    file: go/root.go\n    item: [code]\n")},
+				"features/greet/feature.yml":    &fstest.MapFile{Data: []byte("summary: Greet.\ntargets: [api]\nadd_to:\n  cli.commands:\n    - code: greet.Command\n")},
+				"features/hello/feature.yml":    &fstest.MapFile{Data: []byte("summary: Hello.\ntargets: [api]\nadd_to:\n  cli.commands:\n    - code: hello.Command\n")},
+				"features/other/feature.yml":    &fstest.MapFile{Data: []byte("summary: Other.\ntargets: [worker]\nadd_to:\n  api.middleware:\n    - code: other.Middleware\n")},
+			}
+
+			names := namesOf(t, files)
+
+			require.Equal(t, []string{
+				"api",
+				"api --feature audit",
+				"api --feature auth:method=api-key",
+				"api --feature auth:method=oauth",
+				"api --feature cli",
+				"api --feature greet",
+				"api --feature hello",
+				"api --feature metrics",
+				"api --feature trace",
+				"api --feature audit --feature auth:method=api-key",
+				"api --feature audit --feature trace",
+				"api --feature auth:method=api-key --feature trace",
+				"api --feature greet --feature hello",
+			}, names)
+		})
+
+		for _, failing := range []string{"starters", "starters/api/starter.yml", "features", "features/cli/feature.yml"} {
+			t.Run("a read of "+failing+" that fails stops the list with its cause", func(t *testing.T) {
+				files := failingFS{failing: failing, files: fstest.MapFS{
+					"starters/api/starter.yml":      oneFolder,
+					"starters/api/files/go/main.go": mainGo,
+					"features/cli/feature.yml":      &fstest.MapFile{Data: []byte("summary: CLI.\ntargets: [api]\n")},
+				}}
+
+				_, err := catalog.New(files).Combinations()
+
+				require.ErrorContains(t, err, "disk failure")
+			})
+		}
+	})
 }
 
 func catalogOnDisk(t *testing.T) fstest.MapFS {

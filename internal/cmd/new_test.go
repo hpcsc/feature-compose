@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -247,6 +248,35 @@ folders:
 			require.ErrorContains(t, err, "folder go")
 			require.ErrorContains(t, err, "echo tidy failed >&2; exit 1")
 			require.ErrorContains(t, err, "tidy failed")
+		})
+
+		t.Run("the name of each combination of the catalog, given to new with a name, makes the repo of that combination", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			files := withFeatures()
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("options:\n  region:\n    values: [eu, us]\n    default: us\n  module:\n    default: example.com/{{ .Name }}\nfolders:\n  go:\n    path: .\n")}
+			files["starters/service/files/go/go.mod.tmpl"] = &fstest.MapFile{Data: []byte(`module {{ option "starter.module" }} // {{ option "starter.region" }}`)}
+			combinations, err := catalog.New(files).Combinations()
+			require.NoError(t, err)
+			fromNew := map[string]map[string]string{}
+			fromSelection := map[string]map[string]string{}
+
+			for _, combination := range combinations {
+				words := strings.Fields(combination.String())
+				output := filepath.Join(t.TempDir(), "my-service")
+				_, err := runNew(t, files, append([]string{words[0], "my-service", "--output-dir", output}, words[1:]...)...)
+				require.NoError(t, err, combination.String())
+				fromNew[combination.String()] = filesIn(t, output)
+				starter, err := catalog.New(files).Starter(combination.StarterName)
+				require.NoError(t, err)
+				selection, err := starter.Select("my-service", combination.StarterValues, combination.FeatureValues)
+				require.NoError(t, err)
+				output = filepath.Join(t.TempDir(), "my-service")
+				require.NoError(t, selection.Write(output))
+				fromSelection[combination.String()] = filesIn(t, output)
+			}
+
+			require.Len(t, combinations, 7)
+			require.Equal(t, fromSelection, fromNew)
 		})
 	})
 

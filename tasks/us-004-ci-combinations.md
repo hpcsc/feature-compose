@@ -206,30 +206,30 @@ values of the starter options and the features with the values of their options.
 features and the values.
 
 **Acceptance Criteria:**
-- [ ] For each starter of the catalog, in the order of the names, the list has one combination of the starter alone,
+- [x] For each starter of the catalog, in the order of the names, the list has one combination of the starter alone,
   and one combination of each feature that targets the starter, with that feature alone. A feature that does not
   target a starter is in no combination of that starter. A starter that no feature targets has its combination of
   the starter alone.
-- [ ] For each option with `values`, of a starter or of a feature, the list has one combination for each of its
+- [x] For each option with `values`, of a starter or of a feature, the list has one combination for each of its
   values: with the starter alone for an option of the starter, and with the feature alone for an option of a
   feature. The other options take their defaults, and no combination varies two options.
-- [ ] Each combination gives a value to each option with `values` of its starter and of its features, and gives no
+- [x] Each combination gives a value to each option with `values` of its starter and of its features, and gives no
   value to an option without `values`. Combinations that give the same starter, features and values are one: the
   feature alone and the feature with the default value of its option are one combination, and so are the starter
   alone and the starter with the default value of its option.
-- [ ] When two features that target one starter add items to one extension point in their `add_to`, the list has
+- [x] When two features that target one starter add items to one extension point in their `add_to`, the list has
   one combination with both features, at the defaults of their options. This holds for an extension point of the
   starter and for one that a feature declares. Each pair of such features gets one combination: three features
   that add to one extension point give three, and two features that add to two of the same extension points give
   one. Two features that add to no common extension point get no combination together.
-- [ ] A combination names only the features that it tests. `Starter` with its starter name, and `Select` with its
+- [x] A combination names only the features that it tests. `Starter` with its starter name, and `Select` with its
   values, give the selection of its repo. For a combination that gives a value other than the default, the file
   that the feature writes holds that value.
-- [ ] The name of a combination gives the starter, each feature and each value that the combination gives, as the
+- [x] The name of a combination gives the starter, each feature and each value that the combination gives, as the
   arguments of `new` that make the same repo (decision 6).
-- [ ] The list has a fixed order, which the test states in full, and the order of the keys in `starter.yml` and
+- [x] The list has a fixed order, which the test states in full, and the order of the keys in `starter.yml` and
   `feature.yml` does not change it.
-- [ ] A read of the catalog that fails stops the list with its cause, as `Catalog.Starter` does.
+- [x] A read of the catalog that fails stops the list with its cause, as `Catalog.Starter` does.
 
 **Affected Files/Modules:**
 - `catalog/combination.go` — the new type `Combination` and its name

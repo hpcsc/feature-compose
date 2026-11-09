@@ -3,6 +3,7 @@ package catalog
 import (
 	"fmt"
 	"io/fs"
+	"maps"
 	"path"
 	"slices"
 	"strings"
@@ -98,4 +99,13 @@ func (f feature) placedIn(folders map[string]folder) ([]template, error) {
 		placed = append(placed, inFolder)
 	}
 	return placed, nil
+}
+
+func (f feature) addsToOneExtensionPointWith(other feature) bool {
+	for _, name := range slices.Sorted(maps.Keys(f.addTo)) {
+		if _, ok := other.addTo[name]; ok {
+			return true
+		}
+	}
+	return false
 }

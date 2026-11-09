@@ -40,6 +40,7 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature) (S
 		Folders map[string]struct {
 			Path        string   `yaml:"path"`
 			AfterRender []string `yaml:"after_render"`
+			Test        []string `yaml:"test"`
 		} `yaml:"folders"`
 		Delimiters []struct {
 			Glob  string `yaml:"glob"`
@@ -67,7 +68,7 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature) (S
 		if !filepath.IsLocal(filepath.FromSlash(declared.Path)) {
 			return Starter{}, fmt.Errorf("read %s: the path %q of the folder %s is outside the repo", definitionPath, declared.Path, folderName)
 		}
-		folders[folderName] = folder{name: folderName, path: declared.Path, afterRender: declared.AfterRender}
+		folders[folderName] = folder{name: folderName, path: declared.Path, afterRender: declared.AfterRender, test: declared.Test}
 	}
 	var rules []delimitersRule
 	for _, declared := range definition.Delimiters {

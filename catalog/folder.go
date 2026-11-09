@@ -13,19 +13,28 @@ type folder struct {
 	name        string
 	path        string
 	afterRender []string
+	test        []string
 }
 
 func (f folder) runAfterRender(ctx context.Context, output string) error {
+	return f.runAll(ctx, output, "after_render", f.afterRender)
+}
+
+func (f folder) runTests(ctx context.Context, output string) error {
+	return f.runAll(ctx, output, "test", f.test)
+}
+
+func (f folder) runAll(ctx context.Context, output, list string, commands []string) error {
 	dir := filepath.Join(output, filepath.FromSlash(f.path))
-	for _, command := range f.afterRender {
-		if err := f.run(ctx, dir, command); err != nil {
+	for _, command := range commands {
+		if err := f.run(ctx, dir, list, command); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (f folder) run(ctx context.Context, dir, command string) error {
+func (f folder) run(ctx context.Context, dir, list, command string) error {
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -34,7 +43,7 @@ func (f folder) run(ctx context.Context, dir, command string) error {
 	cmd.WaitDelay = time.Second
 	printed, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("the after_render command %q of the folder %s failed: %w\n%s", command, f.name, err, printed)
+		return fmt.Errorf("the %s command %q of the folder %s failed: %w\n%s", list, command, f.name, err, printed)
 	}
 	return nil
 }

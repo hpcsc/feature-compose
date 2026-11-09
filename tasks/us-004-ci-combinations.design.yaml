@@ -1,0 +1,60 @@
+design: planned
+types:
+  - name: Catalog
+    package: catalog
+    change: changed
+    does: finds a starter by name with the features that target it, and lists the combinations that CI makes a repo from
+    owns:
+      - the combinations come by starter, with the starters in the order of their names
+    fields: [fsys]
+    methods: [Starter, Combinations]
+  - name: Starter
+    package: catalog
+    change: changed
+    does: one starter of the catalog, which each selection of a repo starts from
+    owns:
+      - each selected feature names the starter in its targets; any other name stops, and the message lists the features that target the starter
+      - one extension point has one declarer among the starter and the selected features
+      - the combinations of a starter are the starter alone, each feature that targets it alone, each value of each option with values with the other options at their defaults, and each pair of features that add items to one extension point
+      - a combination gives a value to each option with values of its starter and of its features, so two combinations that make the same repo are one
+    fields: [name, options, folders, templates, features, extensionPoints]
+    methods: [Select, combinations]
+  - name: Combination
+    package: catalog
+    change: new
+    does: one repo that CI makes, given as the name of its starter, the values of the starter options, and the features that it tests with the values of their options
+    owns:
+      - its name gives the starter, each feature and each value, as the arguments of new that make the same repo
+    fields: [StarterName, StarterValues, FeatureValues]
+    methods: [String]
+  - name: Selection
+    package: catalog
+    change: changed
+    does: makes one repo from a starter, the selected features with the values of their options, a name and the values of the starter options
+    owns:
+      - RunAfterRender runs only the after_render commands, and RunTests runs only the test commands, each in the folders of the repo in the order of their names
+    fields: [folders, name, starterValues, featureValues, templates, extensionPoints]
+    methods: [Write, RunAfterRender, RunTests]
+  - name: folder
+    package: catalog
+    change: changed
+    does: one folder of the starter in the repo, with the commands that run in it after the write and the commands that test it
+    owns:
+      - a command that fails stops the commands of its folder, and the message names its list (after_render or test), the folder, the command and its output
+    fields: [name, path, afterRender, test]
+    methods: [runAfterRender, runTests]
+functions:
+  - New(files fs.FS) Catalog
+  - Embedded() Catalog
+words:
+  - concept: a starter, the features and the option values that CI makes one repo from
+    word: combination
+    not: [variant, case, matrix, permutation]
+  - concept: two features that target one starter and add items to one extension point, which CI makes one repo with
+    word: pair
+    not: [couple, overlap, conflict]
+  - concept: the commands of folders.<name>.test, which CI runs in the folder of a written repo
+    word: test commands
+    not: [checks, verify commands, test steps]
+dependencies:
+  - internal/cmd -> catalog

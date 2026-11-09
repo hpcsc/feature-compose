@@ -57,6 +57,15 @@ func (s Selection) RunAfterRender(ctx context.Context, output string) error {
 	return nil
 }
 
+func (s Selection) RunTests(ctx context.Context, output string) error {
+	for _, folderName := range slices.Sorted(maps.Keys(s.folders)) {
+		if err := s.folders[folderName].runTests(ctx, output); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s Selection) checkEmpty(output string) error {
 	entries, err := os.ReadDir(filepath.Clean(output))
 	if errors.Is(err, fs.ErrNotExist) {

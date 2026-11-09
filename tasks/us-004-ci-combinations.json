@@ -1,0 +1,99 @@
+{
+  "story": "Test each starter with each feature in CI",
+  "story_id": "feature-compose/US-004",
+  "tasks_file": "tasks/us-004-ci-combinations.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Run the `test` commands of each folder of a written repo with `RunTests`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "catalog/folder.go:18-40",
+        "catalog/selection.go:51-58",
+        "catalog/starter.go:40-43",
+        "catalog/starter.go:65-71",
+        "catalog/selection_test.go:784-947",
+        "catalog/selection_test.go:860-881",
+        "PROPOSAL.md:143",
+        "tasks/learnings.md:3-8",
+        "tasks/learnings.md:66-71"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "catalog/starter.go",
+        "catalog/folder.go",
+        "catalog/selection.go",
+        "catalog/selection_test.go"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "List the combinations of the catalog that CI makes a repo from",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "catalog/catalog.go:27-78",
+        "catalog/starter.go:129-139",
+        "catalog/starter.go:153-177",
+        "catalog/option.go:11-16",
+        "catalog/option.go:45-71",
+        "catalog/starter_test.go:93-104",
+        "catalog/starter_test.go:236-241",
+        "catalog/starter_test.go:310-321",
+        "catalog/catalog_test.go:220-240",
+        "internal/cmd/new.go:33-51",
+        "PROPOSAL.md:485-486",
+        "PROPOSAL.md:256-262",
+        "tasks/learnings.md:66-71"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "catalog/combination.go",
+        "catalog/starter.go",
+        "catalog/catalog.go",
+        "catalog/catalog_test.go"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Make and test the repo of each combination in CI, and name each combination that fails",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "e2e/tests/new.test.ts:32-56",
+        "catalog/catalog_test.go:243-253",
+        "internal/cmd/new.go:33-51",
+        ".github/workflows/ci.yml:41-53",
+        "e2e/Dockerfile:7-9",
+        "Taskfile.test.yml:7-9",
+        "docs/e2e-tests.md:115-122",
+        "tasks/learnings.md:3-8",
+        "tasks/learnings.md:38-43",
+        "tasks/learnings.md:86-91",
+        "task:1",
+        "task:2"
+      ],
+      "depends_on": [
+        1,
+        2
+      ],
+      "affected_files": [
+        "catalog/",
+        "Taskfile.test.yml",
+        ".github/workflows/ci.yml",
+        "README.md"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-004-ci-combinations.design.yaml"
+}

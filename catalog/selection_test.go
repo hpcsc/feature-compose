@@ -30,6 +30,17 @@ func TestSelection(t *testing.T) {
 		return selection
 	}
 	oneFolder := &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n")}
+	writtenRepo := func(t *testing.T, starterYML string, output string) catalog.Selection {
+		t.Helper()
+		files := fstest.MapFS{
+			"starters/service/starter.yml":          &fstest.MapFile{Data: []byte(starterYML)},
+			"starters/service/files/app/main.go":    &fstest.MapFile{Data: []byte("package main\n")},
+			"starters/service/files/web/index.html": &fstest.MapFile{Data: []byte("<html></html>\n")},
+		}
+		selection := selectionOf(t, files, "my-service")
+		require.NoError(t, selection.Write(output))
+		return selection
+	}
 
 	t.Run("write", func(t *testing.T) {
 		t.Run("writes each template to the path of its folder in the repo", func(t *testing.T) {
@@ -782,18 +793,6 @@ delimiters:
 	})
 
 	t.Run("run after render", func(t *testing.T) {
-		writtenRepo := func(t *testing.T, starterYML string, output string) catalog.Selection {
-			t.Helper()
-			files := fstest.MapFS{
-				"starters/service/starter.yml":          &fstest.MapFile{Data: []byte(starterYML)},
-				"starters/service/files/app/main.go":    &fstest.MapFile{Data: []byte("package main\n")},
-				"starters/service/files/web/index.html": &fstest.MapFile{Data: []byte("<html></html>\n")},
-			}
-			selection := selectionOf(t, files, "my-service")
-			require.NoError(t, selection.Write(output))
-			return selection
-		}
-
 		t.Run("runs the commands of each folder in that folder of the repo, in their order", func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			output := filepath.Join(t.TempDir(), "my-service")
@@ -832,6 +831,7 @@ folders:
 
 			err := selection.RunAfterRender(context.Background(), output)
 
+			require.ErrorContains(t, err, "the after_render command")
 			require.ErrorContains(t, err, "folder app")
 			require.ErrorContains(t, err, "echo broken module >&2; exit 3")
 			require.ErrorContains(t, err, "broken module")
@@ -942,6 +942,139 @@ folders:
 
 			require.Error(t, err)
 			require.Less(t, time.Since(started), 4*time.Second)
+		})
+	})
+
+	t.Run("run tests", func(t *testing.T) {
+		t.Run("runs the test commands of each folder in that folder of the repo, in their order, with the folders in the order of their names", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+			selection := writtenRepo(t, `
+folders:
+  app:
+    path: .
+    test: ["echo app-one >> order", "echo app-two >> order"]
+  web:
+    path: frontend
+    test: ["echo web >> ../order", "echo web > tested-here"]
+`, output)
+
+			err := selection.RunTests(context.Background(), output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"main.go":              "package main\n",
+				"order":                "app-one\napp-two\nweb\n",
+				"frontend/index.html":  "<html></html>\n",
+				"frontend/tested-here": "web\n",
+			}, filesIn(t, output))
+		})
+
+		t.Run("the after_render commands of a folder do not run", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+			selection := writtenRepo(t, `
+folders:
+  app:
+    path: .
+    after_render: ["touch rendered"]
+    test: ["touch tested"]
+  web:
+    path: frontend
+`, output)
+
+			err := selection.RunTests(context.Background(), output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"main.go":             "package main\n",
+				"tested":              "",
+				"frontend/index.html": "<html></html>\n",
+			}, filesIn(t, output))
+		})
+
+		t.Run("a test command that fails stops the run, and the message says that a test command failed, with the folder, the command and its output", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+			selection := writtenRepo(t, `
+folders:
+  app:
+    path: .
+    test: ["echo before >> log", "echo FAIL TestAccounts >&2; exit 1", "echo after >> log"]
+  web:
+    path: frontend
+    test: ["echo web >> ../log"]
+`, output)
+
+			err := selection.RunTests(context.Background(), output)
+
+			require.ErrorContains(t, err, "the test command")
+			require.ErrorContains(t, err, "folder app")
+			require.ErrorContains(t, err, "echo FAIL TestAccounts >&2; exit 1")
+			require.ErrorContains(t, err, "FAIL TestAccounts")
+			require.Equal(t, "before\n", filesIn(t, output)["log"])
+		})
+
+		t.Run("a program that is not on PATH stops the run, and the message names the folder, the command and the cause", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+			selection := writtenRepo(t, `
+folders:
+  app:
+    path: .
+    test: ["no-such-program-of-feature-compose --flag"]
+  web:
+    path: frontend
+`, output)
+
+			err := selection.RunTests(context.Background(), output)
+
+			require.ErrorContains(t, err, "the test command")
+			require.ErrorContains(t, err, "folder app")
+			require.ErrorContains(t, err, "no-such-program-of-feature-compose --flag")
+			require.ErrorContains(t, err, "not found")
+		})
+
+		t.Run("folders with no test command run nothing", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+			selection := writtenRepo(t, `
+folders:
+  app:
+    path: .
+    after_render: ["touch rendered"]
+  web:
+    path: frontend
+`, output)
+
+			err := selection.RunTests(context.Background(), output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"main.go":             "package main\n",
+				"frontend/index.html": "<html></html>\n",
+			}, filesIn(t, output))
+		})
+
+		t.Run("a context that ends stops the command and its children, and the run returns an error", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+			selection := writtenRepo(t, `
+folders:
+  app:
+    path: .
+    test: ["sh -c 'sleep 1; touch finished'; true"]
+  web:
+    path: frontend
+`, output)
+			ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+			defer cancel()
+
+			err := selection.RunTests(ctx, output)
+
+			require.Error(t, err)
+			time.Sleep(2 * time.Second)
+			require.NoFileExists(t, filepath.Join(output, "finished"))
 		})
 	})
 }

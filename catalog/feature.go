@@ -14,6 +14,7 @@ type feature struct {
 	name            string
 	templates       []template
 	rules           []delimitersRule
+	options         options
 	extensionPoints map[string]extensionPoint
 	addTo           map[string][]map[string]string
 }
@@ -40,7 +41,12 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 			File    string   `yaml:"file"`
 			Item    []string `yaml:"item"`
 		} `yaml:"extension_points"`
-		AddTo map[string][]map[string]string `yaml:"add_to"`
+		AddTo   map[string][]map[string]string `yaml:"add_to"`
+		Options map[string]struct {
+			Default string   `yaml:"default"`
+			Pattern string   `yaml:"pattern"`
+			Values  []string `yaml:"values"`
+		} `yaml:"options"`
 	}
 	if err := yaml.Unmarshal(definitionYAML, &definition); err != nil {
 		return feature{}, false, fmt.Errorf("read %s: %w", definitionPath, err)
@@ -62,17 +68,24 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 		if !strings.HasPrefix(entryRoot, root+"/") {
 			return feature{}, false, fmt.Errorf("read %s: the files entry %q is outside the folder of the feature", definitionPath, entry.Path)
 		}
-		read, err := readTemplates(fsys, entryRoot, "the feature "+featureName)
+		read, err := readTemplates(fsys, entryRoot, featureName)
 		if err != nil {
 			return feature{}, false, err
 		}
 		templates = append(templates, read...)
 	}
+	declaredOptions := options{declarer: "the feature " + featureName, declared: make(map[string]option, len(definition.Options))}
+	for optionName, declared := range definition.Options {
+		declaredOptions.declared[optionName], err = newOption(optionName, declared.Default, declared.Pattern, declared.Values)
+		if err != nil {
+			return feature{}, false, fmt.Errorf("read %s: %w", definitionPath, err)
+		}
+	}
 	extensionPoints := make(map[string]extensionPoint, len(definition.ExtensionPoints))
 	for name, declared := range definition.ExtensionPoints {
 		extensionPoints[name] = extensionPoint{name: name, declarer: "the feature " + featureName, itemFields: declared.Item}
 	}
-	return feature{name: featureName, templates: templates, rules: rules, extensionPoints: extensionPoints, addTo: definition.AddTo}, true, nil
+	return feature{name: featureName, templates: templates, rules: rules, options: declaredOptions, extensionPoints: extensionPoints, addTo: definition.AddTo}, true, nil
 }
 
 func (f feature) placedIn(folders map[string]folder) ([]template, error) {

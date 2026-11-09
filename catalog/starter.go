@@ -17,7 +17,7 @@ var repoName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
 type Starter struct {
 	name            string
-	options         map[string]option
+	options         options
 	folders         map[string]folder
 	templates       []template
 	features        map[string]feature
@@ -33,8 +33,9 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature) (S
 	}
 	var definition struct {
 		Options map[string]struct {
-			Default string `yaml:"default"`
-			Pattern string `yaml:"pattern"`
+			Default string   `yaml:"default"`
+			Pattern string   `yaml:"pattern"`
+			Values  []string `yaml:"values"`
 		} `yaml:"options"`
 		Folders map[string]struct {
 			Path        string   `yaml:"path"`
@@ -54,16 +55,12 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature) (S
 	if err := yaml.Unmarshal(definitionYAML, &definition); err != nil {
 		return Starter{}, fmt.Errorf("read %s: %w", definitionPath, err)
 	}
-	options := make(map[string]option, len(definition.Options))
+	declaredOptions := options{declarer: "the starter " + starterName, declared: make(map[string]option, len(definition.Options))}
 	for optionName, declared := range definition.Options {
-		declaredOption := option{name: optionName, defaultValue: declared.Default}
-		if declared.Pattern != "" {
-			declaredOption.pattern, err = regexp.Compile(declared.Pattern)
-			if err != nil {
-				return Starter{}, fmt.Errorf("read %s: the pattern of the option %s: %w", definitionPath, optionName, err)
-			}
+		declaredOptions.declared[optionName], err = newOption(optionName, declared.Default, declared.Pattern, declared.Values)
+		if err != nil {
+			return Starter{}, fmt.Errorf("read %s: %w", definitionPath, err)
 		}
-		options[optionName] = declaredOption
 	}
 	folders := make(map[string]folder, len(definition.Folders))
 	for folderName, declared := range definition.Folders {
@@ -80,7 +77,7 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature) (S
 		}
 		rules = append(rules, rule)
 	}
-	read, err := readTemplates(fsys, path.Join(root, "files"), "the starter")
+	read, err := readTemplates(fsys, path.Join(root, "files"), "")
 	if err != nil {
 		return Starter{}, err
 	}
@@ -96,26 +93,27 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature) (S
 	for name, declared := range definition.ExtensionPoints {
 		extensionPoints[name] = extensionPoint{name: name, declarer: "the starter " + starterName, itemFields: declared.Item}
 	}
-	return Starter{name: starterName, options: options, folders: folders, templates: templates, features: features, extensionPoints: extensionPoints}, nil
+	return Starter{name: starterName, options: declaredOptions, folders: folders, templates: templates, features: features, extensionPoints: extensionPoints}, nil
 }
 
-func (s Starter) Select(name string, given map[string]string, featureNames []string) (Selection, error) {
+func (s Starter) Select(name string, given map[string]string, givenByFeature map[string]map[string]string) (Selection, error) {
 	if !repoName.MatchString(name) {
 		return Selection{}, fmt.Errorf("the name %q of the repo must start with a letter or a digit, and hold only letters, digits, '.', '_' and '-'", name)
 	}
-	for _, optionName := range slices.Sorted(maps.Keys(given)) {
-		declared, ok := s.options[optionName]
-		if !ok {
-			return Selection{}, fmt.Errorf("unknown option %q: the options of the starter are %s",
-				optionName, strings.Join(slices.Sorted(maps.Keys(s.options)), ", "))
-		}
-		if err := declared.check(given[optionName]); err != nil {
-			return Selection{}, err
-		}
-	}
-	selected, err := s.selectedFeatures(featureNames)
+	starterValues, err := s.options.withDefaults(given, name)
 	if err != nil {
 		return Selection{}, err
+	}
+	selected, err := s.selectedFeatures(givenByFeature)
+	if err != nil {
+		return Selection{}, err
+	}
+	featureValues := make(map[string]map[string]string, len(selected))
+	for _, f := range selected {
+		featureValues[f.name], err = f.options.withDefaults(givenByFeature[f.name], name)
+		if err != nil {
+			return Selection{}, err
+		}
 	}
 	templates, err := s.templatesOf(selected)
 	if err != nil {
@@ -125,35 +123,17 @@ func (s Starter) Select(name string, given map[string]string, featureNames []str
 	if err != nil {
 		return Selection{}, err
 	}
-	selection := Selection{folders: s.folders, name: name, templates: templates, extensionPoints: extensionPoints}
-	values := make(map[string]string, len(s.options))
-	for optionName, declared := range s.options {
-		value, ok := given[optionName]
-		if !ok {
-			var err error
-			value, err = selection.render("the default of the option "+optionName, declared.defaultValue, defaultDelimiters)
-			if err != nil {
-				return Selection{}, err
-			}
-		}
-		values[optionName] = value
-	}
-	selection.values = values
-	return selection, nil
+	return Selection{folders: s.folders, name: name, starterValues: starterValues, featureValues: featureValues, templates: templates, extensionPoints: extensionPoints}, nil
 }
 
-func (s Starter) selectedFeatures(featureNames []string) ([]feature, error) {
-	byName := map[string]feature{}
-	for _, featureName := range featureNames {
+func (s Starter) selectedFeatures(givenByFeature map[string]map[string]string) ([]feature, error) {
+	selected := make([]feature, 0, len(givenByFeature))
+	for _, featureName := range slices.Sorted(maps.Keys(givenByFeature)) {
 		f, ok := s.features[featureName]
 		if !ok {
 			return nil, s.unknownFeature(featureName)
 		}
-		byName[featureName] = f
-	}
-	selected := make([]feature, 0, len(byName))
-	for _, featureName := range slices.Sorted(maps.Keys(byName)) {
-		selected = append(selected, byName[featureName])
+		selected = append(selected, f)
 	}
 	return selected, nil
 }

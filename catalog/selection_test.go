@@ -357,7 +357,7 @@ func TestSelection(t *testing.T) {
 			t.Helper()
 			starter, err := catalog.New(files).Starter("service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, features)
+			selection, err := starter.Select("my-service", nil, withoutValues(features...))
 			require.NoError(t, err)
 			return selection
 		}
@@ -388,7 +388,7 @@ func TestSelection(t *testing.T) {
 			}, filesIn(t, output))
 		})
 
-		t.Run("a feature given twice is selected once, and a feature that is not given writes no file", func(t *testing.T) {
+		t.Run("a feature that is not given writes no file", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":        twoFolders,
 				"starters/service/files/go/README.md": &fstest.MapFile{Data: []byte("service\n")},
@@ -399,7 +399,7 @@ func TestSelection(t *testing.T) {
 			}
 			output := filepath.Join(t.TempDir(), "my-service")
 
-			err := featureSelection(t, files, "cli", "cli").Write(output)
+			err := featureSelection(t, files, "cli").Write(output)
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{"README.md": "service\n", "cli.go": "package cli\n"}, filesIn(t, output))

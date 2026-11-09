@@ -30,7 +30,7 @@ func newNewCommand(c catalog.Catalog) *cli.Command {
 			if err != nil {
 				return err
 			}
-			selection, err := starter.Select(name, values, cmd.StringSlice("feature"))
+			selection, err := starter.Select(name, values, featureValues(cmd.StringSlice("feature")))
 			if err != nil {
 				return err
 			}
@@ -60,4 +60,12 @@ func optionValues(flags []string) (map[string]string, error) {
 		values[name] = value
 	}
 	return values, nil
+}
+
+func featureValues(flags []string) map[string]map[string]string {
+	features := make(map[string]map[string]string, len(flags))
+	for _, featureName := range flags {
+		features[featureName] = nil
+	}
+	return features
 }

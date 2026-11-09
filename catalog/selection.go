@@ -16,7 +16,8 @@ import (
 type Selection struct {
 	folders         map[string]folder
 	name            string
-	values          map[string]string
+	starterValues   map[string]string
+	featureValues   map[string]map[string]string
 	templates       []template
 	extensionPoints map[string]extensionPoint
 }
@@ -70,8 +71,9 @@ func (s Selection) checkEmpty(output string) error {
 	return nil
 }
 
-func (s Selection) render(label, text string, d delimiters) (string, error) {
-	funcs := texttemplate.FuncMap{"option": s.option, "items": s.items, "unique": s.unique, "githubRepository": parseGitHubRepository, "kebab": kebab, "snake": snake, "camel": camel, "pascal": pascal}
+func (s Selection) render(label, text string, d delimiters, featureName string) (string, error) {
+	option := func(reference string) (string, error) { return s.option(featureName, reference) }
+	funcs := texttemplate.FuncMap{"option": option, "items": s.items, "unique": s.unique, "githubRepository": parseGitHubRepository, "kebab": kebab, "snake": snake, "camel": camel, "pascal": pascal}
 	parsed, err := texttemplate.New(label).Delims(d.left, d.right).Funcs(funcs).Option("missingkey=error").Parse(text)
 	if err != nil {
 		return "", fmt.Errorf("parse %w", err)
@@ -83,14 +85,23 @@ func (s Selection) render(label, text string, d delimiters) (string, error) {
 	return rendered.String(), nil
 }
 
-func (s Selection) option(reference string) (string, error) {
-	optionName, ok := strings.CutPrefix(reference, "starter.")
-	value, found := s.values[optionName]
-	if !ok || !found {
-		return "", fmt.Errorf("unknown option %q: the options of the starter are starter.%s",
-			reference, strings.Join(slices.Sorted(maps.Keys(s.values)), ", starter."))
+func (s Selection) option(featureName, reference string) (string, error) {
+	if optionName, ok := strings.CutPrefix(reference, "starter."); ok {
+		if value, ok := s.starterValues[optionName]; ok {
+			return value, nil
+		}
+	} else if value, ok := s.featureValues[featureName][reference]; ok {
+		return value, nil
 	}
-	return value, nil
+	readable := slices.Collect(maps.Keys(s.featureValues[featureName]))
+	for optionName := range s.starterValues {
+		readable = append(readable, "starter."+optionName)
+	}
+	if len(readable) == 0 {
+		return "", fmt.Errorf("unknown option %q: the template can read no option", reference)
+	}
+	slices.Sort(readable)
+	return "", fmt.Errorf("unknown option %q: the template can read %s", reference, strings.Join(readable, ", "))
 }
 
 func (s Selection) items(name string) ([]map[string]string, error) {

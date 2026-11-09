@@ -178,6 +178,9 @@ func TestCatalog(t *testing.T) {
 			"a files entry of a feature with no folder": {
 				"features/cli/feature.yml": &fstest.MapFile{Data: []byte("targets: [service]\nfiles:\n  - path: missing/\n")},
 			},
+			"an option of a feature with a pattern that is not valid": {
+				"features/cli/feature.yml": &fstest.MapFile{Data: []byte("targets: [service]\noptions:\n  port:\n    pattern: '[0-9'\n")},
+			},
 			"a files entry that leads into a sibling feature whose name starts with the name of the feature": {
 				"features/cli/feature.yml":         &fstest.MapFile{Data: []byte("targets: [service]\nfiles:\n  - path: ../cli-extra/files/\n")},
 				"features/cli-extra/feature.yml":   &fstest.MapFile{Data: []byte("targets: [other]\nfiles:\n  - path: files/\n")},
@@ -371,7 +374,7 @@ func TestCatalog(t *testing.T) {
 			t.Helper()
 			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select(name, given, []string{"cli"})
+			selection, err := starter.Select(name, given, withoutValues("cli"))
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), name)
 			require.NoError(t, selection.Write(output))
@@ -462,7 +465,7 @@ func TestCatalog(t *testing.T) {
 			files["features/accounts/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Accounts.\ntargets: [go-event-sourcing-service]\nadd_to:\n  cli.commands:\n    - code: newOpenCommand()\n    - code: newCloseCommand()\n")}
 			starter, err := catalog.New(files).Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, []string{"cli", "accounts"})
+			selection, err := starter.Select("my-service", nil, withoutValues("cli", "accounts"))
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 
@@ -529,7 +532,7 @@ func TestCatalog(t *testing.T) {
 		t.Run("cli with a module that is not on github.com stops the write before the first file, and the message names the module", func(t *testing.T) {
 			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", map[string]string{"module": "example.com/acme/ledger"}, []string{"cli"})
+			selection, err := starter.Select("my-service", map[string]string{"module": "example.com/acme/ledger"}, withoutValues("cli"))
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 
@@ -572,7 +575,7 @@ func TestCatalog(t *testing.T) {
 		t.Run("a repo named api with cli stops the write, because the starter and cli both write cmd/api/main.go", func(t *testing.T) {
 			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("api", nil, []string{"cli"})
+			selection, err := starter.Select("api", nil, withoutValues("cli"))
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "api")
 

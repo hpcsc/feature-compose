@@ -90,6 +90,32 @@ folders:
 			require.ErrorContains(t, err, `^1\.(2[7-9]|[3-9][0-9])(\.[0-9]+)?$`)
 		})
 
+		t.Run("a value that is not one of the values of a starter option stops, and the message names the option and its values", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":     &fstest.MapFile{Data: []byte("options:\n  database:\n    values: [postgres, sqlite]\n    default: postgres\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/db.txt": &fstest.MapFile{Data: []byte(`{{ option "starter.database" }}`)},
+			}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", map[string]string{"database": "mysql"}, nil)
+
+			require.ErrorContains(t, err, `the starter service: the value "mysql" of the option database is not one of its values: postgres, sqlite`)
+		})
+
+		t.Run("a given value for a starter with no option stops, and the message says that the starter has no option", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":    &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/a.txt": &fstest.MapFile{Data: []byte("a\n")},
+			}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", map[string]string{"module": "x"}, nil)
+
+			require.ErrorContains(t, err, `unknown option "module": the starter service has no option`)
+		})
+
 		t.Run("each given value is checked, also after a value that matches", func(t *testing.T) {
 			starter := starterWith(t, map[string]string{"go/go.mod": `go {{ option "starter.go-version" }}`})
 
@@ -149,7 +175,7 @@ folders:
 				starter, err := catalog.New(withFeatures).Starter("service")
 				require.NoError(t, err)
 
-				_, err = starter.Select("my-service", nil, features)
+				_, err = starter.Select("my-service", nil, withoutValues(features...))
 
 				require.ErrorContains(t, err, strconv.Quote(features[len(features)-1]))
 				require.ErrorContains(t, err, "the features that target the starter service are cli, docs, web")
@@ -165,7 +191,7 @@ folders:
 			starter, err := catalog.New(files).Starter("lonely")
 			require.NoError(t, err)
 
-			_, err = starter.Select("my-service", nil, []string{"cli"})
+			_, err = starter.Select("my-service", nil, withoutValues("cli"))
 
 			require.ErrorContains(t, err, "no feature targets the starter lonely")
 		})
@@ -174,7 +200,7 @@ folders:
 			starter, err := catalog.New(withFeatures).Starter("service")
 			require.NoError(t, err)
 
-			_, err = starter.Select("my-service", nil, []string{"web"})
+			_, err = starter.Select("my-service", nil, withoutValues("web"))
 
 			require.ErrorContains(t, err, "the template web/index.html of the feature web")
 			require.ErrorContains(t, err, "the folders are go")
@@ -184,7 +210,7 @@ folders:
 			starter, err := catalog.New(withFeatures).Starter("service")
 			require.NoError(t, err)
 
-			selection, err := starter.Select("my-service", nil, []string{"cli"})
+			selection, err := starter.Select("my-service", nil, withoutValues("cli"))
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{"README.md": "service\n", "cli.go": "package cli\n"}, written(t, selection))
@@ -202,7 +228,7 @@ folders:
 			starter, err := catalog.New(files).Starter("service")
 			require.NoError(t, err)
 
-			_, err = starter.Select("my-service", nil, []string{"cli", "tools"})
+			_, err = starter.Select("my-service", nil, withoutValues("cli", "tools"))
 
 			require.ErrorContains(t, err, `the feature cli and the feature tools both declare the extension point "cli.commands"`)
 		})
@@ -224,7 +250,7 @@ folders:
 				starter, err := catalog.New(withExtensionPoints("  api.middleware:\n" + item)).Starter("service")
 				require.NoError(t, err)
 
-				_, err = starter.Select("my-service", nil, []string{"auth"})
+				_, err = starter.Select("my-service", nil, withoutValues("auth"))
 
 				require.ErrorContains(t, err, "the feature auth")
 				require.ErrorContains(t, err, `"api.middleware"`)
@@ -236,7 +262,7 @@ folders:
 			starter, err := catalog.New(withExtensionPoints("  docs.pages:\n    - path: auth.md\n    - path: keys.md\n      title: Keys\n")).Starter("service")
 			require.NoError(t, err)
 
-			_, err = starter.Select("my-service", nil, []string{"auth", "docs"})
+			_, err = starter.Select("my-service", nil, withoutValues("auth", "docs"))
 
 			require.ErrorContains(t, err, `the item 2 that the feature auth adds to the extension point "docs.pages" has the fields [path, title], but the extension point declares the fields [path]`)
 		})
@@ -246,7 +272,7 @@ folders:
 			files["starters/service/files/go/server.go"] = &fstest.MapFile{Data: []byte(`{{ range items "api.middleware" }}{{ .code }};{{ end }}`)}
 			starter, err := catalog.New(files).Starter("service")
 			require.NoError(t, err)
-			first, err := starter.Select("my-service", nil, []string{"auth"})
+			first, err := starter.Select("my-service", nil, withoutValues("auth"))
 			require.NoError(t, err)
 
 			second, err := starter.Select("my-service", nil, nil)
@@ -264,7 +290,7 @@ folders:
 				starter, err := catalog.New(withExtensionPoints("  " + extensionPoint + ":\n    - path: auth.md\n")).Starter("service")
 				require.NoError(t, err)
 
-				_, err = starter.Select("my-service", nil, []string{"auth"})
+				_, err = starter.Select("my-service", nil, withoutValues("auth"))
 
 				require.ErrorContains(t, err, `the feature auth adds to the extension point "`+extensionPoint+`", which neither the starter nor a selected feature declares`)
 			})
@@ -276,9 +302,176 @@ folders:
 			starter, err := catalog.New(files).Starter("service")
 			require.NoError(t, err)
 
-			_, err = starter.Select("my-service", nil, []string{"proxy"})
+			_, err = starter.Select("my-service", nil, withoutValues("proxy"))
 
 			require.ErrorContains(t, err, `the starter service and the feature proxy both declare the extension point "api.middleware"`)
+		})
+
+		withFeatureOptions := func(template string) fstest.MapFS {
+			return fstest.MapFS{
+				"starters/service/starter.yml":     &fstest.MapFile{Data: []byte("options:\n  module:\n    default: example.com/{{ .Name }}\n  app:\n    default: api\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/go.mod": &fstest.MapFile{Data: []byte(`module {{ option "starter.module" }}`)},
+				"features/auth/feature.yml":        &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [service]\nfiles:\n  - path: files/\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n  realm:\n    default: \"{{ .Name }}-api\"\n  port:\n    default: \"8080\"\n    pattern: '^[0-9]+$'\n")},
+				"features/auth/files/go/auth.txt":  &fstest.MapFile{Data: []byte(template)},
+				"features/docs/feature.yml":        &fstest.MapFile{Data: []byte("summary: Docs.\ntargets: [service]\nfiles:\n  - path: files/\noptions:\n  realm:\n    default: docs\n")},
+				"features/docs/files/go/docs.txt":  &fstest.MapFile{Data: []byte(`{{ option "realm" }}`)},
+				"features/plain/feature.yml":       &fstest.MapFile{Data: []byte("summary: Plain.\ntargets: [service]\n")},
+				"features/single/feature.yml":      &fstest.MapFile{Data: []byte("summary: Single.\ntargets: [service]\noptions:\n  mode:\n    values: [one]\n    default: one\n")},
+				"features/broken/feature.yml":      &fstest.MapFile{Data: []byte("summary: Broken.\ntargets: [service]\noptions:\n  realm:\n    default: \"{{ .Nmae }}\"\n")},
+			}
+		}
+		authTemplate := `{{ option "method" }} {{ option "realm" }} {{ option "port" }} {{ option "starter.module" }}`
+
+		t.Run("an option of a feature with no given value takes its default, and the default renders with the name", func(t *testing.T) {
+			starter, err := catalog.New(withFeatureOptions(authTemplate)).Starter("service")
+			require.NoError(t, err)
+
+			selection, err := starter.Select("my-service", nil, withoutValues("auth"))
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"go.mod": "module example.com/my-service", "auth.txt": "api-key my-service-api 8080 example.com/my-service"}, written(t, selection))
+		})
+
+		t.Run("a given value of a feature option replaces its default", func(t *testing.T) {
+			starter, err := catalog.New(withFeatureOptions(authTemplate)).Starter("service")
+			require.NoError(t, err)
+
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"auth": {"method": "oauth", "port": "9090"}})
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"go.mod": "module example.com/my-service", "auth.txt": "oauth my-service-api 9090 example.com/my-service"}, written(t, selection))
+		})
+
+		t.Run("two selected features with an option of one name each read their own value", func(t *testing.T) {
+			starter, err := catalog.New(withFeatureOptions(authTemplate)).Starter("service")
+			require.NoError(t, err)
+
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"auth": {"realm": "accounts"}, "docs": nil})
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"go.mod": "module example.com/my-service", "auth.txt": "api-key accounts 8080 example.com/my-service", "docs.txt": "docs"}, written(t, selection))
+		})
+
+		t.Run("a template of a feature reads the options of its feature also in its path", func(t *testing.T) {
+			files := withFeatureOptions(authTemplate)
+			files[`features/auth/files/go/{{ option "realm" }}/realm.txt`] = &fstest.MapFile{Data: []byte("realm\n")}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+
+			selection, err := starter.Select("my-service", nil, withoutValues("auth"))
+
+			require.NoError(t, err)
+			require.Equal(t, "realm\n", written(t, selection)["my-service-api/realm.txt"])
+		})
+
+		for name, given := range map[string]struct {
+			values  map[string]string
+			message []string
+		}{
+			"a value of a feature option that is not one of its values":   {map[string]string{"method": "basic"}, []string{"the feature auth", `"basic"`, "the option method", "api-key, oauth"}},
+			"a value of a feature option that does not match its pattern": {map[string]string{"port": "http"}, []string{"the feature auth", `"http"`, "the option port", `^[0-9]+$`}},
+			"a value for an option that the feature does not declare":     {map[string]string{"methd": "oauth"}, []string{`"methd"`, "the feature auth", "method, port, realm"}},
+			"a wrong value of a feature option after an accepted value":   {map[string]string{"method": "oauth", "port": "http"}, []string{`"http"`}},
+		} {
+			t.Run(name+" stops, and the message names the feature and the option", func(t *testing.T) {
+				starter, err := catalog.New(withFeatureOptions(authTemplate)).Starter("service")
+				require.NoError(t, err)
+
+				_, err = starter.Select("my-service", nil, map[string]map[string]string{"auth": given.values})
+
+				for _, part := range given.message {
+					require.ErrorContains(t, err, part)
+				}
+			})
+		}
+
+		t.Run("an option with one value accepts only that value", func(t *testing.T) {
+			starter, err := catalog.New(withFeatureOptions(authTemplate)).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, map[string]map[string]string{"single": {"mode": "two"}})
+
+			require.ErrorContains(t, err, `the feature single: the value "two" of the option mode is not one of its values: one`)
+		})
+
+		t.Run("a default of a feature option that fails to render stops, and the message names the option and the feature", func(t *testing.T) {
+			starter, err := catalog.New(withFeatureOptions(authTemplate)).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, withoutValues("broken"))
+
+			require.ErrorContains(t, err, "the default of the option realm of the feature broken")
+			require.ErrorContains(t, err, "Nmae")
+		})
+
+		t.Run("a default reads only the name of the repo, so option in a default of a feature stops, and the message names the option and the feature", func(t *testing.T) {
+			files := withFeatureOptions(authTemplate)
+			files["features/broken/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Broken.\ntargets: [service]\noptions:\n  realm:\n    default: '{{ option \"starter.module\" }}'\n")}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, withoutValues("broken"))
+
+			require.ErrorContains(t, err, "the default of the option realm of the feature broken")
+			require.ErrorContains(t, err, `unknown option "starter.module": the template can read no option`)
+		})
+
+		t.Run("option in a template of a starter with no option stops the write, and the message says that the template can read no option", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":    &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/a.txt": &fstest.MapFile{Data: []byte(`{{ option "starter.module" }}`)},
+			}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, nil)
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "repo")
+
+			err = selection.Write(output)
+
+			require.ErrorContains(t, err, `unknown option "starter.module": the template can read no option`)
+			require.NoDirExists(t, output)
+		})
+
+		t.Run("a value for a feature with no option stops, and the message says that the feature has no option", func(t *testing.T) {
+			starter, err := catalog.New(withFeatureOptions(authTemplate)).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, map[string]map[string]string{"plain": {"method": "oauth"}})
+
+			require.ErrorContains(t, err, `unknown option "method": the feature plain has no option`)
+		})
+
+		for _, reference := range []string{"metod", "docs.realm", "module"} {
+			t.Run("option "+strconv.Quote(reference)+" in a template of a feature stops the write, and the message names the template and lists the names that it can read", func(t *testing.T) {
+				starter, err := catalog.New(withFeatureOptions(`{{ option "` + reference + `" }}`)).Starter("service")
+				require.NoError(t, err)
+				selection, err := starter.Select("my-service", nil, withoutValues("auth", "docs"))
+				require.NoError(t, err)
+				output := filepath.Join(t.TempDir(), "repo")
+
+				err = selection.Write(output)
+
+				require.ErrorContains(t, err, "go/auth.txt of the feature auth")
+				require.ErrorContains(t, err, strconv.Quote(reference))
+				require.ErrorContains(t, err, "the template can read method, port, realm, starter.app, starter.module")
+				require.NoDirExists(t, output)
+			})
+		}
+
+		t.Run("option with the name of a feature option in a template of the starter stops the write, and the message lists the options of the starter", func(t *testing.T) {
+			files := withFeatureOptions(authTemplate)
+			files["starters/service/files/go/go.mod"] = &fstest.MapFile{Data: []byte(`module {{ option "method" }}`)}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, withoutValues("auth"))
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "repo")
+
+			err = selection.Write(output)
+
+			require.ErrorContains(t, err, "go/go.mod of the starter")
+			require.ErrorContains(t, err, `unknown option "method": the template can read starter.app, starter.module`)
 		})
 
 		t.Run("a default that fails to render stops, and the message names the option", func(t *testing.T) {
@@ -296,4 +489,12 @@ folders:
 		})
 	})
 
+}
+
+func withoutValues(featureNames ...string) map[string]map[string]string {
+	features := make(map[string]map[string]string, len(featureNames))
+	for _, featureName := range featureNames {
+		features[featureName] = nil
+	}
+	return features
 }

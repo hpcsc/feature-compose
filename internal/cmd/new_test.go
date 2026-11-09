@@ -82,6 +82,19 @@ folders:
 			}, filesIn(t, output))
 		})
 
+		t.Run("a feature given in two --feature flags is selected one time", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			_, err := runNew(t, withFeatures(), "service", "my-service", "--output-dir", output, "--feature", "docs", "--feature", "docs")
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"go.mod":        "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				"docs/index.md": "docs\n",
+			}, filesIn(t, output))
+		})
+
 		t.Run("new renders the templates of a feature with its delimiters, its extension points, githubRepository and the case functions", func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			output := filepath.Join(t.TempDir(), "my-tool")

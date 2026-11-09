@@ -269,24 +269,24 @@ option stops the selection, and the message names the option and its values. A t
 options of its own feature by their names.
 
 **Acceptance Criteria:**
-- [ ] `feature.yml` declares `options.<name>` with `default`, and `values` (a list) or `pattern`, in the form of
+- [x] `feature.yml` declares `options.<name>` with `default`, and `values` (a list) or `pattern`, in the form of
   `api-auth` in section 7 of `PROPOSAL.md`.
-- [ ] `Starter.Select` takes each selected feature with the given values of its options. A feature with no given
+- [x] `Starter.Select` takes each selected feature with the given values of its options. A feature with no given
   value is selected as in US-002. An option with no given value has its default, which renders with the name as
   the default of a starter option does.
-- [ ] A given value that is not one of the `values` of its option stops the selection before the first file is
+- [x] A given value that is not one of the `values` of its option stops the selection before the first file is
   written. The message names the feature and the option, and lists the values of the option. A given value that
   does not match the `pattern` of its option stops as for an option of the starter.
-- [ ] A given value for an option that the feature does not declare stops the selection before the first file is
+- [x] A given value for an option that the feature does not declare stops the selection before the first file is
   written. The message names the feature and the option, and lists the options of the feature, or says that it has
   none.
-- [ ] In a template of a feature, `option "<name>"` gives the value of the option `<name>` of that feature, and
+- [x] In a template of a feature, `option "<name>"` gives the value of the option `<name>` of that feature, and
   `option "starter.<name>"` gives the option of the starter as before. Two selected features with an option of one
   name each read their own value.
-- [ ] In a template of the starter, a name that is not `starter.<option>` stops the write as before. In a template
+- [x] In a template of the starter, a name that is not `starter.<option>` stops the write as before. In a template
   of a feature, a name that is neither an option of the feature nor `starter.<option>` stops the write before the
   first file is written, and the message names the template and lists the names that the template can read.
-- [ ] `new` builds and keeps its behaviour: it gives each `--feature` name to the selection with no given values.
+- [x] `new` builds and keeps its behaviour: it gives each `--feature` name to the selection with no given values.
 
 **Affected Files/Modules:**
 - `catalog/` — the options of a feature, the values of an option, the selection of features with their values,

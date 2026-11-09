@@ -13,13 +13,18 @@ import (
 type template struct {
 	catalogPath  string
 	owner        string
+	featureName  string
 	folder       folder
 	pathInFolder string
 	contents     string
 	delimiters   delimiters
 }
 
-func readTemplates(fsys fs.FS, root, owner string) ([]template, error) {
+func readTemplates(fsys fs.FS, root, featureName string) ([]template, error) {
+	owner := "the starter"
+	if featureName != "" {
+		owner = "the feature " + featureName
+	}
 	var templates []template
 	err := fs.WalkDir(fsys, root, func(name string, entry fs.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
@@ -29,7 +34,7 @@ func readTemplates(fsys fs.FS, root, owner string) ([]template, error) {
 		if err != nil {
 			return err
 		}
-		templates = append(templates, template{catalogPath: strings.TrimPrefix(name, root+"/"), owner: owner, contents: string(contents)})
+		templates = append(templates, template{catalogPath: strings.TrimPrefix(name, root+"/"), owner: owner, featureName: featureName, contents: string(contents)})
 		return nil
 	})
 	if err != nil {
@@ -58,7 +63,7 @@ func (t template) place(folders map[string]folder, rules []delimitersRule) (temp
 
 func (t template) render(s Selection) (file, error) {
 	label := t.catalogPath + " of " + t.owner
-	renderedPath, err := s.render(label, t.pathInFolder, defaultDelimiters)
+	renderedPath, err := s.render(label, t.pathInFolder, defaultDelimiters, t.featureName)
 	if err != nil {
 		return file{}, err
 	}
@@ -66,7 +71,7 @@ func (t template) render(s Selection) (file, error) {
 	if !filepath.IsLocal(filepath.FromSlash(repoPath)) {
 		return file{}, fmt.Errorf("the template %s of %s renders to %s, which is outside the output folder", t.catalogPath, t.owner, repoPath)
 	}
-	contents, err := s.render(label, t.contents, t.delimiters)
+	contents, err := s.render(label, t.contents, t.delimiters, t.featureName)
 	if err != nil {
 		return file{}, err
 	}

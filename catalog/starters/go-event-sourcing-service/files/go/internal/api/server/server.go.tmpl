@@ -14,6 +14,9 @@ import (
 	apiMiddleware "{{ option "starter.module" }}/internal/api/middleware"
 	"{{ option "starter.module" }}/internal/api/middleware/request"
 	"{{ option "starter.module" }}/internal/api/use_cases"
+{{- range unique "import" "api.middleware" }}
+	"{{ option "starter.module" }}/{{ . }}"
+{{- end }}
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -22,22 +25,30 @@ func New(name string, cfg *api.Config, pool *pgxpool.Pool, logger *slog.Logger) 
 		cfg: cfg,
 		httpServer: &http.Server{
 			Addr:    fmt.Sprintf(":%s", cfg.Port),
-			Handler: newHandler(name, pool, logger),
+			Handler: newHandler(name, cfg, pool, logger),
 		},
 		logger: logger,
 	}
 }
 
-func newHandler(name string, pool *pgxpool.Pool, logger *slog.Logger) http.Handler {
+func newHandler(name string, cfg *api.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(apiMiddleware.RequestLogger(logger, request.NewRealClock(), nil))
 
 	r.Use(middleware.Recoverer)
 
-	use_cases.Register(r, pool, logger)
+	use_cases.Register(r, protectedMiddleware(cfg), pool, logger)
 
 	return r
+}
+
+func protectedMiddleware(cfg *api.Config) []func(http.Handler) http.Handler {
+	return []func(http.Handler) http.Handler{
+{{- range items "api.middleware" }}
+		{{ .code }},
+{{- end }}
+	}
 }
 
 type Server struct {

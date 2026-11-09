@@ -3,6 +3,7 @@ package use_cases
 import (
 	"fmt"
 	"log/slog"
+	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"{{ option "starter.module" }}/internal/api/route"
@@ -16,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Register(router chi.Router, pool *pgxpool.Pool, logger *slog.Logger) {
+func Register(router chi.Router, protectedMiddleware []func(http.Handler) http.Handler, pool *pgxpool.Pool, logger *slog.Logger) {
 	var publicRoutes, protectedRoutes []*route.Route
 	for _, r := range allRoutes(pool) {
 		if r.IsPublic() {
@@ -31,10 +32,13 @@ func Register(router chi.Router, pool *pgxpool.Pool, logger *slog.Logger) {
 		logger.Info(fmt.Sprintf("registered public route %s %s", r.Method, r.Pattern))
 	}
 
-	for _, r := range protectedRoutes {
-		router.MethodFunc(r.Method, r.Pattern, r.Handler)
-		logger.Info(fmt.Sprintf("registered protected route %s %s", r.Method, r.Pattern))
-	}
+	router.Group(func(protected chi.Router) {
+		protected.Use(protectedMiddleware...)
+		for _, r := range protectedRoutes {
+			protected.MethodFunc(r.Method, r.Pattern, r.Handler)
+			logger.Info(fmt.Sprintf("registered protected route %s %s", r.Method, r.Pattern))
+		}
+	})
 }
 
 func allRoutes(pool *pgxpool.Pool) []*route.Route {

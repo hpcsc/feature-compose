@@ -370,6 +370,66 @@ func TestCatalog(t *testing.T) {
 			}
 		})
 
+		writtenWithGuard := func(t *testing.T) map[string]string {
+			t.Helper()
+			files := catalogOnDisk(t)
+			files["features/guard/feature.yml"] = &fstest.MapFile{Data: []byte(`summary: Guard.
+targets: [go-event-sourcing-service]
+add_to:
+  api.middleware:
+    - code: guard.Middleware(cfg.Guard)
+      import: internal/guard
+    - code: guard.Audit(cfg.Guard)
+      import: internal/guard
+  api.config:
+    - name: Guard
+      type: guard.Config
+      import: internal/guard
+`)}
+			starter, err := catalog.New(files).Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, withoutValues("guard"))
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+			require.NoError(t, selection.Write(output))
+			return filesIn(t, output)
+		}
+
+		t.Run("the server gives the items of api.middleware, in their order, to the protected routes, and imports their package one time", func(t *testing.T) {
+			files := writtenWithGuard(t)
+
+			require.Contains(t, files["internal/api/server/server.go"], "\t\tguard.Middleware(cfg.Guard),\n\t\tguard.Audit(cfg.Guard),\n\t}")
+			require.Equal(t, 1, strings.Count(files["internal/api/server/server.go"], `"github.com/hpcsc/my-service/internal/guard"`))
+		})
+
+		t.Run("the config of the API has a field for each item of api.config, and imports its package one time", func(t *testing.T) {
+			files := writtenWithGuard(t)
+
+			require.Contains(t, files["internal/api/config.go"], "\tGuard guard.Config\n}")
+			require.Equal(t, 1, strings.Count(files["internal/api/config.go"], `"github.com/hpcsc/my-service/internal/guard"`))
+		})
+
+		t.Run("with no item, the server gives no middleware to the protected routes, and the config has only its own fields", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			require.Contains(t, files["internal/api/server/server.go"], "return []func(http.Handler) http.Handler{\n\t}")
+			require.Contains(t, files["internal/api/server/server.go"], "\t\"github.com/hpcsc/my-service/internal/api/use_cases\"\n\t\"github.com/jackc/pgx/v5/pgxpool\"\n)")
+			require.Contains(t, files["internal/api/config.go"], "import (\n\t\"github.com/hpcsc/my-service/internal/common/config\"\n)\n")
+			require.Contains(t, files["internal/api/config.go"], "\tDB   config.DB\n}")
+		})
+
+		t.Run("no written file holds the name of an extension point, with or without items", func(t *testing.T) {
+			_, withoutItems := writtenStarter(t, nil)
+
+			for _, files := range []map[string]string{withoutItems, writtenWithGuard(t)} {
+				for path, contents := range files {
+					for _, extensionPoint := range []string{"api.middleware", "api.config"} {
+						require.NotContains(t, contents, extensionPoint, path)
+					}
+				}
+			}
+		})
+
 		writtenWithCLI := func(t *testing.T, name string, given map[string]string) (string, map[string]string) {
 			t.Helper()
 			starter, err := catalog.Embedded().Starter("go-event-sourcing-service")

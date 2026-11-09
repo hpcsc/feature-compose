@@ -1,0 +1,76 @@
+//go:build unit
+
+package use_cases_test
+
+import (
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"regexp"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"{{ option "starter.module" }}/internal/api/use_cases"
+	"github.com/stretchr/testify/require"
+)
+
+func TestRegister(t *testing.T) {
+	publicRoutes := []string{"GET /"}
+	refusingRouter := func(t *testing.T) chi.Router {
+		t.Helper()
+		refuse := func(http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusTeapot)
+			})
+		}
+		router := chi.NewRouter()
+		use_cases.Register(router, []func(http.Handler) http.Handler{refuse}, nil, slog.New(slog.DiscardHandler))
+		return router
+	}
+	statusOf := func(t *testing.T, router chi.Router, method, pattern string) int {
+		t.Helper()
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(method, regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(pattern, "x"), nil))
+		return recorder.Code
+	}
+
+	t.Run("routes", func(t *testing.T) {
+		t.Run("a request to each protected route goes through the middleware of the protected routes", func(t *testing.T) {
+			router := refusingRouter(t)
+			protected := map[string]int{}
+
+			require.NoError(t, chi.Walk(router, func(method, pattern string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+				if !slices.Contains(publicRoutes, method+" "+pattern) {
+					protected[method+" "+pattern] = statusOf(t, router, method, pattern)
+				}
+				return nil
+			}))
+
+			require.Equal(t, map[string]int{
+				"POST /accounts":                 http.StatusTeapot,
+				"POST /accounts/{id}/deposits":    http.StatusTeapot,
+				"POST /accounts/{id}/withdrawals": http.StatusTeapot,
+				"POST /accounts/{id}/close":       http.StatusTeapot,
+				"GET /accounts/{id}":              http.StatusTeapot,
+			}, protected)
+		})
+
+		t.Run("with no middleware for the protected routes, a request to a protected route gets to its handler", func(t *testing.T) {
+			router := chi.NewRouter()
+			use_cases.Register(router, nil, nil, slog.New(slog.DiscardHandler))
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, httptest.NewRequest("POST", "/accounts", strings.NewReader("{}")))
+
+			require.Equal(t, http.StatusBadRequest, recorder.Code)
+		})
+
+		t.Run("a request to a public route does not go through the middleware of the protected routes", func(t *testing.T) {
+			router := refusingRouter(t)
+
+			require.Equal(t, http.StatusOK, statusOf(t, router, "GET", "/"))
+		})
+	})
+}

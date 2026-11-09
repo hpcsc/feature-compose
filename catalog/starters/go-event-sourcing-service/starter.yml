@@ -14,6 +14,16 @@ folders:
     after_render: [go mod tidy, gofmt -w .]
     test: [task test:unit]
 
+extension_points:
+  api.middleware:
+    summary: An expression of type func(http.Handler) http.Handler, which each request to a protected route goes through. It can use cfg, the *api.Config of the API. import is the path of its package under the module.
+    file: go/internal/api/server/server.go
+    item: [code, import]
+  api.config:
+    summary: A field of api.Config, whose type the config loader reads with its env tags. import is the path of the package of its type under the module.
+    file: go/internal/api/config.go
+    item: [name, type, import]
+
 delimiters:
   - glob: "go/**/Taskfile*.yml"
     left: "[["

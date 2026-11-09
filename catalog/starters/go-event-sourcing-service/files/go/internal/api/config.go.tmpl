@@ -1,8 +1,16 @@
 package api
 
-import "{{ option "starter.module" }}/internal/common/config"
+import (
+	"{{ option "starter.module" }}/internal/common/config"
+{{- range unique "import" "api.config" }}
+	"{{ option "starter.module" }}/{{ . }}"
+{{- end }}
+)
 
 type Config struct {
 	Port string `env:"PORT" envDefault:"3333"`
 	DB   config.DB
+{{- range items "api.config" }}
+	{{ .name }} {{ .type }}
+{{- end }}
 }

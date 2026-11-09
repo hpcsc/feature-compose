@@ -372,23 +372,23 @@ config has one field for each item of `api.config`. Each file imports the packag
 item, the API accepts each request as before.
 
 **Acceptance Criteria:**
-- [ ] `starter.yml` declares `api.middleware` with `file: go/internal/api/server/server.go` and `item: [code,
+- [x] `starter.yml` declares `api.middleware` with `file: go/internal/api/server/server.go` and `item: [code,
   import]`, and `api.config` with `file: go/internal/api/config.go` and `item: [name, type, import]`. Each
   `summary` gives the contract of an item: for `api.middleware`, an expression of type
   `func(http.Handler) http.Handler` that can use `cfg`; for `api.config`, a field of the config of the API; for
   both, `import` is the path of a package under the module.
-- [ ] Written with a feature of the test that adds an item to each, `internal/api/server/server.go` applies the
+- [x] Written with a feature of the test that adds an item to each, `internal/api/server/server.go` applies the
   code of the `api.middleware` item to the protected routes, and `Config` in `internal/api/config.go` has the
   field `<name> <type>` of the `api.config` item. Each file imports `<module>/<import>` of its items one time, also
   when two items have one import.
-- [ ] The items are in the files that `Write` writes, before a folder command runs. No written file holds the name
+- [x] The items are in the files that `Write` writes, before a folder command runs. No written file holds the name
   of an extension point.
-- [ ] In a written repo, a unit test of the starter shows that a request to each protected route goes through the
+- [x] In a written repo, a unit test of the starter shows that a request to each protected route goes through the
   middleware that the server gives to the protected routes, and that a request to a public route, such as
   `GET /`, does not.
-- [ ] With no item, the written files hold no import and no field from an item, the protected routes accept a
+- [x] With no item, the written files hold no import and no field from an item, the protected routes accept a
   request with no `Authorization` header, and the test at `catalog/catalog_test.go:354-366` passes.
-- [ ] A repo written from the starter alone builds, `gofmt -l .` lists no file, and its `task test:unit` passes.
+- [x] A repo written from the starter alone builds, `gofmt -l .` lists no file, and its `task test:unit` passes.
 
 **Affected Files/Modules:**
 - `catalog/starters/go-event-sourcing-service/starter.yml` — the two extension points

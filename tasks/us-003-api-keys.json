@@ -107,7 +107,7 @@
     },
     {
       "n": 5,
-      "done": false,
+      "done": true,
       "title": "Render the items of `api.middleware` and `api.config` in the server and the config of the starter",
       "language": "Go",
       "testable": true,

@@ -444,7 +444,8 @@ can see which features I can select for a starter without knowing the names firs
 **Acceptance Criteria:**
 
 - [ ] In a terminal, `feature-compose show` opens a TUI with the list of the starters, each with its summary.
-  Typing filters the list by name.
+  `/` starts a filter on the names. While the filter is typed, each key goes to it, and Enter keeps the
+  filtered list.
 - [ ] `l` or Enter on a starter opens the view of the starter: its summary, its folders with their commands, its
   options with their defaults and their values or patterns, its extension points, and the features that target
   it. Each extension point shows its summary, its item fields, and its declarer. The list also holds the
@@ -452,7 +453,7 @@ can see which features I can select for a starter without knowing the names firs
 - [ ] `l` or Enter on a feature opens the view of the feature: its summary, its needs, its options with their
   defaults and their values or patterns, and the extension points that it declares or adds items to.
 - [ ] `j` and `k` move down and up in a list, as the arrow keys do. `h` or Esc goes back one view. `q` stops the
-  TUI from each view. The TUI writes no file.
+  TUI from each view, except while a filter is typed, where ctrl+c stops it. The TUI writes no file.
 - [ ] `feature-compose show <starter>` opens the TUI at the view of that starter. An unknown starter stops the
   command before the TUI starts, and the message lists the starters.
 - [ ] `feature-compose show --output json` prints the catalog as JSON: each starter with its summary, folders,

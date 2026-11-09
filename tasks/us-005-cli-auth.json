@@ -42,7 +42,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Name each feature that a need added in the output of `new`",
       "language": "Go",
       "testable": true,

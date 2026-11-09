@@ -23,6 +23,15 @@ type Selection struct {
 	featureValues   map[string]map[string]string
 	templates       []template
 	extensionPoints map[string]extensionPoint
+	addedByNeeds    []Need
+}
+
+func (s Selection) AddedByNeeds() []Need {
+	added := make([]Need, 0, len(s.addedByNeeds))
+	for _, need := range s.addedByNeeds {
+		added = append(added, Need{Feature: need.Feature, NeededBy: slices.Clone(need.NeededBy)})
+	}
+	return added
 }
 
 func (s Selection) Write(output string) error {

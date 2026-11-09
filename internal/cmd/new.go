@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/hpcsc/feature-compose/internal/catalog"
@@ -52,7 +53,12 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			if err := selection.RunAfterRender(ctx, output); err != nil {
 				return err
 			}
-			_, err = fmt.Fprintf(cmd.Root().Writer, "Made %s from the starter %s.\n", output, starterName)
+			var printed strings.Builder
+			for _, need := range selection.AddedByNeeds() {
+				fmt.Fprintf(&printed, "%s: needed by %s\n", need.Feature, strings.Join(need.NeededBy, ", "))
+			}
+			fmt.Fprintf(&printed, "Made %s from the starter %s.\n", output, starterName)
+			_, err = io.WriteString(cmd.Root().Writer, printed.String())
 			return err
 		}, "new needs two arguments: new <starter> <name>"),
 	}

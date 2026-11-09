@@ -254,19 +254,19 @@ needs it, with the selected features that need it. `new` prints one line for eac
 changes neither the files nor the output.
 
 **Acceptance Criteria:**
-- [ ] `new service my-service --feature x`, where `x` needs `y` and `z`, prints `y: needed by x` and
+- [x] `new service my-service --feature x`, where `x` needs `y` and `z`, prints `y: needed by x` and
   `z: needed by x`, one line each, in the order of rule 8, and then the line that names the output folder.
-- [ ] A feature that two selected features need gets one line that names both, for example `y: needed by a, b`. A
+- [x] A feature that two selected features need gets one line that names both, for example `y: needed by a, b`. A
   need of a need gets its own line, which names the feature that needs it: with `a` that needs `b`, and `b` that
   needs `c`, the lines are `b: needed by a` and `c: needed by b`.
-- [ ] A feature that a `--feature` flag names gets no line, also when a selected feature needs it. With no need in
+- [x] A feature that a `--feature` flag names gets no line, also when a selected feature needs it. With no need in
   the selection, `new` prints only the line that names the output folder, as before.
-- [ ] `Selection.AddedByNeeds` gives the same features, with the same features that need them, in the same order,
+- [x] `Selection.AddedByNeeds` gives the same features, with the same features that need them, in the same order,
   as `Need` values (decision 4).
-- [ ] `--feature a --feature b` and `--feature b --feature a`, where `a` needs `b` and both add items to one
+- [x] `--feature a --feature b` and `--feature b --feature a`, where `a` needs `b` and both add items to one
   extension point, give the same files and the same output. The two orders also give the same files and output
   when the flag of `b` gives a value of an option of `b`.
-- [ ] A need that stops `Select` (Task 1) stops `new` with the message of the catalog, and `new` makes no output
+- [x] A need that stops `Select` (Task 1) stops `new` with the message of the catalog, and `new` makes no output
   folder.
 
 **Affected Files/Modules:**

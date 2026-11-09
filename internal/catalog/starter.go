@@ -124,7 +124,7 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	if err != nil {
 		return Selection{}, err
 	}
-	return Selection{folders: s.folders, name: name, starterValues: starterValues, featureValues: featureValues, templates: templates, extensionPoints: extensionPoints}, nil
+	return Selection{folders: s.folders, name: name, starterValues: starterValues, featureValues: featureValues, templates: templates, extensionPoints: extensionPoints, addedByNeeds: s.addedByNeeds(selected, givenByFeature)}, nil
 }
 
 func (s Starter) combinations() []Combination {
@@ -240,6 +240,24 @@ func (s Starter) cycleFrom(path []string, selected map[string]feature, placed ma
 		return append(path[start:], next)
 	}
 	return s.cycleFrom(append(path, next), selected, placed)
+}
+
+func (s Starter) addedByNeeds(selected []feature, givenByFeature map[string]map[string]string) []Need {
+	var added []Need
+	for _, f := range selected {
+		if _, given := givenByFeature[f.name]; given {
+			continue
+		}
+		var neededBy []string
+		for _, other := range selected {
+			if slices.Contains(other.needs, f.name) {
+				neededBy = append(neededBy, other.name)
+			}
+		}
+		slices.Sort(neededBy)
+		added = append(added, Need{Feature: f.name, NeededBy: neededBy})
+	}
+	return added
 }
 
 func (s Starter) templatesOf(selected []feature) ([]template, error) {

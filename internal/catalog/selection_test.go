@@ -907,6 +907,58 @@ folders:
 		})
 	})
 
+	t.Run("added by needs", func(t *testing.T) {
+		selectionWith := func(t *testing.T, definitions map[string]string, given ...string) catalog.Selection {
+			t.Helper()
+			files := fstest.MapFS{
+				"starters/service/starter.yml":      oneFolder,
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			}
+			for featureName, definition := range definitions {
+				files["features/"+featureName+"/feature.yml"] = &fstest.MapFile{Data: []byte("summary: A feature.\ntargets: [service]\n" + definition)}
+			}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, withoutValues(given...))
+			require.NoError(t, err)
+			return selection
+		}
+
+		t.Run("gives each feature that a need added, each after its needs and otherwise in the order of the names, with the selected features that need it", func(t *testing.T) {
+			selection := selectionWith(t, map[string]string{"x": "needs: [z, y]\n", "y": "needs: [z]\n", "z": ""}, "x")
+
+			require.Equal(t, []catalog.Need{{Feature: "z", NeededBy: []string{"x", "y"}}, {Feature: "y", NeededBy: []string{"x"}}}, selection.AddedByNeeds())
+		})
+
+		t.Run("a need of a need names the feature that needs it", func(t *testing.T) {
+			selection := selectionWith(t, map[string]string{"a": "needs: [b]\n", "b": "needs: [c]\n", "c": ""}, "a")
+
+			require.Equal(t, []catalog.Need{{Feature: "c", NeededBy: []string{"b"}}, {Feature: "b", NeededBy: []string{"a"}}}, selection.AddedByNeeds())
+		})
+
+		t.Run("a feature that a flag gives is not in the list, also when a selected feature needs it", func(t *testing.T) {
+			selection := selectionWith(t, map[string]string{"a": "needs: [b]\n", "b": "needs: [c]\n", "c": ""}, "a", "b")
+
+			require.Equal(t, []catalog.Need{{Feature: "c", NeededBy: []string{"b"}}}, selection.AddedByNeeds())
+		})
+
+		t.Run("a change to the list that it gives does not change the next list", func(t *testing.T) {
+			selection := selectionWith(t, map[string]string{"x": "needs: [y]\n", "w": "needs: [y]\n", "y": ""}, "x", "w")
+
+			given := selection.AddedByNeeds()
+			given[0].NeededBy[0] = "changed"
+			given[0].Feature = "changed"
+
+			require.Equal(t, []catalog.Need{{Feature: "y", NeededBy: []string{"w", "x"}}}, selection.AddedByNeeds())
+		})
+
+		t.Run("a selection with no need gives no feature", func(t *testing.T) {
+			selection := selectionWith(t, map[string]string{"a": "", "b": ""}, "a", "b")
+
+			require.Empty(t, selection.AddedByNeeds())
+		})
+	})
+
 	t.Run("run tests", func(t *testing.T) {
 		t.Run("runs the test commands of each folder in that folder of the repo, in their order, with the folders in the order of their names", func(t *testing.T) {
 			t.Chdir(t.TempDir())

@@ -14,7 +14,7 @@ import (
 )
 
 type Selection struct {
-	starter         Starter
+	folders         map[string]folder
 	name            string
 	values          map[string]string
 	templates       []template
@@ -48,8 +48,8 @@ func (s Selection) Write(output string) error {
 }
 
 func (s Selection) RunAfterRender(ctx context.Context, output string) error {
-	for _, folderName := range slices.Sorted(maps.Keys(s.starter.folders)) {
-		if err := s.starter.folders[folderName].runAfterRender(ctx, output); err != nil {
+	for _, folderName := range slices.Sorted(maps.Keys(s.folders)) {
+		if err := s.folders[folderName].runAfterRender(ctx, output); err != nil {
 			return err
 		}
 	}

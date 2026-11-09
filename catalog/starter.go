@@ -115,7 +115,7 @@ func (s Starter) Select(name string, given map[string]string, featureNames []str
 	if err != nil {
 		return Selection{}, err
 	}
-	selection := Selection{starter: s, name: name, templates: templates, extensionPoints: extensionPoints}
+	selection := Selection{folders: s.folders, name: name, templates: templates, extensionPoints: extensionPoints}
 	values := make(map[string]string, len(s.options))
 	for optionName, declared := range s.options {
 		value, ok := given[optionName]

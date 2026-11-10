@@ -397,20 +397,32 @@ extension points.
 
 ## 12. The TUI
 
-When you run `new` in a terminal, a TUI asks for each answer that the arguments do not give. When you run
-`new` with no arguments, the TUI shows all six steps:
+When you run `new` in a terminal, a TUI asks for each answer that the arguments do not give. The TUI is one
+form with the look and the keys of the TUI of `show`: a header, a tree in the left pane, and the details of
+the selected row in the right pane. The tree holds all answers at one time:
 
-1. **Select the starter.** The TUI lists the starters, each with its `summary`.
-2. **Enter the name of the repo.**
-3. **Select the features.** The TUI lists only the features that target the starter, each with its
-   `summary`. You can select more than one feature.
-4. **Check the needs.** The TUI shows each feature that the tool adds because of a need, for example
-   `api-auth: needed by cli-auth`. You can go back to step 3.
-5. **Answer the options.** The TUI shows one group of questions for each feature, in the order of rule 8.
-   So a need comes before the feature that needs it. For example, `api-auth.method` comes before
-   `cli-auth.store-key`, because the `when` of `store-key` reads `method`.
-6. **Confirm.** The TUI shows the starter, the features, the options, and the files. This is the same
-   output as `--dry-run`. After you confirm, the tool writes the repo.
+- **The name of the repo.**
+- **The starter.** Enter lists the starters, each with its `summary`.
+- **The features.** Under the starter, the tree lists only the features that target it, each with its
+  `summary` in the details. You can select more than one feature. When a selected feature needs another
+  feature, the tree also selects that feature and marks it, for example `api-auth  needed by cli-auth`.
+- **The options.** Each option is under its starter or its feature, in the order of rule 8. So a need comes
+  before the feature that needs it. For example, `api-auth.method` comes before `cli-auth.store-key`,
+  because the `when` of `store-key` reads `method`. The tree shows an option only while its `when` is true.
+
+You can change any answer in any order, and the tree changes after each answer. A text option shows a
+message while its value does not match its `pattern`, and the form does not keep that value. These keys
+work in the form:
+
+| Key | Action |
+| --- | --- |
+| `j`, `k` | Move down and up, as the arrow keys do. |
+| `l`, `h` | Open and close a starter or a feature. |
+| Space | Select or clear the feature of the row. |
+| Enter | Edit the name, the starter, or the option of the row. An option with `values` lists its values. |
+| `w` | Show the same output as `--dry-run` in the right pane, and ask whether to write the repo. |
+| ctrl+d, ctrl+u | Scroll the details. |
+| `q` | Stop and write nothing. While you type a value, ctrl+c stops. |
 
 After the tool writes the repo, it prints the command that makes the same repo without the TUI:
 
@@ -421,22 +433,17 @@ feature-compose new go-event-sourcing-service my-service \
 
 These rules connect the TUI to the flags:
 
-- Flags give answers before the TUI starts, and the TUI asks only for the other answers. For example,
-  `feature-compose new chi-api my-api` starts at step 3.
-- The TUI does not ask for a value that comes from a flag or from a need. The confirm step shows that
-  value as fixed.
+- Flags give answers before the TUI starts. For example, `feature-compose new chi-api my-api` opens the
+  form with the starter and the name fixed.
+- You cannot change a value that comes from an argument, a flag, or a need. The tree marks that value as
+  fixed, and the details name its source. A feature from `--feature` stays selected, and you can select
+  more features.
 - When stdin is not a terminal, or when you give `--no-prompt`, the tool does not start the TUI. It uses
   the default of each option. If an option has no value and no default, the tool stops and names the
   option. CI uses this mode.
 
-The TUI uses [huh](https://github.com/charmbracelet/huh) 1.0.0. Scaffold uses the same library for its
-prompts.
-
-| Function of huh | Use in the TUI |
-| --- | --- |
-| `Group.WithHideFunc` | Hides an option when its `when` is false, for example `store-key` when `method` is `oauth`. |
-| `MultiSelect.OptionsFunc` | Builds the list of features from the starter of step 1. |
-| `Input.Validate` | Checks text against the `pattern` of an option, for example the Go version. |
+The TUIs of `new` and `show` use [Bubble Tea](https://github.com/charmbracelet/bubbletea) and
+[Bubbles](https://github.com/charmbracelet/bubbles), with one set of styles and keys.
 
 ## 13. The Selection File
 
@@ -549,7 +556,7 @@ files. `repo-templates` stays until each template that moves has its replacement
 | D9 | `when` uses a small expression language of its own. | Names contain `-`. |
 | D10 | The tool uses Go and `text/template`. | The starters are in Go, and `text/template` is in the standard library. |
 | D11 | `add` comes in phase 3. | The three-way merge is the largest part of the tool. |
-| D12 | The TUI uses huh. | Scaffold uses huh for the same job. Version 1.0.0 can hide a question, build a list from an earlier answer, and check text against a pattern. |
+| D12 | The TUI of `new` is one form with the look and the keys of `show`, and both TUIs use Bubble Tea and Bubbles. | A developer sees the whole selection and changes any answer in any order, and learns one set of keys for the two TUIs. huh asks one group of questions at a time, and its look and its keys differ from those of `show`. |
 
 ## 19. Open Questions
 

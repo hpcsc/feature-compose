@@ -48,6 +48,7 @@ flowchart LR
     O["US-015<br/>chi-api"]
     P["US-016<br/>go starter"]
     Q["US-017<br/>process-manager"]
+    R["US-018<br/>One form"]
 
     A --> B
     A --> C
@@ -70,16 +71,20 @@ flowchart LR
     B --> P
     C --> P
     P --> Q
+    L --> R
+    N --> R
 
     classDef critical fill:#fde68a,stroke:#b45309,stroke-width:2px,color:#1f2937
-    class A,B,C,E,J,L,M critical
+    class A,B,C,E,J,L,M,R critical
 ```
 
 All stories start from US-001. US-005 is the bottleneck: six stories wait for it, because it is the first
 story with a need, and those stories show, check, record, or ask about needs.
 
 The critical path is six stories deep: US-001, then US-002 or US-003, then US-005, US-010, US-012, and
-US-013. Build US-002 and US-003 at the same time, and start the TUI (US-010, then US-012) soon after US-005.
+US-013 or US-018. Build US-002 and US-003 at the same time, and start the TUI (US-010, then US-012) soon
+after US-005. US-018 also waits for `show` (US-014), because the form of `new` has the look and the keys of
+`show`.
 
 ## User Stories
 
@@ -367,8 +372,8 @@ options, so that I can later see which choices made the repo.
 - [ ] `new` writes `.feature-compose.yml` to the root of the repo. The file has the version of
   feature-compose, the starter, the name, the options of the starter, and each feature with its options.
 - [ ] The file holds each value that the repo uses, also a value that came from a default or from a need.
-- [ ] `requested` lists only the features that the developer named. A feature that a need added is in
-  `features` and not in `requested`.
+- [ ] `requested` lists only the features that the developer named with `--feature` or selected in the
+  TUI. A feature that only a need added is in `features` and not in `requested`.
 - [ ] The same selection gives the same file, in each order of the flags.
 
 **Context:** The catalog is a folder that the config file names (decision D8), so the version of
@@ -555,6 +560,56 @@ templates. The process manager uses the event store, so it cannot follow rule 6 
 in the starters that declare its extension points.
 
 **Depends on:** US-016
+
+### US-018: Answer the questions in one form
+
+**Goals:** G1, G2
+
+**Description:** As a developer, I want `new` to show all its answers in one form with the look of `show`,
+so that I can see the whole selection and change any answer in any order.
+
+**Acceptance Criteria:**
+
+- [ ] In a terminal, `feature-compose new` with no arguments opens one form with two panes. The form has
+  the header, the borders, the colors, and the key help of `show`. The left pane is a tree with the name of
+  the repo, the starter, the features that target the starter, and each option under its starter or its
+  feature. The right pane shows the details of the selected row.
+- [ ] `j` and `k` move down and up, as the arrow keys do. `l` and `h` open and close a starter or a
+  feature. Space selects or clears a feature. Enter edits the name, the starter, or the option of the
+  selected row. While a value is typed, each key goes to it, Enter keeps the value, and Esc drops the
+  change. ctrl+d and ctrl+u scroll the details.
+- [ ] Enter on the starter row lists the starters with their summaries. A change of the starter keeps each
+  selected feature that targets the new starter, and clears the other features.
+- [ ] When the developer selects a feature, the tree also selects each feature that it needs and marks it,
+  for example `api-auth  needed by cli-auth`. The developer cannot clear a needed feature while a feature
+  that needs it is selected. A clear of the feature also clears each feature that only its need selected.
+  The options of a need come before the options of the feature that needs it.
+- [ ] The tree shows an option only while its `when` is true, and it changes after each answer. The
+  details of an option show its default, its values or its pattern, and its source. Enter on an option
+  with `values` lists the values. A typed value that does not match the pattern shows a message, and the
+  form does not keep that value. An option whose default reads the name, for example `module`, follows the
+  name until the developer edits the option.
+- [ ] Arguments and flags give answers before the form opens. The tree marks a value from an argument, a
+  flag, or a need as fixed, and the details name its source. The developer cannot change a fixed value. A
+  feature from `--feature` stays selected, and the developer can select more features. When a feature
+  needs a value that differs from the value of a flag, the form does not select the feature, and the
+  details show the message of `new`, which names both sources.
+- [ ] `w` shows the output of `--dry-run` in the right pane and asks whether to write the repo. The tool
+  writes the repo only after the developer confirms, and Esc goes back to the form. While an answer is
+  missing, for example the name or an option with no default, `w` selects that row and the details show
+  the message. `q` stops the form and writes nothing, except while a value is typed, where ctrl+c stops it.
+- [ ] After the tool writes the repo, it prints the command that makes the same repo without the TUI, as
+  in US-012. With `--no-prompt`, with `--dry-run`, or when stdin is not a terminal, the form does not open.
+
+**Context:** The six steps of US-012 ask one answer at a time, with a look and keys of their own. To
+change an earlier answer, the developer goes back through the steps. The form shows the whole selection,
+and it uses the look and the keys of `show` (US-014), so a developer learns one set of keys for the two
+TUIs. The parts of this story ship as one, because each one changes the same screen. The first case of a
+need against a flag comes with US-007: `new --feature api-auth:method=oauth`, and then a selection of
+`cli-auth`, whose need sets `api-key`. An answer in the form does not conflict with a need, because a need
+comes before the TUI in the sources of section 8 of the proposal.
+
+**Depends on:** US-012, US-014
 
 ## Non-Goals
 

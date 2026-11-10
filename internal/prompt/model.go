@@ -20,7 +20,7 @@ import (
 var errCanceled = errors.New("you canceled new, so it wrote no file")
 
 var keys = struct {
-	scrollDown, scrollUp, move, moveButtons, toggle, next, choose, confirm, cancel key.Binding
+	scrollDown, scrollUp, move, moveButtons, toggle, next, back, choose, confirm, cancel key.Binding
 }{
 	scrollDown:  key.NewBinding(key.WithKeys("ctrl+d", "pgdown"), key.WithHelp("ctrl+d/u", "scroll")),
 	scrollUp:    key.NewBinding(key.WithKeys("ctrl+u", "pgup")),
@@ -28,23 +28,29 @@ var keys = struct {
 	moveButtons: key.NewBinding(key.WithKeys("left", "right"), key.WithHelp("←/→", "move")),
 	toggle:      key.NewBinding(key.WithKeys("x", " "), key.WithHelp("x", "select")),
 	next:        key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "next")),
+	back:        key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "back")),
 	choose:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "choose")),
 	confirm:     key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "confirm")),
 	cancel:      key.NewBinding(key.WithKeys("esc", "ctrl+c"), key.WithHelp("esc", "cancel")),
 }
 
-var titleStyle = lipgloss.NewStyle().Bold(true)
+var (
+	titleStyle   = lipgloss.NewStyle().Bold(true)
+	messageStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#D2003F", Dark: "#FF5F87"})
+)
 
 type step struct {
 	form         *huh.Form
 	keys         []key.Binding
 	showsPreview bool
+	check        func() error
 	done         func(Model) (tea.Model, tea.Cmd)
 }
 
 var _ tea.Model = Model{}
 
 type Model struct {
+	starterName    string
 	starter        catalog.Starter
 	features       map[string]catalog.FeatureDefinition
 	name           string
@@ -78,9 +84,12 @@ func New(c catalog.Catalog, starterName, name string, given map[string]string, g
 	if err != nil {
 		return Model{}, err
 	}
-	m := Model{starter: starter, features: forStarter.Features, name: name, given: given, givenByFeature: givenByFeature, selection: selection, help: help.New()}
-	if len(givenByFeature) == 0 && len(m.features) > 0 {
+	m := Model{starterName: starterName, starter: starter, features: forStarter.Features, name: name, given: given, givenByFeature: givenByFeature, selection: selection, help: help.New()}
+	switch {
+	case len(givenByFeature) == 0 && len(m.features) > 0:
 		return m.atFeatures(), nil
+	case len(selection.Questions()) > 0:
+		return m.atOptions(), nil
 	}
 	return m.atConfirm()
 }
@@ -123,6 +132,11 @@ func (m Model) View() string {
 	}
 	m.help.Width = m.width - lipgloss.Width(percent) - 1
 	footer := percent + " " + m.help.ShortHelpView(m.step.keys)
+	if m.step.check != nil {
+		if err := m.step.check(); err != nil {
+			footer = messageStyle.Width(m.width).Render(err.Error()) + "\n" + footer
+		}
+	}
 	if !m.step.showsPreview {
 		return strings.Join([]string{titleStyle.Render("feature-compose new"), "", m.step.form.View(), footer}, "\n")
 	}
@@ -162,7 +176,7 @@ func (m Model) withFeatures(answered []string) (tea.Model, tea.Cmd) {
 	if len(selection.AddedByNeeds()) > 0 {
 		return m.atNeeds().started()
 	}
-	return m.atConfirmOrEnded()
+	return m.atOptionsOrConfirm()
 }
 
 func (m Model) atNeeds() Model {
@@ -184,12 +198,79 @@ func (m Model) atNeeds() Model {
 		keys: []key.Binding{keys.move, keys.choose, keys.cancel},
 		done: func(m Model) (tea.Model, tea.Cmd) {
 			if goOn {
-				return m.atConfirmOrEnded()
+				return m.atOptionsOrConfirm()
 			}
 			return m.atFeatures().started()
 		},
 	}
 	return m
+}
+
+func (m Model) atOptionsOrConfirm() (tea.Model, tea.Cmd) {
+	if len(m.selection.Questions()) > 0 {
+		return m.atOptions().started()
+	}
+	return m.atConfirmOrEnded()
+}
+
+func (m Model) atOptions() Model {
+	questions := m.selection.Questions()
+	values := make([]string, len(questions))
+	for i, q := range questions {
+		values[i] = q.Default
+	}
+	return m.atOptionsOf(questions, values, 0)
+}
+
+func (m Model) atOptionsOf(questions []catalog.Question, values []string, start int) Model {
+	end := start
+	for end < len(questions) && questions[end].Declarer() == questions[start].Declarer() {
+		end++
+	}
+	var fields []huh.Field
+	for i := start; i < end; i++ {
+		if len(questions[i].Accepted) > 0 {
+			// huh scrolls the list to the option of the value when Options runs, so Value comes first.
+			fields = append(fields, huh.NewSelect[string]().Title(questions[i].Option).Value(&values[i]).Options(huh.NewOptions(m.defaultFirst(questions[i])...)...).Validate(questions[i].Check))
+		} else {
+			fields = append(fields, huh.NewInput().Title(questions[i].Option).Value(&values[i]).Validate(questions[i].Check))
+		}
+	}
+	// huh sizes every group of a form when its first group starts, so each declarer gets a form of its own.
+	form := huh.NewForm(huh.NewGroup(fields...).Title("The options of " + questions[start].Declarer())).WithShowHelp(false).WithShowErrors(false)
+	m.step = step{
+		form: form,
+		keys: []key.Binding{keys.move, keys.next, keys.back, keys.cancel},
+		check: func() error {
+			i := start + slices.Index(fields, form.GetFocusedField())
+			return questions[i].Check(values[i])
+		},
+		done: func(m Model) (tea.Model, tea.Cmd) {
+			if end < len(questions) {
+				return m.atOptionsOf(questions, values, end).started()
+			}
+			return m.withOptions(questions, values)
+		},
+	}
+	return m
+}
+
+// huh scrolls a list to its chosen option, which hides each value above it.
+func (m Model) defaultFirst(q catalog.Question) []string {
+	if !slices.Contains(q.Accepted, q.Default) {
+		return q.Accepted
+	}
+	return append([]string{q.Default}, slices.DeleteFunc(slices.Clone(q.Accepted), func(value string) bool { return value == q.Default })...)
+}
+
+func (m Model) withOptions(questions []catalog.Question, values []string) (tea.Model, tea.Cmd) {
+	m.answers = m.answers.WithValues(questions, values)
+	selection, err := m.starter.Select(m.name, m.given, m.givenByFeature, m.answers)
+	if err != nil {
+		return m.ended(err)
+	}
+	m.selection = selection
+	return m.atConfirmOrEnded()
 }
 
 func (m Model) atConfirmOrEnded() (tea.Model, tea.Cmd) {

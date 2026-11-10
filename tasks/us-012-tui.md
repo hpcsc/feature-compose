@@ -672,29 +672,29 @@ confirm step, and the printed command names each answer that is not its default.
 asked, and shows `command line`.
 
 **Acceptance Criteria:**
-- [ ] The options step shows a group for the options of the starter, whose title names the starter, and then one
+- [x] The options step shows a group for the options of the starter, whose title names the starter, and then one
   group for each feature with a question, whose title names the feature, in the order of rule 8: with a catalog where
   the feature `alpha` needs `zed` and both have options, the group of `zed` comes before the group of `alpha`.
-- [ ] Each option is asked one time, also when two selected features need its feature.
-- [ ] An option that `--option` or `--feature` gives is not asked, and the confirm step shows its value with
+- [x] Each option is asked one time, also when two selected features need its feature.
+- [x] An option that `--option` or `--feature` gives is not asked, and the confirm step shows its value with
   `command line`. A group with no question is not shown, and with no question at all the TUI goes on to the confirm
   step.
-- [ ] An option with `values` shows each value, with its default chosen at the start, and the chosen value is the
+- [x] An option with `values` shows each value, with its default chosen at the start, and the chosen value is the
   answer.
-- [ ] A text option starts with its default rendered with the name of the repo. While its value does not match its
+- [x] A text option starts with its default rendered with the name of the repo. While its value does not match its
   pattern, the TUI shows a message that names the option and the pattern, and Enter keeps the TUI at that option. When
   the value matches, the message goes away, and Enter accepts the value. An option with no default starts empty, and
   the TUI does not accept the empty text. A value with a comma for an option of a feature is not accepted, and the
   message says why.
-- [ ] The confirm step shows each value that the developer gave in the TUI with `(answered)`, also a default that the
+- [x] The confirm step shows each value that the developer gave in the TUI with `(answered)`, also a default that the
   developer accepted.
-- [ ] Esc and ctrl+c are a cancel at the options step.
-- [ ] After "Yes", the printed command names each answered value that is not its default.
-- [ ] The tests of `internal/prompt` drive the options step through `Update` and `View` with a catalog of their own.
-- [ ] The section "Answer the Questions in a TUI" of `README.md` tells the options step, its groups and their order,
+- [x] Esc and ctrl+c are a cancel at the options step.
+- [x] After "Yes", the printed command names each answered value that is not its default.
+- [x] The tests of `internal/prompt` drive the options step through `Update` and `View` with a catalog of their own.
+- [x] The section "Answer the Questions in a TUI" of `README.md` tells the options step, its groups and their order,
   the check of a text, and that a flag answers an option before the TUI starts. The table of the sources of an option
   in "Preview a Repo" has `answered`.
-- [ ] `e2e/tests/new.test.ts`, in a terminal: `new go-event-sourcing-service my-service --feature cli-auth` shows the
+- [x] `e2e/tests/new.test.ts`, in a terminal: `new go-event-sourcing-service my-service --feature cli-auth` shows the
   group of `go-event-sourcing-service` with `go-version` at `1.27.1` and `module` at `github.com/hpcsc/my-service`, and
   then the group of `api-auth` with `method`. A `go-version` of `1.20` shows the pattern
   `^1\.(2[7-9]|[3-9][0-9])(\.[0-9]+)?$` on the screen, and Enter stays at `go-version`. A `go-version` of `1.28`, and

@@ -608,7 +608,7 @@ folders:
 			t.Chdir(t.TempDir())
 			output := filepath.Join(t.TempDir(), "my-service")
 
-			screen, err := runInTerminal(t, withFeatures(), "y", "service", "my-service", "--output-dir", output, "--feature", "cli")
+			screen, err := runInTerminal(t, withFeatures(), "y", "service", "my-service", "--output-dir", output, "--feature", "cli", "--option", "go-version=1.27.1", "--option", "module=github.com/hpcsc/my-service")
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{"go.mod": "module github.com/hpcsc/my-service\ngo 1.27.1\n", "cmd/my-service/main.go": "package main // my-service\n"}, filesIn(t, output))
@@ -619,7 +619,7 @@ folders:
 			t.Chdir(t.TempDir())
 			output := filepath.Join(t.TempDir(), "my-service")
 
-			screen, err := runInTerminal(t, withFeatures(), "n", "service", "my-service", "--output-dir", output, "--feature", "cli")
+			screen, err := runInTerminal(t, withFeatures(), "n", "service", "my-service", "--output-dir", output, "--feature", "cli", "--option", "go-version=1.27.1", "--option", "module=github.com/hpcsc/my-service")
 
 			require.EqualError(t, err, "you canceled new, so it wrote no file")
 			require.Contains(t, screen, "Write the repo?")

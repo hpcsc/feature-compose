@@ -87,6 +87,7 @@ above. Each option shows the value that the templates read, and its source:
 | Source | Meaning |
 | --- | --- |
 | `command line` | `--option <name>=<value>` or `--feature <name>:<option>=<value>` gives the value, also when it is the same as the default. |
+| `answered` | You give the value in the TUI, also when you keep the default. `--dry-run` starts no TUI, so it never shows this source. |
 | `default` | No flag gives the value, so the option has its default. A default that holds `{{ .Name }}` shows with the name of the repo. |
 
 Last, the preview gives each file of the repo by its path, in the order of the paths, with its owner: the starter,
@@ -120,7 +121,22 @@ feature step with your features still selected.
 
 A `--feature` flag answers the feature step, so the TUI then shows neither the feature step nor the needs step. For
 example, `feature-compose new go-event-sourcing-service my-service` starts at the feature step, and
-`feature-compose new go-event-sourcing-service my-service --feature cli` starts at the confirm step.
+`feature-compose new go-event-sourcing-service my-service --feature cli` starts at the options step, because no flag
+gives the options of the starter.
+
+**The options step** comes next. It asks each option that no `--option` or `--feature` flag gives, in one group for
+the options of the starter and then one group for each feature with such an option. The groups of the features come
+in the order of the preview, so a need comes before the feature that needs it, and the TUI asks each option one
+time. A text option starts with its default, and an option with `values` starts with its default chosen, above the
+other values. While a text does not match the `pattern` of its option, the TUI shows the message under the group,
+and `enter` does not go on. The TUI also does not accept the empty text for an option with no default, or a comma
+in a value of an option of a feature, because `--feature` cannot give that value.
+
+| Key | Action |
+| --- | --- |
+| `↑` or `↓` | Choose a value of an option with `values`. |
+| `enter` | Go to the next option, or to the next group. |
+| `shift+tab` | Go back to the option before, in the same group. |
 
 **The confirm step** shows the preview of the repo, which is the text that `--dry-run` prints, and asks whether to
 write the repo:
@@ -143,7 +159,7 @@ Features:
 ```
 
 A feature or a value that a flag gives shows the source `command line`. The flag fixes it, and the TUI does not ask
-for it. A feature that you select in the TUI shows the source `answered`.
+for it. A feature that you select in the TUI, and a value that you give in the TUI, show the source `answered`.
 
 | Key | Action |
 | --- | --- |

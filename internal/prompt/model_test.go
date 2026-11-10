@@ -35,6 +35,7 @@ func TestModel(t *testing.T) {
 		return files
 	}
 	withCLI := func() map[string]map[string]string { return map[string]map[string]string{"cli": {}} }
+	withRegion := func() map[string]string { return map[string]string{"region": "eu"} }
 	withNeeds := func() fstest.MapFS {
 		return fstest.MapFS{
 			"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n")},
@@ -97,15 +98,15 @@ func TestModel(t *testing.T) {
 		t.Run("shows the percent only while a line of the preview is out of the screen", func(t *testing.T) {
 			fits := 0
 			for height := 10; height < 40 && fits == 0; height++ {
-				screen := screenOf(confirmStep(t, withFeatures(), nil, withCLI(), height))
+				screen := screenOf(confirmStep(t, withFeatures(), withRegion(), withCLI(), height))
 				if strings.Contains(screen, "Repo: my-service") && strings.Contains(screen, "  main.go: the starter") {
 					fits = height
 				}
 			}
 			require.NotZero(t, fits)
 
-			require.NotContains(t, lastLineOf(confirmStep(t, withFeatures(), nil, withCLI(), fits)), "%")
-			require.Contains(t, lastLineOf(confirmStep(t, withFeatures(), nil, withCLI(), fits-1)), "0% ·")
+			require.NotContains(t, lastLineOf(confirmStep(t, withFeatures(), withRegion(), withCLI(), fits)), "%")
+			require.Contains(t, lastLineOf(confirmStep(t, withFeatures(), withRegion(), withCLI(), fits-1)), "0% ·")
 		})
 
 		t.Run("fills the rows of the terminal, and cuts each line of the preview at its width", func(t *testing.T) {
@@ -138,7 +139,7 @@ func TestModel(t *testing.T) {
 
 			require.Equal(t, " 0% · ctrl+d/u scroll • ←/→ move • enter confirm • esc cancel", lastLineOf(m))
 			require.Equal(t, " 100% · ctrl+d/u scroll • ←/→ move • enter confirm …", lastLineOf(pressed(m, "ctrl+d", "ctrl+d", "ctrl+d", "ctrl+d", "ctrl+d")))
-			require.Equal(t, " ctrl+d/u scroll • ←/→ move • enter confirm • esc cancel", lastLineOf(confirmStep(t, withFeatures(), nil, withCLI(), 40)))
+			require.Equal(t, " ctrl+d/u scroll • ←/→ move • enter confirm • esc cancel", lastLineOf(confirmStep(t, withFeatures(), withRegion(), withCLI(), 40)))
 		})
 
 		for name, keys := range map[string][]string{
@@ -175,13 +176,13 @@ func TestModel(t *testing.T) {
 		}
 
 		t.Run("a template that fails to render stops the TUI before it starts when flags answer the steps before the confirm step, with the message of the preview", func(t *testing.T) {
-			_, err := prompt.New(catalog.New(withBadTemplate()), "service", "my-service", nil, withCLI())
+			_, err := prompt.New(catalog.New(withBadTemplate()), "service", "my-service", withRegion(), withCLI())
 
 			require.EqualError(t, err, previewErrOf(t, withBadTemplate()).Error())
 		})
 
 		t.Run("a template that fails to render ends the TUI after the feature step, with the message of the preview", func(t *testing.T) {
-			m, err := prompt.New(catalog.New(withBadTemplate()), "service", "my-service", nil, nil)
+			m, err := prompt.New(catalog.New(withBadTemplate()), "service", "my-service", withRegion(), nil)
 			require.NoError(t, err)
 
 			ended, quit := pressedAndQuit(started(m, 100, 40), "enter")
@@ -375,6 +376,159 @@ func TestModel(t *testing.T) {
 		})
 	})
 
+	t.Run("options", func(t *testing.T) {
+		withOptions := func() fstest.MapFS {
+			return fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\noptions:\n  module:\n    default: example.com/{{ .Name }}\n  go-version:\n    default: \"1.27.1\"\n    pattern: '^1\\.(2[7-9])(\\.[0-9]+)?$'\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"features/alpha/feature.yml":        &fstest.MapFile{Data: []byte("summary: Alpha.\ntargets: [service]\nneeds: [zed]\noptions:\n  level:\n    default: \"1\"\n")},
+				"features/beta/feature.yml":         &fstest.MapFile{Data: []byte("summary: Beta.\ntargets: [service]\nneeds: [zed]\n")},
+				"features/solo/feature.yml":         &fstest.MapFile{Data: []byte("summary: Solo.\ntargets: [service]\noptions:\n  size:\n    values: [s, m]\n")},
+				"features/uno/feature.yml":          &fstest.MapFile{Data: []byte("summary: Uno.\ntargets: [service]\noptions:\n  kind:\n    values: [only]\n    default: only\n")},
+				"features/zed/feature.yml":          &fstest.MapFile{Data: []byte("summary: Zed.\ntargets: [service]\noptions:\n  mode:\n    values: [slow, fast]\n    default: fast\n  token:\n    pattern: '^.*$'\n")},
+			}
+		}
+		optionsStep := func(t *testing.T, given map[string]string, givenByFeature map[string]map[string]string) prompt.Model {
+			t.Helper()
+			m, err := prompt.New(catalog.New(withOptions()), "service", "my-service", given, givenByFeature)
+			require.NoError(t, err)
+			return started(m, 160, 40)
+		}
+		alphaAndBeta := func() map[string]map[string]string { return map[string]map[string]string{"alpha": {}, "beta": {}} }
+
+		t.Run("shows a group for the options of the starter first, with each text option at its default rendered with the name", func(t *testing.T) {
+			require.Equal(t, `feature-compose new
+
+The options of the starter service
+┃ go-version
+┃ > 1.27.1
+
+  module
+  > example.com/my-service
+ ↑/↓ move • enter next • shift+tab back • esc cancel`, screenOf(optionsStep(t, nil, alphaAndBeta())))
+		})
+
+		t.Run("shows one group for each feature with a question, each after the features that it needs, and each option one time, also when two selected features need its feature", func(t *testing.T) {
+			var titles []string
+			m := optionsStep(t, nil, alphaAndBeta())
+			for _, keys := range [][]string{{"enter", "enter"}, {"enter", "t", "enter"}, {"enter"}} {
+				titles = append(titles, groupTitleOf(m))
+				m = pressed(m, keys...)
+			}
+
+			require.Equal(t, []string{"The options of the starter service", "The options of the feature zed", "The options of the feature alpha"}, titles)
+			require.Contains(t, screenOf(m), "Write the repo?")
+		})
+
+		t.Run("an option with values shows each value with the default first and chosen, and the chosen value is the answer", func(t *testing.T) {
+			zed := pressed(optionsStep(t, nil, map[string]map[string]string{"zed": {}}), "enter", "enter")
+			require.Contains(t, screenOf(zed), "┃ mode\n┃ > fast\n┃   slow\n\n")
+
+			screen := screenOf(pressed(zed, "down", "enter", "t", "enter"))
+
+			require.Contains(t, screen, "  zed.mode: slow (answered)\n")
+		})
+
+		t.Run("while a text does not match the pattern of its option, the TUI shows the message and enter keeps it at the option, and a text that matches goes on", func(t *testing.T) {
+			typed := pressed(optionsStep(t, nil, map[string]map[string]string{"alpha": {}}), "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "1.20")
+			message := `the starter service: the value "1.20" of the option go-version does not match its pattern ^1\.(2[7-9])(\.[0-9]+)?$`
+			require.Contains(t, screenOf(typed), message)
+
+			stayed := pressed(typed, "enter")
+			require.Contains(t, screenOf(stayed), "┃ > 1.20")
+			require.Contains(t, screenOf(stayed), message)
+
+			fixed := pressed(stayed, "backspace", "8")
+			require.NotContains(t, screenOf(fixed), "does not match")
+			screen := screenOf(pressed(fixed, "enter", "enter", "enter", "t", "enter", "enter"))
+			require.Contains(t, screen, "  starter.go-version: 1.28 (answered)\n")
+		})
+
+		for name, test := range map[string]struct{ typed, message string }{
+			"the empty text for an option with no default": {typed: "", message: "the option token of the feature zed has no default, so it needs a value"},
+			"a comma in a value of an option of a feature": {typed: "a,b", message: `the value "a,b" of the option token of the feature zed holds a comma, which --feature cannot give`},
+		} {
+			t.Run("the TUI does not accept "+name+", and shows the message", func(t *testing.T) {
+				token := pressed(optionsStep(t, nil, map[string]map[string]string{"zed": {}}), "enter", "enter", "enter")
+				typed := pressed(token, test.typed)
+
+				stayed := pressed(typed, "enter")
+
+				require.Contains(t, screenOf(stayed), test.message)
+				require.Equal(t, "The options of the feature zed", groupTitleOf(stayed))
+				require.NotContains(t, screenOf(stayed), "Write the repo?")
+			})
+		}
+
+		t.Run("an option that a flag gives is not asked, and the confirm step shows it with command line and each answer with answered, also a default that the developer accepted", func(t *testing.T) {
+			m := optionsStep(t, map[string]string{"go-version": "1.28"}, map[string]map[string]string{"zed": {"token": "x"}, "alpha": {}})
+			require.NotContains(t, screenOf(m), "go-version")
+
+			screen := screenOf(pressed(m, "enter", "enter", "enter"))
+
+			require.Contains(t, screen, `Options:
+  starter.go-version: 1.28 (command line)
+  starter.module: example.com/my-service (answered)
+  zed.mode: fast (answered)
+  zed.token: x (command line)
+  alpha.level: 1 (answered)
+`)
+		})
+
+		t.Run("an option with values and no default shows its values in the order of the file, and the first one is the answer of enter", func(t *testing.T) {
+			solo := optionsStep(t, map[string]string{"go-version": "1.28", "module": "example.com/a"}, map[string]map[string]string{"solo": {}})
+			require.Contains(t, screenOf(solo), "┃ size\n┃ > s\n┃   m\n")
+
+			screen := screenOf(pressed(solo, "enter"))
+
+			require.Contains(t, screen, "  solo.size: s (answered)\n")
+		})
+
+		t.Run("an option with one value is a list, so a typed letter does not change its value", func(t *testing.T) {
+			uno := optionsStep(t, map[string]string{"go-version": "1.28", "module": "example.com/a"}, map[string]map[string]string{"uno": {}})
+
+			screen := screenOf(pressed(uno, "x", "enter"))
+
+			require.Contains(t, screen, "  uno.kind: only (answered)\n")
+		})
+
+		t.Run("one question is asked, at the start and after the feature step", func(t *testing.T) {
+			starterValues := map[string]string{"go-version": "1.28", "module": "example.com/a"}
+			atStart := optionsStep(t, map[string]string{"go-version": "1.28"}, map[string]map[string]string{"solo": {"size": "m"}})
+			m, err := prompt.New(catalog.New(withOptions()), "service", "my-service", starterValues, nil)
+			require.NoError(t, err)
+
+			afterFeatures := pressed(started(m, 160, 40), "down", "down", "x", "enter")
+
+			require.Equal(t, "The options of the starter service", groupTitleOf(atStart))
+			require.Equal(t, "The options of the feature solo", groupTitleOf(afterFeatures))
+		})
+
+		t.Run("with no question, the TUI goes on to the confirm step", func(t *testing.T) {
+			m := optionsStep(t, map[string]string{"go-version": "1.28", "module": "example.com/a"}, map[string]map[string]string{"zed": {"token": "x", "mode": "slow"}})
+
+			require.Contains(t, screenOf(m), "Write the repo?")
+		})
+
+		t.Run("after the feature step, the options step asks the options of the starter and of the selected features", func(t *testing.T) {
+			m, err := prompt.New(catalog.New(withOptions()), "service", "my-service", map[string]string{"go-version": "1.28", "module": "example.com/a"}, nil)
+			require.NoError(t, err)
+
+			options := pressed(started(m, 100, 40), "down", "x", "enter", "enter")
+
+			require.Equal(t, "The options of the feature zed", groupTitleOf(options))
+		})
+
+		t.Run("after yes, the selection holds each answer, and its arguments name each answer that is not its default", func(t *testing.T) {
+			confirmed, quit := pressedAndQuit(optionsStep(t, nil, map[string]map[string]string{"zed": {}}), "enter", "enter", "down", "enter", "t", "enter", "y")
+
+			require.True(t, quit)
+			selection, err := confirmed.Confirmed()
+			require.NoError(t, err)
+			require.Equal(t, "service my-service --feature zed:mode=slow,token=t", selection.Arguments("my-service"))
+		})
+	})
+
 	t.Run("cancel", func(t *testing.T) {
 		for name, keys := range map[string][]string{
 			"n":                     {"n"},
@@ -385,7 +539,7 @@ func TestModel(t *testing.T) {
 			"ctrl+c after a scroll": {"pgdown", "ctrl+c"},
 		} {
 			t.Run(name+" at the confirm step stops the TUI and gives the cancel, with no selection", func(t *testing.T) {
-				m := confirmStep(t, withFeatures(), nil, withCLI(), 40)
+				m := confirmStep(t, withFeatures(), withRegion(), withCLI(), 40)
 
 				canceled, quit := pressedAndQuit(m, keys...)
 
@@ -410,8 +564,24 @@ func TestModel(t *testing.T) {
 			})
 		}
 
+		for name, keys := range map[string][]string{
+			"esc at the options step":    {"esc"},
+			"ctrl+c at the options step": {"a", "ctrl+c"},
+		} {
+			t.Run(name+" stops the TUI and gives the cancel", func(t *testing.T) {
+				m, err := prompt.New(catalog.New(withFeatures()), "service", "my-service", nil, withCLI())
+				require.NoError(t, err)
+
+				canceled, quit := pressedAndQuit(started(m, 100, 40), keys...)
+
+				require.True(t, quit)
+				_, err = canceled.Confirmed()
+				require.EqualError(t, err, "you canceled new, so it wrote no file")
+			})
+		}
+
 		t.Run("a TUI that stops before an answer gives the cancel", func(t *testing.T) {
-			m := confirmStep(t, withFeatures(), nil, withCLI(), 40)
+			m := confirmStep(t, withFeatures(), withRegion(), withCLI(), 40)
 
 			_, err := m.Confirmed()
 
@@ -434,6 +604,15 @@ func screenOf(m prompt.Model) string {
 		lines[i] = strings.TrimRight(line, " ")
 	}
 	return strings.Join(lines, "\n")
+}
+
+func groupTitleOf(m prompt.Model) string {
+	for _, line := range strings.Split(screenOf(m), "\n") {
+		if title, ok := strings.CutPrefix(line, "The options of "); ok {
+			return "The options of " + title
+		}
+	}
+	return ""
 }
 
 func lastLineOf(m prompt.Model) string {

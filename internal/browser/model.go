@@ -180,7 +180,7 @@ func (m Model) View() string {
 	if m.details.TotalLineCount() > m.details.Height {
 		detailsPane.Note = fmt.Sprintf("%d%%", int(m.details.ScrollPercent()*100))
 	}
-	return screen.Header("feature-compose show", counted(len(m.definitions.Starters), "starter")+" · "+counted(len(m.definitions.Features), "feature"), m.width) + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, treePane.View(), detailsPane.View()) + "\n" + m.footer()
+	return screen.Header("feature-compose show", screen.Counted(len(m.definitions.Starters), "starter")+" · "+screen.Counted(len(m.definitions.Features), "feature"), m.width) + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, treePane.View(), detailsPane.View()) + "\n" + m.footer()
 }
 
 func (m Model) detailsTitle() string {
@@ -206,11 +206,4 @@ func (m Model) footer() string {
 		bindings = append([]key.Binding{keys.clearFilter}, bindings...)
 	}
 	return " " + m.help.ShortHelpView(bindings)
-}
-
-func counted(n int, noun string) string {
-	if n == 1 {
-		return fmt.Sprintf("1 %s", noun)
-	}
-	return fmt.Sprintf("%d %ss", n, noun)
 }

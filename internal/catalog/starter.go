@@ -122,6 +122,18 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	}, nil
 }
 
+func (s Starter) FeatureNames() ([]string, error) {
+	ordered, err := s.inNeedsOrder(s.features)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(ordered))
+	for _, f := range ordered {
+		names = append(names, f.name)
+	}
+	return names, nil
+}
+
 func (s Starter) combinations() []Combination {
 	starterDefaults := s.options.defaultsOfOptionsWithValues()
 	combinations := []Combination{{StarterName: s.name, StarterValues: starterDefaults}}
@@ -213,7 +225,7 @@ func (s Starter) inNeedsOrder(selected map[string]feature) ([]feature, error) {
 	placed := map[string]bool{}
 	for len(ordered) < len(selected) {
 		next := slices.IndexFunc(names, func(featureName string) bool {
-			return !placed[featureName] && !slices.ContainsFunc(selected[featureName].needs, func(need string) bool { return !placed[need] })
+			return !placed[featureName] && !slices.ContainsFunc(selected[featureName].needs, func(need string) bool { return s.isPending(need, selected, placed) })
 		})
 		if next < 0 {
 			return nil, s.needsCycle(selected, placed)
@@ -232,11 +244,16 @@ func (s Starter) needsCycle(selected map[string]feature, placed map[string]bool)
 
 func (s Starter) cycleFrom(path []string, selected map[string]feature, placed map[string]bool) []string {
 	needs := selected[path[len(path)-1]].needs
-	next := needs[slices.IndexFunc(needs, func(need string) bool { return !placed[need] })]
+	next := needs[slices.IndexFunc(needs, func(need string) bool { return s.isPending(need, selected, placed) })]
 	if start := slices.Index(path, next); start >= 0 {
 		return append(path[start:], next)
 	}
 	return s.cycleFrom(append(path, next), selected, placed)
+}
+
+func (s Starter) isPending(need string, selected map[string]feature, placed map[string]bool) bool {
+	_, isSelected := selected[need]
+	return isSelected && !placed[need]
 }
 
 func (s Starter) checkAnsweredFeatures(selected []feature, featureValues map[string]map[string]string) error {

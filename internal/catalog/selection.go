@@ -46,6 +46,14 @@ func (s Selection) AddedByNeeds() []Need {
 	return added
 }
 
+func (s Selection) Holds(featureName string) bool {
+	return slices.ContainsFunc(s.features, func(f selectedFeature) bool { return f.name == featureName })
+}
+
+func (s Selection) NeededBy(featureName string) []string {
+	return slices.Clone(s.feature(featureName).neededBy)
+}
+
 func (s Selection) Write(output string) error {
 	files, err := s.files()
 	if err != nil {

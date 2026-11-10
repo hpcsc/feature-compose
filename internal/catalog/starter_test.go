@@ -35,6 +35,18 @@ folders:
 		require.NoError(t, err)
 		return starter
 	}
+	withNeeds := func(definitions map[string]string) fstest.MapFS {
+		files := fstest.MapFS{
+			"starters/service/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    summary: A middleware.\n    file: go/server.go\n    item: [code]\n")},
+			"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range items "api.middleware" }}{{ .code }};{{ end }}`)},
+		}
+		for featureName, definition := range definitions {
+			files["features/"+featureName+"/feature.yml"] = &fstest.MapFile{Data: []byte("summary: A feature.\ntargets: [service]\nfiles:\n  - path: files/\nadd_to:\n  api.middleware:\n    - code: " + featureName + "\n" + definition)}
+			files["features/"+featureName+"/files/go/"+featureName+".txt"] = &fstest.MapFile{Data: []byte(featureName)}
+		}
+		return files
+	}
+
 	written := func(t *testing.T, selection catalog.Selection) map[string]string {
 		t.Helper()
 		output := filepath.Join(t.TempDir(), "repo")
@@ -643,18 +655,6 @@ folders:
 			require.ErrorContains(t, err, "Nmae")
 		})
 
-		withNeeds := func(definitions map[string]string) fstest.MapFS {
-			files := fstest.MapFS{
-				"starters/service/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    summary: A middleware.\n    file: go/server.go\n    item: [code]\n")},
-				"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range items "api.middleware" }}{{ .code }};{{ end }}`)},
-			}
-			for featureName, definition := range definitions {
-				files["features/"+featureName+"/feature.yml"] = &fstest.MapFile{Data: []byte("summary: A feature.\ntargets: [service]\nfiles:\n  - path: files/\nadd_to:\n  api.middleware:\n    - code: " + featureName + "\n" + definition)}
-				files["features/"+featureName+"/files/go/"+featureName+".txt"] = &fstest.MapFile{Data: []byte(featureName)}
-			}
-			return files
-		}
-
 		t.Run("a feature selects its needs and the needs of its needs, with their files and their items", func(t *testing.T) {
 			starter, err := catalog.New(withNeeds(map[string]string{"app": "needs: [mid, side]\n", "mid": "needs: [base]\n", "base": "", "side": "", "other": ""})).Starter("service")
 			require.NoError(t, err)
@@ -772,6 +772,38 @@ folders:
 		})
 	})
 
+	t.Run("feature names", func(t *testing.T) {
+		t.Run("the feature names give each feature of the starter after the features that it needs, and otherwise in the order of the names", func(t *testing.T) {
+			files := withNeeds(map[string]string{"alpha": "needs: [zed]\n", "mid": "", "zed": ""})
+			files["features/worker-tools/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Worker tools.\ntargets: [worker]\n")}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+
+			names, err := starter.FeatureNames()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"mid", "zed", "alpha"}, names)
+		})
+
+		t.Run("the feature names keep a feature whose need does not target the starter, which Select refuses", func(t *testing.T) {
+			starter, err := catalog.New(withNeeds(map[string]string{"app": "needs: [missing]\n", "base": ""})).Starter("service")
+			require.NoError(t, err)
+
+			names, err := starter.FeatureNames()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"app", "base"}, names)
+		})
+
+		t.Run("the feature names stop on features of the starter whose needs form a cycle, with the message of Select", func(t *testing.T) {
+			starter, err := catalog.New(withNeeds(map[string]string{"access": "needs: [app]\n", "app": "needs: [base]\n", "base": "needs: [app]\n", "plain": ""})).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.FeatureNames()
+
+			require.EqualError(t, err, "the needs of the features form a cycle: app needs base needs app")
+		})
+	})
 }
 
 func withoutValues(featureNames ...string) map[string]map[string]string {

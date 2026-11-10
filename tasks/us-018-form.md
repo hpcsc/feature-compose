@@ -357,19 +357,19 @@ selected. The developer moves in the tree, opens and closes rows, scrolls the de
 `new` does not open this form yet (decision 1).
 
 **Acceptance Criteria:**
-- [ ] After the size of the terminal, the screen has a title line with `feature-compose new` and the count of the
+- [x] After the size of the terminal, the screen has a title line with `feature-compose new` and the count of the
   selected features, a tree pane with the title `Repo`, a details pane whose title names the selected row, and a
   footer with the keys of the form. The panes, the colours and the selected row are those of `internal/screen`.
-- [ ] The tree holds the name row first, and then the starter row, open, with each feature that targets the starter
+- [x] The tree holds the name row first, and then the starter row, open, with each feature that targets the starter
   under it, each after the features that it needs and otherwise in the order of the names: with a catalog where
   `alpha` needs `zed`, `zed` comes before `alpha`. A feature that targets only another starter is not in the tree. A
   selected feature shows `[x]`, another `[ ]`.
-- [ ] Each value that an argument or a flag gives is marked `fixed`: the name and the starter of the arguments, and
+- [x] Each value that an argument or a flag gives is marked `fixed`: the name and the starter of the arguments, and
   each feature of `--feature`. Each selected feature that a selected feature needs shows `needed by <features>` with
   those features in the order of their names, also a feature of `--feature`, which then shows both marks.
-- [ ] With no name argument, the name row shows that the name is missing. With no starter argument, the starter row
+- [x] With no name argument, the name row shows that the name is missing. With no starter argument, the starter row
   shows that no starter is chosen, and the tree has no feature.
-- [ ] The details of the name row show the name and its source, or the message of `CheckRepoName` for the empty text
+- [x] The details of the name row show the name and its source, or the message of `CheckRepoName` for the empty text
   when the name is missing. The details of the starter row show the summary of the starter and its source; with no
   starter, they list each starter of the catalog with its summary. The details of a feature show its summary, its
   needs, and its source with the texts of the preview (`command line`, `needed by <features>`,
@@ -377,22 +377,22 @@ selected. The developer moves in the tree, opens and closes rows, scrolls the de
 - [ ] `j` and `k` move down and up by one row, as the arrow keys do, and stop at the ends. `l` and right at an open
   row select its first child, and at a closed row open it. `h`, left and Esc at an open row close it, and at another
   row select its parent. Enter at a feature row does what `l` does.
-- [ ] ctrl+d and pgdown scroll the details down by half the pane, ctrl+u and pgup scroll them up, and the bottom
+- [x] ctrl+d and pgdown scroll the details down by half the pane, ctrl+u and pgup scroll them up, and the bottom
   border of the details pane shows how far they are scrolled. A new selection shows its details from the top.
-- [ ] The tree pane takes at most two fifths of the width, and a tree taller than its pane follows the selected row.
+- [x] The tree pane takes at most two fifths of the width, and a tree taller than its pane follows the selected row.
   A terminal smaller than the smallest size of `show` shows only the message that asks for a larger terminal, and it
   names `new`.
-- [ ] `q` and ctrl+c stop the form, and `Confirmed` then gives the error `you canceled new, so it wrote no file`. The
+- [x] `q` and ctrl+c stop the form, and `Confirmed` then gives the error `you canceled new, so it wrote no file`. The
   form writes no file.
-- [ ] With a starter argument, `form.New` stops with the message of the catalog for an unknown starter (which lists
+- [x] With a starter argument, `form.New` stops with the message of the catalog for an unknown starter (which lists
   the starters), for a flag that `Select` refuses with the name or with no name (an unknown feature, an unknown option,
   a value that does not match its pattern), and for features of the starter whose needs form a cycle.
-- [ ] In `internal/catalog`, `Starter.FeatureNames` gives the names of the features that target the starter, each after
+- [x] In `internal/catalog`, `Starter.FeatureNames` gives the names of the features that target the starter, each after
   the features that it needs and otherwise in the order of the names, and stops on a cycle of needs with the message
   that `Select` gives for it. `Selection.NeededBy` gives the selected features that need a feature, in the order of
   their names, and none for a feature that no selected feature needs or that the selection does not hold. Both have
   tests in `internal/catalog`.
-- [ ] The tests of `internal/form` drive the model through `Update` and `View` with catalogs in `fstest.MapFS`, and
+- [x] The tests of `internal/form` drive the model through `Update` and `View` with catalogs in `fstest.MapFS`, and
   pass with `CLICOLOR_FORCE=1` and with `NO_COLOR=1`. The tests of `internal/prompt` and `internal/cmd` pass unchanged.
 
 **Affected Files/Modules:**

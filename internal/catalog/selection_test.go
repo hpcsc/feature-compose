@@ -62,6 +62,9 @@ func TestSelection(t *testing.T) {
 		}
 		return files
 	}
+	withTwoNeeds := func() fstest.MapFS {
+		return withFeatureDefinitions(map[string]string{"x": "needs: [b]\n", "y": "needs: [b]\n", "b": "", "c": ""})
+	}
 
 	t.Run("write", func(t *testing.T) {
 		t.Run("writes each template to the path of its folder in the repo", func(t *testing.T) {
@@ -1723,6 +1726,27 @@ folders:
 			require.NoFileExists(t, filepath.Join(output, "finished"))
 		})
 	})
+
+	t.Run("needed by", func(t *testing.T) {
+		t.Run("gives the selected features that need a feature, in the order of their names", func(t *testing.T) {
+			require.Equal(t, []string{"x", "y"}, featureSelection(t, withTwoNeeds(), "y", "x").NeededBy("b"))
+		})
+
+		t.Run("gives none for a feature that no selected feature needs, and for a feature that the selection does not hold", func(t *testing.T) {
+			selection := featureSelection(t, withTwoNeeds(), "x")
+
+			require.Equal(t, [][]string{{"x"}, nil, nil}, [][]string{selection.NeededBy("b"), selection.NeededBy("x"), selection.NeededBy("c")})
+		})
+	})
+
+	t.Run("holds", func(t *testing.T) {
+		t.Run("the selection holds each given feature and each feature that it needs, and no other feature", func(t *testing.T) {
+			selection := featureSelection(t, withTwoNeeds(), "x")
+
+			require.Equal(t, []bool{true, true, false, false}, []bool{selection.Holds("x"), selection.Holds("b"), selection.Holds("y"), selection.Holds("c")})
+		})
+	})
+
 }
 
 func filesIn(t *testing.T, dir string) map[string]string {

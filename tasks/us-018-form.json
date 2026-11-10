@@ -69,7 +69,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Open the form of `new` with the name, the starter and the features",
       "language": "Go",
       "testable": true,

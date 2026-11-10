@@ -12,6 +12,7 @@ var (
 	NameStyle     = lipgloss.NewStyle().Bold(true)
 	GroupStyle    = lipgloss.NewStyle().Foreground(accent)
 	NoneStyle     = lipgloss.NewStyle().Foreground(faint).Italic(true)
+	MarkStyle     = lipgloss.NewStyle().Foreground(faint)
 
 	titleStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#1B1530"}).Background(accent).Padding(0, 1)
 	countStyle       = lipgloss.NewStyle().Foreground(faint)

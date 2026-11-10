@@ -43,6 +43,25 @@ func TestSelection(t *testing.T) {
 		return selection
 	}
 
+	featureSelection := func(t *testing.T, files fstest.MapFS, features ...string) catalog.Selection {
+		t.Helper()
+		starter, err := catalog.New(files).Starter("service")
+		require.NoError(t, err)
+		selection, err := starter.Select("my-service", nil, withoutValues(features...))
+		require.NoError(t, err)
+		return selection
+	}
+	withFeatureDefinitions := func(definitions map[string]string) fstest.MapFS {
+		files := fstest.MapFS{
+			"starters/service/starter.yml":      oneFolder,
+			"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+		}
+		for featureName, definition := range definitions {
+			files["features/"+featureName+"/feature.yml"] = &fstest.MapFile{Data: []byte("summary: A feature.\ntargets: [service]\n" + definition)}
+		}
+		return files
+	}
+
 	t.Run("write", func(t *testing.T) {
 		t.Run("writes each template to the path of its folder in the repo", func(t *testing.T) {
 			files := fstest.MapFS{
@@ -365,14 +384,6 @@ func TestSelection(t *testing.T) {
 			})
 		}
 
-		featureSelection := func(t *testing.T, files fstest.MapFS, features ...string) catalog.Selection {
-			t.Helper()
-			starter, err := catalog.New(files).Starter("service")
-			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, withoutValues(features...))
-			require.NoError(t, err)
-			return selection
-		}
 		twoFolders := &fstest.MapFile{Data: []byte("options:\n  module:\n    default: example.com/{{ .Name }}\nfolders:\n  go:\n    path: .\n  web:\n    path: frontend\n")}
 
 		t.Run("writes the templates of each selected feature into the folders of the starter", func(t *testing.T) {
@@ -801,17 +812,9 @@ delimiters:
 				"features/cli/files/go/cmd/{{ .Name }}/main.go.tmpl": &fstest.MapFile{Data: []byte("package main\n")},
 			}
 		}
-		selectionWith := func(t *testing.T, files fstest.MapFS, features ...string) catalog.Selection {
-			t.Helper()
-			starter, err := catalog.New(files).Starter("service")
-			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, withoutValues(features...))
-			require.NoError(t, err)
-			return selection
-		}
 
 		t.Run("gives the name of the repo, its starter, and each file by its path in the repo, in the order of the paths, with its owner", func(t *testing.T) {
-			preview, err := selectionWith(t, withFeature(), "cli").Preview()
+			preview, err := featureSelection(t, withFeature(), "cli").Preview()
 
 			require.NoError(t, err)
 			require.Equal(t, `Repo: my-service
@@ -830,7 +833,7 @@ Files:
 		})
 
 		t.Run("gives the path of each file that the write of the same selection writes, one time each", func(t *testing.T) {
-			selection := selectionWith(t, withFeature(), "cli")
+			selection := featureSelection(t, withFeature(), "cli")
 			output := filepath.Join(t.TempDir(), "my-service")
 			require.NoError(t, selection.Write(output))
 
@@ -853,7 +856,7 @@ Files:
 				"starters/service/files/go/notes":    &fstest.MapFile{Data: []byte("notes\n")},
 			}
 
-			preview, err := selectionWith(t, files).Preview()
+			preview, err := featureSelection(t, files).Preview()
 
 			require.NoError(t, err)
 			require.True(t, strings.HasSuffix(preview, "\nFiles:\n  notes: the starter\n  notes.md: the starter\n"), preview)
@@ -865,27 +868,16 @@ Files:
 				"starters/service/files":       &fstest.MapFile{Mode: fs.ModeDir | 0o755},
 			}
 
-			preview, err := selectionWith(t, files).Preview()
+			preview, err := featureSelection(t, files).Preview()
 
 			require.NoError(t, err)
 			require.Equal(t, "Repo: my-service\nStarter: service\n\nFeatures: none\n\nOptions: none\n\nFiles: none\n", preview)
 		})
 
-		withNeeds := func(definitions map[string]string) fstest.MapFS {
-			files := fstest.MapFS{
-				"starters/service/starter.yml":      oneFolder,
-				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
-			}
-			for featureName, definition := range definitions {
-				files["features/"+featureName+"/feature.yml"] = &fstest.MapFile{Data: []byte("summary: A feature.\ntargets: [service]\n" + definition)}
-			}
-			return files
-		}
-
 		t.Run("gives each feature after its needs and otherwise in the order of the names, a given feature with the source command line, and a feature that a need added with the features that need it", func(t *testing.T) {
-			files := withNeeds(map[string]string{"x": "needs: [z, y]\n", "y": "needs: [z]\n", "z": "", "w": ""})
+			files := withFeatureDefinitions(map[string]string{"x": "needs: [z, y]\n", "y": "needs: [z]\n", "z": "", "w": ""})
 
-			preview, err := selectionWith(t, files, "x", "w").Preview()
+			preview, err := featureSelection(t, files, "x", "w").Preview()
 
 			require.NoError(t, err)
 			require.Equal(t, `Repo: my-service
@@ -905,9 +897,9 @@ Files:
 		})
 
 		t.Run("a given feature shows the source command line, also when a selected feature needs it", func(t *testing.T) {
-			files := withNeeds(map[string]string{"a": "needs: [b]\n", "b": "needs: [c]\n", "c": ""})
+			files := withFeatureDefinitions(map[string]string{"a": "needs: [b]\n", "b": "needs: [c]\n", "c": ""})
 
-			preview, err := selectionWith(t, files, "a", "b").Preview()
+			preview, err := featureSelection(t, files, "a", "b").Preview()
 
 			require.NoError(t, err)
 			require.Contains(t, preview, "Features:\n  c: needed by b\n  b: command line\n  a: command line\n\n")
@@ -957,6 +949,23 @@ Options:
 			require.Contains(t, preview, "  b.zeta: z (default)\n")
 		})
 
+		t.Run("a change to the given values after the select does not change the sources of the preview", func(t *testing.T) {
+			starter, err := catalog.New(withOptions()).Starter("service")
+			require.NoError(t, err)
+			given := map[string]string{}
+			givenByFeature := map[string]map[string]string{"b": {}}
+			selection, err := starter.Select("my-service", given, givenByFeature)
+			require.NoError(t, err)
+
+			given["module"] = "example.com/my-service"
+			givenByFeature["b"]["mode"] = "fast"
+			preview, err := selection.Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, "  starter.module: example.com/my-service (default)\n")
+			require.Contains(t, preview, "  b.mode: fast (default)\n")
+		})
+
 		for name, test := range map[string]struct {
 			files    fstest.MapFS
 			features []string
@@ -990,7 +999,7 @@ Options:
 			}, features: []string{"cli"}},
 		} {
 			t.Run(name+" stops the preview with the message that stops the write of the same selection", func(t *testing.T) {
-				selection := selectionWith(t, test.files, test.features...)
+				selection := featureSelection(t, test.files, test.features...)
 				writeErr := selection.Write(filepath.Join(t.TempDir(), "my-service"))
 				require.Error(t, writeErr)
 
@@ -1137,18 +1146,7 @@ folders:
 	t.Run("added by needs", func(t *testing.T) {
 		selectionWith := func(t *testing.T, definitions map[string]string, given ...string) catalog.Selection {
 			t.Helper()
-			files := fstest.MapFS{
-				"starters/service/starter.yml":      oneFolder,
-				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
-			}
-			for featureName, definition := range definitions {
-				files["features/"+featureName+"/feature.yml"] = &fstest.MapFile{Data: []byte("summary: A feature.\ntargets: [service]\n" + definition)}
-			}
-			starter, err := catalog.New(files).Starter("service")
-			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, withoutValues(given...))
-			require.NoError(t, err)
-			return selection
+			return featureSelection(t, withFeatureDefinitions(definitions), given...)
 		}
 
 		t.Run("gives each feature that a need added, each after its needs and otherwise in the order of the names, with the selected features that need it", func(t *testing.T) {

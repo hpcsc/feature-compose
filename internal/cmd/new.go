@@ -24,11 +24,11 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 		},
 		DisableSliceFlagSeparator: true,
 		Action: asTwoArgumentsAction(func(ctx context.Context, cmd *cli.Command, starterName, name string) error {
-			values, err := optionValues(cmd.StringSlice("option"))
+			given, err := givenStarterValues(cmd.StringSlice("option"))
 			if err != nil {
 				return err
 			}
-			givenByFeature, err := featureOptionValues(cmd.StringSlice("feature"))
+			givenByFeature, err := givenFeatureValues(cmd.StringSlice("feature"))
 			if err != nil {
 				return err
 			}
@@ -40,7 +40,7 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			if err != nil {
 				return err
 			}
-			selection, err := starter.Select(name, values, givenByFeature)
+			selection, err := starter.Select(name, given, givenByFeature)
 			if err != nil {
 				return err
 			}
@@ -64,7 +64,7 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			}
 			var printed strings.Builder
 			for _, need := range selection.AddedByNeeds() {
-				fmt.Fprintf(&printed, "%s: needed by %s\n", need.Feature, strings.Join(need.NeededBy, ", "))
+				fmt.Fprintln(&printed, need)
 			}
 			fmt.Fprintf(&printed, "Made %s from the starter %s.\n", output, starterName)
 			_, err = io.WriteString(cmd.Root().Writer, printed.String())
@@ -73,7 +73,7 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 	}
 }
 
-func optionValues(flags []string) (map[string]string, error) {
+func givenStarterValues(flags []string) (map[string]string, error) {
 	values := make(map[string]string, len(flags))
 	for _, flag := range flags {
 		name, value, ok := strings.Cut(flag, "=")
@@ -85,7 +85,7 @@ func optionValues(flags []string) (map[string]string, error) {
 	return values, nil
 }
 
-func featureOptionValues(flags []string) (map[string]map[string]string, error) {
+func givenFeatureValues(flags []string) (map[string]map[string]string, error) {
 	given := make(map[string]map[string]string, len(flags))
 	for _, flag := range flags {
 		featureName, pairs, hasOptions := strings.Cut(flag, ":")

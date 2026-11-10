@@ -17,24 +17,20 @@ import (
 )
 
 type Selection struct {
-	folders            map[string]folder
-	name               string
-	starterName        string
-	featureNames       []string
-	starterValues      map[string]string
-	featureValues      map[string]map[string]string
-	givenStarterValues map[string]string
-	givenFeatureValues map[string]map[string]string
-	templates          []template
-	extensionPoints    map[string]extensionPoint
-	addedByNeeds       []Need
-	needs              map[string][]string
+	folders         map[string]folder
+	name            string
+	starter         selectedStarter
+	features        []selectedFeature
+	templates       []template
+	extensionPoints map[string]extensionPoint
 }
 
 func (s Selection) AddedByNeeds() []Need {
-	added := make([]Need, 0, len(s.addedByNeeds))
-	for _, need := range s.addedByNeeds {
-		added = append(added, Need{Feature: need.Feature, NeededBy: slices.Clone(need.NeededBy)})
+	var added []Need
+	for _, f := range s.features {
+		if !f.given {
+			added = append(added, f.asNeed())
+		}
 	}
 	return added
 }
@@ -61,7 +57,7 @@ func (s Selection) Preview() (string, error) {
 		return "", err
 	}
 	var preview strings.Builder
-	fmt.Fprintf(&preview, "Repo: %s\nStarter: %s\n", s.name, s.starterName)
+	fmt.Fprintf(&preview, "Repo: %s\nStarter: %s\n", s.name, s.starter.name)
 	s.writeSection(&preview, "Features", s.featureLines())
 	s.writeSection(&preview, "Options", s.optionLines())
 	s.writeSection(&preview, "Files", s.fileLines(files))
@@ -98,41 +94,28 @@ func (s Selection) writeSection(preview *strings.Builder, heading string, lines 
 }
 
 func (s Selection) featureLines() []string {
-	lines := make([]string, 0, len(s.featureNames))
-	for _, featureName := range s.featureNames {
-		lines = append(lines, featureName+": "+s.featureSource(featureName))
+	lines := make([]string, 0, len(s.features))
+	for _, f := range s.features {
+		lines = append(lines, f.line())
 	}
 	return lines
-}
-
-func (s Selection) featureSource(featureName string) string {
-	for _, need := range s.addedByNeeds {
-		if need.Feature == featureName {
-			return "needed by " + strings.Join(need.NeededBy, ", ")
-		}
-	}
-	return "command line"
 }
 
 func (s Selection) optionLines() []string {
-	var lines []string
-	for _, optionName := range slices.Sorted(maps.Keys(s.starterValues)) {
-		lines = append(lines, s.optionLine("starter."+optionName, s.starterValues[optionName], s.givenStarterValues, optionName))
-	}
-	for _, featureName := range s.featureNames {
-		for _, optionName := range slices.Sorted(maps.Keys(s.featureValues[featureName])) {
-			lines = append(lines, s.optionLine(featureName+"."+optionName, s.featureValues[featureName][optionName], s.givenFeatureValues[featureName], optionName))
-		}
+	lines := s.starter.optionLines()
+	for _, f := range s.features {
+		lines = append(lines, f.optionLines()...)
 	}
 	return lines
 }
 
-func (s Selection) optionLine(reference, value string, given map[string]string, optionName string) string {
-	source := "default"
-	if _, ok := given[optionName]; ok {
-		source = "command line"
+func (s Selection) feature(featureName string) selectedFeature {
+	for _, f := range s.features {
+		if f.name == featureName {
+			return f
+		}
 	}
-	return fmt.Sprintf("%s: %s (%s)", reference, value, source)
+	return selectedFeature{}
 }
 
 func (s Selection) fileLines(files []file) []string {
@@ -190,31 +173,24 @@ func (s Selection) render(label, text string, d delimiters, featureName string) 
 }
 
 func (s Selection) option(featureName, reference string) (string, error) {
-	if optionName, ok := strings.CutPrefix(reference, "starter."); ok {
-		if value, ok := s.starterValues[optionName]; ok {
-			return value, nil
-		}
-	} else if needName, optionName, ok := strings.Cut(reference, "."); ok {
-		if value, ok := s.featureValues[needName][optionName]; ok && slices.Contains(s.needs[featureName], needName) {
-			return value, nil
-		}
-	} else if value, ok := s.featureValues[featureName][reference]; ok {
+	readable := s.readable(featureName)
+	if value, ok := readable[reference]; ok {
 		return value, nil
-	}
-	readable := slices.Collect(maps.Keys(s.featureValues[featureName]))
-	for _, needName := range s.needs[featureName] {
-		for optionName := range s.featureValues[needName] {
-			readable = append(readable, needName+"."+optionName)
-		}
-	}
-	for optionName := range s.starterValues {
-		readable = append(readable, "starter."+optionName)
 	}
 	if len(readable) == 0 {
 		return "", fmt.Errorf("unknown option %q: the template can read no option", reference)
 	}
-	slices.Sort(readable)
-	return "", fmt.Errorf("unknown option %q: the template can read %s", reference, strings.Join(readable, ", "))
+	return "", fmt.Errorf("unknown option %q: the template can read %s", reference, strings.Join(slices.Sorted(maps.Keys(readable)), ", "))
+}
+
+func (s Selection) readable(featureName string) map[string]string {
+	reader := s.feature(featureName)
+	readable := reader.values.byReference("")
+	for _, needName := range reader.needs {
+		maps.Copy(readable, s.feature(needName).readableAsNeed())
+	}
+	maps.Copy(readable, s.starter.readable())
+	return readable
 }
 
 func (s Selection) items(name string) ([]map[string]string, error) {
@@ -258,4 +234,50 @@ func (s Selection) extensionPoint(name string) (extensionPoint, error) {
 			name, strings.Join(slices.Sorted(maps.Keys(s.extensionPoints)), ", "))
 	}
 	return declared, nil
+}
+
+const starterPrefix = "starter."
+
+type selectedStarter struct {
+	name   string
+	values optionValues
+}
+
+func (s selectedStarter) optionLines() []string {
+	return s.values.lines(starterPrefix)
+}
+
+func (s selectedStarter) readable() map[string]string {
+	return s.values.byReference(starterPrefix)
+}
+
+type selectedFeature struct {
+	name     string
+	given    bool
+	values   optionValues
+	needs    []string
+	neededBy []string
+}
+
+func (f selectedFeature) line() string {
+	if f.given {
+		return f.name + ": command line"
+	}
+	return f.asNeed().String()
+}
+
+func (f selectedFeature) asNeed() Need {
+	return Need{Feature: f.name, NeededBy: slices.Clone(f.neededBy)}
+}
+
+func (f selectedFeature) optionLines() []string {
+	return f.values.lines(f.prefix())
+}
+
+func (f selectedFeature) readableAsNeed() map[string]string {
+	return f.values.byReference(f.prefix())
+}
+
+func (f selectedFeature) prefix() string {
+	return f.name + "."
 }

@@ -78,20 +78,24 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	if err != nil {
 		return Selection{}, err
 	}
-	selected, err := s.selectedFeatures(givenByFeature)
+	selected, err := s.featuresWithNeeds(givenByFeature)
 	if err != nil {
 		return Selection{}, err
 	}
-	featureNames := make([]string, 0, len(selected))
-	featureValues := make(map[string]map[string]string, len(selected))
-	needs := make(map[string][]string, len(selected))
+	features := make([]selectedFeature, 0, len(selected))
 	for _, f := range selected {
-		featureNames = append(featureNames, f.name)
-		needs[f.name] = f.needs
-		featureValues[f.name], err = f.options.withDefaults(givenByFeature[f.name], name)
+		values, err := f.options.withDefaults(givenByFeature[f.name], name)
 		if err != nil {
 			return Selection{}, err
 		}
+		_, isGiven := givenByFeature[f.name]
+		features = append(features, selectedFeature{
+			name:     f.name,
+			given:    isGiven,
+			values:   values,
+			needs:    f.needs,
+			neededBy: s.neededBy(f.name, selected),
+		})
 	}
 	templates, err := s.templatesOf(selected)
 	if err != nil {
@@ -101,7 +105,14 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	if err != nil {
 		return Selection{}, err
 	}
-	return Selection{folders: s.folders, name: name, starterName: s.name, featureNames: featureNames, starterValues: starterValues, givenStarterValues: maps.Clone(given), givenFeatureValues: maps.Clone(givenByFeature), featureValues: featureValues, templates: templates, extensionPoints: extensionPoints, addedByNeeds: s.addedByNeeds(selected, givenByFeature), needs: needs}, nil
+	return Selection{
+		folders:         s.folders,
+		name:            name,
+		starter:         selectedStarter{name: s.name, values: starterValues},
+		features:        features,
+		templates:       templates,
+		extensionPoints: extensionPoints,
+	}, nil
 }
 
 func (s Starter) combinations() []Combination {
@@ -153,7 +164,7 @@ func (s Starter) addNeeds(needed map[string]bool, featureName string) {
 	}
 }
 
-func (s Starter) selectedFeatures(givenByFeature map[string]map[string]string) ([]feature, error) {
+func (s Starter) featuresWithNeeds(givenByFeature map[string]map[string]string) ([]feature, error) {
 	given := slices.Sorted(maps.Keys(givenByFeature))
 	for _, featureName := range given {
 		if _, ok := s.features[featureName]; !ok {
@@ -219,22 +230,15 @@ func (s Starter) cycleFrom(path []string, selected map[string]feature, placed ma
 	return s.cycleFrom(append(path, next), selected, placed)
 }
 
-func (s Starter) addedByNeeds(selected []feature, givenByFeature map[string]map[string]string) []Need {
-	var added []Need
-	for _, f := range selected {
-		if _, given := givenByFeature[f.name]; given {
-			continue
+func (s Starter) neededBy(featureName string, selected []feature) []string {
+	var neededBy []string
+	for _, other := range selected {
+		if slices.Contains(other.needs, featureName) {
+			neededBy = append(neededBy, other.name)
 		}
-		var neededBy []string
-		for _, other := range selected {
-			if slices.Contains(other.needs, f.name) {
-				neededBy = append(neededBy, other.name)
-			}
-		}
-		slices.Sort(neededBy)
-		added = append(added, Need{Feature: f.name, NeededBy: neededBy})
 	}
-	return added
+	slices.Sort(neededBy)
+	return neededBy
 }
 
 func (s Starter) templatesOf(selected []feature) ([]template, error) {

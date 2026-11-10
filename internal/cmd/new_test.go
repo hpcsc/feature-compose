@@ -413,7 +413,7 @@ folders:
 			require.NoError(t, err)
 
 			require.Equal(t, first, second)
-			require.Contains(t, first, "Features:\n  b: command line\n  a: command line\n\n")
+			require.Contains(t, first, "Features:\n  b: command line, needed by a\n  a: command line\n\n")
 		})
 
 		withBadTemplate := func(path, contents string) fstest.MapFS {

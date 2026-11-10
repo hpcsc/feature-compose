@@ -260,10 +260,13 @@ type selectedFeature struct {
 }
 
 func (f selectedFeature) line() string {
-	if f.given {
-		return f.name + ": command line"
+	switch {
+	case !f.given:
+		return f.asNeed().String()
+	case len(f.neededBy) > 0:
+		return f.name + ": command line, " + f.asNeed().source()
 	}
-	return f.asNeed().String()
+	return f.name + ": command line"
 }
 
 func (f selectedFeature) asNeed() Need {

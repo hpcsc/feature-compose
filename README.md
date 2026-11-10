@@ -76,7 +76,7 @@ that it needs, with its source:
 
 | Source | Meaning |
 | --- | --- |
-| `command line` | A `--feature` flag selects the feature, also when another selected feature needs it. |
+| `command line` | A `--feature` flag selects the feature. When other selected features also need it, the line ends with `, needed by <features>`. |
 | `needed by <features>` | Only a need selects the feature. The line is the line that `new` prints for it. |
 
 Then the preview gives each option by the name with which a template reads it: the options of the starter as

@@ -896,13 +896,13 @@ Files:
 `, preview)
 		})
 
-		t.Run("a given feature shows the source command line, also when a selected feature needs it", func(t *testing.T) {
-			files := withFeatureDefinitions(map[string]string{"a": "needs: [b]\n", "b": "needs: [c]\n", "c": ""})
+		t.Run("a given feature that selected features need shows the source command line and the features that need it", func(t *testing.T) {
+			files := withFeatureDefinitions(map[string]string{"a": "needs: [c, d]\n", "b": "needs: [c]\n", "c": "", "d": ""})
 
-			preview, err := featureSelection(t, files, "a", "b").Preview()
+			preview, err := featureSelection(t, files, "a", "b", "c", "d").Preview()
 
 			require.NoError(t, err)
-			require.Contains(t, preview, "Features:\n  c: needed by b\n  b: command line\n  a: command line\n\n")
+			require.Contains(t, preview, "Features:\n  c: command line, needed by a, b\n  b: command line\n  d: command line, needed by a\n  a: command line\n\n")
 		})
 
 		withOptions := func() fstest.MapFS {

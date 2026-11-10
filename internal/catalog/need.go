@@ -8,5 +8,9 @@ type Need struct {
 }
 
 func (n Need) String() string {
-	return n.Feature + ": needed by " + strings.Join(n.NeededBy, ", ")
+	return n.Feature + ": " + n.source()
+}
+
+func (n Need) source() string {
+	return "needed by " + strings.Join(n.NeededBy, ", ")
 }

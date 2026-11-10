@@ -47,11 +47,11 @@ func (s Selection) AddedByNeeds() []Need {
 }
 
 func (s Selection) Write(output string) error {
-	if err := s.checkEmpty(output); err != nil {
-		return err
-	}
 	files, err := s.files()
 	if err != nil {
+		return err
+	}
+	if err := s.checkEmpty(output); err != nil {
 		return err
 	}
 	for _, f := range files {
@@ -183,6 +183,9 @@ func (s Selection) fileLines(files []file) []string {
 }
 
 func (s Selection) files() ([]file, error) {
+	if err := CheckRepoName(s.name); err != nil {
+		return nil, err
+	}
 	if err := s.checkValues(); err != nil {
 		return nil, err
 	}

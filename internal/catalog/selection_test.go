@@ -828,6 +828,31 @@ the option level of the feature a has no default and no value: give it with --fe
 			require.NoDirExists(t, output)
 		})
 
+		t.Run("a selection with no name stops the write with the message of the name, and does not read the output folder", func(t *testing.T) {
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+			require.NoError(t, os.WriteFile("go.mod", []byte("module mine\n"), 0o644))
+			files := fstest.MapFS{"starters/service/starter.yml": oneFolder, "starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")}}
+
+			err := selectionOf(t, files, "").Write("")
+
+			require.EqualError(t, err, `the name "" of the repo must start with a letter or a digit, and hold only letters, digits, '.', '_' and '-'`)
+			require.Equal(t, map[string]string{"go.mod": "module mine\n"}, filesIn(t, workingFolder))
+		})
+
+		t.Run("a selection with no name and an option with no default and no value stops the write with the message of the name only", func(t *testing.T) {
+			starter, err := catalog.New(withoutDefaults()).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("", nil, nil, catalog.Answers{})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "repo")
+
+			err = selection.Write(output)
+
+			require.EqualError(t, err, `the name "" of the repo must start with a letter or a digit, and hold only letters, digits, '.', '_' and '-'`)
+			require.NoDirExists(t, output)
+		})
+
 		t.Run("a value that a flag gives to an option with no default is the value that the templates read", func(t *testing.T) {
 			starter, err := catalog.New(withoutDefaults()).Starter("service")
 			require.NoError(t, err)
@@ -937,6 +962,15 @@ Files:
 				previewed = append(previewed, path)
 			}
 			require.Equal(t, slices.Sorted(maps.Keys(filesIn(t, output))), previewed)
+		})
+
+		t.Run("a selection with no name stops the preview with the message of the name only, also with an option that has no default and no value", func(t *testing.T) {
+			files := withFeature()
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("summary: A service.\noptions:\n  region:\n    pattern: '^[a-z]*$'\nfolders:\n  go:\n    path: .\n  web:\n    path: frontend\n")}
+
+			_, err := selectionOf(t, files, "").Preview()
+
+			require.EqualError(t, err, `the name "" of the repo must start with a letter or a digit, and hold only letters, digits, '.', '_' and '-'`)
 		})
 
 		t.Run("a path that starts with the text of another path comes after it", func(t *testing.T) {

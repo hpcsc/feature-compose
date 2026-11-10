@@ -293,21 +293,21 @@ empty text. `Selection.Write` and `Selection.Preview` of a selection with no nam
 before: `new <starter> ''` stops with the same message and writes nothing.
 
 **Acceptance Criteria:**
-- [ ] `Starter.Select` with the empty name gives a selection. Its `Questions` give the default of an option that reads
+- [x] `Starter.Select` with the empty name gives a selection. Its `Questions` give the default of an option that reads
   the name rendered with the empty text, for example `github.com/hpcsc/` for `github.com/hpcsc/{{ .Name }}`.
-- [ ] Each other name that `CheckRepoName` refuses, for example `../escape`, `team/service` and `-flag`, still stops
+- [x] Each other name that `CheckRepoName` refuses, for example `../escape`, `team/service` and `-flag`, still stops
   `Select` with the message that names the name.
-- [ ] `Selection.Write` of a selection with no name stops with the message of `CheckRepoName` for the empty text. It
+- [x] `Selection.Write` of a selection with no name stops with the message of `CheckRepoName` for the empty text. It
   does not read or make the output folder and writes no file, also when the output folder is the working folder and
   holds files.
-- [ ] `Selection.Preview` of a selection with no name stops with the same message.
-- [ ] When the name is missing and an option has no default and no value, `Write` and `Preview` stop with the message
+- [x] `Selection.Preview` of a selection with no name stops with the same message.
+- [x] When the name is missing and an option has no default and no value, `Write` and `Preview` stop with the message
   of the name.
-- [ ] `new <starter> ''`, with and without `--no-prompt`, stops with the message that names `the name "" of the repo`,
+- [x] `new <starter> ''`, with and without `--no-prompt`, stops with the message that names `the name "" of the repo`,
   makes no folder, runs no `after_render` command, and leaves the files of the working folder as they are. With
   `--dry-run` it stops with the same message and prints nothing. The test "the name \"\" stops new, and the working
   folder keeps its files" of `TestNewCommand` passes unchanged.
-- [ ] The other tests of `TestSelection`, `TestStarter` and `TestNewCommand`, and the tests of `internal/prompt`, pass
+- [x] The other tests of `TestSelection`, `TestStarter` and `TestNewCommand`, and the tests of `internal/prompt`, pass
   with their expected values unchanged.
 
 **Affected Files/Modules:**

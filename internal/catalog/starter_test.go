@@ -43,7 +43,11 @@ folders:
 	}
 
 	t.Run("check name", func(t *testing.T) {
-		for _, name := range []string{"", "../escape", "team/service", "-service", ".hidden"} {
+		t.Run("refuses the empty name, and the message names it", func(t *testing.T) {
+			require.ErrorContains(t, catalog.CheckRepoName(""), `the name "" of the repo`)
+		})
+
+		for _, name := range []string{"../escape", "team/service", "-service", ".hidden"} {
 			t.Run("refuses the name "+strconv.Quote(name)+" with the message that the selection gives", func(t *testing.T) {
 				_, selectErr := starterWith(t, map[string]string{"go/a.txt": "a"}).Select(name, nil, nil, catalog.Answers{})
 				require.Error(t, selectErr)
@@ -143,7 +147,19 @@ folders:
 			require.ErrorContains(t, err, `"1.20"`)
 		})
 
-		for _, name := range []string{"", "../escape", "team/service", "my service", "my-service;rm -rf ~", "-flag", ".hidden"} {
+		t.Run("the empty name is a name that is missing: the selection has no name, and a default that reads the name renders with the empty text", func(t *testing.T) {
+			selection, err := starterWith(t, map[string]string{"go/go.mod": `module {{ option "starter.module" }}`}).Select("", nil, nil, catalog.Answers{})
+			require.NoError(t, err)
+
+			defaults := map[string]string{}
+			for _, q := range selection.Questions() {
+				defaults[q.Option] = q.Default
+			}
+			require.Equal(t, "", selection.Name())
+			require.Equal(t, map[string]string{"app": "api", "go-version": "1.27.1", "module": "github.com/hpcsc/"}, defaults)
+		})
+
+		for _, name := range []string{"../escape", "team/service", "my service", "my-service;rm -rf ~", "-flag", ".hidden"} {
 			t.Run("the name "+strconv.Quote(name)+" stops, and the message names the name", func(t *testing.T) {
 				starter := starterWith(t, map[string]string{"go/go.mod": `module {{ option "starter.module" }}`})
 

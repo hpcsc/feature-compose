@@ -38,7 +38,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Give a selection with no name, and stop its write and its preview until it has one",
       "language": "Go",
       "testable": true,

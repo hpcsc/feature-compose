@@ -71,8 +71,10 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature) (S
 }
 
 func (s Starter) Select(name string, given map[string]string, givenByFeature map[string]map[string]string, answers Answers) (Selection, error) {
-	if err := CheckRepoName(name); err != nil {
-		return Selection{}, err
+	if name != "" {
+		if err := CheckRepoName(name); err != nil {
+			return Selection{}, err
+		}
 	}
 	starterValues, err := s.options.withDefaults(given, answers.StarterValues, name)
 	if err != nil {

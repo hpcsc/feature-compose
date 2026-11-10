@@ -524,6 +524,7 @@ folders:
 		}{
 			"one argument":                                   {starterFiles(""), []string{"service"}},
 			"a name of the repo that is not valid":           {starterFiles(""), []string{"service", "../escape"}},
+			"an empty name of the repo":                      {starterFiles(""), []string{"service", ""}},
 			"an --option value without =":                    {starterFiles(""), []string{"service", "my-service", "--option", "module"}},
 			"an unknown starter":                             {starterFiles(""), []string{"no-such-starter", "my-service"}},
 			"an unknown option":                              {starterFiles(""), []string{"service", "my-service", "--option", "modul=x"}},

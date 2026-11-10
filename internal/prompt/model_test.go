@@ -52,6 +52,22 @@ func TestModel(t *testing.T) {
 			"features/elsewhere/feature.yml":    &fstest.MapFile{Data: []byte("summary: Elsewhere.\ntargets: [other]\n")},
 		}
 	}
+	withBadTemplate := func() fstest.MapFS {
+		files := withFeatures()
+		files["starters/service/files/go/bad.go"] = &fstest.MapFile{Data: []byte("package {{ .Nmae }}\n")}
+		return files
+	}
+	previewErrOf := func(t *testing.T, files fstest.MapFS) error {
+		t.Helper()
+		starter, err := catalog.New(files).Starter("service")
+		require.NoError(t, err)
+		selection, err := starter.Select("my-service", nil, nil, catalog.Answers{})
+		require.NoError(t, err)
+		_, previewErr := selection.Preview()
+		require.Error(t, previewErr)
+		return previewErr
+	}
+
 	featureStep := func(t *testing.T) prompt.Model {
 		t.Helper()
 		m, err := prompt.New(catalog.New(withNeeds()), "service", "my-service", nil, nil)
@@ -64,6 +80,45 @@ func TestModel(t *testing.T) {
 		require.NoError(t, err)
 		return started(m, 100, height)
 	}
+
+	t.Run("start", func(t *testing.T) {
+		for name, test := range map[string]struct {
+			starterName    string
+			givenByFeature map[string]map[string]string
+			message        string
+		}{
+			"an unknown starter": {starterName: "nope", message: `unknown starter "nope": the catalog has service`},
+			"an unknown feature": {starterName: "service", givenByFeature: map[string]map[string]string{"nope": {}}, message: `unknown feature "nope": the features that target the starter service are cli`},
+		} {
+			t.Run(name+" stops the TUI before it starts", func(t *testing.T) {
+				_, err := prompt.New(catalog.New(withFeatures()), test.starterName, "my-service", nil, test.givenByFeature)
+
+				require.EqualError(t, err, test.message)
+			})
+		}
+
+		for name, test := range map[string]struct {
+			path, contents, message string
+		}{
+			"a starter.yml of another starter that does not parse": {path: "starters/other/starter.yml", contents: "folders: [", message: "starters/other/starter.yml"},
+			"a pattern of the starter that does not compile":       {path: "starters/service/starter.yml", contents: "options:\n  region:\n    pattern: '('\nfolders:\n  go:\n    path: .\n", message: "the pattern of the option region"},
+		} {
+			t.Run(name+" stops the TUI before it starts, with the message of the catalog", func(t *testing.T) {
+				files := withFeatures()
+				files[test.path] = &fstest.MapFile{Data: []byte(test.contents)}
+
+				_, err := prompt.New(catalog.New(files), "service", "my-service", nil, withCLI())
+
+				require.ErrorContains(t, err, test.message)
+			})
+		}
+
+		t.Run("a template that fails to render stops the TUI before it starts when flags answer the steps before the confirm step, with the message of the preview", func(t *testing.T) {
+			_, err := prompt.New(catalog.New(withBadTemplate()), "service", "my-service", withRegion(), withCLI())
+
+			require.EqualError(t, err, previewErrOf(t, withBadTemplate()).Error())
+		})
+	})
 
 	t.Run("confirm", func(t *testing.T) {
 		t.Run("shows the preview of the repo, where each value of a flag shows command line, and asks whether to write the repo", func(t *testing.T) {
@@ -160,28 +215,6 @@ func TestModel(t *testing.T) {
 			})
 		}
 
-		withBadTemplate := func() fstest.MapFS {
-			files := withFeatures()
-			files["starters/service/files/go/bad.go"] = &fstest.MapFile{Data: []byte("package {{ .Nmae }}\n")}
-			return files
-		}
-		previewErrOf := func(t *testing.T, files fstest.MapFS) error {
-			t.Helper()
-			starter, err := catalog.New(files).Starter("service")
-			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, nil, catalog.Answers{})
-			require.NoError(t, err)
-			_, previewErr := selection.Preview()
-			require.Error(t, previewErr)
-			return previewErr
-		}
-
-		t.Run("a template that fails to render stops the TUI before it starts when flags answer the steps before the confirm step, with the message of the preview", func(t *testing.T) {
-			_, err := prompt.New(catalog.New(withBadTemplate()), "service", "my-service", withRegion(), withCLI())
-
-			require.EqualError(t, err, previewErrOf(t, withBadTemplate()).Error())
-		})
-
 		t.Run("a template that fails to render ends the TUI after the feature step, with the message of the preview", func(t *testing.T) {
 			m, err := prompt.New(catalog.New(withBadTemplate()), "service", "my-service", withRegion(), nil)
 			require.NoError(t, err)
@@ -192,37 +225,6 @@ func TestModel(t *testing.T) {
 			_, err = ended.Confirmed()
 			require.EqualError(t, err, previewErrOf(t, withBadTemplate()).Error())
 		})
-
-		for name, test := range map[string]struct {
-			starterName    string
-			givenByFeature map[string]map[string]string
-			message        string
-		}{
-			"an unknown starter": {starterName: "nope", message: `unknown starter "nope": the catalog has service`},
-			"an unknown feature": {starterName: "service", givenByFeature: map[string]map[string]string{"nope": {}}, message: `unknown feature "nope": the features that target the starter service are cli`},
-		} {
-			t.Run(name+" stops the TUI before it starts", func(t *testing.T) {
-				_, err := prompt.New(catalog.New(withFeatures()), test.starterName, "my-service", nil, test.givenByFeature)
-
-				require.EqualError(t, err, test.message)
-			})
-		}
-
-		for name, test := range map[string]struct {
-			path, contents, message string
-		}{
-			"a starter.yml of another starter that does not parse": {path: "starters/other/starter.yml", contents: "folders: [", message: "starters/other/starter.yml"},
-			"a pattern of the starter that does not compile":       {path: "starters/service/starter.yml", contents: "options:\n  region:\n    pattern: '('\nfolders:\n  go:\n    path: .\n", message: "the pattern of the option region"},
-		} {
-			t.Run(name+" stops the TUI before it starts, with the message of the catalog", func(t *testing.T) {
-				files := withFeatures()
-				files[test.path] = &fstest.MapFile{Data: []byte(test.contents)}
-
-				_, err := prompt.New(catalog.New(files), "service", "my-service", nil, withCLI())
-
-				require.ErrorContains(t, err, test.message)
-			})
-		}
 	})
 
 	t.Run("features", func(t *testing.T) {

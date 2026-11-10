@@ -187,7 +187,7 @@
     },
     {
       "n": 6,
-      "done": false,
+      "done": true,
       "title": "Ask for the features, and show the features that the needs add",
       "language": "Go",
       "testable": true,

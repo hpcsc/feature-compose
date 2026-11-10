@@ -619,7 +619,7 @@ folders:
 			t.Chdir(t.TempDir())
 			output := filepath.Join(t.TempDir(), "my-service")
 
-			screen, err := runInTerminal(t, withFeatures(), "n", "service", "my-service", "--output-dir", output)
+			screen, err := runInTerminal(t, withFeatures(), "n", "service", "my-service", "--output-dir", output, "--feature", "cli")
 
 			require.EqualError(t, err, "you canceled new, so it wrote no file")
 			require.Contains(t, screen, "Write the repo?")

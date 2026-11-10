@@ -598,28 +598,28 @@ adds a feature, the needs step then shows each such feature with the features th
 step and the needs step (decision 2). So `new go-event-sourcing-service my-service` starts at the feature step.
 
 **Acceptance Criteria:**
-- [ ] In a terminal, `new <starter> <name>` with no `--feature` flag starts at the feature step. The list holds each
+- [x] In a terminal, `new <starter> <name>` with no `--feature` flag starts at the feature step. The list holds each
   feature whose targets name the starter, in the order of the names, each with its summary, and no other feature of
   the catalog. Space or `x` selects or clears a feature, the developer can select more than one, and Enter goes on,
   also with no feature selected.
-- [ ] A starter that no feature targets has no feature step.
-- [ ] After the feature step, when a need adds at least one feature, the needs step shows each line of
+- [x] A starter that no feature targets has no feature step.
+- [x] After the feature step, when a need adds at least one feature, the needs step shows each line of
   `AddedByNeeds`, for example `api-auth: needed by cli-auth` and `cli: needed by cli-auth`. "Continue" goes on to the
   next step. "Change the features" shows the feature step again, with the features that the developer selected still
   selected. When no need adds a feature, the TUI goes on from the feature step with no needs step.
-- [ ] With one or more `--feature` flags, the TUI shows no feature step and no needs step, and the confirm step shows
+- [x] With one or more `--feature` flags, the TUI shows no feature step and no needs step, and the confirm step shows
   those features with `command line`.
-- [ ] The confirm step shows each feature that the developer selected with `answered`, or with `answered, needed by
+- [x] The confirm step shows each feature that the developer selected with `answered`, or with `answered, needed by
   <features>` when another selected feature needs it, and each feature that only a need adds with `needed by
   <features>`.
-- [ ] Esc and ctrl+c are a cancel at the feature step and at the needs step, as at the confirm step.
-- [ ] After "Yes", the printed command names each feature that the developer selected.
-- [ ] The tests of `internal/prompt` drive these steps through `Update` and `View` with a catalog of their own, which
+- [x] Esc and ctrl+c are a cancel at the feature step and at the needs step, as at the confirm step.
+- [x] After "Yes", the printed command names each feature that the developer selected.
+- [x] The tests of `internal/prompt` drive these steps through `Update` and `View` with a catalog of their own, which
   has a feature that targets another starter.
-- [ ] The section "Answer the Questions in a TUI" of `README.md` tells the feature step, its keys, the needs step and
+- [x] The section "Answer the Questions in a TUI" of `README.md` tells the feature step, its keys, the needs step and
   its way back, and that `--feature` skips both steps. The table of the sources of a feature in "Preview a Repo" has
   `answered`.
-- [ ] `e2e/tests/new.test.ts`, in a terminal:
+- [x] `e2e/tests/new.test.ts`, in a terminal:
   `new go-event-sourcing-service my-service --option go-version=1.28 --option module=github.com/acme/my-service` shows
   `api-auth`, `cli` and `cli-auth`, each with its summary. Selecting `cli-auth` and Enter show the needs step with
   `api-auth: needed by cli-auth` and `cli: needed by cli-auth`. "Change the features" shows the feature step with

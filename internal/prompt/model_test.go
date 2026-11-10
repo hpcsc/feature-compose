@@ -34,6 +34,28 @@ func TestModel(t *testing.T) {
 		}
 		return files
 	}
+	withCLI := func() map[string]map[string]string { return map[string]map[string]string{"cli": {}} }
+	withNeeds := func() fstest.MapFS {
+		return fstest.MapFS{
+			"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n")},
+			"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			"starters/other/starter.yml":        &fstest.MapFile{Data: []byte("summary: Another service.\nfolders:\n  go:\n    path: .\n")},
+			"starters/other/files/go/main.go":   &fstest.MapFile{Data: []byte("package main\n")},
+			"starters/lonely/starter.yml":       &fstest.MapFile{Data: []byte("summary: A starter that no feature targets.\nfolders:\n  go:\n    path: .\n")},
+			"starters/lonely/files/go/main.go":  &fstest.MapFile{Data: []byte("package main\n")},
+			"features/a/feature.yml":            &fstest.MapFile{Data: []byte("summary: Feature A.\ntargets: [service]\nneeds: [b]\n")},
+			"features/b/feature.yml":            &fstest.MapFile{Data: []byte("summary: Feature B.\ntargets: [service]\n")},
+			"features/c/feature.yml":            &fstest.MapFile{Data: []byte("summary: Feature C.\ntargets: [service]\n")},
+			"features/w/feature.yml":            &fstest.MapFile{Data: []byte("summary: Feature W.\ntargets: [service]\nneeds: [b, c]\n")},
+			"features/elsewhere/feature.yml":    &fstest.MapFile{Data: []byte("summary: Elsewhere.\ntargets: [other]\n")},
+		}
+	}
+	featureStep := func(t *testing.T) prompt.Model {
+		t.Helper()
+		m, err := prompt.New(catalog.New(withNeeds()), "service", "my-service", nil, nil)
+		require.NoError(t, err)
+		return started(m, 100, 40)
+	}
 	confirmStep := func(t *testing.T, files fstest.MapFS, given map[string]string, givenByFeature map[string]map[string]string, height int) prompt.Model {
 		t.Helper()
 		m, err := prompt.New(catalog.New(files), "service", "my-service", given, givenByFeature)
@@ -75,15 +97,15 @@ func TestModel(t *testing.T) {
 		t.Run("shows the percent only while a line of the preview is out of the screen", func(t *testing.T) {
 			fits := 0
 			for height := 10; height < 40 && fits == 0; height++ {
-				screen := screenOf(confirmStep(t, withFeatures(), nil, nil, height))
+				screen := screenOf(confirmStep(t, withFeatures(), nil, withCLI(), height))
 				if strings.Contains(screen, "Repo: my-service") && strings.Contains(screen, "  main.go: the starter") {
 					fits = height
 				}
 			}
 			require.NotZero(t, fits)
 
-			require.NotContains(t, lastLineOf(confirmStep(t, withFeatures(), nil, nil, fits)), "%")
-			require.Contains(t, lastLineOf(confirmStep(t, withFeatures(), nil, nil, fits-1)), "0% ·")
+			require.NotContains(t, lastLineOf(confirmStep(t, withFeatures(), nil, withCLI(), fits)), "%")
+			require.Contains(t, lastLineOf(confirmStep(t, withFeatures(), nil, withCLI(), fits-1)), "0% ·")
 		})
 
 		t.Run("fills the rows of the terminal, and cuts each line of the preview at its width", func(t *testing.T) {
@@ -91,14 +113,14 @@ func TestModel(t *testing.T) {
 			files["starters/service/files/go/a-"+strings.Repeat("long-name-", 12)+".txt"] = &fstest.MapFile{Data: []byte("x\n")}
 			m, err := prompt.New(catalog.New(files), "service", "my-service", nil, nil)
 			require.NoError(t, err)
-			m = started(m, 62, 20)
+			m = started(m, 60, 20)
 
 			lines := strings.Split(screenOf(m), "\n")
 
 			require.Len(t, lines, 20)
 			require.Contains(t, screenOf(m), "a-long-name-long-name-")
 			for _, line := range lines {
-				require.LessOrEqual(t, lipgloss.Width(line), 62, line)
+				require.LessOrEqual(t, lipgloss.Width(line), 60, line)
 			}
 		})
 
@@ -112,11 +134,11 @@ func TestModel(t *testing.T) {
 		t.Run("shows how far a preview that is longer than the screen is scrolled, cuts the help that does not fit, and shows no percent for a preview that fits", func(t *testing.T) {
 			m, err := prompt.New(catalog.New(withManyFiles()), "service", "my-service", nil, nil)
 			require.NoError(t, err)
-			m = started(m, 63, 20)
+			m = started(m, 61, 20)
 
-			require.Equal(t, " 0% · ctrl+d/u scroll • ←/→ choose • enter confirm • esc cancel", lastLineOf(m))
-			require.Equal(t, " 100% · ctrl+d/u scroll • ←/→ choose • enter confirm …", lastLineOf(pressed(m, "ctrl+d", "ctrl+d", "ctrl+d", "ctrl+d", "ctrl+d")))
-			require.Equal(t, " ctrl+d/u scroll • ←/→ choose • enter confirm • esc cancel", lastLineOf(confirmStep(t, withFeatures(), nil, nil, 40)))
+			require.Equal(t, " 0% · ctrl+d/u scroll • ←/→ move • enter confirm • esc cancel", lastLineOf(m))
+			require.Equal(t, " 100% · ctrl+d/u scroll • ←/→ move • enter confirm …", lastLineOf(pressed(m, "ctrl+d", "ctrl+d", "ctrl+d", "ctrl+d", "ctrl+d")))
+			require.Equal(t, " ctrl+d/u scroll • ←/→ move • enter confirm • esc cancel", lastLineOf(confirmStep(t, withFeatures(), nil, withCLI(), 40)))
 		})
 
 		for name, keys := range map[string][]string{
@@ -136,19 +158,37 @@ func TestModel(t *testing.T) {
 			})
 		}
 
-		t.Run("a template that fails to render stops the TUI before it starts, with the message of the preview", func(t *testing.T) {
+		withBadTemplate := func() fstest.MapFS {
 			files := withFeatures()
 			files["starters/service/files/go/bad.go"] = &fstest.MapFile{Data: []byte("package {{ .Nmae }}\n")}
+			return files
+		}
+		previewErrOf := func(t *testing.T, files fstest.MapFS) error {
+			t.Helper()
 			starter, err := catalog.New(files).Starter("service")
 			require.NoError(t, err)
 			selection, err := starter.Select("my-service", nil, nil, catalog.Answers{})
 			require.NoError(t, err)
 			_, previewErr := selection.Preview()
 			require.Error(t, previewErr)
+			return previewErr
+		}
 
-			_, err = prompt.New(catalog.New(files), "service", "my-service", nil, nil)
+		t.Run("a template that fails to render stops the TUI before it starts when flags answer the steps before the confirm step, with the message of the preview", func(t *testing.T) {
+			_, err := prompt.New(catalog.New(withBadTemplate()), "service", "my-service", nil, withCLI())
 
-			require.EqualError(t, err, previewErr.Error())
+			require.EqualError(t, err, previewErrOf(t, withBadTemplate()).Error())
+		})
+
+		t.Run("a template that fails to render ends the TUI after the feature step, with the message of the preview", func(t *testing.T) {
+			m, err := prompt.New(catalog.New(withBadTemplate()), "service", "my-service", nil, nil)
+			require.NoError(t, err)
+
+			ended, quit := pressedAndQuit(started(m, 100, 40), "enter")
+
+			require.True(t, quit)
+			_, err = ended.Confirmed()
+			require.EqualError(t, err, previewErrOf(t, withBadTemplate()).Error())
 		})
 
 		for name, test := range map[string]struct {
@@ -165,6 +205,174 @@ func TestModel(t *testing.T) {
 				require.EqualError(t, err, test.message)
 			})
 		}
+
+		for name, test := range map[string]struct {
+			path, contents, message string
+		}{
+			"a starter.yml of another starter that does not parse": {path: "starters/other/starter.yml", contents: "folders: [", message: "starters/other/starter.yml"},
+			"a pattern of the starter that does not compile":       {path: "starters/service/starter.yml", contents: "options:\n  region:\n    pattern: '('\nfolders:\n  go:\n    path: .\n", message: "the pattern of the option region"},
+		} {
+			t.Run(name+" stops the TUI before it starts, with the message of the catalog", func(t *testing.T) {
+				files := withFeatures()
+				files[test.path] = &fstest.MapFile{Data: []byte(test.contents)}
+
+				_, err := prompt.New(catalog.New(files), "service", "my-service", nil, withCLI())
+
+				require.ErrorContains(t, err, test.message)
+			})
+		}
+	})
+
+	t.Run("features", func(t *testing.T) {
+		t.Run("with no --feature flag, the TUI starts at the feature step, which lists each feature that targets the starter in the order of the names, with its summary", func(t *testing.T) {
+			screen := screenOf(featureStep(t))
+
+			require.Contains(t, screen, "Select the features")
+			require.Regexp(t, `(?s)a — Feature A\..*b — Feature B\..*c — Feature C\.`, screen)
+			require.NotContains(t, screen, "Elsewhere.")
+			require.NotContains(t, screen, "Write the repo?")
+		})
+
+		t.Run("a starter that no feature targets has no feature step", func(t *testing.T) {
+			m, err := prompt.New(catalog.New(withNeeds()), "lonely", "my-service", nil, nil)
+			require.NoError(t, err)
+
+			require.Contains(t, screenOf(started(m, 100, 40)), "Write the repo?")
+		})
+
+		for name, toggle := range map[string]string{"x": "x", "space": "space"} {
+			t.Run(name+" selects a feature, and with no need enter goes on to the confirm step, which shows the feature as answered", func(t *testing.T) {
+				screen := screenOf(pressed(featureStep(t), "down", "down", toggle, "enter"))
+
+				require.Contains(t, screen, "Write the repo?")
+				require.Contains(t, screen, "Features:\n  c: answered\n")
+			})
+		}
+
+		t.Run("enter with no feature selected goes on to the confirm step with no feature", func(t *testing.T) {
+			screen := screenOf(pressed(featureStep(t), "enter"))
+
+			require.Contains(t, screen, "Write the repo?")
+			require.Contains(t, screen, "Features: none")
+		})
+
+		t.Run("when a need adds a feature, the needs step shows the line of each feature that a need adds, and Continue goes on to the confirm step", func(t *testing.T) {
+			needs := pressed(featureStep(t), "x", "enter")
+			require.Contains(t, screenOf(needs), "b: needed by a")
+			require.Contains(t, screenOf(needs), "Continue")
+			require.Contains(t, screenOf(needs), "Change the features")
+
+			screen := screenOf(pressed(needs, "enter"))
+
+			require.Contains(t, screen, "Write the repo?")
+			require.Contains(t, screen, "Features:\n  b: needed by a\n  a: answered\n")
+		})
+
+		t.Run("Change the features shows the feature step again with the selected features kept, and a new choice replaces them", func(t *testing.T) {
+			again := pressed(featureStep(t), "x", "enter", "down", "enter")
+			require.Contains(t, screenOf(again), "Select the features")
+			require.Contains(t, screenOf(again), "✓ a — Feature A.")
+
+			screen := screenOf(pressed(again, "x", "down", "down", "x", "enter"))
+
+			require.Contains(t, screen, "Write the repo?")
+			require.Contains(t, screen, "Features:\n  c: answered\n\n")
+		})
+
+		t.Run("a selected feature that another selected feature needs shows answered and the features that need it, with no needs step", func(t *testing.T) {
+			screen := screenOf(pressed(featureStep(t), "x", "down", "x", "enter"))
+
+			require.Contains(t, screen, "Write the repo?")
+			require.Contains(t, screen, "Features:\n  b: answered, needed by a\n  a: answered\n")
+		})
+
+		t.Run("with a --feature flag, the TUI shows no feature step and no needs step, and the confirm step shows the features of the flags", func(t *testing.T) {
+			m, err := prompt.New(catalog.New(withNeeds()), "service", "my-service", nil, map[string]map[string]string{"a": {}})
+			require.NoError(t, err)
+
+			screen := screenOf(started(m, 100, 40))
+
+			require.Contains(t, screen, "Write the repo?")
+			require.Contains(t, screen, "Features:\n  b: needed by a\n  a: command line\n")
+		})
+
+		t.Run("after yes, the selection holds the features that the developer selected", func(t *testing.T) {
+			confirmed, quit := pressedAndQuit(featureStep(t), "down", "down", "x", "enter", "y")
+
+			require.True(t, quit)
+			selection, err := confirmed.Confirmed()
+			require.NoError(t, err)
+			require.Equal(t, "service my-service --feature c", selection.Arguments("my-service"))
+		})
+
+		t.Run("shows the title, the features with the cursor at the first one, and the keys of the step", func(t *testing.T) {
+			require.Equal(t, `feature-compose new
+
+┃ Select the features
+┃ > • a — Feature A.
+┃   • b — Feature B.
+┃   • c — Feature C.
+┃   • w — Feature W.
+ ↑/↓ move • x select • enter next • esc cancel`, screenOf(featureStep(t)))
+		})
+
+		t.Run("the needs step shows one line for each feature that a need adds, and Continue with the cursor on it", func(t *testing.T) {
+			require.Equal(t, `feature-compose new
+
+┃ The features that you selected need these features
+┃ b: needed by w
+┃ c: needed by w
+┃ > Continue
+┃   Change the features
+ ↑/↓ move • enter choose • esc cancel`, screenOf(pressed(featureStep(t), "down", "down", "down", "x", "enter")))
+		})
+
+		t.Run("each step wraps its text at the width of a narrow terminal", func(t *testing.T) {
+			narrow := func() prompt.Model {
+				m, err := prompt.New(catalog.New(withNeeds()), "service", "my-service", nil, nil)
+				require.NoError(t, err)
+				return started(m, 40, 30)
+			}
+
+			for _, step := range []prompt.Model{narrow(), pressed(narrow(), "x", "enter"), pressed(narrow(), "x", "enter", "enter")} {
+				require.Contains(t, step.View(), "feature-compose new")
+				for _, line := range strings.Split(escapeCode.ReplaceAllString(step.View(), ""), "\n") {
+					require.LessOrEqual(t, lipgloss.Width(line), 40, line)
+				}
+			}
+		})
+
+		t.Run("ctrl+d and ctrl+u at the feature step move the cursor of the list", func(t *testing.T) {
+			down := screenOf(pressed(featureStep(t), "ctrl+d", "x", "enter"))
+			up := screenOf(pressed(featureStep(t), "down", "down", "down", "ctrl+u", "x", "enter"))
+
+			require.Contains(t, down, "Features:\n  c: answered\n")
+			require.Contains(t, up, "Features:\n  b: answered\n")
+		})
+
+		t.Run("a value of a flag stays after the feature step, and shows command line", func(t *testing.T) {
+			files := withNeeds()
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("summary: A service.\noptions:\n  region:\n    default: us\nfolders:\n  go:\n    path: .\n")}
+			m, err := prompt.New(catalog.New(files), "service", "my-service", map[string]string{"region": "eu"}, nil)
+			require.NoError(t, err)
+
+			screen := screenOf(pressed(started(m, 100, 40), "enter"))
+
+			require.Contains(t, screen, "  starter.region: eu (command line)\n")
+		})
+
+		t.Run("a need that is not a feature of the starter ends the TUI after the feature step, with the message of the catalog", func(t *testing.T) {
+			files := withNeeds()
+			files["features/c/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Feature C.\ntargets: [service]\nneeds: [missing]\n")}
+			m, err := prompt.New(catalog.New(files), "service", "my-service", nil, nil)
+			require.NoError(t, err)
+
+			ended, quit := pressedAndQuit(started(m, 100, 40), "down", "down", "x", "enter")
+
+			require.True(t, quit)
+			_, err = ended.Confirmed()
+			require.ErrorContains(t, err, `the feature c needs "missing"`)
+		})
 	})
 
 	t.Run("cancel", func(t *testing.T) {
@@ -177,7 +385,7 @@ func TestModel(t *testing.T) {
 			"ctrl+c after a scroll": {"pgdown", "ctrl+c"},
 		} {
 			t.Run(name+" at the confirm step stops the TUI and gives the cancel, with no selection", func(t *testing.T) {
-				m := confirmStep(t, withFeatures(), nil, nil, 40)
+				m := confirmStep(t, withFeatures(), nil, withCLI(), 40)
 
 				canceled, quit := pressedAndQuit(m, keys...)
 
@@ -187,8 +395,23 @@ func TestModel(t *testing.T) {
 			})
 		}
 
+		for name, keys := range map[string][]string{
+			"esc at the feature step":    {"esc"},
+			"ctrl+c at the feature step": {"x", "ctrl+c"},
+			"esc at the needs step":      {"x", "enter", "esc"},
+			"ctrl+c at the needs step":   {"x", "enter", "ctrl+c"},
+		} {
+			t.Run(name+" stops the TUI and gives the cancel", func(t *testing.T) {
+				canceled, quit := pressedAndQuit(featureStep(t), keys...)
+
+				require.True(t, quit)
+				_, err := canceled.Confirmed()
+				require.EqualError(t, err, "you canceled new, so it wrote no file")
+			})
+		}
+
 		t.Run("a TUI that stops before an answer gives the cancel", func(t *testing.T) {
-			m := confirmStep(t, withFeatures(), nil, nil, 40)
+			m := confirmStep(t, withFeatures(), nil, withCLI(), 40)
 
 			_, err := m.Confirmed()
 

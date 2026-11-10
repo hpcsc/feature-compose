@@ -77,6 +77,7 @@ that it needs, with its source:
 | Source | Meaning |
 | --- | --- |
 | `command line` | A `--feature` flag selects the feature. When other selected features also need it, the line ends with `, needed by <features>`. |
+| `answered` | You select the feature in the TUI (see [Answer the Questions in a TUI](#answer-the-questions-in-a-tui)). When other selected features also need it, the line ends with `, needed by <features>`. `--dry-run` starts no TUI, so it never shows this source. |
 | `needed by <features>` | Only a need selects the feature. The line is the line that `new` prints for it. |
 
 Then the preview gives each option by the name with which a template reads it: the options of the starter as
@@ -101,8 +102,28 @@ The preview is text for a person, and its layout can change. A script reads the 
 
 ## Answer the Questions in a TUI
 
-When stdin and stdout are both terminals, `feature-compose new` starts a TUI. The confirm step of the TUI shows the
-preview of the repo, which is the text that `--dry-run` prints, and asks whether to write the repo:
+When stdin and stdout are both terminals, `feature-compose new` starts a TUI. The TUI asks for each answer that the
+arguments and the flags do not give, one step at a time.
+
+**The feature step** lists each feature that targets the starter, in the order of the names, with its `summary`.
+Select none, one or more features:
+
+| Key | Action |
+| --- | --- |
+| `↑` or `↓` | Move to a feature. |
+| `x` or `space` | Select the feature, or clear it. |
+| `enter` | Go on, also with no feature selected. |
+
+**The needs step** comes after the feature step when a need adds a feature. It shows each feature that a need adds,
+for example `api-auth: needed by cli-auth`. Choose `Continue` to go on, or `Change the features` to go back to the
+feature step with your features still selected.
+
+A `--feature` flag answers the feature step, so the TUI then shows neither the feature step nor the needs step. For
+example, `feature-compose new go-event-sourcing-service my-service` starts at the feature step, and
+`feature-compose new go-event-sourcing-service my-service --feature cli` starts at the confirm step.
+
+**The confirm step** shows the preview of the repo, which is the text that `--dry-run` prints, and asks whether to
+write the repo:
 
 ```text
 feature-compose new
@@ -118,16 +139,17 @@ Features:
 ┃ Write the repo?
 ┃
 ┃   Yes     No
- 0% · ctrl+d/u scroll • ←/→ choose • enter confirm • esc cancel
+ 0% · ctrl+d/u scroll • ←/→ move • enter confirm • esc cancel
 ```
 
-A value that a flag gives shows the source `command line`. The flag fixes that value, and the TUI does not ask for it.
+A feature or a value that a flag gives shows the source `command line`. The flag fixes it, and the TUI does not ask
+for it. A feature that you select in the TUI shows the source `answered`.
 
 | Key | Action |
 | --- | --- |
 | `ctrl+d` or `pgdown` | Scroll the preview down. When the preview is longer than the screen, the last line starts with how far it is scrolled. |
 | `ctrl+u` or `pgup` | Scroll the preview up. |
-| `←` or `→` | Choose Yes or No. |
+| `←` or `→` | Move between Yes and No. |
 | `enter` | Write the repo when Yes is chosen, and cancel when No is chosen. |
 | `y` | Write the repo. |
 | `n`, `esc` or `ctrl+c` | Cancel. |

@@ -295,6 +295,33 @@ describe('feature-compose new in a terminal', () => {
     expect(readdirSync(dir)).toEqual([])
   })
 
+  it('without --feature, the feature step lists the features with their summaries, the needs step shows what cli-auth needs and goes back, and the confirm step shows the selected feature as answered', async () => {
+    const dir = scratchDir()
+    const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--option', 'go-version=1.28', '--option', 'module=github.com/acme/my-service'])
+
+    await session.waitForText('Select the features', { timeout: 15_000 })
+    const features = await session.text()
+    for (const part of ['api-auth — The API accepts a request', 'cli — A command line program', 'cli-auth — The CLI sends the API key']) {
+      expect(features).toContain(part)
+    }
+    for (const key of ['down', 'down', 'x', 'enter'] as const) {
+      await session.press(key)
+    }
+    await session.waitForText('api-auth: needed by cli-auth')
+    expect(await session.text()).toContain('cli: needed by cli-auth')
+    await session.press('down')
+    await session.press('enter')
+    await session.waitForText('✓ cli-auth')
+    for (const key of ['x', 'up', 'x', 'enter'] as const) {
+      await session.press(key)
+    }
+    await session.waitForText('Write the repo?')
+    expect(await session.text()).toContain('cli: answered')
+    await session.press('n')
+    await session.waitForText('EXIT:1')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
   it('esc at the confirm step cancels, and writes nothing', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', ...flags])

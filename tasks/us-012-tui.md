@@ -423,24 +423,24 @@ in that folder, quoted for a POSIX shell (decision 9). `new` with those argument
 files as `Selection.Write` of the selection.
 
 **Acceptance Criteria:**
-- [ ] The arguments are the starter, the name, `--output-dir <output>` only when the output folder is not the name,
+- [x] The arguments are the starter, the name, `--output-dir <output>` only when the output folder is not the name,
   `--option <name>=<value>` for each option of the starter whose value is not its default, and `--feature` for each
   feature that a flag or an answer selected and for each other feature with a value that is not its default, in the
   orders of decision 9. A `--feature` holds `:<option>=<value>,...` with each option of the feature whose value is not
   its default, and only the name when each value is its default.
-- [ ] A value that equals its default is not in the arguments, also when a flag or an answer gave it. A feature that
+- [x] A value that equals its default is not in the arguments, also when a flag or an answer gave it. A feature that
   only a need selects, and whose each value is its default, is not in the arguments.
-- [ ] With a catalog where the feature `a` needs `b` and `b` has an option `mode` whose default is `fast`, the answers
+- [x] With a catalog where the feature `a` needs `b` and `b` has an option `mode` whose default is `fast`, the answers
   that select `a` and give `mode` the value `slow` give the arguments `service my-service --feature a --feature
   b:mode=slow`.
-- [ ] A word that a POSIX shell would split, expand or match against files is in single quotes, and a single quote in
+- [x] A word that a POSIX shell would split, expand or match against files is in single quotes, and a single quote in
   it is kept: `sh -c` with `printf '%s\n'` and the arguments prints each word as the selection has it, for a value
   with a space, with `$HOME`, with `*`, and with `'`.
-- [ ] In `internal/cmd`, for selections made with flags and with answers — features that an answer selects, a feature
+- [x] In `internal/cmd`, for selections made with flags and with answers — features that an answer selects, a feature
   that a need selects with an answered value that is not its default, values of the starter with a space and with a
   quote, and an output folder that is not the name — `new` run with the arguments as `sh` splits them, and with
   `--no-prompt`, writes the same files as `Selection.Write` of the selection.
-- [ ] `internal/catalog` has its own test of the arguments of each case above.
+- [x] `internal/catalog` has its own test of the arguments of each case above.
 
 **Affected Files/Modules:**
 - `internal/catalog/selection.go` — `Arguments`

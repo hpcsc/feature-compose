@@ -48,3 +48,13 @@ func (o optionValues) source(optionName string) string {
 	}
 	return "default"
 }
+
+func (o optionValues) notDefault() map[string]string {
+	values := map[string]string{}
+	for optionName, value := range o.byName {
+		if value != o.defaults[optionName] {
+			values[optionName] = value
+		}
+	}
+	return values
+}

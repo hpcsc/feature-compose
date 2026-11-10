@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -1307,6 +1308,69 @@ Options:
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{"main.txt": "example.com/acme eu a,b", "alpha.txt": "2 slow t"}, filesIn(t, output))
+		})
+	})
+
+	t.Run("arguments", func(t *testing.T) {
+		withArguments := func() fstest.MapFS {
+			return fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("options:\n  app:\n    default: api\n  module:\n    default: example.com/{{ .Name }}\n  region:\n    default: us\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"features/a/feature.yml":            &fstest.MapFile{Data: []byte("summary: A.\ntargets: [service]\nneeds: [x, y]\n")},
+				"features/c/feature.yml":            &fstest.MapFile{Data: []byte("summary: C.\ntargets: [service]\noptions:\n  tone:\n    default: soft\n")},
+				"features/x/feature.yml":            &fstest.MapFile{Data: []byte("summary: X.\ntargets: [service]\n")},
+				"features/y/feature.yml":            &fstest.MapFile{Data: []byte("summary: Y.\ntargets: [service]\nneeds: [z]\noptions:\n  mode:\n    values: [fast, slow]\n    default: fast\n  zone:\n    default: z\n")},
+				"features/z/feature.yml":            &fstest.MapFile{Data: []byte("summary: Z.\ntargets: [service]\noptions:\n  level:\n    default: \"1\"\n")},
+			}
+		}
+		argumentsOf := func(t *testing.T, given map[string]string, givenByFeature map[string]map[string]string, answers catalog.Answers, output string) string {
+			t.Helper()
+			starter, err := catalog.New(withArguments()).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", given, givenByFeature, answers)
+			require.NoError(t, err)
+			return selection.Arguments(output)
+		}
+
+		t.Run("an answer that selects a feature and an answer that gives its need a value that is not the default give the feature by its name and the need with that value", func(t *testing.T) {
+			arguments := argumentsOf(t, nil, nil, catalog.Answers{Features: []string{"a"}, FeatureValues: map[string]map[string]string{"y": {"mode": "slow"}}}, "my-service")
+
+			require.Equal(t, "service my-service --feature a --feature y:mode=slow", arguments)
+		})
+
+		t.Run("give --output-dir only when the output folder is not the name of the repo", func(t *testing.T) {
+			require.Equal(t, "service my-service", argumentsOf(t, nil, nil, catalog.Answers{}, "my-service"))
+			require.Equal(t, "service my-service --output-dir ../elsewhere", argumentsOf(t, nil, nil, catalog.Answers{}, "../elsewhere"))
+		})
+
+		t.Run("give --option for each option of the starter whose value is not its default, in the order of the names, from a flag or an answer", func(t *testing.T) {
+			arguments := argumentsOf(t, map[string]string{"region": "eu"}, nil, catalog.Answers{StarterValues: map[string]string{"app": "web", "module": "example.com/acme"}}, "my-service")
+
+			require.Equal(t, "service my-service --option app=web --option module=example.com/acme --option region=eu", arguments)
+		})
+
+		t.Run("a value that equals its default is not in the arguments, from a flag or an answer", func(t *testing.T) {
+			arguments := argumentsOf(t, map[string]string{"region": "us"}, map[string]map[string]string{"c": {"tone": "soft"}}, catalog.Answers{StarterValues: map[string]string{"app": "web", "module": "example.com/my-service"}}, "my-service")
+
+			require.Equal(t, "service my-service --option app=web --feature c", arguments)
+		})
+
+		t.Run("give the features that a flag or an answer selects in the order of the names, then each other feature with a value that is not its default, each after the features that it needs, each with its values that are not their default in the order of the names", func(t *testing.T) {
+			arguments := argumentsOf(t, nil, map[string]map[string]string{"c": {"tone": "loud"}}, catalog.Answers{
+				Features:      []string{"a"},
+				FeatureValues: map[string]map[string]string{"y": {"mode": "slow", "zone": "w"}, "z": {"level": "2"}},
+			}, "my-service")
+
+			require.Equal(t, "service my-service --feature a --feature c:tone=loud --feature z:level=2 --feature y:mode=slow,zone=w", arguments)
+		})
+
+		t.Run("a word that a shell splits, expands or matches against files is quoted, so sh gives each word as the selection has it", func(t *testing.T) {
+			arguments := argumentsOf(t, nil, nil, catalog.Answers{StarterValues: map[string]string{"app": "a b", "module": "$HOME", "region": "it's"}}, "*")
+
+			printed, err := exec.Command("sh", "-c", "printf '%s\\n' "+arguments).Output()
+
+			require.NoError(t, err)
+			require.Equal(t, "service\nmy-service\n--output-dir\n*\n--option\napp=a b\n--option\nmodule=$HOME\n--option\nregion=it's\n", string(printed))
 		})
 	})
 

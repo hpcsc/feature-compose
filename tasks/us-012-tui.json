@@ -108,7 +108,7 @@
     },
     {
       "n": 4,
-      "done": false,
+      "done": true,
       "title": "Give the arguments of `new` that make the same repo",
       "language": "Go",
       "testable": true,

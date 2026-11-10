@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -300,6 +301,47 @@ folders:
 				require.Equal(t, map[string]string{"go.mod": "module github.com/hpcsc/my-service\ngo 1.27.1\n"}, filesIn(t, output))
 			}
 		})
+
+		for name, test := range map[string]struct {
+			files          func() fstest.MapFS
+			given          map[string]string
+			givenByFeature map[string]map[string]string
+			answers        catalog.Answers
+		}{
+			"with features that answers select, and a need with an answered value": {
+				files:   withNeeds,
+				answers: catalog.Answers{Features: []string{"a", "w"}, FeatureValues: map[string]map[string]string{"b": {"mode": "slow"}}},
+			},
+			"with a value of the starter that has a space and a quote": {
+				files:   func() fstest.MapFS { return starterFiles("") },
+				answers: catalog.Answers{StarterValues: map[string]string{"module": "example.com/it's a b"}},
+			},
+			"with flags, and an answer with $HOME and * in a value": {
+				files:          withFeatures,
+				given:          map[string]string{"go-version": "1.28.0"},
+				givenByFeature: map[string]map[string]string{"auth": {"method": "oauth"}},
+				answers:        catalog.Answers{FeatureValues: map[string]map[string]string{"auth": {"realm": "a $HOME *"}}},
+			},
+		} {
+			t.Run("new with the arguments of a selection "+name+", as sh splits them, and --no-prompt writes the files of the selection", func(t *testing.T) {
+				t.Chdir(t.TempDir())
+				starter, err := catalog.New(test.files()).Starter("service")
+				require.NoError(t, err)
+				selection, err := starter.Select("my-service", test.given, test.givenByFeature, test.answers)
+				require.NoError(t, err)
+				expected := filepath.Join(t.TempDir(), "my-service")
+				require.NoError(t, selection.Write(expected))
+				output := filepath.Join(t.TempDir(), "elsewhere")
+				split, err := exec.Command("sh", "-c", `printf '%s\000' `+selection.Arguments(output)).Output()
+				require.NoError(t, err)
+				words := strings.Split(strings.TrimSuffix(string(split), "\x00"), "\x00")
+
+				_, err = runNew(t, test.files(), append(words, "--no-prompt")...)
+
+				require.NoError(t, err)
+				require.Equal(t, filesIn(t, expected), filesIn(t, output))
+			})
+		}
 
 		t.Run("after the last file, new runs the after_render commands in the repo", func(t *testing.T) {
 			t.Chdir(t.TempDir())

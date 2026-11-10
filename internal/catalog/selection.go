@@ -8,6 +8,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	texttemplate "text/template"
@@ -15,6 +16,8 @@ import (
 	"github.com/hpcsc/feature-compose/internal/github"
 	"github.com/hpcsc/feature-compose/internal/textcase"
 )
+
+var shellWord = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
 
 type Selection struct {
 	folders         map[string]folder
@@ -72,6 +75,22 @@ func (s Selection) Questions() []Question {
 	return questions
 }
 
+func (s Selection) Arguments(output string) string {
+	words := []string{s.starter.name, s.name}
+	if output != s.name {
+		words = append(words, "--output-dir", output)
+	}
+	words = append(words, flagValues(s.starter.values.notDefault()).optionWords()...)
+	for _, f := range s.featuresOfArguments() {
+		words = append(words, flagValues(f.values.notDefault()).featureWords(f.name)...)
+	}
+	quoted := make([]string, 0, len(words))
+	for _, word := range words {
+		quoted = append(quoted, s.quoted(word))
+	}
+	return strings.Join(quoted, " ")
+}
+
 func (s Selection) RunAfterRender(ctx context.Context, output string) error {
 	for _, folderName := range slices.Sorted(maps.Keys(s.folders)) {
 		if err := s.folders[folderName].runAfterRender(ctx, output); err != nil {
@@ -115,6 +134,27 @@ func (s Selection) optionLines() []string {
 		lines = append(lines, f.optionLines()...)
 	}
 	return lines
+}
+
+func (s Selection) featuresOfArguments() []selectedFeature {
+	var requested, others []selectedFeature
+	for _, f := range s.features {
+		switch {
+		case f.requested():
+			requested = append(requested, f)
+		case len(f.values.notDefault()) > 0:
+			others = append(others, f)
+		}
+	}
+	slices.SortFunc(requested, func(a, b selectedFeature) int { return strings.Compare(a.name, b.name) })
+	return append(requested, others...)
+}
+
+func (s Selection) quoted(word string) string {
+	if shellWord.MatchString(word) {
+		return word
+	}
+	return "'" + strings.ReplaceAll(word, "'", `'\''`) + "'"
 }
 
 func (s Selection) feature(featureName string) selectedFeature {

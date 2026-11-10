@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -529,6 +530,104 @@ The options of the starter service
 		})
 	})
 
+	t.Run("starter and name", func(t *testing.T) {
+		starterStep := func(t *testing.T, givenByFeature map[string]map[string]string) prompt.Model {
+			t.Helper()
+			m, err := prompt.New(catalog.New(withNeeds()), "", "", nil, givenByFeature)
+			require.NoError(t, err)
+			return started(m, 100, 40)
+		}
+
+		t.Run("with no starter, the TUI starts at the starter step, which lists each starter in the order of the names, with its summary", func(t *testing.T) {
+			require.Equal(t, `feature-compose new
+
+┃ Select the starter
+┃ > lonely — A starter that no feature targets.
+┃   other — Another service.
+┃   service — A service.
+ ↑/↓ move • enter choose • esc cancel`, screenOf(starterStep(t, nil)))
+		})
+
+		t.Run("the lists of starters and of features have no filter, so / changes nothing", func(t *testing.T) {
+			starters := starterStep(t, nil)
+			features := featureStep(t)
+
+			require.Equal(t, screenOf(starters), screenOf(pressed(starters, "/")))
+			require.Equal(t, screenOf(features), screenOf(pressed(features, "/")))
+		})
+
+		for _, name := range []string{"", "../escape", "team/service"} {
+			t.Run("the name step does not accept the name "+strconv.Quote(name)+", and shows the message of the selection", func(t *testing.T) {
+				typed := pressed(starterStep(t, nil), "down", "down", "enter", name)
+
+				stayed := pressed(typed, "enter")
+
+				require.Contains(t, screenOf(stayed), "Enter the name of the repo")
+				words := func(text string) string { return strings.Join(strings.Fields(text), " ") }
+				require.Contains(t, words(screenOf(stayed)), words(catalog.CheckRepoName(name).Error()))
+			})
+		}
+
+		t.Run("the name step shows the question, the name as it is typed, a / included, and the keys of the step", func(t *testing.T) {
+			typed := pressed(starterStep(t, nil), "down", "down", "enter", "a", "/", "b")
+
+			require.Equal(t, `feature-compose new
+
+┃ Enter the name of the repo
+┃ > a/b
+the name "a/b" of the repo must start with a letter or a digit, and hold only letters, digits, '.',
+'_' and '-'
+ enter next • esc cancel`, screenOf(typed))
+		})
+
+		t.Run("a starter that cannot be read ends the TUI after the starter step, with the message of the catalog", func(t *testing.T) {
+			files := withNeeds()
+			files["starters/lonely/starter.yml"] = &fstest.MapFile{Data: []byte("summary: A starter that no feature targets.\noptions:\n  region:\n    pattern: '('\nfolders:\n  go:\n    path: .\n")}
+			m, err := prompt.New(catalog.New(files), "", "", nil, nil)
+			require.NoError(t, err)
+
+			ended, quit := pressedAndQuit(started(m, 100, 40), "enter")
+
+			require.True(t, quit)
+			_, err = ended.Confirmed()
+			require.ErrorContains(t, err, "the pattern of the option region")
+		})
+
+		t.Run("with a starter and no name, the TUI starts at the name step", func(t *testing.T) {
+			m, err := prompt.New(catalog.New(withNeeds()), "service", "", nil, nil)
+			require.NoError(t, err)
+
+			require.Contains(t, screenOf(started(m, 100, 40)), "Enter the name of the repo")
+		})
+
+		t.Run("after the starter step and the name step, the TUI goes on to the feature step of that starter, and a valid name shows no message", func(t *testing.T) {
+			named := pressed(starterStep(t, nil), "down", "down", "enter", "my-service")
+			require.NotContains(t, screenOf(named), "must start")
+
+			screen := screenOf(pressed(named, "enter"))
+
+			require.Contains(t, screen, "Select the features")
+			require.Contains(t, screen, "a — Feature A.")
+		})
+
+		t.Run("a flag that the starter of the TUI does not know ends the TUI after the name step, with the message of the catalog", func(t *testing.T) {
+			ended, quit := pressedAndQuit(starterStep(t, map[string]map[string]string{"nope": {}}), "down", "down", "enter", "my-service", "enter")
+
+			require.True(t, quit)
+			_, err := ended.Confirmed()
+			require.EqualError(t, err, `unknown feature "nope": the features that target the starter service are a, b, c, w`)
+		})
+
+		t.Run("after yes, the selection holds the starter and the name that the developer gave", func(t *testing.T) {
+			confirmed, quit := pressedAndQuit(starterStep(t, nil), "enter", "my-lonely", "enter", "y")
+
+			require.True(t, quit)
+			selection, err := confirmed.Confirmed()
+			require.NoError(t, err)
+			require.Equal(t, "lonely my-lonely", selection.Arguments("my-lonely"))
+		})
+	})
+
 	t.Run("cancel", func(t *testing.T) {
 		for name, keys := range map[string][]string{
 			"n":                     {"n"},
@@ -570,6 +669,24 @@ The options of the starter service
 		} {
 			t.Run(name+" stops the TUI and gives the cancel", func(t *testing.T) {
 				m, err := prompt.New(catalog.New(withFeatures()), "service", "my-service", nil, withCLI())
+				require.NoError(t, err)
+
+				canceled, quit := pressedAndQuit(started(m, 100, 40), keys...)
+
+				require.True(t, quit)
+				_, err = canceled.Confirmed()
+				require.EqualError(t, err, "you canceled new, so it wrote no file")
+			})
+		}
+
+		for name, keys := range map[string][]string{
+			"esc at the starter step":    {"esc"},
+			"ctrl+c at the starter step": {"ctrl+c"},
+			"esc at the name step":       {"enter", "esc"},
+			"ctrl+c at the name step":    {"enter", "a", "ctrl+c"},
+		} {
+			t.Run(name+" stops the TUI and gives the cancel", func(t *testing.T) {
+				m, err := prompt.New(catalog.New(withNeeds()), "", "", nil, nil)
 				require.NoError(t, err)
 
 				canceled, quit := pressedAndQuit(started(m, 100, 40), keys...)

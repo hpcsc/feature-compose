@@ -69,54 +69,6 @@ func TestAdapter(t *testing.T) {
 		})
 	})
 
-	t.Run("two arguments", func(t *testing.T) {
-		t.Run("no argument returns the validation message", func(t *testing.T) {
-			action := asTwoArgumentsAction(func(context.Context, *cli.Command, string, string) error {
-				require.Fail(t, "should not be called when error happens")
-				return nil
-			}, "two arguments are required")
-
-			err := run(t, action)
-
-			require.ErrorContains(t, err, "two arguments are required")
-		})
-
-		t.Run("one argument returns the validation message", func(t *testing.T) {
-			action := asTwoArgumentsAction(func(context.Context, *cli.Command, string, string) error {
-				require.Fail(t, "should not be called when error happens")
-				return nil
-			}, "two arguments are required")
-
-			err := run(t, action, "argument-1")
-
-			require.ErrorContains(t, err, "two arguments are required")
-		})
-
-		t.Run("two arguments reach the action", func(t *testing.T) {
-			action := asTwoArgumentsAction(func(_ context.Context, _ *cli.Command, first string, second string) error {
-				require.Equal(t, "argument-1", first)
-				require.Equal(t, "argument-2", second)
-				return nil
-			}, "two arguments are required")
-
-			err := run(t, action, "argument-1", "argument-2")
-
-			require.NoError(t, err)
-		})
-
-		t.Run("more arguments give the action the first two only", func(t *testing.T) {
-			action := asTwoArgumentsAction(func(_ context.Context, _ *cli.Command, first string, second string) error {
-				require.Equal(t, "argument-1", first)
-				require.Equal(t, "argument-2", second)
-				return nil
-			}, "two arguments are required")
-
-			err := run(t, action, "argument-1", "argument-2", "argument-3")
-
-			require.NoError(t, err)
-		})
-	})
-
 	t.Run("slice arguments", func(t *testing.T) {
 		t.Run("no argument returns the validation message", func(t *testing.T) {
 			action := asSliceArgumentsAction(func(context.Context, *cli.Command, []string) error {

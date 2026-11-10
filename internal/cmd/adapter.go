@@ -25,17 +25,6 @@ func asOneArgumentAction(f func(context.Context, *cli.Command, string) error, va
 	}
 }
 
-func asTwoArgumentsAction(f func(context.Context, *cli.Command, string, string) error, validationMsg string) func(context.Context, *cli.Command) error {
-	return func(ctx context.Context, cmd *cli.Command) error {
-		arguments := cmd.Args().Slice()
-		if len(arguments) < 2 {
-			return errors.New(validationMsg)
-		}
-
-		return f(ctx, cmd, arguments[0], arguments[1])
-	}
-}
-
 func asSliceArgumentsAction(f func(context.Context, *cli.Command, []string) error, validationMsg string) func(context.Context, *cli.Command) error {
 	return func(ctx context.Context, cmd *cli.Command) error {
 		arguments := cmd.Args().Slice()

@@ -28,6 +28,14 @@ type Selection struct {
 	extensionPoints map[string]extensionPoint
 }
 
+func (s Selection) Name() string {
+	return s.name
+}
+
+func (s Selection) StarterName() string {
+	return s.starter.name
+}
+
 func (s Selection) AddedByNeeds() []Need {
 	var added []Need
 	for _, f := range s.features {

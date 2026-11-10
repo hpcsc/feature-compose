@@ -745,28 +745,28 @@ the name step. Without the TUI, `new` with fewer than two arguments stops as tod
 TUI does not know ends the TUI after the name step with the message of `new` without the TUI (decision 10).
 
 **Acceptance Criteria:**
-- [ ] In a terminal, `new` with no argument asks for the starter, the name of the repo, the features and the options,
+- [x] In a terminal, `new` with no argument asks for the starter, the name of the repo, the features and the options,
   in that order, and then shows the confirm step. The list of the starters holds each starter of the catalog, in the
   order of the names, each with its summary.
-- [ ] The name step does not accept a name that `Select` refuses, for example the empty text, `../escape` or
+- [x] The name step does not accept a name that `Select` refuses, for example the empty text, `../escape` or
   `team/service`, and shows the message of `Select` while the name is not valid.
-- [ ] `new <starter>` starts at the name step. An unknown starter stops `new` before the TUI starts, and the message
+- [x] `new <starter>` starts at the name step. An unknown starter stops `new` before the TUI starts, and the message
   lists the starters of the catalog.
-- [ ] `new <starter> <name>` starts at the feature step, as in Task 6.
-- [ ] With no argument or one argument, `new` with `--no-prompt`, with `--dry-run`, or with a stdin or a stdout that is
+- [x] `new <starter> <name>` starts at the feature step, as in Task 6.
+- [x] With no argument or one argument, `new` with `--no-prompt`, with `--dry-run`, or with a stdin or a stdout that is
   not a terminal stops with the message that names `<starter>` and `<name>`, as today, and writes nothing.
-- [ ] A `--feature` or `--option` flag that the starter from the TUI does not know, or a value that does not match,
+- [x] A `--feature` or `--option` flag that the starter from the TUI does not know, or a value that does not match,
   ends the TUI after the name step. `new` then prints the message that `new <starter> <name>` with the same flags
   prints without the TUI, writes nothing, and its status is 1.
-- [ ] Esc and ctrl+c are a cancel at the starter step and at the name step.
-- [ ] After "Yes", the printed command names the starter and the name that the developer gave in the TUI.
-- [ ] `catalog.CheckName` gives the message of `Select` for a name that `Select` refuses, and `Select` uses it.
-- [ ] `new --help` shows the arguments as optional.
-- [ ] The tests of `internal/prompt` drive the starter step and the name step through `Update` and `View` with a
+- [x] Esc and ctrl+c are a cancel at the starter step and at the name step.
+- [x] After "Yes", the printed command names the starter and the name that the developer gave in the TUI.
+- [x] `catalog.CheckName` gives the message of `Select` for a name that `Select` refuses, and `Select` uses it.
+- [x] `new --help` shows the arguments as optional.
+- [x] The tests of `internal/prompt` drive the starter step and the name step through `Update` and `View` with a
   catalog of their own.
-- [ ] The section "Answer the Questions in a TUI" of `README.md` tells the six steps in their order, which argument
+- [x] The section "Answer the Questions in a TUI" of `README.md` tells the six steps in their order, which argument
   or flag answers which step, and the keys of each step.
-- [ ] `e2e/tests/new.test.ts`, in a terminal, with a limit of 15 minutes: `new` shows `go-event-sourcing-service` and
+- [x] `e2e/tests/new.test.ts`, in a terminal, with a limit of 15 minutes: `new` shows `go-event-sourcing-service` and
   its summary. Enter, `my-service`, Enter, the selection of `cli-auth`, Enter, "Continue", Enter through the options,
   and `y` end with `EXIT:0`, and the screen shows `feature-compose new go-event-sourcing-service my-service --feature
   cli-auth`. Run in a second scratch folder with `--no-prompt`, that command writes a repo with the same files and

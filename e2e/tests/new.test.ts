@@ -370,6 +370,44 @@ describe('feature-compose new in a terminal', () => {
     expect(readdirSync(dir)).toEqual([])
   })
 
+  it(
+    'with no argument, new asks for the starter, the name, the features and the options, writes the repo after y, and the printed command with --no-prompt makes the same files',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+      mkdirSync(join(dir, 'tui'))
+      mkdirSync(join(dir, 'flags'))
+      const session = await openCli(join(dir, 'tui'), ['new'], env)
+
+      await session.waitForText('go-event-sourcing-service — A Go service with an event store, an HTTP API, and a catchup process.', { timeout: 15_000 })
+      await session.press('enter')
+      await session.waitForText('Enter the name of the repo')
+      await session.type('my-service')
+      await session.press('enter')
+      await session.waitForText('Select the features')
+      for (const key of ['down', 'down', 'x', 'enter'] as const) {
+        await session.press(key)
+      }
+      await session.waitForText('api-auth: needed by cli-auth')
+      await session.press('enter')
+      await session.waitForText('The options of the starter go-event-sourcing-service')
+      await session.press('enter')
+      await session.press('enter')
+      await session.waitForText('The options of the feature api-auth')
+      await session.press('enter')
+      await session.waitForText('Write the repo?')
+      await session.press('y')
+      await session.waitForText('EXIT:0', { timeout: 14 * 60 * 1000 })
+      expect(await session.text()).toContain('feature-compose new go-event-sourcing-service my-service --feature cli-auth')
+
+      const made = await runCli(join(dir, 'flags'), ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      expect(filesOf(join(dir, 'flags', 'my-service'))).toEqual(filesOf(join(dir, 'tui', 'my-service')))
+    },
+    15 * 60 * 1000,
+  )
+
   it('esc at the confirm step cancels, and writes nothing', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', ...flags])
@@ -441,6 +479,17 @@ async function silentGoProxy(): Promise<{ url: string; openConnections: () => nu
     server.close()
   })
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, openConnections: () => sockets.size }
+}
+
+function filesOf(dir: string): Record<string, string> {
+  const files: Record<string, string> = {}
+  for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
+    if (entry.isFile()) {
+      const path = join(entry.parentPath, entry.name)
+      files[path.slice(dir.length + 1)] = readFileSync(path, 'utf8')
+    }
+  }
+  return files
 }
 
 function exitStatus(child: ChildProcess): Promise<number | null> {

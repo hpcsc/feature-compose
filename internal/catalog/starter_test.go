@@ -42,6 +42,25 @@ folders:
 		return filesIn(t, output)
 	}
 
+	t.Run("check name", func(t *testing.T) {
+		for _, name := range []string{"", "../escape", "team/service", "-service", ".hidden"} {
+			t.Run("refuses the name "+strconv.Quote(name)+" with the message that the selection gives", func(t *testing.T) {
+				_, selectErr := starterWith(t, map[string]string{"go/a.txt": "a"}).Select(name, nil, nil, catalog.Answers{})
+				require.Error(t, selectErr)
+
+				err := catalog.CheckRepoName(name)
+
+				require.EqualError(t, err, selectErr.Error())
+			})
+		}
+
+		for _, name := range []string{"my-service", "My.Service_2", "9lives"} {
+			t.Run("accepts the name "+name, func(t *testing.T) {
+				require.NoError(t, catalog.CheckRepoName(name))
+			})
+		}
+	})
+
 	t.Run("select", func(t *testing.T) {
 		t.Run("an option with no given value takes its default, and the default renders with the name", func(t *testing.T) {
 			starter := starterWith(t, map[string]string{"go/go.mod": `module {{ option "starter.module" }}`})

@@ -247,7 +247,7 @@
     },
     {
       "n": 8,
-      "done": false,
+      "done": true,
       "title": "Ask for the starter and the name when the arguments do not give them",
       "language": "Go",
       "testable": true,

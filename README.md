@@ -104,7 +104,29 @@ The preview is text for a person, and its layout can change. A script reads the 
 ## Answer the Questions in a TUI
 
 When stdin and stdout are both terminals, `feature-compose new` starts a TUI. The TUI asks for each answer that the
-arguments and the flags do not give, one step at a time.
+arguments and the flags do not give, one step at a time, in this order:
+
+1. **The starter step** lists the starters of the catalog, in the order of the names, with their `summary`.
+2. **The name step** asks for the name of the repo. While the name is not valid, the TUI shows why, and `enter`
+   does not go on.
+3. **The feature step** and **the needs step**: see below.
+4. **The options step**: see below.
+5. **The confirm step**: see below.
+
+The arguments and the flags answer steps before the TUI starts:
+
+| You give | The TUI starts at |
+| --- | --- |
+| No argument | The starter step |
+| `<starter>` | The name step |
+| `<starter> <name>` | The feature step, or the options step when no feature targets the starter |
+| `<starter> <name>` and a `--feature` flag | The options step, or the confirm step when no option needs an answer |
+
+An unknown starter stops `new` before the TUI starts. When the TUI asks for the starter, `new` checks the flags after
+the name step, and a flag that the starter does not know ends the TUI with the message that `new` gives without the
+TUI.
+
+In the lists, `↑` and `↓` move and `enter` chooses. A list has no filter. In each step, `esc` or `ctrl+c` cancels.
 
 **The feature step** lists each feature that targets the starter, in the order of the names, with its `summary`.
 Select none, one or more features:
@@ -186,6 +208,7 @@ shell splits, expands or matches against files in single quotes. That command wi
 files.
 
 `new` starts no TUI when stdin or stdout is not a terminal, or with `--no-prompt` or `--dry-run`. CI uses this mode.
+`new` then needs both arguments, `<starter>` and `<name>`.
 Each option without a value then gets its default. An option with no default and no value stops `new`, and the
 message names the option and the flag that gives it:
 

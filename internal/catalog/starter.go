@@ -71,8 +71,8 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature) (S
 }
 
 func (s Starter) Select(name string, given map[string]string, givenByFeature map[string]map[string]string, answers Answers) (Selection, error) {
-	if !repoName.MatchString(name) {
-		return Selection{}, fmt.Errorf("the name %q of the repo must start with a letter or a digit, and hold only letters, digits, '.', '_' and '-'", name)
+	if err := CheckRepoName(name); err != nil {
+		return Selection{}, err
 	}
 	starterValues, err := s.options.withDefaults(given, answers.StarterValues, name)
 	if err != nil {
@@ -301,4 +301,11 @@ func (s Starter) unknownFeature(featureName string) error {
 	}
 	return fmt.Errorf("unknown feature %q: the features that target the starter %s are %s",
 		featureName, s.name, strings.Join(slices.Sorted(maps.Keys(s.features)), ", "))
+}
+
+func CheckRepoName(name string) error {
+	if !repoName.MatchString(name) {
+		return fmt.Errorf("the name %q of the repo must start with a letter or a digit, and hold only letters, digits, '.', '_' and '-'", name)
+	}
+	return nil
 }

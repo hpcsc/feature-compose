@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -16,7 +17,7 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 	return &cli.Command{
 		Name:      "new",
 		Usage:     "make a new repo from a starter",
-		ArgsUsage: "<starter> <name>",
+		ArgsUsage: "[<starter> [<name>]]",
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{Name: "feature", Usage: "select a feature of the catalog, as <name>[:<option>=<value>,...]; give the flag one time for each feature"},
 			&cli.StringSliceFlag{Name: "option", Usage: "set an option of the starter, as <name>=<value>; give the flag one time for each option"},
@@ -25,7 +26,14 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			&cli.BoolFlag{Name: "dry-run", Usage: "print a preview of the repo, and write no file and run no command"},
 		},
 		DisableSliceFlagSeparator: true,
-		Action: asTwoArgumentsAction(func(ctx context.Context, cmd *cli.Command, starterName, name string) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			asked := !cmd.Bool("no-prompt") && !cmd.Bool("dry-run") && isTerminal(cmd.Root().Reader) && isTerminal(cmd.Root().Writer)
+			arguments := cmd.Args().Slice()
+			if len(arguments) < 2 && !asked {
+				return errors.New("new needs two arguments: new <starter> <name>")
+			}
+			arguments = append(arguments, "", "")
+			starterName, name := arguments[0], arguments[1]
 			given, err := givenStarterValues(cmd.StringSlice("option"))
 			if err != nil {
 				return err
@@ -38,7 +46,6 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			if err != nil {
 				return err
 			}
-			asked := !cmd.Bool("no-prompt") && !cmd.Bool("dry-run") && isTerminal(cmd.Root().Reader) && isTerminal(cmd.Root().Writer)
 			var selection catalog.Selection
 			if asked {
 				selection, err = ask(ctx, cmd, c, starterName, name, given, givenByFeature)
@@ -58,7 +65,7 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			}
 			output := cmd.String("output-dir")
 			if output == "" {
-				output = name
+				output = selection.Name()
 			}
 			if err := selection.Write(output); err != nil {
 				return err
@@ -70,13 +77,13 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			for _, need := range selection.AddedByNeeds() {
 				fmt.Fprintln(&printed, need)
 			}
-			fmt.Fprintf(&printed, "Made %s from the starter %s.\n", output, starterName)
+			fmt.Fprintf(&printed, "Made %s from the starter %s.\n", output, selection.StarterName())
 			if asked {
 				fmt.Fprintf(&printed, "To make the same repo again, run:\n  feature-compose new %s\n", selection.Arguments(output))
 			}
 			_, err = io.WriteString(cmd.Root().Writer, printed.String())
 			return err
-		}, "new needs two arguments: new <starter> <name>"),
+		},
 	}
 }
 

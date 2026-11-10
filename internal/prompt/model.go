@@ -50,7 +50,8 @@ type step struct {
 var _ tea.Model = Model{}
 
 type Model struct {
-	starterName    string
+	catalog        catalog.Catalog
+	definitions    catalog.Definitions
 	starter        catalog.Starter
 	features       map[string]catalog.FeatureDefinition
 	name           string
@@ -72,26 +73,18 @@ func New(c catalog.Catalog, starterName, name string, given map[string]string, g
 	if err != nil {
 		return Model{}, err
 	}
-	forStarter, err := definitions.ForStarter(starterName)
+	m := Model{catalog: c, definitions: definitions, name: name, given: given, givenByFeature: givenByFeature, help: help.New()}
+	if starterName == "" {
+		return m.atStarters(), nil
+	}
+	m, err = m.withStarter(starterName)
 	if err != nil {
 		return Model{}, err
 	}
-	starter, err := c.Starter(starterName)
-	if err != nil {
-		return Model{}, err
+	if name == "" {
+		return m.atName(), nil
 	}
-	selection, err := starter.Select(name, given, givenByFeature, catalog.Answers{})
-	if err != nil {
-		return Model{}, err
-	}
-	m := Model{starterName: starterName, starter: starter, features: forStarter.Features, name: name, given: given, givenByFeature: givenByFeature, selection: selection, help: help.New()}
-	switch {
-	case len(givenByFeature) == 0 && len(m.features) > 0:
-		return m.atFeatures(), nil
-	case len(selection.Questions()) > 0:
-		return m.atOptions(), nil
-	}
-	return m.atConfirm()
+	return m.afterName()
 }
 
 func (m Model) Init() tea.Cmd {
@@ -106,6 +99,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, keys.cancel):
 			return m, tea.Quit
+		// huh's Select has no switch to turn its filter off, and its filter takes esc, which cancels the TUI.
+		case msg.String() == "/" && m.atList():
+			return m, nil
 		case m.step.showsPreview && key.Matches(msg, keys.scrollDown):
 			m.preview.HalfPageDown()
 			return m, nil
@@ -150,6 +146,81 @@ func (m Model) Confirmed() (catalog.Selection, error) {
 	return m.selection, nil
 }
 
+func (m Model) atList() bool {
+	_, isList := m.step.form.GetFocusedField().(interface{ GetFiltering() bool })
+	return isList
+}
+
+func (m Model) atStarters() Model {
+	starterName := ""
+	options := make([]huh.Option[string], 0, len(m.definitions.Starters))
+	for _, name := range slices.Sorted(maps.Keys(m.definitions.Starters)) {
+		options = append(options, huh.NewOption(name+" — "+m.definitions.Starters[name].Summary, name))
+	}
+	m.step = step{
+		form: huh.NewForm(huh.NewGroup(
+			huh.NewSelect[string]().Title("Select the starter").Value(&starterName).Options(options...),
+		)).WithShowHelp(false),
+		keys: []key.Binding{keys.move, keys.choose, keys.cancel},
+		done: func(m Model) (tea.Model, tea.Cmd) {
+			next, err := m.withStarter(starterName)
+			if err != nil {
+				return m.ended(err)
+			}
+			return next.atName().started()
+		},
+	}
+	return m
+}
+
+func (m Model) withStarter(starterName string) (Model, error) {
+	forStarter, err := m.definitions.ForStarter(starterName)
+	if err != nil {
+		return Model{}, err
+	}
+	starter, err := m.catalog.Starter(starterName)
+	if err != nil {
+		return Model{}, err
+	}
+	m.starter, m.features = starter, forStarter.Features
+	return m, nil
+}
+
+func (m Model) atName() Model {
+	name := ""
+	m.step = step{
+		form: huh.NewForm(huh.NewGroup(
+			huh.NewInput().Title("Enter the name of the repo").Value(&name).Validate(catalog.CheckRepoName),
+		)).WithShowHelp(false).WithShowErrors(false),
+		keys:  []key.Binding{keys.next, keys.cancel},
+		check: func() error { return catalog.CheckRepoName(name) },
+		done: func(m Model) (tea.Model, tea.Cmd) {
+			m.name = name
+			next, err := m.afterName()
+			if err != nil {
+				return m.ended(err)
+			}
+			return next.started()
+		},
+	}
+	return m
+}
+
+func (m Model) afterName() (Model, error) {
+	selection, err := m.starter.Select(m.name, m.given, m.givenByFeature, catalog.Answers{})
+	if err != nil {
+		return Model{}, err
+	}
+	m.selection = selection
+	switch {
+	case len(m.givenByFeature) == 0 && len(m.features) > 0:
+		return m.atFeatures(), nil
+	case len(selection.Questions()) > 0:
+		return m.atOptions(), nil
+	}
+	return m.atConfirm()
+}
+
 func (m Model) atFeatures() Model {
 	answered := slices.Clone(m.answers.Features)
 	options := make([]huh.Option[string], 0, len(m.features))
@@ -158,7 +229,7 @@ func (m Model) atFeatures() Model {
 	}
 	m.step = step{
 		form: huh.NewForm(huh.NewGroup(
-			huh.NewMultiSelect[string]().Title("Select the features").Value(&answered).Options(options...).Filterable(false),
+			huh.NewMultiSelect[string]().Title("Select the features").Value(&answered).Options(options...),
 		)).WithShowHelp(false),
 		keys: []key.Binding{keys.move, keys.toggle, keys.next, keys.cancel},
 		done: func(m Model) (tea.Model, tea.Cmd) { return m.withFeatures(answered) },

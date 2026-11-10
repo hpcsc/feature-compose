@@ -274,6 +274,8 @@ tokens that an OAuth issuer signs, and no API key goes to each user.
 - [ ] `--feature cli-auth --feature api-auth:method=oauth` stops before the tool writes a file. The message
   names both sources of the value: the command line sets `oauth`, and the need of `cli-auth` sets
   `api-key`.
+- [ ] `new --dry-run` shows the source `need` for each option value that a need sets, with the feature whose
+  need sets it, for example the `method` of `api-auth` that the need of `cli-auth` sets.
 - [ ] A repo with each value of `method` builds and passes its tests.
 
 **Context:** The fifth criterion keeps a developer from a CLI that cannot sign in, because `cli-auth`

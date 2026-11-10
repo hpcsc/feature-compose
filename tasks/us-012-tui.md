@@ -363,21 +363,21 @@ accepts. `Question.Check` accepts a value that `Select` accepts as an answer, an
 a value of an option of a feature (decision 5).
 
 **Acceptance Criteria:**
-- [ ] `Questions` gives the options of the starter, and then the options of each feature, in the order of the
+- [x] `Questions` gives the options of the starter, and then the options of each feature, in the order of the
   options of the preview. A need comes before the feature that needs it.
-- [ ] An option that `--option` or `--feature` gives is not a question. Another option of the same feature is.
-- [ ] Each option of the selection is a question at most one time, also when two selected features need its feature.
-- [ ] The default of a question is the default of its option rendered with the name of the repo, for example
+- [x] An option that `--option` or `--feature` gives is not a question. Another option of the same feature is.
+- [x] Each option of the selection is a question at most one time, also when two selected features need its feature.
+- [x] The default of a question is the default of its option rendered with the name of the repo, for example
   `github.com/hpcsc/my-service` for `github.com/hpcsc/{{ .Name }}`, and the empty text for an option with no default.
   The accepted values are the `values` of the option, in the order of the file, and none for a text option.
-- [ ] `Check` gives no error for a value that the option accepts. For a value that does not match the pattern, that
+- [x] `Check` gives no error for a value that the option accepts. For a value that does not match the pattern, that
   is not one of the values, or that is the empty text of an option with no default, it gives a message that names the
   option and the pattern, the values, or the missing default.
-- [ ] `Check` refuses a value with a comma for an option of a feature, and the message says that `--feature` cannot
+- [x] `Check` refuses a value with a comma for an option of a feature, and the message says that `--feature` cannot
   give it. It accepts a comma in a value of an option of the starter.
-- [ ] Each answer that `Check` accepts, given back to `Select` as the answer to its question, gives a selection that
+- [x] Each answer that `Check` accepts, given back to `Select` as the answer to its question, gives a selection that
   `Preview` and `Write` accept, with that value in the files.
-- [ ] A selection with no option, or whose each value a flag gives, gives no question.
+- [x] A selection with no option, or whose each value a flag gives, gives no question.
 
 **Affected Files/Modules:**
 - `internal/catalog/question.go` — new: `Question` and `Check`

@@ -1158,6 +1158,158 @@ Options:
 		}
 	})
 
+	t.Run("questions", func(t *testing.T) {
+		withQuestions := func() fstest.MapFS {
+			return fstest.MapFS{
+				"starters/service/starter.yml":       &fstest.MapFile{Data: []byte("options:\n  module:\n    default: example.com/{{ .Name }}\n    pattern: '^[a-z./-]+$'\n  region:\n    pattern: '^[a-z]+$'\n  label:\n    default: x\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.txt": &fstest.MapFile{Data: []byte(`{{ option "starter.module" }} {{ option "starter.region" }} {{ option "starter.label" }}`)},
+				"features/alpha/feature.yml":         &fstest.MapFile{Data: []byte("summary: Alpha.\ntargets: [service]\nneeds: [zed]\nfiles:\n  - path: files/\noptions:\n  level:\n    default: \"1\"\n")},
+				"features/alpha/files/go/alpha.txt":  &fstest.MapFile{Data: []byte(`{{ option "level" }} {{ option "zed.mode" }} {{ option "zed.token" }}`)},
+				"features/beta/feature.yml":          &fstest.MapFile{Data: []byte("summary: Beta.\ntargets: [service]\nneeds: [zed]\n")},
+				"features/zed/feature.yml":           &fstest.MapFile{Data: []byte("summary: Zed.\ntargets: [service]\noptions:\n  token:\n    pattern: '^.*$'\n  mode:\n    values: [slow, fast]\n    default: fast\n")},
+			}
+		}
+		selectionWith := func(t *testing.T, given map[string]string, givenByFeature map[string]map[string]string) catalog.Selection {
+			t.Helper()
+			starter, err := catalog.New(withQuestions()).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", given, givenByFeature, catalog.Answers{})
+			require.NoError(t, err)
+			return selection
+		}
+		type question struct {
+			declarer, option, defaultValue string
+			accepted                       []string
+		}
+		contentsOf := func(questions []catalog.Question) []question {
+			contents := make([]question, 0, len(questions))
+			for _, q := range questions {
+				contents = append(contents, question{declarer: q.Declarer(), option: q.Option, defaultValue: q.Default, accepted: q.Accepted})
+			}
+			return contents
+		}
+		questionOf := func(t *testing.T, selection catalog.Selection, declarer, optionName string) catalog.Question {
+			t.Helper()
+			for _, q := range selection.Questions() {
+				if q.Declarer() == declarer && q.Option == optionName {
+					return q
+				}
+			}
+			require.Failf(t, "no question", "%s %s", declarer, optionName)
+			return catalog.Question{}
+		}
+
+		t.Run("gives the options of the starter in the order of their names, then the options of each feature, each feature after the features that it needs, each option one time, with the default rendered with the name and the values in the order of the file", func(t *testing.T) {
+			selection := selectionWith(t, nil, map[string]map[string]string{"alpha": {}, "beta": {}})
+
+			questions := selection.Questions()
+
+			require.Equal(t, []question{
+				{declarer: "the starter service", option: "label", defaultValue: "x"},
+				{declarer: "the starter service", option: "module", defaultValue: "example.com/my-service"},
+				{declarer: "the starter service", option: "region", defaultValue: ""},
+				{declarer: "the feature zed", option: "mode", defaultValue: "fast", accepted: []string{"slow", "fast"}},
+				{declarer: "the feature zed", option: "token", defaultValue: ""},
+				{declarer: "the feature alpha", option: "level", defaultValue: "1"},
+			}, contentsOf(questions))
+		})
+
+		t.Run("an option that a flag gives is not a question, and another option of the same feature is", func(t *testing.T) {
+			selection := selectionWith(t, map[string]string{"region": "eu", "label": "y"}, map[string]map[string]string{"zed": {"mode": "slow"}})
+
+			questions := selection.Questions()
+
+			require.Equal(t, []question{
+				{declarer: "the starter service", option: "module", defaultValue: "example.com/my-service"},
+				{declarer: "the feature zed", option: "token", defaultValue: ""},
+			}, contentsOf(questions))
+		})
+
+		t.Run("the answers with the values of the questions hold each value of the starter and of each feature, and keep the features", func(t *testing.T) {
+			questions := selectionWith(t, nil, map[string]map[string]string{"alpha": {}}).Questions()
+
+			answers := catalog.Answers{Features: []string{"alpha"}}.WithValues(questions, []string{"l", "m", "r", "fast", "t", "2"})
+
+			require.Equal(t, catalog.Answers{
+				Features:      []string{"alpha"},
+				StarterValues: map[string]string{"label": "l", "module": "m", "region": "r"},
+				FeatureValues: map[string]map[string]string{"zed": {"mode": "fast", "token": "t"}, "alpha": {"level": "2"}},
+			}, answers)
+		})
+
+		t.Run("a selection whose each value a flag gives has no question", func(t *testing.T) {
+			selection := selectionWith(t, map[string]string{"region": "eu", "label": "y", "module": "example.com/a"}, map[string]map[string]string{"zed": {"mode": "slow", "token": "t"}})
+
+			require.Empty(t, selection.Questions())
+		})
+
+		for name, test := range map[string]struct{ declarer, optionName, value string }{
+			"a value that does not match the pattern of its option": {declarer: "the starter service", optionName: "region", value: "EU"},
+			"a value that is not one of the values of its option":   {declarer: "the feature zed", optionName: "mode", value: "medium"},
+		} {
+			t.Run("check refuses "+name+" with the message that the selection gives for the same answer", func(t *testing.T) {
+				selection := selectionWith(t, nil, map[string]map[string]string{"zed": {}})
+				q := questionOf(t, selection, test.declarer, test.optionName)
+				starter, err := catalog.New(withQuestions()).Starter("service")
+				require.NoError(t, err)
+				_, selectErr := starter.Select("my-service", nil, map[string]map[string]string{"zed": {}}, catalog.Answers{}.WithValues([]catalog.Question{q}, []string{test.value}))
+				require.Error(t, selectErr)
+
+				err = q.Check(test.value)
+
+				require.EqualError(t, err, selectErr.Error())
+			})
+		}
+
+		t.Run("check refuses the empty text for an option with no default, and names the option", func(t *testing.T) {
+			selection := selectionWith(t, nil, map[string]map[string]string{"zed": {}})
+
+			err := questionOf(t, selection, "the feature zed", "token").Check("")
+
+			require.EqualError(t, err, "the option token of the feature zed has no default, so it needs a value")
+		})
+
+		t.Run("check accepts the empty text for an option with a default when the option accepts it", func(t *testing.T) {
+			selection := selectionWith(t, nil, nil)
+
+			err := questionOf(t, selection, "the starter service", "label").Check("")
+
+			require.NoError(t, err)
+		})
+
+		t.Run("check refuses a comma in a value of an option of a feature, because --feature cannot give it", func(t *testing.T) {
+			selection := selectionWith(t, nil, map[string]map[string]string{"zed": {}})
+
+			err := questionOf(t, selection, "the feature zed", "token").Check("a,b")
+
+			require.EqualError(t, err, `the value "a,b" of the option token of the feature zed holds a comma, which --feature cannot give`)
+		})
+
+		t.Run("each answer that check accepts, given back to the selection, gives the files with that value, and a value of the starter keeps its commas", func(t *testing.T) {
+			selection := selectionWith(t, nil, map[string]map[string]string{"alpha": {}})
+			answerOf := map[string]string{
+				"the starter service module": "example.com/acme", "the starter service region": "eu", "the starter service label": "a,b",
+				"the feature zed mode": "slow", "the feature zed token": "t", "the feature alpha level": "2",
+			}
+			questions := selection.Questions()
+			values := make([]string, len(questions))
+			for i, q := range questions {
+				values[i] = answerOf[q.Declarer()+" "+q.Option]
+				require.NoError(t, q.Check(values[i]), q.Option)
+			}
+			starter, err := catalog.New(withQuestions()).Starter("service")
+			require.NoError(t, err)
+			answered, err := starter.Select("my-service", nil, map[string]map[string]string{"alpha": {}}, catalog.Answers{}.WithValues(questions, values))
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err = answered.Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"main.txt": "example.com/acme eu a,b", "alpha.txt": "2 slow t"}, filesIn(t, output))
+		})
+	})
+
 	t.Run("run after render", func(t *testing.T) {
 		t.Run("runs the commands of each folder in that folder of the repo, in their order", func(t *testing.T) {
 			t.Chdir(t.TempDir())

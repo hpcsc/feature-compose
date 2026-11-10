@@ -74,7 +74,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "List the questions of a selection, each with its default and its check",
       "language": "Go",
       "testable": true,

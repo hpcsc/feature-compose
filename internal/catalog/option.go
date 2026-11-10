@@ -97,6 +97,23 @@ func (o options) check(values map[string]string) error {
 	return nil
 }
 
+func (o options) questions(featureName string, values optionValues) []Question {
+	var questions []Question
+	for _, optionName := range slices.Sorted(maps.Keys(o.declared)) {
+		if values.given[optionName] {
+			continue
+		}
+		questions = append(questions, Question{
+			Option:   optionName,
+			Default:  values.defaults[optionName],
+			Accepted: slices.Clone(o.declared[optionName].accepted),
+			feature:  featureName,
+			options:  o,
+		})
+	}
+	return questions
+}
+
 func (o options) defaultsOfOptionsWithValues() map[string]string {
 	defaults := map[string]string{}
 	for optionName, declared := range o.declared {

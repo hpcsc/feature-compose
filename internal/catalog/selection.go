@@ -64,6 +64,14 @@ func (s Selection) Preview() (string, error) {
 	return preview.String(), nil
 }
 
+func (s Selection) Questions() []Question {
+	questions := s.starter.questions()
+	for _, f := range s.features {
+		questions = append(questions, f.questions()...)
+	}
+	return questions
+}
+
 func (s Selection) RunAfterRender(ctx context.Context, output string) error {
 	for _, folderName := range slices.Sorted(maps.Keys(s.folders)) {
 		if err := s.folders[folderName].runAfterRender(ctx, output); err != nil {
@@ -255,8 +263,9 @@ func (s Selection) extensionPoint(name string) (extensionPoint, error) {
 const starterPrefix = "starter."
 
 type selectedStarter struct {
-	name   string
-	values optionValues
+	name    string
+	options options
+	values  optionValues
 }
 
 func (s selectedStarter) optionLines() []string {
@@ -267,10 +276,15 @@ func (s selectedStarter) readable() map[string]string {
 	return s.values.byReference(starterPrefix)
 }
 
+func (s selectedStarter) questions() []Question {
+	return s.options.questions("", s.values)
+}
+
 type selectedFeature struct {
 	name     string
 	given    bool
 	answered bool
+	options  options
 	values   optionValues
 	needs    []string
 	neededBy []string
@@ -303,6 +317,10 @@ func (f selectedFeature) asNeed() Need {
 
 func (f selectedFeature) optionLines() []string {
 	return f.values.lines(f.prefix())
+}
+
+func (f selectedFeature) questions() []Question {
+	return f.options.questions(f.name, f.values)
 }
 
 func (f selectedFeature) readableAsNeed() map[string]string {

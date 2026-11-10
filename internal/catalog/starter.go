@@ -96,6 +96,7 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 			name:     f.name,
 			given:    isGiven,
 			answered: slices.Contains(answers.Features, f.name),
+			options:  f.options,
 			values:   values,
 			needs:    f.needs,
 			neededBy: s.neededBy(f.name, selected),
@@ -112,7 +113,7 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	return Selection{
 		folders:         s.folders,
 		name:            name,
-		starter:         selectedStarter{name: s.name, values: starterValues},
+		starter:         selectedStarter{name: s.name, options: s.options, values: starterValues},
 		features:        features,
 		templates:       templates,
 		extensionPoints: extensionPoints,

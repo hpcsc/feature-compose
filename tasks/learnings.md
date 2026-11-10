@@ -61,12 +61,14 @@
 - Observed: this run
 - Learning: task test:e2e runs vitest in Docker, and Docker does not answer on this machine. The e2e tests also run on the host: CGO_ENABLED=0 go build -ldflags '-X github.com/hpcsc/feature-compose/internal/version.releaseTag=v0.1.0' -o bin/feature-compose-e2e ./cmd/feature-compose, then EXECUTABLE=../bin/feature-compose-e2e BUILD_TAG=v0.1.0 CATALOG_DIR=../catalog npx vitest run <test file> in e2e/ (task test:e2e:local does the same). The update tests need the tag v0.1.0, and new needs CATALOG_DIR, because runCli writes a config file that names it. A run that skips them leaves the e2e criteria of the story unrun.
 - Apply when: a criterion of a story has an e2e test, or task test:e2e fails because Docker does not answer
+
 ## Fold the fixes of an audit round hunk by hunk
 - Type: pattern
-- Recorded: 2026-11-09
-- Observed: us-003-api-keys
-- Learning: A fix that changes code of several task commits is split by the commit that last changed each hunk (git blame at the tip before the fold), and each part becomes a fixup of that commit; only a part whose fold gives a conflict stays its own commit. Build each fixup from the fixed SHA of the tip and never from HEAD, which moves with each fixup commit, and check that the index of the last fixup equals the work tree before the rebase. A test added at the line where a later commit also adds a test gives a conflict, so put it next to lines of its own target commit. clerk fixup mark refuses these files as ambiguous, because catalog_test.go, starter_test.go and selection_test.go hold tests of every task.
-- Apply when: folding the fixes of an audit round or a design check, most of all in the umbrella test files of internal/catalog/
+- Recorded: 2026-11-10
+- Observed: us-012-tui
+- Learning: A fix that changes code of several task commits is split by the commit that last changed each hunk, each part a fixup of that commit, built from the fixed tip and checked against the work tree before the rebase; only a part whose fold conflicts stays its own commit, with a message that says what it fixes, never inside another task's commit. A fix that moves whole tests between t.Run groups conflicts with each later commit that edits those tests or adds a group next to them (US-012: internal/prompt/model_test.go), so fold only the edits in place, and when the boundaries need a move, build the task commits with git commit-tree from tree files, check that the last tree equals the tip, and test each commit.
+- Apply when: folding the fixes of an audit round or a design check, most of all in the umbrella test files of internal/catalog/ and internal/prompt/
+
 ## A struct that a template function returns has exported fields in the design
 - Type: constraint
 - Recorded: 2026-11-09
@@ -210,6 +212,48 @@
 ## A full clerk mutants run of a story in internal/catalog passes its 10 minutes
 - Type: constraint
 - Recorded: 2026-11-10
-- Observed: us-010-dry-run
-- Learning: A story that changes selection.go, starter.go and option.go makes over 150 mutants against the run base, and clerk mutants stops at 10 minutes with an INCOMPLETE row that blocks clerk audit accept. A run with --base HEAD also replaces the kept run, so accept then asks for the full run again. Run --base <the commit before each fix> while you fix, and when the final full run stops with no live row, accept its INCOMPLETE key and name the complete runs that read each line.
-- Apply when: running clerk mutants after the audit fixes of a story that changes several files of internal/catalog, or clerk audit accept refuses on an INCOMPLETE mutants row
+- Observed: us-012-tui
+- Learning: A story that changes several files of internal/catalog or internal/prompt makes hundreds of mutants against the run base, and clerk mutants stops at 10 minutes with an INCOMPLETE row; each later run, --id or in another worktree included, replaces the kept run that clerk audit accept reads. To read only the lines of the audit fixes, make a commit X with the tip minus those fixes, a commit Y with the tip tree whose parent is X (a base must be an ancestor), run clerk mutants --base X in a temporary worktree at Y, then run the full --since-last-run in the main checkout last, accept its INCOMPLETE key, and name the complete runs.
+- Apply when: running clerk mutants after the audit fixes of a story that changes several files of internal/catalog or internal/prompt, or clerk audit accept refuses on an INCOMPLETE mutants row
+
+## A huh form takes its size after its Init, and sizes each group from the content it has then
+- Type: constraint
+- Recorded: 2026-11-10
+- Observed: task 6,7 — us-012-tui
+- Learning: In internal/prompt a new huh form must get Init before the size of the terminal, else huh measures an empty group and cuts a list to one line; and huh sizes every group of a form when the first group starts, so a group that has not started gets no room, which is why the options step uses one form for each declarer.
+- Apply when: adding or changing a step of the TUI of new in internal/prompt, or holding any huh form in a bubbletea model
+
+## huh's Select scrolls to its value and keeps its filter, and its Input checks only on Enter
+- Type: constraint
+- Recorded: 2026-11-10
+- Observed: task 6,7,8 — us-012-tui
+- Learning: A huh Select scrolls its list to the chosen option with no limit, so Value must come before Options and the default is shown first; its filter cannot be turned off and takes Esc, which cancels the TUI of new, so the model drops / while a list has the focus; an Input runs Validate only on Enter, so the model shows the message of the check after each key.
+- Apply when: adding a huh Select, MultiSelect or Input to the TUI of new, or a key that a huh field also binds
+
+## Test new in a pseudo-terminal that has a size, with a context that ends
+- Type: pattern
+- Recorded: 2026-11-10
+- Observed: task 5,8 — us-012-tui
+- Learning: TestNewCommand starts the TUI only when stdin and stdout are terminals, so runInTerminal opens a creack/pty, sets its size (a pty of size 0 makes the TUI draw nothing), types keys after a text shows, and gives new a context of 3 seconds; runNew gives an empty reader and the same limit, so a TUI that starts by mistake fails a test instead of waiting for keys.
+- Apply when: writing a test in internal/cmd of when new starts the TUI, or of what new does after the TUI ends
+
+## tuistory starts each command about 5 seconds late
+- Type: constraint
+- Recorded: 2026-11-10
+- Observed: task 5 — us-012-tui
+- Learning: In the terminal of tuistory a command that writes to the terminal draws its first output about 5 seconds after the start, also feature-compose version and also before the TUI of new existed, so a screen test waits up to 15 seconds for its first text and for an EXIT that follows it.
+- Apply when: writing an e2e screen test with openCli, or reading a waitForText timeout of about 5 seconds as a defect of the TUI
+
+## A step of the TUI that adds a huh list or input costs more attempts than the step that first holds huh
+- Type: pattern
+- Recorded: 2026-11-10
+- Observed: task 5,6,7 — us-012-tui
+- Learning: In US-012 the confirm step, assessed low certainty, went green at once, and the feature and options steps, assessed medium, needed several attempts each, because each new kind of huh field brought a sizing, scrolling or key behaviour that only a run showed.
+- Apply when: assessing the certainty of a task that adds a step or a new kind of huh field to the TUI of new
+
+## The shell refuses > onto a file that exists
+- Type: constraint
+- Recorded: 2026-11-10
+- Observed: us-012-tui
+- Learning: The zsh of this machine sets noclobber, so cat > file or cmd > file onto a file that exists fails and the next commands run with the old content; write with >| or with python, and note that mk is an alias and sed is GNU sed (sed -i with no suffix).
+- Apply when: writing or rewriting a file with a shell redirect, or naming a shell function, in a command of a run

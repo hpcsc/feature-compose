@@ -99,6 +99,62 @@ prints nothing. `--dry-run` does not read the output folder, so an output folder
 The preview is text for a person, and its layout can change. A script reads the catalog with
 `feature-compose show --output json`.
 
+## Answer the Questions in a TUI
+
+When stdin and stdout are both terminals, `feature-compose new` starts a TUI. The confirm step of the TUI shows the
+preview of the repo, which is the text that `--dry-run` prints, and asks whether to write the repo:
+
+```text
+feature-compose new
+Repo: my-service
+Starter: go-event-sourcing-service
+
+Features:
+  api-auth: needed by cli-auth
+  cli: needed by cli-auth
+  cli-auth: command line
+...
+
+┃ Write the repo?
+┃
+┃   Yes     No
+ 0% · ctrl+d/u scroll • ←/→ choose • enter confirm • esc cancel
+```
+
+A value that a flag gives shows the source `command line`. The flag fixes that value, and the TUI does not ask for it.
+
+| Key | Action |
+| --- | --- |
+| `ctrl+d` or `pgdown` | Scroll the preview down. When the preview is longer than the screen, the last line starts with how far it is scrolled. |
+| `ctrl+u` or `pgup` | Scroll the preview up. |
+| `←` or `→` | Choose Yes or No. |
+| `enter` | Write the repo when Yes is chosen, and cancel when No is chosen. |
+| `y` | Write the repo. |
+| `n`, `esc` or `ctrl+c` | Cancel. |
+
+`new` writes nothing until you choose Yes. A cancel writes no file, makes no output folder and runs no command.
+`new` then prints `you canceled new, so it wrote no file` and ends with the status 1.
+
+After `new` writes the repo, it prints the command that makes the same repo:
+
+```text
+Made my-service from the starter go-event-sourcing-service.
+To make the same repo again, run:
+  feature-compose new go-event-sourcing-service my-service --feature cli-auth
+```
+
+The command names each value that is not its default, and each feature that you selected. It puts each word that a
+shell splits, expands or matches against files in single quotes. That command with `--no-prompt` makes the same
+files.
+
+`new` starts no TUI when stdin or stdout is not a terminal, or with `--no-prompt` or `--dry-run`. CI uses this mode.
+Each option without a value then gets its default. An option with no default and no value stops `new`, and the
+message names the option and the flag that gives it:
+
+```text
+the option region of the starter service has no default and no value: give it with --option region=<value>
+```
+
 ## Show the Catalog
 
 `feature-compose show` shows the starters and the features of the catalog. It has two forms:

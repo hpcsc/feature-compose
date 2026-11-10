@@ -489,49 +489,49 @@ or a stdin or a stdout that is not a terminal, `new` starts no TUI and acts as b
 to Task 8 add the steps before the confirm step.
 
 **Acceptance Criteria:**
-- [ ] go.mod requires `github.com/charmbracelet/huh` v1.0.0, and keeps bubbletea v1.3.10, bubbles v1.0.0 and lipgloss
+- [x] go.mod requires `github.com/charmbracelet/huh` v1.0.0, and keeps bubbletea v1.3.10, bubbles v1.0.0 and lipgloss
   v1.1.0. `go mod tidy` leaves go.mod and go.sum as they are.
-- [ ] `new` starts the TUI only when stdin and stdout are both terminals, without `--no-prompt` and without
+- [x] `new` starts the TUI only when stdin and stdout are both terminals, without `--no-prompt` and without
   `--dry-run`. Else it reads no input and starts no TUI: the tests of `TestNewCommand` pass with their expected values
   unchanged, and the e2e tests that run `new` with `runCli` pass unchanged.
-- [ ] A flag that stops `new` without the TUI, for example an unknown starter, an unknown feature, or a value that
+- [x] A flag that stops `new` without the TUI, for example an unknown starter, an unknown feature, or a value that
   does not match its pattern, stops `new` before the TUI starts, with the same message and status.
-- [ ] The confirm step shows the text of `Selection.Preview` for the selection, where each value of a flag shows
+- [x] The confirm step shows the text of `Selection.Preview` for the selection, where each value of a flag shows
   `command line`. ctrl+d and pgdown scroll the text down, and ctrl+u and pgup scroll it up, so each line of a preview
   that is longer than the screen can be shown.
-- [ ] An error of the preview, for example a template that fails to render, ends the TUI with the message that stops
+- [x] An error of the preview, for example a template that fails to render, ends the TUI with the message that stops
   `--dry-run`, and `new` writes nothing.
-- [ ] Until the developer chooses "Yes", `new` writes no file, makes no output folder and runs no command.
-- [ ] "Yes" (also `y`) ends the TUI. Then `new` writes the repo, runs the `after_render` commands, prints the `needed by`
+- [x] Until the developer chooses "Yes", `new` writes no file, makes no output folder and runs no command.
+- [x] "Yes" (also `y`) ends the TUI. Then `new` writes the repo, runs the `after_render` commands, prints the `needed by`
   lines and the line `Made <output> from the starter <starter>.` as today, and then a line with `feature-compose new`
   and `Selection.Arguments` of the output folder. Its status is 0.
-- [ ] "No" (also `n`) at the confirm step, Esc, and ctrl+c are a cancel: `new` writes no file, makes no output folder,
+- [x] "No" (also `n`) at the confirm step, Esc, and ctrl+c are a cancel: `new` writes no file, makes no output folder,
   runs no command, prints on stderr that the developer canceled and that `new` wrote no file, and its status is 1.
-- [ ] The tests of `internal/prompt` drive `prompt.Model` through `Update` and `View`: the confirm step shows the lines
+- [x] The tests of `internal/prompt` drive `prompt.Model` through `Update` and `View`: the confirm step shows the lines
   of the preview, "Yes" gives the selection, and "No", Esc and ctrl+c give the cancel and stop the TUI. They pass when
   the shell sets `CLICOLOR_FORCE=1`, and when it sets `NO_COLOR=1`.
-- [ ] `new --help` says that `--no-prompt` starts no TUI, gives each option without a value its default, and stops
+- [x] `new --help` says that `--no-prompt` starts no TUI, gives each option without a value its default, and stops
   on an option that has no default and no value.
-- [ ] `README.md` has a section "Answer the Questions in a TUI". It tells when `new` starts the TUI, that the confirm
+- [x] `README.md` has a section "Answer the Questions in a TUI". It tells when `new` starts the TUI, that the confirm
   step shows the preview of `--dry-run` with the values of the flags as `command line`, how to scroll it, how to
   confirm and how to cancel, the status of a cancel, the printed command, and that this command with `--no-prompt`
   makes the same files. It also tells that with `--no-prompt`, or with no terminal, an option with no default and no
   value stops `new`, and that the message names the flag that gives it.
-- [ ] `e2e/tests/new.test.ts`, in a terminal with `openCli`:
+- [x] `e2e/tests/new.test.ts`, in a terminal with `openCli`:
   `new go-event-sourcing-service my-service --feature cli-auth --feature api-auth:method=api-key --option
   go-version=1.28 --option module=github.com/acme/my-service` shows the confirm step with
   `cli-auth: command line`, `api-auth: command line, needed by cli-auth`, `cli: needed by cli-auth` and
   `starter.go-version: 1.28 (command line)`; ctrl+d scrolls until `go.mod: the starter` shows. `n` ends with a status
   other than 0, the screen shows the message of the cancel, and the scratch folder holds no entry. Esc ends in the
   same way.
-- [ ] `e2e/tests/new.test.ts`, in a terminal: `new go-event-sourcing-service my-service --feature cli --option
+- [x] `e2e/tests/new.test.ts`, in a terminal: `new go-event-sourcing-service my-service --feature cli --option
   go-version=1.28 --option module=github.com/acme/my-service` and `y` end with `EXIT:0`, the repo has `go.mod` with
   `module github.com/acme/my-service`, and the screen shows `feature-compose new go-event-sourcing-service my-service
   --option go-version=1.28 --option module=github.com/acme/my-service --feature cli`.
-- [ ] `e2e/tests/new.test.ts`, in a terminal: with stdin from `/dev/null`, with stdout to `cat`, and with
+- [x] `e2e/tests/new.test.ts`, in a terminal: with stdin from `/dev/null`, with stdout to `cat`, and with
   `--no-prompt`, `new go-event-sourcing-service my-service --output-dir <a folder that has a file>` shows no confirm
   step, and ends with the message that the output folder is not empty and a status other than 0.
-- [ ] In this repo, `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] In this repo, `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `go.mod`, `go.sum` — huh v1.0.0

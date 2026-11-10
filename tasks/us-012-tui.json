@@ -136,7 +136,7 @@
     },
     {
       "n": 5,
-      "done": false,
+      "done": true,
       "title": "Confirm the repo in a TUI before `new` writes it",
       "language": "Go",
       "testable": true,

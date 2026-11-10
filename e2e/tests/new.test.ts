@@ -5,7 +5,7 @@ import { createServer, type Server } from 'node:http'
 import { type AddressInfo, createServer as createNetServer, type Socket } from 'node:net'
 import { join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { configHome, getExecutablePath, runCli, runProgram, scratchDir } from '../testUtils'
+import { configHome, getExecutablePath, openCli, runCli, runProgram, scratchDir } from '../testUtils'
 
 describe('feature-compose new', () => {
   it('an unknown starter stops new, and the message lists the starters of the catalog folder that the config file names', async () => {
@@ -270,6 +270,85 @@ describe('feature-compose new', () => {
 
     expect(await exitStatus(tool), printed).toBe(1)
     await until(() => proxy.openConnections() === 0)
+  })
+})
+
+describe('feature-compose new in a terminal', () => {
+  const flags = ['--feature', 'cli-auth', '--feature', 'api-auth:method=api-key', '--option', 'go-version=1.28', '--option', 'module=github.com/acme/my-service']
+
+  it('the confirm step shows the preview with the values of the flags as command line, ctrl+d scrolls it, and n cancels and writes nothing', async () => {
+    const dir = scratchDir()
+    const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', ...flags])
+
+    await session.waitForText('Write the repo?', { timeout: 15_000 })
+    const screen = await session.text()
+    for (const part of ['Repo: my-service', 'cli-auth: command line', 'api-auth: command line, needed by cli-auth', 'cli: needed by cli-auth', 'starter.go-version: 1.28 (command line)']) {
+      expect(screen).toContain(part)
+    }
+    for (let i = 0; i < 20 && !(await session.text()).includes('go.mod: the starter'); i++) {
+      await session.press(['ctrl', 'd'])
+    }
+    expect(await session.text()).toContain('go.mod: the starter')
+    await session.press('n')
+    await session.waitForText('EXIT:1')
+    expect(await session.text()).toContain('you canceled new, so it wrote no file')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  it('esc at the confirm step cancels, and writes nothing', async () => {
+    const dir = scratchDir()
+    const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', ...flags])
+
+    await session.waitForText('Write the repo?', { timeout: 15_000 })
+    await session.press('escape')
+    await session.waitForText('EXIT:1')
+    expect(await session.text()).toContain('you canceled new, so it wrote no file')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  it(
+    'y at the confirm step writes the repo, and prints the command that makes the same repo',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+      const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli', '--option', 'module=github.com/acme/my-service'], env)
+
+      await session.waitForText('Write the repo?', { timeout: 15_000 })
+      await session.press('y')
+      await session.waitForText('EXIT:0', { timeout: 14 * 60 * 1000 })
+      expect(await session.text()).toContain('feature-compose new go-event-sourcing-service my-service --option module=github.com/acme/my-service --feature cli')
+      expect(readFileSync(join(dir, 'my-service', 'go.mod'), 'utf8')).toContain('module github.com/acme/my-service\n')
+    },
+    15 * 60 * 1000,
+  )
+
+  for (const [name, args] of [
+    ['stdin is not a terminal', ['<', '/dev/null']],
+    ['stdout is not a terminal', ['|', 'cat']],
+    ['--no-prompt asks for it', ['--no-prompt']],
+  ]) {
+    it(`starts no TUI when ${name}`, async () => {
+      const dir = scratchDir()
+      mkdirSync(join(dir, 'taken'))
+      writeFileSync(join(dir, 'taken', 'notes.txt'), 'notes\n')
+      const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--output-dir', 'taken', ...args])
+
+      await session.waitForText(/EXIT:\d+/, { timeout: 15_000 })
+      const screen = await session.text()
+      expect(screen).toContain('the output folder taken is not empty')
+      expect(screen).not.toContain('Write the repo?')
+    })
+  }
+
+  it('--dry-run in a terminal prints the preview and starts no TUI', async () => {
+    const dir = scratchDir()
+    const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--dry-run'])
+
+    await session.waitForText('EXIT:0', { timeout: 15_000 })
+    const screen = await session.text()
+    expect(screen).toContain(': the starter')
+    expect(screen).not.toContain('Write the repo?')
+    expect(readdirSync(dir)).toEqual([])
   })
 })
 

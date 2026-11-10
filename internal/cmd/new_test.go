@@ -13,11 +13,16 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
+	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/creack/pty"
 	"github.com/hpcsc/feature-compose/internal/catalog"
 	"github.com/stretchr/testify/require"
+	"github.com/urfave/cli/v3"
 )
 
 func TestNewCommand(t *testing.T) {
@@ -45,10 +50,42 @@ folders:
 		t.Helper()
 		var printed bytes.Buffer
 		command := newNewCommand(loaded(files))
+		command.Reader = strings.NewReader("")
 		command.Writer = &printed
 		command.ErrWriter = &printed
-		err := command.Run(context.Background(), append([]string{"new"}, arguments...))
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		err := command.Run(ctx, append([]string{"new"}, arguments...))
 		return printed.String(), err
+	}
+	runInTerminal := func(t *testing.T, files fstest.MapFS, keys string, arguments ...string) (string, error) {
+		t.Helper()
+		master, tty, err := pty.Open()
+		require.NoError(t, err)
+		require.NoError(t, pty.Setsize(tty, &pty.Winsize{Rows: 40, Cols: 100}))
+		var screen screenBuffer
+		drained := make(chan struct{})
+		go func() {
+			_, _ = io.Copy(&screen, master)
+			close(drained)
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		go func() {
+			for !strings.Contains(screen.String(), "Write the repo?") && ctx.Err() == nil {
+				time.Sleep(10 * time.Millisecond)
+			}
+			_, _ = master.WriteString(keys)
+		}()
+		command := newNewCommand(loaded(files))
+		command.Reader, command.Writer, command.ErrWriter = tty, tty, tty
+
+		runErr := command.Run(ctx, append([]string{"new"}, arguments...))
+
+		require.NoError(t, tty.Close())
+		<-drained
+		require.NoError(t, master.Close())
+		return screen.String(), runErr
 	}
 
 	withFeatures := func() fstest.MapFS {
@@ -556,6 +593,101 @@ folders:
 			require.Contains(t, printed, "--dry-run")
 			require.Contains(t, printed, "print a preview of the repo, and write no file and run no command")
 		})
+
+		t.Run("--help shows that --no-prompt starts no TUI, and what new does then with an option without a value", func(t *testing.T) {
+			printed, err := runNew(t, withFeatures(), "--help")
+
+			require.NoError(t, err)
+			require.Contains(t, printed, "--no-prompt")
+			require.Contains(t, printed, "start no TUI: give each option without a value its default, and stop on an option with no default and no value")
+		})
+	})
+
+	t.Run("tui", func(t *testing.T) {
+		t.Run("in a terminal, y at the confirm step writes the repo, and new prints the command that makes the same repo", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			screen, err := runInTerminal(t, withFeatures(), "y", "service", "my-service", "--output-dir", output, "--feature", "cli")
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"go.mod": "module github.com/hpcsc/my-service\ngo 1.27.1\n", "cmd/my-service/main.go": "package main // my-service\n"}, filesIn(t, output))
+			require.Contains(t, screen, "To make the same repo again, run:\r\n  feature-compose new service my-service --output-dir "+output+" --feature cli\r\n")
+		})
+
+		t.Run("in a terminal, n at the confirm step stops new with the cancel, and writes nothing", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			screen, err := runInTerminal(t, withFeatures(), "n", "service", "my-service", "--output-dir", output)
+
+			require.EqualError(t, err, "you canceled new, so it wrote no file")
+			require.Contains(t, screen, "Write the repo?")
+			require.NoDirExists(t, output)
+		})
+
+		for name, flag := range map[string]string{"--no-prompt": "--no-prompt", "--dry-run": "--dry-run"} {
+			t.Run("in a terminal, "+name+" starts no TUI", func(t *testing.T) {
+				t.Chdir(t.TempDir())
+				output := filepath.Join(t.TempDir(), "my-service")
+
+				screen, err := runInTerminal(t, withFeatures(), "", "service", "my-service", "--output-dir", output, flag)
+
+				require.NoError(t, err)
+				require.Contains(t, screen, "my-service")
+				require.NotContains(t, screen, "Write the repo?")
+			})
+		}
+
+		for name, test := range map[string]struct{ readerIsTerminal, writerIsTerminal bool }{
+			"stdin is a terminal and stdout is not": {readerIsTerminal: true},
+			"stdout is a terminal and stdin is not": {writerIsTerminal: true},
+		} {
+			t.Run("when "+name+", new starts no TUI and writes the repo", func(t *testing.T) {
+				t.Chdir(t.TempDir())
+				output := filepath.Join(t.TempDir(), "my-service")
+				master, tty, err := pty.Open()
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					_ = tty.Close()
+					_ = master.Close()
+				})
+				command := newNewCommand(loaded(withFeatures()))
+				command.Reader, command.Writer, command.ErrWriter = io.Reader(strings.NewReader("")), io.Writer(io.Discard), io.Discard
+				if test.readerIsTerminal {
+					command.Reader = tty
+				}
+				if test.writerIsTerminal {
+					command.Writer = tty
+					go func() { _, _ = io.Copy(io.Discard, master) }()
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+
+				err = command.Run(ctx, []string{"new", "service", "my-service", "--output-dir", output})
+
+				require.NoError(t, err)
+				require.FileExists(t, filepath.Join(output, "go.mod"))
+			})
+		}
+
+		t.Run("a TUI that stops with an error gives that error to new", func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			command := &cli.Command{Reader: strings.NewReader(""), Writer: io.Discard}
+
+			_, err := ask(ctx, command, catalog.New(starterFiles("")), "service", "my-service", nil, nil)
+
+			require.ErrorIs(t, err, tea.ErrProgramKilled)
+		})
+
+		t.Run("an unknown starter stops new before the TUI starts", func(t *testing.T) {
+			command := &cli.Command{Reader: strings.NewReader(""), Writer: io.Discard}
+
+			_, err := ask(context.Background(), command, catalog.New(starterFiles("")), "nope", "my-service", nil, nil)
+
+			require.EqualError(t, err, `unknown starter "nope": the catalog has service`)
+		})
 	})
 
 	t.Run("stop", func(t *testing.T) {
@@ -762,6 +894,23 @@ folders:
 			})
 		}
 	})
+}
+
+type screenBuffer struct {
+	mu      sync.Mutex
+	written bytes.Buffer
+}
+
+func (b *screenBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.written.Write(p)
+}
+
+func (b *screenBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.written.String()
 }
 
 type failingWriter struct{}

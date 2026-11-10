@@ -6,7 +6,9 @@ import (
 	"io"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/hpcsc/feature-compose/internal/catalog"
+	"github.com/hpcsc/feature-compose/internal/prompt"
 	"github.com/urfave/cli/v3"
 )
 
@@ -19,7 +21,7 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			&cli.StringSliceFlag{Name: "feature", Usage: "select a feature of the catalog, as <name>[:<option>=<value>,...]; give the flag one time for each feature"},
 			&cli.StringSliceFlag{Name: "option", Usage: "set an option of the starter, as <name>=<value>; give the flag one time for each option"},
 			&cli.StringFlag{Name: "output-dir", Usage: "the folder for the new repo (default: ./<name>)"},
-			&cli.BoolFlag{Name: "no-prompt", Usage: "ask no question, and give each option without a value its default"},
+			&cli.BoolFlag{Name: "no-prompt", Usage: "start no TUI: give each option without a value its default, and stop on an option with no default and no value"},
 			&cli.BoolFlag{Name: "dry-run", Usage: "print a preview of the repo, and write no file and run no command"},
 		},
 		DisableSliceFlagSeparator: true,
@@ -36,11 +38,13 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			if err != nil {
 				return err
 			}
-			starter, err := c.Starter(starterName)
-			if err != nil {
-				return err
+			asked := !cmd.Bool("no-prompt") && !cmd.Bool("dry-run") && isTerminal(cmd.Root().Reader) && isTerminal(cmd.Root().Writer)
+			var selection catalog.Selection
+			if asked {
+				selection, err = ask(ctx, cmd, c, starterName, name, given, givenByFeature)
+			} else {
+				selection, err = selected(c, starterName, name, given, givenByFeature)
 			}
-			selection, err := starter.Select(name, given, givenByFeature, catalog.Answers{})
 			if err != nil {
 				return err
 			}
@@ -67,10 +71,33 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 				fmt.Fprintln(&printed, need)
 			}
 			fmt.Fprintf(&printed, "Made %s from the starter %s.\n", output, starterName)
+			if asked {
+				fmt.Fprintf(&printed, "To make the same repo again, run:\n  feature-compose new %s\n", selection.Arguments(output))
+			}
 			_, err = io.WriteString(cmd.Root().Writer, printed.String())
 			return err
 		}, "new needs two arguments: new <starter> <name>"),
 	}
+}
+
+func selected(c catalog.Catalog, starterName, name string, given map[string]string, givenByFeature map[string]map[string]string) (catalog.Selection, error) {
+	starter, err := c.Starter(starterName)
+	if err != nil {
+		return catalog.Selection{}, err
+	}
+	return starter.Select(name, given, givenByFeature, catalog.Answers{})
+}
+
+func ask(ctx context.Context, cmd *cli.Command, c catalog.Catalog, starterName, name string, given map[string]string, givenByFeature map[string]map[string]string) (catalog.Selection, error) {
+	model, err := prompt.New(c, starterName, name, given, givenByFeature)
+	if err != nil {
+		return catalog.Selection{}, err
+	}
+	final, err := tea.NewProgram(model, tea.WithContext(ctx), tea.WithInput(cmd.Root().Reader), tea.WithOutput(cmd.Root().Writer), tea.WithAltScreen()).Run()
+	if err != nil {
+		return catalog.Selection{}, err
+	}
+	return final.(prompt.Model).Confirmed()
 }
 
 func givenStarterValues(flags []string) (map[string]string, error) {

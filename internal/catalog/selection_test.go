@@ -800,6 +800,69 @@ delimiters:
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{"cmd/my-service/Taskfile.yml": "name: my-service\n"}, filesIn(t, output))
 		})
+
+		withoutDefaults := func() fstest.MapFS {
+			return fstest.MapFS{
+				"starters/service/starter.yml":         &fstest.MapFile{Data: []byte("options:\n  zone:\n    default: \"\"\n  region:\n    pattern: '^[a-z]*$'\n  module:\n    default: example.com/{{ .Name }}\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/region.txt": &fstest.MapFile{Data: []byte(`{{ option "starter.region" }}|{{ option "starter.zone" }}|{{ option "starter.module" }}`)},
+				"features/a/feature.yml":               &fstest.MapFile{Data: []byte("summary: A.\ntargets: [service]\nneeds: [b]\noptions:\n  level:\n    default: \"\"\n")},
+				"features/b/feature.yml":               &fstest.MapFile{Data: []byte("summary: B.\ntargets: [service]\noptions:\n  token:\n    pattern: '^.*$'\n  key:\n    default: \"\"\n")},
+			}
+		}
+
+		t.Run("each option with no default and no value stops the write before the first file, and the message names each one in the order of the preview, with the flag that gives it", func(t *testing.T) {
+			starter, err := catalog.New(withoutDefaults()).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"a": {}})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err = selection.Write(output)
+
+			require.EqualError(t, err, `the option region of the starter service has no default and no value: give it with --option region=<value>
+the option zone of the starter service has no default and no value: give it with --option zone=<value>
+the option key of the feature b has no default and no value: give it with --feature b:key=<value>
+the option token of the feature b has no default and no value: give it with --feature b:token=<value>
+the option level of the feature a has no default and no value: give it with --feature a:level=<value>`)
+			require.NoDirExists(t, output)
+		})
+
+		t.Run("a value that a flag gives to an option with no default is the value that the templates read", func(t *testing.T) {
+			starter, err := catalog.New(withoutDefaults()).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", map[string]string{"region": "eu", "zone": "west"}, map[string]map[string]string{"a": {"level": "1"}, "b": {"token": "t", "key": "k"}})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err = selection.Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"region.txt": "eu|west|example.com/my-service"}, filesIn(t, output))
+		})
+
+		t.Run("the empty text from a flag is no value for an option with no default", func(t *testing.T) {
+			starter, err := catalog.New(withoutDefaults()).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", map[string]string{"region": "", "zone": "west"}, nil)
+			require.NoError(t, err)
+
+			err = selection.Write(filepath.Join(t.TempDir(), "my-service"))
+
+			require.EqualError(t, err, "the option region of the starter service has no default and no value: give it with --option region=<value>")
+		})
+
+		t.Run("a flag can give the empty text to an option that has a default", func(t *testing.T) {
+			starter, err := catalog.New(withoutDefaults()).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", map[string]string{"region": "eu", "zone": "west", "module": ""}, nil)
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err = selection.Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"region.txt": "eu|west|"}, filesIn(t, output))
+		})
 	})
 
 	t.Run("preview", func(t *testing.T) {
@@ -997,6 +1060,10 @@ Options:
 				"features/cli/feature.yml":           &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\n")},
 				"features/cli/files/go/main.go.tmpl": &fstest.MapFile{Data: []byte("package cli\n")},
 			}, features: []string{"cli"}},
+			"an option with no default and no value": {files: fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("options:\n  region:\n    default: \"\"\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			}},
 		} {
 			t.Run(name+" stops the preview with the message that stops the write of the same selection", func(t *testing.T) {
 				selection := featureSelection(t, test.files, test.features...)

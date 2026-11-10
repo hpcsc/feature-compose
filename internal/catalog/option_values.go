@@ -7,8 +7,9 @@ import (
 )
 
 type optionValues struct {
-	byName map[string]string
-	given  map[string]bool
+	byName   map[string]string
+	given    map[string]bool
+	defaults map[string]string
 }
 
 func (o optionValues) byReference(prefix string) map[string]string {
@@ -29,4 +30,14 @@ func (o optionValues) lines(prefix string) []string {
 		lines = append(lines, fmt.Sprintf("%s%s: %s (%s)", prefix, optionName, o.byName[optionName], source))
 	}
 	return lines
+}
+
+func (o optionValues) withoutValue() []string {
+	var optionNames []string
+	for _, optionName := range slices.Sorted(maps.Keys(o.byName)) {
+		if o.byName[optionName] == "" && o.defaults[optionName] == "" {
+			optionNames = append(optionNames, optionName)
+		}
+	}
+	return optionNames
 }

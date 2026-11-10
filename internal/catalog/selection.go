@@ -127,6 +127,9 @@ func (s Selection) fileLines(files []file) []string {
 }
 
 func (s Selection) files() ([]file, error) {
+	if err := s.checkValues(); err != nil {
+		return nil, err
+	}
 	files := make([]file, 0, len(s.templates))
 	writers := make(map[string]template, len(s.templates))
 	for _, t := range s.templates {
@@ -142,6 +145,19 @@ func (s Selection) files() ([]file, error) {
 		files = append(files, f)
 	}
 	return files, nil
+}
+
+func (s Selection) checkValues() error {
+	var errs []error
+	for _, optionName := range s.starter.values.withoutValue() {
+		errs = append(errs, fmt.Errorf("the option %s of the starter %s has no default and no value: give it with --option %s=<value>", optionName, s.starter.name, optionName))
+	}
+	for _, f := range s.features {
+		for _, optionName := range f.values.withoutValue() {
+			errs = append(errs, fmt.Errorf("the option %s of the feature %s has no default and no value: give it with --feature %s:%s=<value>", optionName, f.name, f.name, optionName))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (s Selection) checkEmpty(output string) error {

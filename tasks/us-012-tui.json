@@ -1,0 +1,286 @@
+{
+  "story": "Answer the questions in a TUI",
+  "story_id": "feature-compose/US-012",
+  "tasks_file": "tasks/us-012-tui.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Stop `new` on an option that has no value and no default",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/catalog/option.go:30-38",
+        "internal/catalog/option.go:49-77",
+        "internal/catalog/selection.go:129-145",
+        "internal/catalog/selection.go:38-65",
+        "internal/catalog/option_values.go:1-32",
+        "internal/catalog/starter_test.go:15-62",
+        "internal/cmd/new_test.go:23-51",
+        "internal/cmd/new_test.go:499-653",
+        "internal/cmd/new_test.go:339-478",
+        "tasks/learnings.md:182-187",
+        "tasks/learnings.md:133-138"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "internal/catalog/option.go",
+        "internal/catalog/option_values.go",
+        "internal/catalog/selection.go",
+        "internal/catalog/selection_test.go",
+        "internal/catalog/starter_test.go",
+        "internal/cmd/new_test.go"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Give the answers of the TUI to the selection, with the source `answered`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/catalog/option_values.go:1-32",
+        "internal/catalog/selection.go:254-286",
+        "internal/catalog/selection.go:28-36",
+        "internal/catalog/starter.go:73-116",
+        "internal/catalog/starter.go:167-199",
+        "internal/catalog/option.go:49-77",
+        "internal/catalog/combination.go:9-13",
+        "internal/catalog/selection_test.go:805-1012",
+        "internal/catalog/selection_test.go:1146-1185",
+        "tasks/learnings.md:203-208",
+        "tasks/learnings.md:196-201",
+        "tasks/learnings.md:147-152",
+        "tasks/learnings.md:182-187"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "internal/catalog/answers.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/option.go",
+        "internal/catalog/option_values.go",
+        "internal/catalog/selection.go",
+        "internal/catalog/selection_test.go",
+        "internal/catalog/starter_test.go",
+        "internal/catalog/catalog_test.go",
+        "internal/catalog/combination_test.go",
+        "internal/cmd/new.go",
+        "internal/cmd/new_test.go"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "List the questions of a selection, each with its default and its check",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/catalog/option.go:30-38",
+        "internal/catalog/option.go:49-77",
+        "internal/catalog/selection.go:104-110",
+        "internal/catalog/option_values.go:22-32",
+        "internal/catalog/definitions.go:22-26",
+        "internal/catalog/definitions.go:76-93",
+        "internal/cmd/new.go:88-111",
+        "internal/catalog/selection_test.go:918-1012",
+        "task:1",
+        "task:2",
+        "tasks/learnings.md:203-208",
+        "tasks/learnings.md:133-138"
+      ],
+      "depends_on": [
+        1,
+        2
+      ],
+      "affected_files": [
+        "internal/catalog/question.go",
+        "internal/catalog/selection.go",
+        "internal/catalog/option.go",
+        "internal/catalog/option_values.go",
+        "internal/catalog/selection_test.go"
+      ]
+    },
+    {
+      "n": 4,
+      "done": false,
+      "title": "Give the arguments of `new` that make the same repo",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "internal/catalog/combination.go:15-33",
+        "internal/cmd/new_test.go:309-337",
+        "internal/cmd/new.go:76-111",
+        "internal/catalog/option.go:49-77",
+        "internal/catalog/starter.go:201-216",
+        "task:2",
+        "tasks/learnings.md:3-8",
+        "tasks/learnings.md:182-187"
+      ],
+      "depends_on": [
+        2
+      ],
+      "affected_files": [
+        "internal/catalog/selection.go",
+        "internal/catalog/option_values.go",
+        "internal/catalog/selection_test.go",
+        "internal/cmd/new_test.go"
+      ]
+    },
+    {
+      "n": 5,
+      "done": false,
+      "title": "Confirm the repo in a TUI before `new` writes it",
+      "language": "Go",
+      "testable": true,
+      "certainty": "low",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "internal/cmd/show.go:46-48",
+        "internal/cmd/update.go:89-92",
+        "internal/cmd/show.go:56-67",
+        "internal/cmd/show_test.go:221-239",
+        "internal/browser/model.go:22-66",
+        "internal/browser/model.go:32-33",
+        "internal/browser/model.go:108-111",
+        "internal/browser/model_test.go:469-630",
+        "internal/cmd/new.go:13-74",
+        "internal/cmd/root.go:18-25",
+        "internal/cmd/root.go:61-69",
+        "internal/cmd/new_test.go:271-283",
+        "internal/cmd/new_test.go:480-497",
+        "e2e/tests/show.test.ts:43-82",
+        "e2e/testUtils.ts:71-90",
+        "e2e/tests/new.test.ts:43-67",
+        "docs/e2e-tests.md:31-55",
+        "docs/e2e-tests.md:177-192",
+        "README.md:102-176",
+        "task:4",
+        "task:1",
+        "tasks/learnings.md:175-180",
+        "tasks/learnings.md:168-173",
+        "tasks/learnings.md:189-194",
+        "tasks/learnings.md:37-42",
+        "tasks/learnings.md:58-63"
+      ],
+      "depends_on": [
+        1,
+        4
+      ],
+      "affected_files": [
+        "go.mod",
+        "go.sum",
+        "internal/prompt/model.go",
+        "internal/prompt/model_test.go",
+        "internal/cmd/new.go",
+        "internal/cmd/new_test.go",
+        "README.md",
+        "e2e/tests/new.test.ts"
+      ]
+    },
+    {
+      "n": 6,
+      "done": false,
+      "title": "Ask for the features, and show the features that the needs add",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:5",
+        "internal/catalog/definitions.go:81-93",
+        "internal/catalog/selection.go:28-36",
+        "internal/browser/model.go:51-64",
+        "e2e/tests/show.test.ts:84-102",
+        "README.md:74-80",
+        "task:2",
+        "tasks/learnings.md:175-180",
+        "tasks/learnings.md:196-201"
+      ],
+      "depends_on": [
+        2,
+        5
+      ],
+      "affected_files": [
+        "internal/prompt/model.go",
+        "internal/prompt/model_test.go",
+        "internal/cmd/new.go",
+        "README.md",
+        "e2e/tests/new.test.ts"
+      ]
+    },
+    {
+      "n": 7,
+      "done": false,
+      "title": "Ask for the options, in one group for the starter and one for each feature",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:5",
+        "task:6",
+        "task:3",
+        "task:2",
+        "internal/catalog/selection.go:104-110",
+        "e2e/tests/new.test.ts:32-41",
+        "README.md:82-89",
+        "tasks/learnings.md:175-180"
+      ],
+      "depends_on": [
+        3,
+        6
+      ],
+      "affected_files": [
+        "internal/prompt/model.go",
+        "internal/prompt/model_test.go",
+        "README.md",
+        "e2e/tests/new.test.ts"
+      ]
+    },
+    {
+      "n": 8,
+      "done": false,
+      "title": "Ask for the starter and the name when the arguments do not give them",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:6",
+        "task:7",
+        "internal/catalog/definitions.go:76-79",
+        "internal/catalog/starter.go:14",
+        "internal/catalog/starter.go:73-76",
+        "internal/catalog/catalog.go:18-31",
+        "internal/cmd/adapter.go:28-37",
+        "internal/cmd/new_test.go:499-527",
+        "e2e/tests/new.test.ts:112-161",
+        "tasks/learnings.md:37-42",
+        "tasks/learnings.md:175-180",
+        "tasks/learnings.md:58-63"
+      ],
+      "depends_on": [
+        7
+      ],
+      "affected_files": [
+        "internal/prompt/model.go",
+        "internal/prompt/model_test.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/starter_test.go",
+        "internal/cmd/new.go",
+        "internal/cmd/new_test.go",
+        "README.md",
+        "e2e/tests/new.test.ts"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-012-tui.design.yaml"
+}

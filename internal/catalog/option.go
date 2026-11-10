@@ -59,17 +59,18 @@ func (o options) withDefaults(given map[string]string, name string) (optionValue
 			return optionValues{}, fmt.Errorf("%s: %w", o.declarer, err)
 		}
 	}
-	values := optionValues{byName: make(map[string]string, len(o.declared)), given: make(map[string]bool, len(given))}
+	values := optionValues{byName: make(map[string]string, len(o.declared)), given: make(map[string]bool, len(given)), defaults: make(map[string]string, len(o.declared))}
 	for _, optionName := range slices.Sorted(maps.Keys(o.declared)) {
+		defaultValue, err := Selection{name: name}.render("the default of the option "+optionName+" of "+o.declarer, o.declared[optionName].defaultValue, defaultDelimiters, "")
+		if err != nil {
+			return optionValues{}, err
+		}
+		values.defaults[optionName] = defaultValue
 		value, ok := given[optionName]
 		if ok {
 			values.given[optionName] = true
 		} else {
-			var err error
-			value, err = Selection{name: name}.render("the default of the option "+optionName+" of "+o.declarer, o.declared[optionName].defaultValue, defaultDelimiters, "")
-			if err != nil {
-				return optionValues{}, err
-			}
+			value = defaultValue
 		}
 		values.byName[optionName] = value
 	}

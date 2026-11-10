@@ -76,6 +76,15 @@ folders:
 		return files
 	}
 
+	withoutDefaults := func() fstest.MapFS {
+		return fstest.MapFS{
+			"starters/service/starter.yml":         &fstest.MapFile{Data: []byte("options:\n  region:\n    pattern: '^[a-z]*$'\nfolders:\n  go:\n    path: .\n    after_render: [\"touch ran\"]\n")},
+			"starters/service/files/go/region.txt": &fstest.MapFile{Data: []byte(`{{ option "starter.region" }}`)},
+			"features/a/feature.yml":               &fstest.MapFile{Data: []byte("summary: A.\ntargets: [service]\nneeds: [b]\n")},
+			"features/b/feature.yml":               &fstest.MapFile{Data: []byte("summary: B.\ntargets: [service]\noptions:\n  token:\n    default: \"\"\n")},
+		}
+	}
+
 	t.Run("write", func(t *testing.T) {
 		t.Run("writes the repo to a folder with the name of the repo in the working folder", func(t *testing.T) {
 			workingFolder := t.TempDir()
@@ -268,6 +277,16 @@ folders:
 			require.Equal(t, map[string]string{"go.mod": "module example.com/a,b\ngo 1.28.0\n"}, filesIn(t, output))
 		})
 
+		t.Run("--option gives a value to an option with no default", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			_, err := runNew(t, withoutDefaults(), "service", "my-service", "--output-dir", output, "--option", "region=eu")
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"region.txt": "eu", "ran": ""}, filesIn(t, output))
+		})
+
 		t.Run("with or without --no-prompt, new gives each option its default and reads no input", func(t *testing.T) {
 			for _, arguments := range [][]string{{"--no-prompt"}, {}} {
 				t.Chdir(t.TempDir())
@@ -437,6 +456,7 @@ folders:
 			"a value that is not one of its values":          {withFeatures(), []string{"service", "my-service", "--feature", "auth:method=basic"}},
 			"a template that fails to render":                {withBadTemplate("starters/service/files/go/bad.go", "package {{ .Nmae }}\n"), []string{"service", "my-service"}},
 			"two templates that write one path":              {withBadTemplate("starters/service/files/go/go.mod", "module mine\n"), []string{"service", "my-service"}},
+			"an option with no default and no value":         {withoutDefaults(), []string{"service", "my-service"}},
 		} {
 			t.Run(name+" stops --dry-run with the message that stops new, prints nothing, and makes no output folder", func(t *testing.T) {
 				workingFolder := t.TempDir()
@@ -650,6 +670,55 @@ folders:
 			require.ErrorContains(t, err, output)
 			require.Equal(t, map[string]string{"notes.txt": "my notes\n"}, filesIn(t, output))
 		})
+
+		for name, arguments := range map[string][]string{
+			"with --no-prompt":    {"--no-prompt"},
+			"without --no-prompt": {},
+		} {
+			t.Run("an option of the starter with no default and no value stops new "+name+", names the option and the flag that gives it, makes no output folder and runs no after_render command", func(t *testing.T) {
+				workingFolder := t.TempDir()
+				t.Chdir(workingFolder)
+
+				_, err := runNew(t, withoutDefaults(), append([]string{"service", "my-service"}, arguments...)...)
+
+				require.EqualError(t, err, "the option region of the starter service has no default and no value: give it with --option region=<value>")
+				require.Empty(t, filesIn(t, workingFolder))
+			})
+		}
+
+		t.Run("an option with no default of a feature that only a need selects stops new, and the message names the feature and the flag that gives it", func(t *testing.T) {
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+
+			_, err := runNew(t, withoutDefaults(), "service", "my-service", "--option", "region=eu", "--feature", "a")
+
+			require.EqualError(t, err, "the option token of the feature b has no default and no value: give it with --feature b:token=<value>")
+			require.Empty(t, filesIn(t, workingFolder))
+		})
+
+		for name, test := range map[string]struct {
+			flags   []string
+			message string
+		}{
+			"--option region=": {
+				flags:   []string{"--option", "region=", "--feature", "b:token=t"},
+				message: "the option region of the starter service has no default and no value: give it with --option region=<value>",
+			},
+			"--feature b:token=": {
+				flags:   []string{"--option", "region=eu", "--feature", "b:token="},
+				message: "the option token of the feature b has no default and no value: give it with --feature b:token=<value>",
+			},
+		} {
+			t.Run(name+" with the empty text stops new for an option with no default", func(t *testing.T) {
+				workingFolder := t.TempDir()
+				t.Chdir(workingFolder)
+
+				_, err := runNew(t, withoutDefaults(), append([]string{"service", "my-service", "--feature", "a"}, test.flags...)...)
+
+				require.EqualError(t, err, test.message)
+				require.Empty(t, filesIn(t, workingFolder))
+			})
+		}
 	})
 }
 

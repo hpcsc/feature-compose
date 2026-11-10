@@ -1,0 +1,105 @@
+design: planned
+types:
+  - name: Selection
+    package: internal/catalog
+    change: changed
+    does: one repo that new makes, from a starter, its features with the values of their options, a name and the values of the starter options
+    owns:
+      - Write and Preview stop before the first file when an option has no default and no value; the message names each such option, in the order of the preview, with the flag that gives it, --option <name>=<value> or --feature <feature>:<name>=<value>; the empty text is no value for such an option
+      - the source of a feature is command line when a --feature flag gives it, answered when an answer of the TUI selects it, each followed by needed by and the features that need it when a selected feature needs it, and else needed by and the features that need it
+      - the source of the value of an option is command line when a flag gives it, answered when an answer gives it, also when either equals the default, and default otherwise
+      - AddedByNeeds gives only the features that neither a flag nor an answer selects
+      - Questions gives each option whose value no flag gives, in the order of the options of the preview, each option at most one time
+      - Arguments gives the starter, the name, --output-dir when the output folder is not the name, --option for each starter option whose value is not its default in the order of the names, then --feature for each feature that a flag or an answer selected in the order of the names and for each other feature with a value that is not its default in the order of rule 8, each with its options whose value is not the default; each word that a POSIX shell would change is in single quotes, and new with these arguments and --no-prompt writes the same files
+    fields: [folders, name, starter, features, templates, extensionPoints]
+    methods: [Write, Preview, RunAfterRender, RunTests, AddedByNeeds, Questions, Arguments]
+  - name: Starter
+    package: internal/catalog
+    change: changed
+    does: one starter of the catalog, which each selection of a repo starts from
+    owns:
+      - Select takes the answers of the TUI next to the values that the flags give; it selects the answered features with their needs, and checks an answered value and an answered feature with the checks of a value and a feature that a flag gives
+      - Select gives a selection also when an option has no default and no value, so that the TUI can ask it
+      - the name of a repo starts with a letter or a digit and holds only letters, digits, '.', '_' and '-'; CheckName gives the message of Select for another name
+    fields: [name, options, folders, templates, features, extensionPoints]
+    methods: [Select]
+  - name: Answers
+    package: internal/catalog
+    change: new
+    does: what the developer answers in the TUI of new, the features that the developer selects and the values of the options of the starter and of the features
+    owns: []
+    fields: [Features, StarterValues, FeatureValues]
+    methods: []
+  - name: Question
+    package: internal/catalog
+    change: new
+    does: one option of a selection that the TUI of new asks, with its default rendered with the name of the repo and the values that it accepts
+    owns:
+      - Check accepts a value that Select accepts as the answer to the question, and else gives the message that Select gives for the same value from a flag
+      - Check refuses the empty text for an option with no default
+      - Check refuses a comma in a value of an option of a feature, because the --feature flag splits its value at commas, and accepts a comma in a value of an option of the starter
+    fields: [Feature, Name, Default, Accepted]
+    methods: [Check]
+  - name: optionValues
+    package: internal/catalog
+    change: changed
+    does: the chosen values of the options of the starter or of one feature in a selection, with the source of each value
+    owns:
+      - a value is given when a flag gives it, answered when an answer gives it, and a default otherwise
+      - it knows which values are not their default, and which options have no default and no value
+    fields: [byName, given, answered, defaults]
+    methods: [lines, byReference]
+  - name: selectedFeature
+    package: internal/catalog
+    change: changed
+    does: one feature of a selection, with its values, its needs, the features that need it, and whether a flag or an answer selected it
+    owns:
+      - its line in the preview gives its source as Selection owns it
+    fields: [name, given, answered, values, needs, neededBy]
+    methods: [line, asNeed, optionLines]
+  - name: Model
+    package: internal/prompt
+    change: new
+    does: the TUI of new, which asks for each answer that the arguments and the flags do not give, one step at a time, and ends with the selection that the developer confirms or with a cancel
+    owns:
+      - the steps come in the order starter, name, features, needs, options, confirm; the first argument answers the starter step, the second argument the name step, and any --feature flag the feature step and the needs step, which the TUI then skips
+      - the feature step lists the features that target the starter, each with its summary, and the developer selects none, one or more
+      - the needs step shows each feature that a need adds with the features that need it, and comes only when a need adds a feature; Change the features shows the feature step again with the selected features kept
+      - the options step has a group for the options of the starter and then one group for each feature with a question, in the order of rule 8, and asks each question one time; it does not accept a value that Question.Check refuses, and shows the message of Check while the value fails it
+      - the confirm step shows the text of Selection.Preview in a pane that scrolls; Yes gives the selection; No, Esc and ctrl+c at each step are a cancel, which gives an error that says that the developer canceled and that new wrote no file
+      - an error of the flags or of the preview ends the TUI with the message that stops new without the TUI
+      - the TUI writes no file
+    fields: [catalog, starterName, name, given, givenByFeature, answers, selection, step, form, preview, err]
+    methods: [Init, Update, View, Confirmed]
+functions:
+  - CheckName(name string) error
+  - New(c catalog.Catalog, starterName, name string, given map[string]string, givenByFeature map[string]map[string]string) (Model, error)
+words:
+  - concept: the source of a feature or of a value of an option that the developer gives in the TUI of new
+    word: answered
+    not: [prompted, interactive, chosen, entered, picked]
+  - concept: what the developer gives in the TUI of new, the selected features and the values of options, which Select takes next to the given values of the flags
+    word: answers
+    not: [responses, choices, inputs, replies, selections]
+  - concept: one option of a selection that the TUI of new asks, with its default and its check
+    word: question
+    not: [prompt, field, input, query, item]
+  - concept: one screen of the TUI of new, of which there are six, starter, name, features, needs, options and confirm
+    word: step
+    not: [page, stage, screen, phase, view]
+  - concept: the TUI of new, which --no-prompt turns off
+    word: prompt
+    not: [wizard, interview, form, dialog, questionnaire]
+  - concept: the words after feature-compose new that make the same repo, which new prints after the TUI writes the repo
+    word: arguments
+    not: [recipe, invocation, replay, command line]
+  - concept: the end of the TUI of new without a write, with Esc, ctrl+c, or No at the confirm step
+    word: cancel
+    not: [abort, quit, exit, interrupt]
+  - concept: an option whose default is empty or absent, which needs a value from a flag or an answer
+    word: no default
+    not: [required, mandatory, empty default]
+dependencies:
+  - internal/cmd -> internal/catalog
+  - internal/cmd -> internal/prompt
+  - internal/prompt -> internal/catalog

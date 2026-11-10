@@ -11,13 +11,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hpcsc/feature-compose/internal/catalog"
+	"github.com/hpcsc/feature-compose/internal/screen"
 )
 
-const (
-	narrowestScreen = 40
-	lowestScreen    = 8
-	narrowestTree   = 20
-)
+const narrowestTree = 20
 
 var keys = struct {
 	down, up, open, close, filter, keepFilter, clearFilter, scrollDown, scrollUp, quit key.Binding
@@ -145,14 +142,7 @@ func (m Model) laidOut(before row) Model {
 		m.details.GotoTop()
 	}
 	treeHeight := max(m.height-4, 1)
-	selected := max(m.tree.selectedIndex(), 0)
-	if selected < m.treeOffset {
-		m.treeOffset = selected
-	}
-	if selected >= m.treeOffset+treeHeight {
-		m.treeOffset = selected - treeHeight + 1
-	}
-	m.treeOffset = max(min(m.treeOffset, len(m.tree.rows())-treeHeight), 0)
+	m.treeOffset = max(min(screen.OffsetShowing(m.treeOffset, m.tree.selectedIndex(), treeHeight), len(m.tree.rows())-treeHeight), 0)
 	return m
 }
 
@@ -171,26 +161,26 @@ func (m Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return ""
 	}
-	if m.width < narrowestScreen || m.height < lowestScreen {
-		return strings.Join(wrapped(fmt.Sprintf("The terminal is too small for show. Make it at least %d columns wide and %d rows high.", narrowestScreen, lowestScreen), m.width), "\n")
+	if !screen.Fits(m.width, m.height) {
+		return screen.TooSmall("show", m.width)
 	}
 	paneHeight := m.height - 2
-	treePanel := panel{title: "Catalog", width: m.treeWidth(), height: paneHeight, border: focusedBorder}
+	treePane := screen.Pane{Title: "Catalog", Width: m.treeWidth(), Height: paneHeight, Border: screen.FocusedBorder}
 	if m.tree.filter != "" {
-		treePanel.title += " /" + m.tree.filter
+		treePane.Title += " /" + m.tree.filter
 	}
-	treePanel.lines = m.tree.lines(m.treeOffset, treePanel.innerWidth(), paneHeight-2)
+	treePane.Lines = m.tree.lines(m.treeOffset, treePane.InnerWidth(), paneHeight-2)
 	switch {
 	case len(m.tree.starterNames) == 0:
-		treePanel.lines = wrapped(noneStyle.Render("The catalog has no starter."), treePanel.innerWidth())
-	case len(treePanel.lines) == 0:
-		treePanel.lines = wrapped(noneStyle.Render("No name matches the filter."), treePanel.innerWidth())
+		treePane.Lines = screen.Wrapped(screen.NoneStyle.Render("The catalog has no starter."), treePane.InnerWidth())
+	case len(treePane.Lines) == 0:
+		treePane.Lines = screen.Wrapped(screen.NoneStyle.Render("No name matches the filter."), treePane.InnerWidth())
 	}
-	detailsPanel := panel{title: m.detailsTitle(), lines: strings.Split(m.details.View(), "\n"), width: m.width - treePanel.width, height: paneHeight, border: plainBorder}
+	detailsPane := screen.Pane{Title: m.detailsTitle(), Lines: strings.Split(m.details.View(), "\n"), Width: m.width - treePane.Width, Height: paneHeight, Border: screen.PlainBorder}
 	if m.details.TotalLineCount() > m.details.Height {
-		detailsPanel.note = fmt.Sprintf("%d%%", int(m.details.ScrollPercent()*100))
+		detailsPane.Note = fmt.Sprintf("%d%%", int(m.details.ScrollPercent()*100))
 	}
-	return m.header() + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, treePanel.view(), detailsPanel.view()) + "\n" + m.footer()
+	return screen.Header("feature-compose show", counted(len(m.definitions.Starters), "starter")+" · "+counted(len(m.definitions.Features), "feature"), m.width) + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, treePane.View(), detailsPane.View()) + "\n" + m.footer()
 }
 
 func (m Model) detailsTitle() string {
@@ -204,16 +194,6 @@ func (m Model) detailsTitle() string {
 		return selected.starter + " › " + string(selected.group)
 	}
 	return selected.name
-}
-
-func (m Model) header() string {
-	title := appTitleStyle.Render("feature-compose show")
-	counts := countStyle.Render(counted(len(m.definitions.Starters), "starter") + " · " + counted(len(m.definitions.Features), "feature"))
-	gap := m.width - lipgloss.Width(title) - lipgloss.Width(counts) - 1
-	if gap < 1 {
-		return title
-	}
-	return title + strings.Repeat(" ", gap) + counts + " "
 }
 
 func (m Model) footer() string {

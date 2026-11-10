@@ -102,6 +102,29 @@ func TestModel(t *testing.T) {
 
 			require.Equal(t, []string{"▌  a-very-long-…"}, treeOf(sized(browser.New(long), 50, 10)))
 		})
+
+		t.Run("a terminal of 40 columns and 8 rows shows the panes", func(t *testing.T) {
+			treeTitle, _ := paneTitlesOf(sized(browser.New(definitions()), 40, 8))
+
+			require.Equal(t, "Catalog", treeTitle)
+		})
+
+		t.Run("a title line too narrow for the counts shows only the title", func(t *testing.T) {
+			require.Equal(t, " feature-compose show", linesOf(sized(browser.New(definitions()), 40, 10))[0])
+		})
+
+		for name, test := range map[string]struct {
+			definitions catalog.Definitions
+			width       int
+		}{
+			"a starter":                     {catalog.Definitions{Starters: map[string]catalog.StarterDefinition{"a-starter-with-a-long-name-xyz": {}}}, 37},
+			"a feature of the last starter": {catalog.Definitions{Starters: map[string]catalog.StarterDefinition{"api": {}, "web": {}}, Features: map[string]catalog.FeatureDefinition{"aa": {Targets: []string{"web"}}, "zz-a-feature-with-a-long-name": {Targets: []string{"web"}}}}, 42},
+			"an empty catalog":              {catalog.Definitions{}, 20},
+		} {
+			t.Run("the tree pane is five columns wider than its widest row, and at least 20 columns wide: "+name, func(t *testing.T) {
+				require.Equal(t, test.width, treePaneWidthOf(sized(browser.New(test.definitions), 120, 10)))
+			})
+		}
 	})
 
 	t.Run("tree", func(t *testing.T) {
@@ -192,10 +215,34 @@ func TestModel(t *testing.T) {
 			require.Equal(t, screenOf(atFeature), screenOf(pressed(atFeature, "l")))
 		})
 
+		t.Run("l at a closed starter with one group opens it again", func(t *testing.T) {
+			atZone := pressed(opened(browser.New(definitions())), "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "j")
+
+			require.Equal(t, treeOf(atZone), treeOf(pressed(atZone, "h", "l")))
+		})
+
+		t.Run("l at an open starter with one group selects the group", func(t *testing.T) {
+			atZone := pressed(opened(browser.New(definitions())), "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "j")
+
+			require.Equal(t, "▌  └─ ▾ features", selectedRowOf(pressed(atZone, "l")))
+		})
+
+		t.Run("l at a closed group opens it again", func(t *testing.T) {
+			atFeatures := pressed(opened(browser.New(definitions())), "l")
+
+			require.Equal(t, treeOf(atFeatures), treeOf(pressed(atFeatures, "h", "l")))
+		})
+
 		t.Run("a tree taller than its pane moves with the selection, so the selected row stays in view", func(t *testing.T) {
 			screen := pressed(sized(browser.New(manyStarters(12)), 80, 8), "j", "j", "j", "j", "j", "j")
 
 			require.Equal(t, []string{"   starter-03", "   starter-04", "   starter-05", "▌  starter-06"}, treeOf(screen))
+		})
+
+		t.Run("a tree scrolled down shows its first row again when the terminal grows tall enough for all rows", func(t *testing.T) {
+			scrolled := pressed(sized(browser.New(manyStarters(12)), 80, 8), "j", "j", "j", "j", "j", "j")
+
+			require.Equal(t, "   starter-00", treeOf(sized(scrolled, 80, 20))[0])
 		})
 
 		t.Run("an empty catalog says that it has no starter, and the keys change nothing", func(t *testing.T) {
@@ -355,6 +402,23 @@ Extension points that it adds items to
 			screen := pressed(sized(browser.New(definitions()), 80, 12), "ctrl+d", "j", "j")
 
 			require.Equal(t, "API keys.", firstDetailsLineOf(screen))
+		})
+
+		t.Run("details scrolled to their end show 100%", func(t *testing.T) {
+			require.Equal(t, "100%", scrollNoteOf(pressed(sized(browser.New(definitions()), 80, 12), "ctrl+d", "ctrl+d", "ctrl+d")))
+		})
+
+		t.Run("a feature with two needs lists each need", func(t *testing.T) {
+			twoNeeds := catalog.Definitions{
+				Starters: map[string]catalog.StarterDefinition{"api": {}},
+				Features: map[string]catalog.FeatureDefinition{
+					"a": {Targets: []string{"api"}},
+					"b": {Targets: []string{"api"}},
+					"c": {Summary: "Needs two.", Targets: []string{"api"}, Needs: []string{"a", "b"}},
+				},
+			}
+
+			require.True(t, strings.HasPrefix(detailsOf(pressed(opened(browser.New(twoNeeds)), "j", "j", "j", "j")), "Needs two.\n\nNeeds\n  a\n  b\n"), detailsOf(pressed(opened(browser.New(twoNeeds)), "j", "j", "j", "j")))
 		})
 
 		t.Run("details that fit the pane show no scroll position", func(t *testing.T) {
@@ -531,6 +595,11 @@ func paneTitlesOf(m browser.Model) (tree, details string) {
 }
 
 var scrollNote = regexp.MustCompile(`─ (\d+%) ─╯$`)
+
+func treePaneWidthOf(m browser.Model) int {
+	top := linesOf(m)[1]
+	return len([]rune(top[:strings.Index(top, "╮")+len("╮")]))
+}
 
 func scrollNoteOf(m browser.Model) string {
 	lines := linesOf(m)

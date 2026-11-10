@@ -1,0 +1,145 @@
+design: planned
+types:
+  - name: Pane
+    package: internal/screen
+    change: new
+    does: one box of the screen of a TUI, with a rounded border, a title in its top border, lines cut to its width, and a note in its bottom border
+    owns:
+      - a title longer than the pane ends with …, and each line is cut at the inner width of the pane
+      - the pane fills its height with empty lines, and shows its note, for example how far its text is scrolled, at the right of its bottom border
+    fields: [Title, Lines, Note, Width, Height, Border]
+    methods: [View, InnerWidth]
+  - name: Section
+    package: internal/screen
+    change: new
+    does: one heading of the details pane with its entries, or the text that says that it has none
+    owns:
+      - the names of the entries share one column, and a value goes under its name when the pane is too narrow for both
+    fields: [Heading, Entries, None]
+    methods: []
+  - name: Entry
+    package: internal/screen
+    change: new
+    does: one named thing in a section of the details, with its summary and its labelled fields
+    owns: []
+    fields: [Name, Summary, Fields]
+    methods: []
+  - name: Field
+    package: internal/screen
+    change: new
+    does: one label of an entry of the details with its values
+    owns: []
+    fields: [Label, Values]
+    methods: []
+  - name: Model
+    package: internal/browser
+    change: changed
+    does: the TUI of show, a tree of the starters of the catalog with the details of the selected row
+    owns:
+      - its panes, its title line, the lines of its tree, the layout of its details and the message of a small terminal come from internal/screen, and look as before
+    fields: [definitions, tree, treeOffset, details, filter, typing, help, width, height]
+    methods: [Init, Update, View]
+  - name: Starter
+    package: internal/catalog
+    change: changed
+    does: one starter of the catalog, which each selection of a repo starts from
+    owns:
+      - Select accepts the empty text as a name that is missing, and refuses each other name that CheckRepoName refuses
+      - FeatureNames gives each feature that targets the starter, each after the features that it needs and otherwise in the order of the names, and stops on a cycle of needs with the message that Select gives for it
+    fields: [name, options, folders, templates, features, extensionPoints]
+    methods: [Select, FeatureNames]
+  - name: Selection
+    package: internal/catalog
+    change: changed
+    does: one repo that new makes, from a starter, its features with the values of their options, a name and the values of the starter options
+    owns:
+      - Write and Preview stop with the message of CheckRepoName for the empty text when the name is missing, before any other check; Write stops before it reads or makes the output folder
+      - Questions gives each option of the selection, also each option that a flag gives, in the order of the options of the preview, each option at most one time
+      - NeededBy gives the selected features that need a feature, in the order of their names, and none for a feature that no selected feature needs or that the selection does not hold
+    fields: [folders, name, starter, features, templates, extensionPoints]
+    methods: [Write, Preview, Questions, NeededBy, AddedByNeeds, Arguments]
+  - name: Question
+    package: internal/catalog
+    change: changed
+    does: one option of a selection as the form of new shows it, with its value and its source, its default rendered with the name, its values or its pattern, and its check
+    owns:
+      - its source is the text of the preview, command line, answered or default, and a question is fixed when a flag gives its value
+      - Check accepts a value that Select accepts as the answer to the question, refuses the empty text for an option with no default, and refuses a comma in a value of an option of a feature
+    fields: [Feature, Option, Value, Source, Fixed, Default, Accepted, Pattern]
+    methods: [Check, Declarer]
+  - name: Model
+    package: internal/form
+    change: new
+    does: the form of new, a tree of the answers with the details of the selected row, which ends with the selection that the developer confirms or with a cancel
+    owns:
+      - the tree holds the name, the starter, the options of the starter, and each feature that targets the starter in the order of Starter.FeatureNames, each selected feature with its options under it
+      - a value that an argument or a flag gives is fixed, and the developer cannot change it; each selected feature that a selected feature needs shows needed by and those features
+      - Space selects or clears an answered feature and runs Select again; it does not clear a feature of a flag or a feature that a selected feature needs, and a Space that Select refuses keeps the selection and shows the message of Select
+      - an edit keeps a value only when CheckRepoName or Question.Check accepts it and Select accepts the selection; Esc drops the change; a kept value is answered, and until then a default that reads the name follows the name
+      - a clear of a feature drops the answered values of each feature that the selection no longer holds, and a change of the starter also drops the answered values of the options of the starter and keeps each answered feature that targets the new starter
+      - w shows the preview and asks whether to write; y gives the selection of the preview, n and Esc go back; while the starter, the name, or the value of an option with no default is missing, w selects that row and shows its message
+      - q and ctrl+c stop the form with the cancel, except while a value is typed, where only ctrl+c stops it; the form writes no file
+    fields: [catalog, definitions, starter, name, given, givenByFeature, answers, selection, tree, details, help, width, height, confirmed]
+    methods: [Init, Update, View, Confirmed]
+  - name: tree
+    package: internal/form
+    change: new
+    does: the rows of the form, with the selected row and the open rows
+    owns:
+      - j and k move by one row and stop at the ends; l opens a closed row and at an open row selects its first child; h closes an open row and at another row selects its parent
+    fields: [rows, selected, open]
+    methods: []
+  - name: row
+    package: internal/form
+    change: new
+    does: one line of the tree of the form, the name, the starter, a feature or an option, with its value and its mark
+    owns: []
+    fields: []
+    methods: []
+functions:
+  - form.New(c catalog.Catalog, starterName, name string, given map[string]string, givenByFeature map[string]map[string]string) (Model, error)
+  - screen.Header(title, counts string, width int) string
+  - screen.TooSmall(command string, width int) string
+  - screen.Details(summary string, width int, sections ...Section) string
+  - screen.Wrapped(text string, width int) []string
+words:
+  - concept: the TUI of new, one screen with a tree of the answers and the details of the selected row; the flag --no-prompt keeps its name, because scripts use it
+    word: form
+    not: [prompt, wizard, step, dialog, questionnaire]
+  - concept: the package of the parts that the TUIs of show and new draw the same way, the panes, the styles, the title line, the lines of a tree and the layout of the details
+    word: screen
+    not: [ui, common, util, look, theme, layout, tui]
+  - concept: one of the two boxes of a screen, with a rounded border and a title
+    word: pane
+    not: [panel, box, window, view]
+  - concept: one line of the tree of the form or of the browser, the name, the starter, a feature or an option
+    word: row
+    not: [item, node, entry, line]
+  - concept: the right pane, which shows the selected row, a list of values, or the preview
+    word: details
+    not: [info, inspector, sidebar]
+  - concept: a value that an argument or a flag gives, which the developer cannot change in the form
+    word: fixed
+    not: [locked, readonly, frozen, pinned]
+  - concept: an answer without which the form cannot write, no starter, no name, or no value for an option with no default
+    word: missing
+    not: [required, empty, unset, incomplete]
+  - concept: what Enter starts at the name, the starter or an option, in which each key goes to the value
+    word: edit
+    not: [input mode, change, modify]
+  - concept: Enter at the end of an edit, which takes the value into the answers
+    word: keep
+    not: [save, apply, commit, accept]
+  - concept: Esc during an edit, which leaves the value as it was before the edit
+    word: drop
+    not: [discard, revert, cancel, abort]
+  - concept: the y of the developer after w, which ends the form with the selection that new writes
+    word: confirm
+    not: [submit, finish, accept, approve]
+dependencies:
+  - internal/browser -> internal/screen
+  - internal/browser -> internal/catalog
+  - internal/form -> internal/screen
+  - internal/form -> internal/catalog
+  - internal/cmd -> internal/form
+  - internal/cmd -> internal/catalog

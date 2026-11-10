@@ -1,0 +1,307 @@
+{
+  "story": "Answer the questions in one form",
+  "story_id": "feature-compose/US-018",
+  "tasks_file": "tasks/us-018-form.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Share the look of the TUI of `show` in a package of its own",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/screen/pane.go:10-40",
+        "internal/screen/styles.go:5-22",
+        "internal/browser/model.go:170-236",
+        "internal/browser/tree.go:223-275",
+        "internal/browser/details.go:15-30",
+        "internal/browser/details.go:144-244",
+        "internal/textcase/textcase.go",
+        "internal/textcase/textcase_test.go",
+        "internal/browser/model_test.go:66-105",
+        "internal/browser/model_test.go:469-630",
+        "tasks/learnings.md:184-189",
+        "tasks/learnings.md:177-182"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "internal/screen/pane.go",
+        "internal/screen/",
+        "internal/browser/model.go",
+        "internal/browser/tree.go",
+        "internal/browser/details.go",
+        "internal/browser/panel.go",
+        "internal/browser/styles.go"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Give a selection with no name, and stop its write and its preview until it has one",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "internal/catalog/selection.go:185-217",
+        "internal/catalog/selection.go:49-63",
+        "internal/catalog/selection.go:219-231",
+        "internal/catalog/starter.go:73-76",
+        "internal/catalog/starter.go:306-311",
+        "internal/catalog/starter_test.go:45-62",
+        "internal/catalog/starter_test.go:146-153",
+        "internal/cmd/new_test.go:520-551",
+        "internal/cmd/new_test.go:750-762",
+        "tasks/learnings.md:3-8",
+        "tasks/learnings.md:184-189",
+        "tasks/learnings.md:212-217"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "internal/catalog/starter.go",
+        "internal/catalog/selection.go",
+        "internal/catalog/starter_test.go",
+        "internal/catalog/selection_test.go",
+        "internal/cmd/new_test.go"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Open the form of `new` with the name, the starter and the features",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1",
+        "task:2",
+        "internal/browser/model.go:22-161",
+        "internal/browser/tree.go:74-175",
+        "internal/browser/details.go:98-118",
+        "internal/prompt/model.go:71-88",
+        "internal/prompt/model.go:176-187",
+        "internal/prompt/model.go:20",
+        "internal/prompt/model.go:142-147",
+        "internal/catalog/starter.go:208-238",
+        "internal/catalog/starter.go:249-258",
+        "internal/catalog/selection.go:331-364",
+        "internal/browser/model_test.go:18-207",
+        "internal/browser/model_test.go:469-630",
+        "internal/prompt/model_test.go:22-82",
+        "tasks/learnings.md:177-182",
+        "tasks/learnings.md:198-203",
+        "tasks/learnings.md:205-210",
+        "tasks/learnings.md:149-154",
+        "tasks/learnings.md:184-189"
+      ],
+      "depends_on": [
+        1,
+        2
+      ],
+      "affected_files": [
+        "internal/form/model.go",
+        "internal/form/tree.go",
+        "internal/form/",
+        "internal/form/model_test.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/selection.go",
+        "internal/catalog/starter_test.go",
+        "internal/catalog/selection_test.go"
+      ]
+    },
+    {
+      "n": 4,
+      "done": false,
+      "title": "Select and clear features with Space, with their needs",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:3",
+        "internal/prompt/model.go:240-251",
+        "internal/catalog/starter.go:172-206",
+        "internal/catalog/selection.go:341-364",
+        "internal/browser/model_test.go:107-207",
+        "tasks/learnings.md:198-203",
+        "tasks/learnings.md:177-182"
+      ],
+      "depends_on": [
+        3
+      ],
+      "affected_files": [
+        "internal/form/model.go",
+        "internal/form/tree.go",
+        "internal/form/model_test.go"
+      ]
+    },
+    {
+      "n": 5,
+      "done": false,
+      "title": "Show the options of the starter and of each selected feature in the tree",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:3",
+        "task:4",
+        "internal/catalog/option.go:100-115",
+        "internal/catalog/question.go:8-31",
+        "internal/catalog/option_values.go:24-50",
+        "internal/catalog/selection.go:78-84",
+        "internal/catalog/selection.go:139-145",
+        "internal/browser/details.go:144-158",
+        "internal/catalog/selection_test.go:1162-1313",
+        "internal/prompt/model.go:287-294",
+        "tasks/learnings.md:205-210",
+        "tasks/learnings.md:135-140",
+        "tasks/learnings.md:184-189"
+      ],
+      "depends_on": [
+        4
+      ],
+      "affected_files": [
+        "internal/catalog/question.go",
+        "internal/catalog/option.go",
+        "internal/catalog/option_values.go",
+        "internal/catalog/selection_test.go",
+        "internal/prompt/model.go",
+        "internal/form/model.go",
+        "internal/form/tree.go",
+        "internal/form/model_test.go"
+      ]
+    },
+    {
+      "n": 6,
+      "done": false,
+      "title": "Edit the name and the options with Enter",
+      "language": "Go",
+      "testable": true,
+      "certainty": "low",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:5",
+        "internal/browser/model.go:51-55",
+        "internal/browser/model.go:120-138",
+        "internal/prompt/model.go:189-207",
+        "internal/prompt/model.go:296-335",
+        "internal/prompt/model.go:121-140",
+        "internal/catalog/answers.go:1-23",
+        "internal/catalog/starter.go:240-247",
+        "internal/prompt/model_test.go:382-534",
+        "tasks/learnings.md:170-175",
+        "tasks/learnings.md:177-182",
+        "tasks/learnings.md:247-252"
+      ],
+      "depends_on": [
+        5
+      ],
+      "affected_files": [
+        "internal/form/model.go",
+        "internal/form/",
+        "internal/form/model_test.go"
+      ]
+    },
+    {
+      "n": 7,
+      "done": false,
+      "title": "Choose the starter with Enter",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:6",
+        "internal/prompt/model.go:154-187",
+        "internal/catalog/definitions.go:76-93",
+        "internal/catalog/catalog.go:18-31",
+        "internal/browser/details.go:78-84",
+        "internal/prompt/model_test.go:535-632",
+        "tasks/learnings.md:170-175",
+        "tasks/learnings.md:247-252"
+      ],
+      "depends_on": [
+        6
+      ],
+      "affected_files": [
+        "internal/form/model.go",
+        "internal/form/model_test.go"
+      ]
+    },
+    {
+      "n": 8,
+      "done": false,
+      "title": "Show the preview with `w`, and confirm the write",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "task:7",
+        "internal/prompt/model.go:355-374",
+        "internal/prompt/model.go:142-147",
+        "internal/prompt/model.go:384-387",
+        "internal/browser/model.go:140-157",
+        "internal/browser/model.go:189-193",
+        "internal/catalog/selection.go:65-76",
+        "internal/catalog/selection.go:206-217",
+        "internal/catalog/question.go:20-31",
+        "internal/prompt/model_test.go:123-229",
+        "tasks/learnings.md:177-182"
+      ],
+      "depends_on": [
+        7
+      ],
+      "affected_files": [
+        "internal/form/model.go",
+        "internal/form/model_test.go"
+      ]
+    },
+    {
+      "n": 9,
+      "done": false,
+      "title": "Open the form in `new`, and remove the steps of huh",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "task:8",
+        "internal/cmd/new.go:29-108",
+        "internal/cmd/new_test.go:60-89",
+        "internal/cmd/new_test.go:612-732",
+        "internal/cmd/show.go:56-67",
+        "e2e/tests/new.test.ts:276-466",
+        "e2e/tests/show.test.ts:43-102",
+        "e2e/testUtils.ts:71-90",
+        "docs/e2e-tests.md:175-192",
+        "README.md:74-89",
+        "README.md:104-218",
+        "README.md:239-265",
+        "tasks/learnings.md:233-238",
+        "tasks/learnings.md:240-245",
+        "tasks/learnings.md:58-63",
+        "tasks/learnings.md:37-42",
+        "tasks/learnings.md:191-196"
+      ],
+      "depends_on": [
+        8
+      ],
+      "affected_files": [
+        "internal/cmd/new.go",
+        "internal/cmd/new_test.go",
+        "internal/prompt/",
+        "internal/catalog/answers.go",
+        "go.mod",
+        "go.sum",
+        "README.md",
+        "e2e/tests/new.test.ts"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-018-form.design.yaml"
+}

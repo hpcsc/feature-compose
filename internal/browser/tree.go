@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/hpcsc/feature-compose/internal/catalog"
+	"github.com/hpcsc/feature-compose/internal/screen"
 )
 
 type group string
@@ -79,20 +79,20 @@ func (t tree) rows() []treeRow {
 			continue
 		}
 		starterRow := row{starter: starterName}
-		rows = append(rows, treeRow{row: starterRow, prefix: marker(len(shown) > 0, t.isOpen(starterRow)), canOpen: len(shown) > 0, isOpen: t.isOpen(starterRow) && len(shown) > 0})
+		rows = append(rows, treeRow{row: starterRow, prefix: screen.Arrow(len(shown) > 0, t.isOpen(starterRow)), canOpen: len(shown) > 0, isOpen: t.isOpen(starterRow) && len(shown) > 0})
 		if !t.isOpen(starterRow) {
 			continue
 		}
 		for i, g := range shown {
 			lastGroup := i == len(shown)-1
 			groupRow := row{starter: starterName, group: g}
-			rows = append(rows, treeRow{row: groupRow, prefix: "  " + branch(lastGroup) + marker(true, t.isOpen(groupRow)), canOpen: true, isOpen: t.isOpen(groupRow)})
+			rows = append(rows, treeRow{row: groupRow, prefix: "  " + screen.Branch(lastGroup) + screen.Arrow(true, t.isOpen(groupRow)), canOpen: true, isOpen: t.isOpen(groupRow)})
 			if !t.isOpen(groupRow) {
 				continue
 			}
 			names := t.shownNamesOf(starterName, g)
 			for j, name := range names {
-				rows = append(rows, treeRow{row: row{starter: starterName, group: g, name: name}, prefix: "  " + childIndent(lastGroup) + branch(j == len(names)-1)})
+				rows = append(rows, treeRow{row: row{starter: starterName, group: g, name: name}, prefix: "  " + screen.ChildIndent(lastGroup) + screen.Branch(j == len(names)-1)})
 			}
 		}
 	}
@@ -209,11 +209,11 @@ func (t tree) withOpen(r row, isOpen bool) tree {
 func (t tree) widestRow() int {
 	widest := 0
 	for _, starterName := range t.starterNames {
-		widest = max(widest, lipgloss.Width(marker(true, true)+starterName))
+		widest = max(widest, lipgloss.Width(screen.Arrow(true, true)+starterName))
 		for _, g := range groups {
-			widest = max(widest, lipgloss.Width("  "+branch(false)+marker(true, true)+string(g)))
+			widest = max(widest, lipgloss.Width("  "+screen.Branch(false)+screen.Arrow(true, true)+string(g)))
 			for _, name := range t.children[starterName][g] {
-				widest = max(widest, lipgloss.Width("  "+childIndent(false)+branch(false)+name))
+				widest = max(widest, lipgloss.Width("  "+screen.ChildIndent(false)+screen.Branch(false)+name))
 			}
 		}
 	}
@@ -238,38 +238,13 @@ func (r treeRow) line(selected bool, width int) string {
 		name = string(r.group)
 	}
 	if selected {
-		text := ansi.Truncate(r.prefix+name, width-1, "…")
-		return "▌" + selectedRowStyle.Render(text+strings.Repeat(" ", max(width-1-lipgloss.Width(text), 0)))
+		return screen.SelectedRowLine(r.prefix+name, width)
 	}
 	switch {
 	case r.isStarter():
-		name = nameStyle.Render(name)
+		name = screen.NameStyle.Render(name)
 	case r.isGroup():
-		name = groupStyle.Render(name)
+		name = screen.GroupStyle.Render(name)
 	}
-	return " " + ansi.Truncate(treeLineStyle.Render(r.prefix)+name, width-1, "…")
-}
-
-func marker(canOpen, isOpen bool) string {
-	switch {
-	case !canOpen:
-		return "  "
-	case isOpen:
-		return "▾ "
-	}
-	return "▸ "
-}
-
-func branch(last bool) string {
-	if last {
-		return "└─ "
-	}
-	return "├─ "
-}
-
-func childIndent(lastGroup bool) string {
-	if lastGroup {
-		return "   "
-	}
-	return "│  "
+	return screen.RowLine(r.prefix, name, width)
 }

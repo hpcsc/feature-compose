@@ -139,10 +139,10 @@
 
 ## clerk fixup mark refuses a file that no commit of the run touches
 - Type: constraint
-- Recorded: 2026-11-09
-- Observed: us-004-ci-combinations
-- Learning: A fix can need a test in a package that no task changed, for example the round-trip test of Combination.String in internal/cmd/new_test.go. clerk fixup mark answers reason untouched for that file. Stage it alone and run git commit --fixup=<sha of the task commit that the fix corrects>, then clerk fixup replay folds it with the other fixups.
-- Apply when: folding an audit fix that adds a test or a change in a file that no commit of the run touches
+- Recorded: 2026-11-10
+- Observed: us-010-dry-run
+- Learning: A fix can need a test or a new file in a place that no task commit touches, for example the round-trip test of Combination.String in internal/cmd/new_test.go, or a new option_values.go of a regrouping. clerk fixup mark answers reason untouched for that file. Stage the files of the fix and run git commit --fixup=<sha of the task commit that the fix corrects>, then clerk fixup replay folds it with the other fixups. clerk fixup replay folds only fixup! commits: to reword a commit message, make it with git commit --fixup=reword:<sha> and fold it with GIT_SEQUENCE_EDITOR=true git rebase -i --autosquash <base>.
+- Apply when: folding an audit fix that adds a test, a new file or a change in a file that no commit of the run touches, or rewording the message of a task commit
 
 ## A loop over a growing queue makes mutants that time out the whole mutation run
 - Type: constraint
@@ -192,3 +192,24 @@
 - Observed: us-014-show-catalog
 - Learning: color.NoColor is set from whether stdout is a terminal, so color.New(...).Fprintln(os.Stderr, ...) colours by the wrong stream. Run in internal/cmd/root.go writes errors through writeError, which disables or enables the colour from its own stream and from NO_COLOR.
 - Apply when: writing coloured text to stderr or to any stream other than stdout in the tool
+
+## A criterion that pairs each item with a relation holds for every item
+- Type: pattern
+- Recorded: 2026-11-10
+- Observed: us-010-dry-run
+- Learning: US-010 said the preview shows 'each feature with the feature that needs it', and the breakdown decided that a feature a flag gives shows only 'command line', also when another feature needs it. The match-request step found the narrowing, and the user chose to show both ('cli: command line, needed by cli-auth'). Keep the relation for every item, also for the items that have a second source.
+- Apply when: decomposing a story whose criterion pairs each item with a relation or a source, for example each feature with the features that need it, or each option with its source
+
+## The words of options, values and needs in internal/catalog
+- Type: convention
+- Recorded: 2026-11-10
+- Observed: us-010-dry-run
+- Learning: options is the declared options (type options on Starter and feature); values is the chosen values of a selection (type optionValues, field values); given is what a flag gave (given, givenByFeature, and givenStarterValues/givenFeatureValues in internal/cmd); needs is what a feature needs, and neededBy, asNeed and Need are the features that need it; selectedFeature is the record of a feature in a Selection, and Starter.featuresWithNeeds gives the catalog features. All four design checks of US-010 blocked on names that broke these.
+- Apply when: naming a type, field, method or function in internal/catalog or internal/cmd that holds options, option values, flag values or needs
+
+## A full clerk mutants run of a story in internal/catalog passes its 10 minutes
+- Type: constraint
+- Recorded: 2026-11-10
+- Observed: us-010-dry-run
+- Learning: A story that changes selection.go, starter.go and option.go makes over 150 mutants against the run base, and clerk mutants stops at 10 minutes with an INCOMPLETE row that blocks clerk audit accept. A run with --base HEAD also replaces the kept run, so accept then asks for the full run again. Run --base <the commit before each fix> while you fix, and when the final full run stops with no live row, accept its INCOMPLETE key and name the complete runs that read each line.
+- Apply when: running clerk mutants after the audit fixes of a story that changes several files of internal/catalog, or clerk audit accept refuses on an INCOMPLETE mutants row

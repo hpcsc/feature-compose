@@ -29,7 +29,7 @@ func TestCombination(t *testing.T) {
 				starter, err := repoCatalog().Starter(combination.StarterName)
 				require.NoError(t, err)
 
-				selection, err := starter.Select("my-service", combination.StarterValues, combination.FeatureValues)
+				selection, err := starter.Select("my-service", combination.StarterValues, combination.FeatureValues, catalog.Answers{})
 				require.NoError(t, err, combination.String())
 				require.NoError(t, selection.Write(output), combination.String())
 				require.NoError(t, selection.RunAfterRender(ctx, output), combination.String())

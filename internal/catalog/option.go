@@ -46,35 +46,55 @@ type options struct {
 	declared map[string]option
 }
 
-func (o options) withDefaults(given map[string]string, name string) (optionValues, error) {
-	for _, optionName := range slices.Sorted(maps.Keys(given)) {
-		declared, ok := o.declared[optionName]
-		if !ok {
-			if len(o.declared) == 0 {
-				return optionValues{}, fmt.Errorf("unknown option %q: %s has no option", optionName, o.declarer)
-			}
-			return optionValues{}, fmt.Errorf("unknown option %q: the options of %s are %s", optionName, o.declarer, strings.Join(slices.Sorted(maps.Keys(o.declared)), ", "))
-		}
-		if err := declared.check(given[optionName]); err != nil {
-			return optionValues{}, fmt.Errorf("%s: %w", o.declarer, err)
-		}
+func (o options) withDefaults(given, answered map[string]string, name string) (optionValues, error) {
+	if err := o.check(given); err != nil {
+		return optionValues{}, err
 	}
-	values := optionValues{byName: make(map[string]string, len(o.declared)), given: make(map[string]bool, len(given)), defaults: make(map[string]string, len(o.declared))}
+	if err := o.check(answered); err != nil {
+		return optionValues{}, err
+	}
+	values := optionValues{
+		byName:   make(map[string]string, len(o.declared)),
+		given:    make(map[string]bool, len(given)),
+		answered: make(map[string]bool, len(answered)),
+		defaults: make(map[string]string, len(o.declared)),
+	}
 	for _, optionName := range slices.Sorted(maps.Keys(o.declared)) {
 		defaultValue, err := Selection{name: name}.render("the default of the option "+optionName+" of "+o.declarer, o.declared[optionName].defaultValue, defaultDelimiters, "")
 		if err != nil {
 			return optionValues{}, err
 		}
 		values.defaults[optionName] = defaultValue
-		value, ok := given[optionName]
-		if ok {
+		givenValue, isGiven := given[optionName]
+		answeredValue, isAnswered := answered[optionName]
+		switch {
+		case isGiven:
+			values.byName[optionName] = givenValue
 			values.given[optionName] = true
-		} else {
-			value = defaultValue
+		case isAnswered:
+			values.byName[optionName] = answeredValue
+			values.answered[optionName] = true
+		default:
+			values.byName[optionName] = defaultValue
 		}
-		values.byName[optionName] = value
 	}
 	return values, nil
+}
+
+func (o options) check(values map[string]string) error {
+	for _, optionName := range slices.Sorted(maps.Keys(values)) {
+		declared, ok := o.declared[optionName]
+		if !ok {
+			if len(o.declared) == 0 {
+				return fmt.Errorf("unknown option %q: %s has no option", optionName, o.declarer)
+			}
+			return fmt.Errorf("unknown option %q: the options of %s are %s", optionName, o.declarer, strings.Join(slices.Sorted(maps.Keys(o.declared)), ", "))
+		}
+		if err := declared.check(values[optionName]); err != nil {
+			return fmt.Errorf("%s: %w", o.declarer, err)
+		}
+	}
+	return nil
 }
 
 func (o options) defaultsOfOptionsWithValues() map[string]string {

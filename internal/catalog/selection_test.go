@@ -26,7 +26,7 @@ func TestSelection(t *testing.T) {
 		t.Helper()
 		starter, err := catalog.New(files).Starter("service")
 		require.NoError(t, err)
-		selection, err := starter.Select(name, nil, nil)
+		selection, err := starter.Select(name, nil, nil, catalog.Answers{})
 		require.NoError(t, err)
 		return selection
 	}
@@ -47,7 +47,7 @@ func TestSelection(t *testing.T) {
 		t.Helper()
 		starter, err := catalog.New(files).Starter("service")
 		require.NoError(t, err)
-		selection, err := starter.Select("my-service", nil, withoutValues(features...))
+		selection, err := starter.Select("my-service", nil, withoutValues(features...), catalog.Answers{})
 		require.NoError(t, err)
 		return selection
 	}
@@ -686,7 +686,7 @@ func TestSelection(t *testing.T) {
 			}
 			starter, err := catalog.New(files).Starter("service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", map[string]string{"module": module}, nil)
+			selection, err := starter.Select("my-service", map[string]string{"module": module}, nil, catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 
@@ -705,7 +705,7 @@ func TestSelection(t *testing.T) {
 			}
 			starter, err := catalog.New(files).Starter("service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", map[string]string{"module": module}, nil)
+			selection, err := starter.Select("my-service", map[string]string{"module": module}, nil, catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 
@@ -813,7 +813,7 @@ delimiters:
 		t.Run("each option with no default and no value stops the write before the first file, and the message names each one in the order of the preview, with the flag that gives it", func(t *testing.T) {
 			starter, err := catalog.New(withoutDefaults()).Starter("service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"a": {}})
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"a": {}}, catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 
@@ -830,7 +830,7 @@ the option level of the feature a has no default and no value: give it with --fe
 		t.Run("a value that a flag gives to an option with no default is the value that the templates read", func(t *testing.T) {
 			starter, err := catalog.New(withoutDefaults()).Starter("service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", map[string]string{"region": "eu", "zone": "west"}, map[string]map[string]string{"a": {"level": "1"}, "b": {"token": "t", "key": "k"}})
+			selection, err := starter.Select("my-service", map[string]string{"region": "eu", "zone": "west"}, map[string]map[string]string{"a": {"level": "1"}, "b": {"token": "t", "key": "k"}}, catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 
@@ -843,7 +843,7 @@ the option level of the feature a has no default and no value: give it with --fe
 		t.Run("the empty text from a flag is no value for an option with no default", func(t *testing.T) {
 			starter, err := catalog.New(withoutDefaults()).Starter("service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", map[string]string{"region": "", "zone": "west"}, nil)
+			selection, err := starter.Select("my-service", map[string]string{"region": "", "zone": "west"}, nil, catalog.Answers{})
 			require.NoError(t, err)
 
 			err = selection.Write(filepath.Join(t.TempDir(), "my-service"))
@@ -854,7 +854,7 @@ the option level of the feature a has no default and no value: give it with --fe
 		t.Run("a flag can give the empty text to an option that has a default", func(t *testing.T) {
 			starter, err := catalog.New(withoutDefaults()).Starter("service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", map[string]string{"region": "eu", "zone": "west", "module": ""}, nil)
+			selection, err := starter.Select("my-service", map[string]string{"region": "eu", "zone": "west", "module": ""}, nil, catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 
@@ -862,6 +862,32 @@ the option level of the feature a has no default and no value: give it with --fe
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{"region.txt": "eu|west|"}, filesIn(t, output))
+		})
+
+		t.Run("the features that answers select, with their needs and an answered value, give the files of the same selection from flags", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":      oneFolder,
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"features/a/feature.yml":            &fstest.MapFile{Data: []byte("summary: A.\ntargets: [service]\nneeds: [b]\nfiles:\n  - path: files/\n")},
+				"features/a/files/go/a.txt":         &fstest.MapFile{Data: []byte(`{{ option "b.mode" }}`)},
+				"features/b/feature.yml":            &fstest.MapFile{Data: []byte("summary: B.\ntargets: [service]\nfiles:\n  - path: files/\noptions:\n  mode:\n    values: [fast, slow]\n    default: fast\n")},
+				"features/b/files/go/b.txt":         &fstest.MapFile{Data: []byte("b\n")},
+			}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			fromFlags, err := starter.Select("my-service", nil, map[string]map[string]string{"a": {}, "b": {"mode": "slow"}}, catalog.Answers{})
+			require.NoError(t, err)
+			fromAnswers, err := starter.Select("my-service", nil, nil, catalog.Answers{Features: []string{"a"}, FeatureValues: map[string]map[string]string{"b": {"mode": "slow"}}})
+			require.NoError(t, err)
+			flagsOutput := filepath.Join(t.TempDir(), "my-service")
+			require.NoError(t, fromFlags.Write(flagsOutput))
+			answersOutput := filepath.Join(t.TempDir(), "my-service")
+
+			err = fromAnswers.Write(answersOutput)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"main.go": "package main\n", "a.txt": "slow", "b.txt": "b\n"}, filesIn(t, answersOutput))
+			require.Equal(t, filesIn(t, flagsOutput), filesIn(t, answersOutput))
 		})
 	})
 
@@ -981,7 +1007,7 @@ Files:
 		t.Run("gives each option of the starter as starter.<option>, then each option of each feature as <feature>.<option> with the features in their order, each with the value that the templates read and its source", func(t *testing.T) {
 			starter, err := catalog.New(withOptions()).Starter("service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", map[string]string{"go-version": "1.28"}, map[string]map[string]string{"a": {"level": "2"}, "c": {}})
+			selection, err := starter.Select("my-service", map[string]string{"go-version": "1.28"}, map[string]map[string]string{"a": {"level": "2"}, "c": {}}, catalog.Answers{})
 			require.NoError(t, err)
 
 			preview, err := selection.Preview()
@@ -1001,7 +1027,7 @@ Options:
 		t.Run("a value that a flag gives with the text of the default shows the source command line", func(t *testing.T) {
 			starter, err := catalog.New(withOptions()).Starter("service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", map[string]string{"module": "example.com/my-service"}, map[string]map[string]string{"b": {"mode": "fast"}})
+			selection, err := starter.Select("my-service", map[string]string{"module": "example.com/my-service"}, map[string]map[string]string{"b": {"mode": "fast"}}, catalog.Answers{})
 			require.NoError(t, err)
 
 			preview, err := selection.Preview()
@@ -1017,7 +1043,7 @@ Options:
 			require.NoError(t, err)
 			given := map[string]string{}
 			givenByFeature := map[string]map[string]string{"b": {}}
-			selection, err := starter.Select("my-service", given, givenByFeature)
+			selection, err := starter.Select("my-service", given, givenByFeature, catalog.Answers{})
 			require.NoError(t, err)
 
 			given["module"] = "example.com/my-service"
@@ -1027,6 +1053,60 @@ Options:
 			require.NoError(t, err)
 			require.Contains(t, preview, "  starter.module: example.com/my-service (default)\n")
 			require.Contains(t, preview, "  b.mode: fast (default)\n")
+		})
+
+		t.Run("a feature that an answer selects shows the source answered, and the features that need it, next to a given feature and a feature that only a need adds", func(t *testing.T) {
+			starter, err := catalog.New(withFeatureDefinitions(map[string]string{"a": "needs: [c, d]\n", "b": "", "c": "", "d": ""})).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"b": {}}, catalog.Answers{Features: []string{"a", "c"}})
+			require.NoError(t, err)
+
+			preview, err := selection.Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, "Features:\n  b: command line\n  c: answered, needed by a\n  d: needed by a\n  a: answered\n\n")
+		})
+
+		t.Run("each value that an answer gives shows the source answered, also when it equals the default, next to a value of a flag and a default", func(t *testing.T) {
+			starter, err := catalog.New(withOptions()).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", map[string]string{"go-version": "1.28"}, nil, catalog.Answers{
+				Features:      []string{"a"},
+				StarterValues: map[string]string{"module": "example.com/my-service"},
+				FeatureValues: map[string]map[string]string{"b": {"mode": "slow"}, "a": {"level": "2"}},
+			})
+			require.NoError(t, err)
+
+			preview, err := selection.Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, `
+Options:
+  starter.go-version: 1.28 (command line)
+  starter.module: example.com/my-service (answered)
+  b.mode: slow (answered)
+  b.zeta: z (default)
+  a.level: 2 (answered)
+
+`)
+		})
+
+		t.Run("a flag and an answer for one option give the value of the flag with the source command line, and a feature that a flag and an answer select shows command line", func(t *testing.T) {
+			starter, err := catalog.New(withOptions()).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", map[string]string{"module": "example.com/flag"}, map[string]map[string]string{"b": {"mode": "fast"}}, catalog.Answers{
+				Features:      []string{"b"},
+				StarterValues: map[string]string{"module": "example.com/answer"},
+				FeatureValues: map[string]map[string]string{"b": {"mode": "slow"}},
+			})
+			require.NoError(t, err)
+
+			preview, err := selection.Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, "Features:\n  b: command line\n\n")
+			require.Contains(t, preview, "  starter.module: example.com/flag (command line)\n")
+			require.Contains(t, preview, "  b.mode: fast (command line)\n")
 		})
 
 		for name, test := range map[string]struct {
@@ -1231,6 +1311,16 @@ folders:
 		t.Run("a feature that a flag gives is not in the list, also when a selected feature needs it", func(t *testing.T) {
 			selection := selectionWith(t, map[string]string{"a": "needs: [b]\n", "b": "needs: [c]\n", "c": ""}, "a", "b")
 
+			require.Equal(t, []catalog.Need{{Feature: "c", NeededBy: []string{"b"}}}, selection.AddedByNeeds())
+		})
+
+		t.Run("a feature that an answer selects is not in the list, also when a selected feature needs it", func(t *testing.T) {
+			starter, err := catalog.New(withFeatureDefinitions(map[string]string{"a": "needs: [b]\n", "b": "needs: [c]\n", "c": ""})).Starter("service")
+			require.NoError(t, err)
+
+			selection, err := starter.Select("my-service", nil, nil, catalog.Answers{Features: []string{"a", "b"}})
+
+			require.NoError(t, err)
 			require.Equal(t, []catalog.Need{{Feature: "c", NeededBy: []string{"b"}}}, selection.AddedByNeeds())
 		})
 

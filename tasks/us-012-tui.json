@@ -36,7 +36,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Give the answers of the TUI to the selection, with the source `answered`",
       "language": "Go",
       "testable": true,

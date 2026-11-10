@@ -40,7 +40,7 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			if err != nil {
 				return err
 			}
-			selection, err := starter.Select(name, given, givenByFeature)
+			selection, err := starter.Select(name, given, givenByFeature, catalog.Answers{})
 			if err != nil {
 				return err
 			}

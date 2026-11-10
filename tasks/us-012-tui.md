@@ -291,20 +291,20 @@ features that neither a flag nor an answer selects. An answered value is checked
 answered feature as a feature of a flag is. With no answers, each result is as before.
 
 **Acceptance Criteria:**
-- [ ] A selection whose answers select features holds those features and their needs, in the order of rule 8, and
+- [x] A selection whose answers select features holds those features and their needs, in the order of rule 8, and
   writes the same files as the selection that `--feature` flags with the same features give.
-- [ ] In the preview, a feature that an answer selects shows `<feature>: answered`, and
+- [x] In the preview, a feature that an answer selects shows `<feature>: answered`, and
   `<feature>: answered, needed by <features>` when other selected features need it, with the features that need it in
   the order of their names. A feature that only a need selects keeps `needed by <features>`, and a feature that a flag
   gives keeps `command line`.
-- [ ] In the preview, each value that an answer gives shows the source `answered`, also when it equals the default.
+- [x] In the preview, each value that an answer gives shows the source `answered`, also when it equals the default.
   A value that a flag gives keeps `command line`, and each other value keeps `default`.
-- [ ] `AddedByNeeds` gives no feature that an answer selects, also when a selected feature needs it.
-- [ ] An answered value for an unknown option, a value that is not one of the `values` of its option, and a value that
+- [x] `AddedByNeeds` gives no feature that an answer selects, also when a selected feature needs it.
+- [x] An answered value for an unknown option, a value that is not one of the `values` of its option, and a value that
   does not match the pattern of its option stop `Select` with the message that the same value from a flag gives. An
   answered feature that does not target the starter stops `Select` with the message of an unknown feature, which lists
   the features that target the starter.
-- [ ] With no answers, `Select`, `Preview`, `Write` and `AddedByNeeds` give what they gave before: the tests of
+- [x] With no answers, `Select`, `Preview`, `Write` and `AddedByNeeds` give what they gave before: the tests of
   `TestSelection`, `TestStarter`, `TestCatalog` and `TestNewCommand`, and the e2e tests of `--dry-run`, pass with their
   expected values unchanged. `new` gives no answers, so `new --dry-run` shows no `answered`.
 

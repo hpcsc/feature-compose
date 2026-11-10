@@ -70,21 +70,24 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature) (S
 	return Starter{name: starterName, options: declaredOptions, folders: folders, templates: templates, features: features, extensionPoints: extensionPoints}, nil
 }
 
-func (s Starter) Select(name string, given map[string]string, givenByFeature map[string]map[string]string) (Selection, error) {
+func (s Starter) Select(name string, given map[string]string, givenByFeature map[string]map[string]string, answers Answers) (Selection, error) {
 	if !repoName.MatchString(name) {
 		return Selection{}, fmt.Errorf("the name %q of the repo must start with a letter or a digit, and hold only letters, digits, '.', '_' and '-'", name)
 	}
-	starterValues, err := s.options.withDefaults(given, name)
+	starterValues, err := s.options.withDefaults(given, answers.StarterValues, name)
 	if err != nil {
 		return Selection{}, err
 	}
-	selected, err := s.featuresWithNeeds(givenByFeature)
+	selected, err := s.featuresWithNeeds(givenByFeature, answers.Features)
 	if err != nil {
+		return Selection{}, err
+	}
+	if err := s.checkAnsweredFeatures(selected, answers.FeatureValues); err != nil {
 		return Selection{}, err
 	}
 	features := make([]selectedFeature, 0, len(selected))
 	for _, f := range selected {
-		values, err := f.options.withDefaults(givenByFeature[f.name], name)
+		values, err := f.options.withDefaults(givenByFeature[f.name], answers.FeatureValues[f.name], name)
 		if err != nil {
 			return Selection{}, err
 		}
@@ -92,6 +95,7 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 		features = append(features, selectedFeature{
 			name:     f.name,
 			given:    isGiven,
+			answered: slices.Contains(answers.Features, f.name),
 			values:   values,
 			needs:    f.needs,
 			neededBy: s.neededBy(f.name, selected),
@@ -164,15 +168,17 @@ func (s Starter) addNeeds(needed map[string]bool, featureName string) {
 	}
 }
 
-func (s Starter) featuresWithNeeds(givenByFeature map[string]map[string]string) ([]feature, error) {
-	given := slices.Sorted(maps.Keys(givenByFeature))
-	for _, featureName := range given {
+func (s Starter) featuresWithNeeds(givenByFeature map[string]map[string]string, answered []string) ([]feature, error) {
+	requested := slices.AppendSeq(slices.Clone(answered), maps.Keys(givenByFeature))
+	slices.Sort(requested)
+	requested = slices.Compact(requested)
+	for _, featureName := range requested {
 		if _, ok := s.features[featureName]; !ok {
 			return nil, s.unknownFeature(featureName)
 		}
 	}
 	selected := map[string]feature{}
-	for _, featureName := range given {
+	for _, featureName := range requested {
 		if err := s.selectWithNeeds(selected, s.features[featureName]); err != nil {
 			return nil, err
 		}
@@ -228,6 +234,15 @@ func (s Starter) cycleFrom(path []string, selected map[string]feature, placed ma
 		return append(path[start:], next)
 	}
 	return s.cycleFrom(append(path, next), selected, placed)
+}
+
+func (s Starter) checkAnsweredFeatures(selected []feature, featureValues map[string]map[string]string) error {
+	for _, featureName := range slices.Sorted(maps.Keys(featureValues)) {
+		if !slices.ContainsFunc(selected, func(f feature) bool { return f.name == featureName }) {
+			return fmt.Errorf("the answers give values to the feature %s, which is not selected", featureName)
+		}
+	}
+	return nil
 }
 
 func (s Starter) neededBy(featureName string, selected []feature) []string {

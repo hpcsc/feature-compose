@@ -343,7 +343,7 @@ folders:
 				fromNew[combination.String()] = filesIn(t, output)
 				starter, err := catalog.New(files).Starter(combination.StarterName)
 				require.NoError(t, err)
-				selection, err := starter.Select("my-service", combination.StarterValues, combination.FeatureValues)
+				selection, err := starter.Select("my-service", combination.StarterValues, combination.FeatureValues, catalog.Answers{})
 				require.NoError(t, err)
 				output = filepath.Join(t.TempDir(), "my-service")
 				require.NoError(t, selection.Write(output))

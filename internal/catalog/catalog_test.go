@@ -296,7 +296,7 @@ func TestCatalog(t *testing.T) {
 			t.Helper()
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", given, nil)
+			selection, err := starter.Select("my-service", given, nil, catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 			require.NoError(t, selection.Write(output))
@@ -340,7 +340,7 @@ func TestCatalog(t *testing.T) {
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 
-			_, err = starter.Select("my-service", map[string]string{"module": "example.com/acme ledger;rm -rf ~"}, nil)
+			_, err = starter.Select("my-service", map[string]string{"module": "example.com/acme ledger;rm -rf ~"}, nil, catalog.Answers{})
 
 			require.ErrorContains(t, err, "module")
 		})
@@ -348,7 +348,7 @@ func TestCatalog(t *testing.T) {
 		t.Run("a name with capitals and dots gives a kebab-case name in the Docker names of the repo", func(t *testing.T) {
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("MyService.v2", nil, nil)
+			selection, err := starter.Select("MyService.v2", nil, nil, catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "repo")
 			require.NoError(t, selection.Write(output))
@@ -439,7 +439,7 @@ add_to:
 `)}
 			starter, err := catalog.New(files).Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, withoutValues("guard"))
+			selection, err := starter.Select("my-service", nil, withoutValues("guard"), catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 			require.NoError(t, selection.Write(output))
@@ -485,7 +485,7 @@ add_to:
 			t.Helper()
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", given, map[string]map[string]string{"api-auth": apiAuthValues})
+			selection, err := starter.Select("my-service", given, map[string]map[string]string{"api-auth": apiAuthValues}, catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 			require.NoError(t, selection.Write(output))
@@ -549,7 +549,7 @@ add_to:
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 
-			_, err = starter.Select("my-service", nil, map[string]map[string]string{"api-auth": {"method": "oauth"}})
+			_, err = starter.Select("my-service", nil, map[string]map[string]string{"api-auth": {"method": "oauth"}}, catalog.Answers{})
 
 			require.ErrorContains(t, err, `the feature api-auth: the value "oauth" of the option method is not one of its values: api-key`)
 		})
@@ -593,7 +593,7 @@ add_to:
 			t.Helper()
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select(name, given, withoutValues("cli"))
+			selection, err := starter.Select(name, given, withoutValues("cli"), catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), name)
 			require.NoError(t, selection.Write(output))
@@ -684,7 +684,7 @@ add_to:
 			files["features/accounts/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Accounts.\ntargets: [go-event-sourcing-service]\nadd_to:\n  cli.commands:\n    - code: newOpenCommand()\n    - code: newCloseCommand()\n")}
 			starter, err := catalog.New(files).Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, withoutValues("cli", "accounts"))
+			selection, err := starter.Select("my-service", nil, withoutValues("cli", "accounts"), catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 
@@ -701,7 +701,7 @@ add_to:
 			t.Helper()
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, givenByFeature)
+			selection, err := starter.Select("my-service", nil, givenByFeature, catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 			require.NoError(t, selection.Write(output))
@@ -742,7 +742,7 @@ add_to:
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 
-			_, err = starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": {"method": "api-key"}})
+			_, err = starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": {"method": "api-key"}}, catalog.Answers{})
 
 			require.ErrorContains(t, err, `unknown option "method": the feature cli-auth has no option`)
 		})
@@ -804,7 +804,7 @@ add_to:
 			files["features/api-auth/feature.yml"] = &fstest.MapFile{Data: []byte(strings.Replace(apiAuth, "values: [api-key]", "values: [api-key, zzmethod]", 1))}
 			starter, err := catalog.New(files).Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil, "api-auth": {"method": "zzmethod"}})
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil, "api-auth": {"method": "zzmethod"}}, catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 			require.NoError(t, selection.Write(output))
@@ -866,7 +866,7 @@ add_to:
 		t.Run("cli with a module that is not on github.com stops the write before the first file, and the message names the module", func(t *testing.T) {
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", map[string]string{"module": "example.com/acme/ledger"}, withoutValues("cli"))
+			selection, err := starter.Select("my-service", map[string]string{"module": "example.com/acme/ledger"}, withoutValues("cli"), catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 
@@ -909,7 +909,7 @@ add_to:
 		t.Run("a repo named api with cli stops the write, because the starter and cli both write cmd/api/main.go", func(t *testing.T) {
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("api", nil, withoutValues("cli"))
+			selection, err := starter.Select("api", nil, withoutValues("cli"), catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "api")
 
@@ -1001,7 +1001,7 @@ add_to:
 			for _, combination := range combinations {
 				starter, err := catalog.New(withValues).Starter(combination.StarterName)
 				require.NoError(t, err)
-				selection, err := starter.Select("my-service", combination.StarterValues, combination.FeatureValues)
+				selection, err := starter.Select("my-service", combination.StarterValues, combination.FeatureValues, catalog.Answers{})
 				require.NoError(t, err)
 				output := filepath.Join(t.TempDir(), "my-service")
 				require.NoError(t, selection.Write(output))
@@ -1072,7 +1072,7 @@ add_to:
 			names := namesOf(t, files)
 			starter, err := catalog.New(files).Starter("api")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"app": {}})
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"app": {}}, catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 			require.NoError(t, selection.Write(output))

@@ -28,7 +28,7 @@ type Selection struct {
 func (s Selection) AddedByNeeds() []Need {
 	var added []Need
 	for _, f := range s.features {
-		if !f.given {
+		if !f.requested() {
 			added = append(added, f.asNeed())
 		}
 	}
@@ -270,6 +270,7 @@ func (s selectedStarter) readable() map[string]string {
 type selectedFeature struct {
 	name     string
 	given    bool
+	answered bool
 	values   optionValues
 	needs    []string
 	neededBy []string
@@ -277,12 +278,23 @@ type selectedFeature struct {
 
 func (f selectedFeature) line() string {
 	switch {
-	case !f.given:
+	case !f.requested():
 		return f.asNeed().String()
 	case len(f.neededBy) > 0:
-		return f.name + ": command line, " + f.asNeed().source()
+		return f.name + ": " + f.source() + ", " + f.asNeed().source()
 	}
-	return f.name + ": command line"
+	return f.name + ": " + f.source()
+}
+
+func (f selectedFeature) requested() bool {
+	return f.given || f.answered
+}
+
+func (f selectedFeature) source() string {
+	if f.given {
+		return "command line"
+	}
+	return "answered"
 }
 
 func (f selectedFeature) asNeed() Need {

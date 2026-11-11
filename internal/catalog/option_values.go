@@ -32,11 +32,15 @@ func (o optionValues) lines(prefix string) []string {
 func (o optionValues) withoutValue() []string {
 	var optionNames []string
 	for _, optionName := range slices.Sorted(maps.Keys(o.byName)) {
-		if o.byName[optionName] == "" && o.defaults[optionName] == "" {
+		if o.missing(optionName) {
 			optionNames = append(optionNames, optionName)
 		}
 	}
 	return optionNames
+}
+
+func (o optionValues) missing(optionName string) bool {
+	return o.byName[optionName] == "" && o.defaults[optionName] == ""
 }
 
 func (o optionValues) source(optionName string) string {

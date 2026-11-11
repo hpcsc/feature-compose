@@ -64,8 +64,8 @@ Added by this breakdown:
   `Questions` leave out an option whose `when` is false.
 - A value that a need sets, its source `need`, and its mark `fixed`. A need is a name and sets no value
   (`internal/catalog/definitions.go:61`), and the sources of a value are `command line`, `answered` and `default`
-  (`internal/catalog/option_values.go:42-50`). US-007 adds the values of a need; `Question.Fixed` (Task 5) is where
-  such a value becomes fixed.
+  (`internal/catalog/option_values.go:42-50`). US-007 adds the values of a need; `Question.Given` (Task 5) marks only
+  a value from a flag, so a value from a need needs a source of its own in `Question` there.
 - The message of a need whose value differs from a flag, which names both sources. `Starter.Select` gives no such
   message today, because no need sets a value. Task 4 already handles a Space whose selection `Select` refuses: the
   feature stays as it was, and the details show the message of `Select`. So the message of US-007 shows there with
@@ -374,7 +374,7 @@ selected. The developer moves in the tree, opens and closes rows, scrolls the de
   starter, they list each starter of the catalog with its summary. The details of a feature show its summary, its
   needs, and its source with the texts of the preview (`command line`, `needed by <features>`,
   `command line, needed by <features>`), or that it is not selected.
-- [ ] `j` and `k` move down and up by one row, as the arrow keys do, and stop at the ends. `l` and right at an open
+- [x] `j` and `k` move down and up by one row, as the arrow keys do, and stop at the ends. `l` and right at an open
   row select its first child, and at a closed row open it. `h`, left and Esc at an open row close it, and at another
   row select its parent. Enter at a feature row does what `l` does.
 - [x] ctrl+d and pgdown scroll the details down by half the pane, ctrl+u and pgup scroll them up, and the bottom
@@ -506,26 +506,26 @@ values or its pattern, and its source. `Selection.Questions` gives each option o
 options of the flags included, each with its value, its source and whether a flag fixes it.
 
 **Acceptance Criteria:**
-- [ ] Under the starter row, before the features, the tree shows each option of the starter in the order of the
+- [x] Under the starter row, before the features, the tree shows each option of the starter in the order of the
   names, with its value. Under each selected feature, it shows each option of that feature in the order of the names,
   with its value. A feature that is not selected shows no option. Each option of the selection is in the tree one
   time, also when two selected features need its feature.
-- [ ] The options of a need come before the options of the feature that needs it.
-- [ ] A Space that selects a feature shows its options and those of its needs, and a Space that clears it removes
+- [x] The options of a need come before the options of the feature that needs it.
+- [x] A Space that selects a feature shows its options and those of its needs, and a Space that clears it removes
   them.
-- [ ] `l` and `h` open and close a selected feature with options, and a starter with options, as other rows.
-- [ ] An option whose value `--option` or `--feature` gives is marked `fixed`. An option with no default and no value
+- [x] `l` and `h` open and close a selected feature with options, and a starter with options, as other rows.
+- [x] An option whose value `--option` or `--feature` gives is marked `fixed`. An option with no default and no value
   shows that its value is missing.
-- [ ] The details of an option show its value, its default rendered with the name (`github.com/hpcsc/my-service`, and
+- [x] The details of an option show its value, its default rendered with the name (`github.com/hpcsc/my-service`, and
   `github.com/hpcsc/` while the name is missing), its values in the order of the file or its pattern, and its source:
   `command line` or `default`. The title of the details pane is `starter › <option>` or `<feature> › <option>`.
-- [ ] In `internal/catalog`, `Selection.Questions` gives each option of the selection, also each option that a flag
+- [x] In `internal/catalog`, `Selection.Questions` gives each option of the selection, also each option that a flag
   gives, in the order of the options of the preview. Each question gives its feature (none for an option of the
   starter), its option, its value, its source with the text of the preview, whether a flag fixes it, its default, its
   values and its pattern. `Check` acts as before. The group `questions` of `TestSelection` holds these: an option that
   a flag gives is a fixed question with the source `command line` and the value of the flag.
-- [ ] `internal/prompt` still asks only the options that no flag gives: its tests pass unchanged.
-- [ ] The tests of `internal/form` drive the options in the tree through `Update` and `View`.
+- [x] `internal/prompt` still asks only the options that no flag gives: its tests pass unchanged.
+- [x] The tests of `internal/form` drive the options in the tree through `Update` and `View`.
 
 **Affected Files/Modules:**
 - `internal/catalog/question.go` — the feature, the value, the source, whether a flag fixes it, and the pattern

@@ -146,6 +146,10 @@ func (m Model) Confirmed() (catalog.Selection, error) {
 	return m.selection, nil
 }
 
+func (m Model) asked() []catalog.Question {
+	return slices.DeleteFunc(m.selection.Questions(), func(q catalog.Question) bool { return q.Given })
+}
+
 func (m Model) atList() bool {
 	_, isList := m.step.form.GetFocusedField().(interface{ GetFiltering() bool })
 	return isList
@@ -215,7 +219,7 @@ func (m Model) afterName() (Model, error) {
 	switch {
 	case len(m.givenByFeature) == 0 && len(m.features) > 0:
 		return m.atFeatures(), nil
-	case len(selection.Questions()) > 0:
+	case len(m.asked()) > 0:
 		return m.atOptions(), nil
 	}
 	return m.atConfirm()
@@ -278,14 +282,14 @@ func (m Model) atNeeds() Model {
 }
 
 func (m Model) atOptionsOrConfirm() (tea.Model, tea.Cmd) {
-	if len(m.selection.Questions()) > 0 {
+	if len(m.asked()) > 0 {
 		return m.atOptions().started()
 	}
 	return m.atConfirmOrEnded()
 }
 
 func (m Model) atOptions() Model {
-	questions := m.selection.Questions()
+	questions := m.asked()
 	values := make([]string, len(questions))
 	for i, q := range questions {
 		values[i] = q.Default

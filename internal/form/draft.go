@@ -102,7 +102,7 @@ func (d draft) nodes() []node {
 	}
 	return []node{
 		{row: row{kind: nameKind}, text: "name     " + d.name, mark: nameMark},
-		{row: row{kind: starterKind}, text: "starter  " + d.starterName, mark: starterMark, children: d.featureNodes()},
+		{row: row{kind: starterKind}, text: "starter  " + d.starterName, mark: starterMark, children: append(d.optionNodes(""), d.featureNodes()...)},
 	}
 }
 
@@ -120,9 +120,42 @@ func (d draft) featureNodes() []node {
 		if neededBy := d.selection.NeededBy(featureName); len(neededBy) > 0 {
 			marks = append(marks, "needed by "+strings.Join(neededBy, ", "))
 		}
-		nodes = append(nodes, node{row: row{kind: featureKind, feature: featureName}, text: box + featureName, mark: strings.Join(marks, ", ")})
+		nodes = append(nodes, node{row: row{kind: featureKind, feature: featureName}, text: box + featureName, mark: strings.Join(marks, ", "), children: d.optionNodes(featureName)})
 	}
 	return nodes
+}
+
+func (d draft) optionNodes(featureName string) []node {
+	questions := d.questionsOf(featureName)
+	widest := 0
+	for _, q := range questions {
+		widest = max(widest, len(q.Option))
+	}
+	nodes := make([]node, 0, len(questions))
+	for _, q := range questions {
+		var marks []string
+		if q.Given {
+			marks = append(marks, "fixed")
+		}
+		if q.Missing {
+			marks = append(marks, "missing")
+		}
+		nodes = append(nodes, node{row: row{kind: optionKind, feature: featureName, option: q.Option}, text: fmt.Sprintf("%-*s  %s", widest, q.Option, q.Value), mark: strings.Join(marks, ", ")})
+	}
+	return nodes
+}
+
+func (d draft) questionsOf(featureName string) []catalog.Question {
+	return slices.DeleteFunc(d.selection.Questions(), func(q catalog.Question) bool { return q.Feature != featureName })
+}
+
+func (d draft) question(r row) catalog.Question {
+	for _, q := range d.questionsOf(r.feature) {
+		if q.Option == r.option {
+			return q
+		}
+	}
+	return catalog.Question{}
 }
 
 func (d draft) featureCount() int {
@@ -143,6 +176,8 @@ func (d draft) details(r row, width int) (title, text string) {
 		return cmp.Or(d.starterName, "starter"), d.starterDetails(width)
 	case featureKind:
 		return r.feature, d.featureDetails(r.feature, width)
+	case optionKind:
+		return cmp.Or(r.feature, "starter") + " › " + r.option, d.optionDetails(r, width)
 	}
 	panic(fmt.Sprintf("the form has no details for the row kind %d", r.kind))
 }
@@ -180,6 +215,19 @@ func (d draft) featureDetails(featureName string, width int) string {
 		needs.Entries = append(needs.Entries, screen.Entry{Name: need})
 	}
 	return d.withSource(screen.Details(feature.Summary, width, needs), d.featureSource(featureName), width)
+}
+
+func (d draft) optionDetails(r row, width int) string {
+	q := d.question(r)
+	fields := []screen.Field{{Label: "value", Values: []string{q.Value}}, {Label: "default", Values: []string{q.Default}}}
+	if len(q.Accepted) > 0 {
+		fields = append(fields, screen.Field{Label: "values", Values: []string{strings.Join(q.Accepted, ", ")}})
+	}
+	if q.Pattern != "" {
+		fields = append(fields, screen.Field{Label: "pattern", Values: []string{q.Pattern}})
+	}
+	fields = append(fields, screen.Field{Label: "source", Values: []string{q.Source}})
+	return strings.Join(screen.Entry{Fields: fields}.Lines(width), "\n")
 }
 
 func (d draft) featureSource(featureName string) string {

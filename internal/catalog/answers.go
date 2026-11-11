@@ -10,14 +10,14 @@ func (a Answers) WithValues(questions []Question, values []string) Answers {
 	a.StarterValues = map[string]string{}
 	a.FeatureValues = map[string]map[string]string{}
 	for i, q := range questions {
-		if q.feature == "" {
+		if q.Feature == "" {
 			a.StarterValues[q.Option] = values[i]
 			continue
 		}
-		if a.FeatureValues[q.feature] == nil {
-			a.FeatureValues[q.feature] = map[string]string{}
+		if a.FeatureValues[q.Feature] == nil {
+			a.FeatureValues[q.Feature] = map[string]string{}
 		}
-		a.FeatureValues[q.feature][q.Option] = values[i]
+		a.FeatureValues[q.Feature][q.Option] = values[i]
 	}
 	return a
 }

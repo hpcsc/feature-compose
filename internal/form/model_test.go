@@ -20,7 +20,7 @@ import (
 func TestModel(t *testing.T) {
 	withNeeds := func() fstest.MapFS {
 		return fstest.MapFS{
-			"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\noptions:\n  region:\n    default: us\n    pattern: '^[a-z]+$'\nfolders:\n  go:\n    path: .\n")},
+			"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n")},
 			"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
 			"starters/other/starter.yml":        &fstest.MapFile{Data: []byte("summary: Another service.\nfolders:\n  go:\n    path: .\n")},
 			"starters/other/files/go/main.go":   &fstest.MapFile{Data: []byte("package main\n")},
@@ -29,6 +29,16 @@ func TestModel(t *testing.T) {
 			"features/gamma/feature.yml":        &fstest.MapFile{Data: []byte("summary: Feature gamma.\ntargets: [service]\nneeds: [zed]\n")},
 			"features/zed/feature.yml":          &fstest.MapFile{Data: []byte("summary: Feature zed.\ntargets: [service]\n")},
 			"features/elsewhere/feature.yml":    &fstest.MapFile{Data: []byte("summary: Elsewhere.\ntargets: [other]\n")},
+		}
+	}
+	withOptions := func() fstest.MapFS {
+		return fstest.MapFS{
+			"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\noptions:\n  region:\n    default: us\n    pattern: '^[a-z]+$'\n  module:\n    default: example.com/{{ .Name }}\n  zone:\n    pattern: '^[a-z]*$'\nfolders:\n  go:\n    path: .\n")},
+			"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			"features/alpha/feature.yml":        &fstest.MapFile{Data: []byte("summary: Feature alpha.\ntargets: [service]\nneeds: [zed]\noptions:\n  mode:\n    default: fast\n  timeout:\n    default: \"30\"\n")},
+			"features/beta/feature.yml":         &fstest.MapFile{Data: []byte("summary: Feature beta.\ntargets: [service]\n")},
+			"features/gamma/feature.yml":        &fstest.MapFile{Data: []byte("summary: Feature gamma.\ntargets: [service]\nneeds: [zed]\noptions:\n  tone:\n    values: [soft]\n    default: soft\n")},
+			"features/zed/feature.yml":          &fstest.MapFile{Data: []byte("summary: Feature zed.\ntargets: [service]\noptions:\n  level:\n    values: [low, high]\n    default: low\n")},
 		}
 	}
 	withCycle := func() fstest.MapFS {
@@ -336,6 +346,104 @@ func TestModel(t *testing.T) {
 		})
 	})
 
+	t.Run("options", func(t *testing.T) {
+		openedWith := func(t *testing.T, given map[string]string, givenByFeature map[string]map[string]string) form.Model {
+			t.Helper()
+			m, err := form.New(catalog.New(withOptions()), "service", "my-service", given, givenByFeature)
+			require.NoError(t, err)
+			return sized(m, 120, 20)
+		}
+		atAlpha := []string{"j", "j", "j", "j", "j", "j", "j"}
+
+		t.Run("under the starter, before the features, the tree shows each option of the starter in the order of the names with its value, and a feature that is not selected shows no option", func(t *testing.T) {
+			require.Equal(t, []string{"   ├─   module  example.com/my-service", "   ├─   region  us", "   ├─   zone      missing", "   ├─   [ ] beta", "   ├─   [ ] zed", "   ├─   [ ] alpha", "   └─   [ ] gamma"}, treeOf(openedWith(t, nil, nil))[2:])
+		})
+
+		t.Run("a space that selects a feature shows its options under it and those of its needs, the options of a need before those of the feature that needs it", func(t *testing.T) {
+			m := pressed(openedWith(t, nil, nil), append(atAlpha, "space")...)
+
+			require.Equal(t, []string{"   ├─   [ ] beta", "   ├─ ▾ [x] zed  needed by alpha", "   │  └─   level  low", "▌  ├─ ▾ [x] alpha", "   │  ├─   mode     fast", "   │  └─   timeout  30", "   └─   [ ] gamma"}, treeOf(m)[5:])
+		})
+
+		t.Run("a space that clears a feature removes its options and those of its needs", func(t *testing.T) {
+			m := pressed(openedWith(t, nil, nil), append(atAlpha, "space", "space")...)
+
+			require.Equal(t, withoutSelection(treeOf(pressed(openedWith(t, nil, nil), atAlpha...))), withoutSelection(treeOf(m)))
+		})
+
+		t.Run("each option of the selection is in the tree one time, also when two selected features need its feature", func(t *testing.T) {
+			m := pressed(openedWith(t, nil, nil), append(atAlpha, "space", "j", "j", "j", "space")...)
+
+			require.Equal(t, 1, strings.Count(strings.Join(treeOf(m), "\n"), "level  low"))
+		})
+
+		t.Run("the options of the last feature have no line beside them", func(t *testing.T) {
+			m := pressed(openedWith(t, nil, nil), "j", "j", "j", "j", "j", "j", "j", "j", "space")
+
+			require.Equal(t, []string{"▌  └─ ▾ [x] gamma", "      └─   tone  soft"}, treeOf(m)[9:])
+		})
+
+		t.Run("enter at the starter row keeps it selected", func(t *testing.T) {
+			require.Equal(t, "▌▾ starter  service  fixed", selectedRowOf(pressed(openedWith(t, nil, nil), "j", "enter")))
+		})
+
+		t.Run("h closes a selected feature with options, and l and enter open it again", func(t *testing.T) {
+			atZed := pressed(openedWith(t, nil, nil), append(atAlpha, "space", "k", "k")...)
+			closed := pressed(atZed, "h")
+
+			require.Equal(t, "▌  ├─ ▸ [x] zed  needed by alpha", selectedRowOf(closed))
+			require.NotContains(t, strings.Join(treeOf(closed), "\n"), "level")
+			require.Equal(t, []string{screenOf(atZed), screenOf(atZed)}, []string{screenOf(pressed(closed, "l")), screenOf(pressed(closed, "enter"))})
+		})
+
+		t.Run("l at an open feature selects its first option, and h at an option selects its feature", func(t *testing.T) {
+			atZed := pressed(openedWith(t, nil, nil), append(atAlpha, "space", "k", "k")...)
+
+			require.Equal(t, []string{"▌  │  └─   level  low", "▌  ├─ ▾ [x] zed  needed by alpha"}, []string{selectedRowOf(pressed(atZed, "l")), selectedRowOf(pressed(atZed, "l", "h"))})
+		})
+
+		t.Run("h at an option of the starter selects the starter", func(t *testing.T) {
+			require.Equal(t, "▌▾ starter  service  fixed", selectedRowOf(pressed(openedWith(t, nil, nil), "j", "j", "j", "h")))
+		})
+
+		t.Run("an option with no default that a flag gives the empty text is marked fixed and missing", func(t *testing.T) {
+			require.Equal(t, "   ├─   zone      fixed, missing", treeOf(openedWith(t, map[string]string{"zone": ""}, nil))[4])
+		})
+
+		t.Run("an option that --option or --feature gives is marked fixed", func(t *testing.T) {
+			m := openedWith(t, map[string]string{"region": "eu"}, map[string]map[string]string{"zed": {"level": "high"}})
+
+			require.Equal(t, []string{"   ├─   region  eu  fixed", "   │  └─   level  high  fixed"}, []string{treeOf(m)[3], treeOf(m)[7]})
+		})
+
+		for name, test := range map[string]struct {
+			given          map[string]string
+			givenByFeature map[string]map[string]string
+			keys           []string
+			title, details string
+		}{
+			"an option of the starter with a pattern":    {nil, nil, []string{"j", "j", "j"}, "starter › region", "value    us\ndefault  us\npattern  ^[a-z]+$\nsource   default"},
+			"an option of the starter that a flag gives": {map[string]string{"region": "eu"}, nil, []string{"j", "j", "j"}, "starter › region", "value    eu\ndefault  us\npattern  ^[a-z]+$\nsource   command line"},
+			"an option whose default reads the name":     {nil, nil, []string{"j", "j"}, "starter › module", "value    example.com/my-service\ndefault  example.com/my-service\nsource   default"},
+			"an option of a feature with values":         {nil, map[string]map[string]string{"zed": {}}, []string{"j", "j", "j", "j", "j", "j", "j"}, "zed › level", "value    low\ndefault  low\nvalues   low, high\nsource   default"},
+			"an option of a feature with one value":      {nil, map[string]map[string]string{"gamma": {}}, []string{"j", "j", "j", "j", "j", "j", "j", "j", "j", "j"}, "gamma › tone", "value    soft\ndefault  soft\nvalues   soft\nsource   default"},
+		} {
+			t.Run("the details of "+name+" show its value, its default, its values or its pattern, and its source", func(t *testing.T) {
+				m := pressed(openedWith(t, test.given, test.givenByFeature), test.keys...)
+
+				_, title := paneTitlesOf(m)
+				require.Equal(t, []string{test.title, test.details}, []string{title, detailsOf(m)})
+			})
+		}
+
+		t.Run("the default that reads the name renders with the empty text while the name is missing", func(t *testing.T) {
+			m, err := form.New(catalog.New(withOptions()), "service", "", nil, nil)
+			require.NoError(t, err)
+
+			require.Equal(t, "   ├─   module  example.com/", treeOf(sized(m, 120, 20))[2])
+		})
+	})
+
 	t.Run("details", func(t *testing.T) {
 		t.Run("the name of an argument shows its value and the source command line", func(t *testing.T) {
 			require.Equal(t, "value   my-service\nsource  command line", detailsOf(opened(t, withNeeds(), "service", "my-service", nil)))
@@ -488,8 +596,8 @@ func TestModel(t *testing.T) {
 			"an unknown starter":                               {withNeeds(), "nope", "my-service", nil, nil, `unknown starter "nope": the catalog has other, service`},
 			"an unknown feature":                               {withNeeds(), "service", "my-service", nil, map[string]map[string]string{"nope": {}}, `unknown feature "nope": the features that target the starter service are alpha, beta, gamma, zed`},
 			"an unknown feature with no name":                  {withNeeds(), "service", "", nil, map[string]map[string]string{"nope": {}}, `unknown feature "nope": the features that target the starter service are alpha, beta, gamma, zed`},
-			"an unknown option":                                {withNeeds(), "service", "my-service", map[string]string{"nope": "x"}, nil, `unknown option "nope": the options of the starter service are region`},
-			"a value that does not match its pattern":          {withNeeds(), "service", "my-service", map[string]string{"region": "EU"}, nil, `the starter service: the value "EU" of the option region does not match its pattern ^[a-z]+$`},
+			"an unknown option":                                {withOptions(), "service", "my-service", map[string]string{"nope": "x"}, nil, `unknown option "nope": the options of the starter service are module, region, zone`},
+			"a value that does not match its pattern":          {withOptions(), "service", "my-service", map[string]string{"region": "EU"}, nil, `the starter service: the value "EU" of the option region does not match its pattern ^[a-z]+$`},
 			"features of the starter whose needs form a cycle": {withCycle(), "service", "my-service", nil, nil, "the needs of the features form a cycle: beta needs gamma needs beta"},
 			"a catalog that cannot load, with no starter":      {fstest.MapFS{"starters/service/starter.yml": &fstest.MapFile{Data: []byte("folders: [")}}, "", "", nil, nil, "starters/service/starter.yml"},
 			"a name that the check refuses, with no starter":   {withNeeds(), "", "../x", nil, nil, `the name "../x" of the repo`},

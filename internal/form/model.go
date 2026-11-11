@@ -17,11 +17,12 @@ import (
 var errCanceled = errors.New("you canceled new, so it wrote no file")
 
 var keys = struct {
-	down, up, open, close, toggle, scrollDown, scrollUp, quit key.Binding
+	down, up, open, enter, close, toggle, scrollDown, scrollUp, quit key.Binding
 }{
 	down:       key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "move")),
 	up:         key.NewBinding(key.WithKeys("k", "up")),
 	open:       key.NewBinding(key.WithKeys("l", "right"), key.WithHelp("l", "open")),
+	enter:      key.NewBinding(key.WithKeys("enter")),
 	close:      key.NewBinding(key.WithKeys("h", "left", "esc"), key.WithHelp("h", "close")),
 	toggle:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "select")),
 	scrollDown: key.NewBinding(key.WithKeys("ctrl+d", "pgdown"), key.WithHelp("ctrl+d/u", "scroll details")),
@@ -102,7 +103,7 @@ func (m Model) updateTree(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.tree = m.tree.moved(1)
 	case key.Matches(msg, keys.up):
 		m.tree = m.tree.moved(-1)
-	case key.Matches(msg, keys.open):
+	case key.Matches(msg, keys.open), key.Matches(msg, keys.enter) && m.tree.selected.kind == featureKind:
 		m.tree = m.tree.opened()
 	case key.Matches(msg, keys.close):
 		m.tree = m.tree.closed()

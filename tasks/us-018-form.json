@@ -140,7 +140,7 @@
     },
     {
       "n": 5,
-      "done": false,
+      "done": true,
       "title": "Show the options of the starter and of each selected feature in the tree",
       "language": "Go",
       "testable": true,

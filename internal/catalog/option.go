@@ -37,6 +37,13 @@ func (o option) check(value string) error {
 	return nil
 }
 
+func (o option) patternText() string {
+	if o.pattern == nil {
+		return ""
+	}
+	return o.pattern.String()
+}
+
 func (o option) hasValues() bool {
 	return len(o.accepted) > 0
 }
@@ -100,14 +107,16 @@ func (o options) check(values map[string]string) error {
 func (o options) questions(featureName string, values optionValues) []Question {
 	var questions []Question
 	for _, optionName := range slices.Sorted(maps.Keys(o.declared)) {
-		if values.given[optionName] {
-			continue
-		}
 		questions = append(questions, Question{
+			Feature:  featureName,
 			Option:   optionName,
+			Value:    values.byName[optionName],
+			Source:   values.source(optionName),
+			Given:    values.given[optionName],
+			Missing:  values.missing(optionName),
 			Default:  values.defaults[optionName],
 			Accepted: slices.Clone(o.declared[optionName].accepted),
-			feature:  featureName,
+			Pattern:  o.declared[optionName].patternText(),
 			options:  o,
 		})
 	}

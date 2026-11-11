@@ -53,7 +53,7 @@ type options struct {
 	declared map[string]option
 }
 
-func (o options) withDefaults(given, answered map[string]string, name string) (optionValues, error) {
+func (o options) withDefaults(given map[string]string, setByNeeds valuesSetByNeeds, answered map[string]string, name string) (optionValues, error) {
 	if err := o.check(given); err != nil {
 		return optionValues{}, err
 	}
@@ -63,6 +63,7 @@ func (o options) withDefaults(given, answered map[string]string, name string) (o
 	values := optionValues{
 		byName:   make(map[string]string, len(o.declared)),
 		given:    make(map[string]bool, len(given)),
+		needOf:   map[string][]string{},
 		answered: make(map[string]bool, len(answered)),
 		defaults: make(map[string]string, len(o.declared)),
 	}
@@ -73,11 +74,22 @@ func (o options) withDefaults(given, answered map[string]string, name string) (o
 		}
 		values.defaults[optionName] = defaultValue
 		givenValue, isGiven := given[optionName]
+		valueOfNeeds, needOf, needsSet := setByNeeds.value(optionName)
 		answeredValue, isAnswered := answered[optionName]
+		if isGiven {
+			if err := setByNeeds.checkGiven(optionName, givenValue); err != nil {
+				return optionValues{}, err
+			}
+		}
+		if needsSet {
+			values.needOf[optionName] = needOf
+		}
 		switch {
 		case isGiven:
 			values.byName[optionName] = givenValue
 			values.given[optionName] = true
+		case needsSet:
+			values.byName[optionName] = valueOfNeeds
 		case isAnswered:
 			values.byName[optionName] = answeredValue
 			values.answered[optionName] = true
@@ -113,6 +125,7 @@ func (o options) questions(featureName string, values optionValues) []Question {
 			Value:    values.byName[optionName],
 			Source:   values.source(optionName),
 			Given:    values.given[optionName],
+			NeedOf:   slices.Clone(values.needOf[optionName]),
 			Missing:  values.missing(optionName),
 			Default:  values.defaults[optionName],
 			Accepted: slices.Clone(o.declared[optionName].accepted),

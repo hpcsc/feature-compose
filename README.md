@@ -61,7 +61,7 @@ Features:
 Options:
   starter.go-version: 1.28 (command line)
   starter.module: github.com/hpcsc/my-service (default)
-  api-auth.method: api-key (default)
+  api-auth.method: api-key (need of cli-auth)
 
 Files:
   .dockerignore: the feature cli
@@ -86,7 +86,8 @@ above. Each option shows the value that the templates read, and its source:
 
 | Source | Meaning |
 | --- | --- |
-| `command line` | `--option <name>=<value>` or `--feature <name>:<option>=<value>` gives the value, also when it is the same as the default. |
+| `command line` | `--option <name>=<value>` or `--feature <name>:<option>=<value>` gives the value, also when it is the same as the default. When a need also sets the value, the line ends with `, need of <features>`. |
+| `need of <features>` | The `needs` of the features that select this feature set the value, for example the need of `cli-auth` sets the `method` of `api-auth` to `api-key`. A need comes after a flag and before an answer. |
 | `answered` | You keep the value with Enter in the form, also when it is the default. `--dry-run` opens no form, so it never shows this source. |
 | `default` | No flag gives the value, so the option has its default. A default that holds `{{ .Name }}` shows with the name of the repo. |
 
@@ -94,9 +95,10 @@ Last, the preview gives each file of the repo by its path, in the order of the p
 or the feature whose template writes the file.
 
 Before it prints, `--dry-run` does the same checks as `new`. A selection that stops `new`, for example an unknown
-feature or a value that does not match its pattern, stops `--dry-run` with the same message, and `--dry-run` then
-prints nothing. `--dry-run` does not read the output folder, so an output folder that has files stops `new` but not
-`--dry-run`.
+feature, a value that does not match its pattern, or a flag that gives an option another value than a need sets,
+stops `--dry-run` with the same message, and `--dry-run` then prints nothing. The message of a flag against a need
+names both sources, for example `"oauth" from the command line and "api-key" from the need of cli-auth`.
+`--dry-run` does not read the output folder, so an output folder that has files stops `new` but not `--dry-run`.
 
 The preview is text for a person, and its layout can change. A script reads the catalog with
 `feature-compose show --output json`.

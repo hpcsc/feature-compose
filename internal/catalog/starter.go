@@ -76,7 +76,7 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 			return Selection{}, err
 		}
 	}
-	starterValues, err := s.options.withDefaults(given, answers.StarterValues, name)
+	starterValues, err := s.options.withDefaults(given, valuesSetByNeeds{}, answers.StarterValues, name)
 	if err != nil {
 		return Selection{}, err
 	}
@@ -87,9 +87,13 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	if err := s.checkAnsweredFeatures(selected, answers.FeatureValues); err != nil {
 		return Selection{}, err
 	}
+	setByNeeds, err := s.setByNeeds(selected)
+	if err != nil {
+		return Selection{}, err
+	}
 	features := make([]selectedFeature, 0, len(selected))
 	for _, f := range selected {
-		values, err := f.options.withDefaults(givenByFeature[f.name], answers.FeatureValues[f.name], name)
+		values, err := f.options.withDefaults(givenByFeature[f.name], setByNeeds[f.name], answers.FeatureValues[f.name], name)
 		if err != nil {
 			return Selection{}, err
 		}
@@ -263,6 +267,28 @@ func (s Starter) checkAnsweredFeatures(selected []feature, featureValues map[str
 		}
 	}
 	return nil
+}
+
+func (s Starter) setByNeeds(selected []feature) (map[string]valuesSetByNeeds, error) {
+	setByNeeds := map[string]valuesSetByNeeds{}
+	for _, f := range slices.SortedFunc(slices.Values(selected), func(a, b feature) int { return strings.Compare(a.name, b.name) }) {
+		for _, needName := range slices.Sorted(maps.Keys(f.needValues)) {
+			values := f.needValues[needName]
+			if err := s.features[needName].options.check(values); err != nil {
+				return nil, fmt.Errorf("the need of %s: %w", f.name, err)
+			}
+			set, ok := setByNeeds[needName]
+			if !ok {
+				set = newValuesSetByNeeds(needName)
+			}
+			added, err := set.add(f.name, values)
+			if err != nil {
+				return nil, err
+			}
+			setByNeeds[needName] = added
+		}
+	}
+	return setByNeeds, nil
 }
 
 func (s Starter) neededBy(featureName string, selected []feature) []string {

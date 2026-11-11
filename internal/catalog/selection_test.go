@@ -1062,6 +1062,57 @@ Options:
 `)
 		})
 
+		withNeedValues := func() fstest.MapFS {
+			return fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"features/a/feature.yml":            &fstest.MapFile{Data: []byte("summary: A.\ntargets: [service]\nneeds:\n  b:\n    mode: slow\n    zeta: z\n")},
+				"features/b/feature.yml":            &fstest.MapFile{Data: []byte("summary: B.\ntargets: [service]\noptions:\n  zeta:\n    default: z\n  mode:\n    values: [fast, slow]\n    default: fast\n")},
+				"features/c/feature.yml":            &fstest.MapFile{Data: []byte("summary: C.\ntargets: [service]\nneeds:\n  b:\n    mode: slow\n")},
+			}
+		}
+
+		for name, test := range map[string]struct {
+			givenByFeature map[string]map[string]string
+			options        string
+		}{
+			"one need sets each value, also a value that equals the default": {map[string]map[string]string{"a": {}}, "  b.mode: slow (need of a)\n  b.zeta: z (need of a)\n"},
+			"the needs of two features set one value":                        {map[string]map[string]string{"c": {}, "a": {}}, "  b.mode: slow (need of a, c)\n  b.zeta: z (need of a)\n"},
+			"a flag gives the value that a need sets":                        {map[string]map[string]string{"a": {}, "b": {"mode": "slow"}}, "  b.mode: slow (command line, need of a)\n  b.zeta: z (need of a)\n"},
+		} {
+			t.Run("a value that a need sets shows the source need of the features whose needs set it, in the order of their names: "+name, func(t *testing.T) {
+				starter, err := catalog.New(withNeedValues()).Starter("service")
+				require.NoError(t, err)
+				selection, err := starter.Select("my-service", nil, test.givenByFeature, catalog.Answers{})
+				require.NoError(t, err)
+
+				preview, err := selection.Preview()
+
+				require.NoError(t, err)
+				require.Contains(t, preview, "\nOptions:\n"+test.options+"\n")
+			})
+		}
+
+		t.Run("the features whose needs set a value come in the order of their names, also when one of them needs the other, and each need of a feature sets its values", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"features/a/feature.yml":            &fstest.MapFile{Data: []byte("summary: A.\ntargets: [service]\nneeds:\n  b:\n    mode: slow\n  d:\n    tone: loud\n  z:\n")},
+				"features/b/feature.yml":            &fstest.MapFile{Data: []byte("summary: B.\ntargets: [service]\noptions:\n  mode:\n    values: [fast, slow]\n    default: fast\n")},
+				"features/d/feature.yml":            &fstest.MapFile{Data: []byte("summary: D.\ntargets: [service]\noptions:\n  tone:\n    default: soft\n")},
+				"features/z/feature.yml":            &fstest.MapFile{Data: []byte("summary: Z.\ntargets: [service]\nneeds:\n  b:\n    mode: slow\n")},
+			}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"a": {}}, catalog.Answers{})
+			require.NoError(t, err)
+
+			preview, err := selection.Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, "\nOptions:\n  b.mode: slow (need of a, z)\n  d.tone: loud (need of a)\n\n")
+		})
+
 		t.Run("a value that a flag gives with the text of the default shows the source command line", func(t *testing.T) {
 			starter, err := catalog.New(withOptions()).Starter("service")
 			require.NoError(t, err)
@@ -1218,12 +1269,12 @@ Options:
 		type question struct {
 			feature, option, value, source, defaultValue, pattern string
 			given, missing                                        bool
-			accepted                                              []string
+			accepted, needOf                                      []string
 		}
 		contentsOf := func(questions []catalog.Question) []question {
 			contents := make([]question, 0, len(questions))
 			for _, q := range questions {
-				contents = append(contents, question{feature: q.Feature, option: q.Option, value: q.Value, source: q.Source, defaultValue: q.Default, pattern: q.Pattern, given: q.Given, missing: q.Missing, accepted: q.Accepted})
+				contents = append(contents, question{feature: q.Feature, option: q.Option, value: q.Value, source: q.Source, defaultValue: q.Default, pattern: q.Pattern, given: q.Given, missing: q.Missing, accepted: q.Accepted, needOf: q.NeedOf})
 			}
 			return contents
 		}
@@ -1265,6 +1316,24 @@ Options:
 				{feature: "zed", option: "mode", value: "slow", source: "command line", defaultValue: "fast", given: true, accepted: []string{"slow", "fast"}},
 				{feature: "zed", option: "token", value: "", source: "default", defaultValue: "", pattern: "^.*$", missing: true},
 			}, contentsOf(questions))
+		})
+
+		t.Run("an option that needs set has the value of the needs, the source of the preview and the features whose needs set it, and only a flag makes it given", func(t *testing.T) {
+			files := withQuestions()
+			files["features/alpha/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Alpha.\ntargets: [service]\nneeds:\n  zed:\n    mode: slow\n")}
+			files["features/beta/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Beta.\ntargets: [service]\nneeds:\n  zed:\n    mode: slow\n")}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			needed, err := starter.Select("my-service", nil, map[string]map[string]string{"alpha": {}, "beta": {}}, catalog.Answers{})
+			require.NoError(t, err)
+			alsoGiven, err := starter.Select("my-service", nil, map[string]map[string]string{"alpha": {}, "beta": {}, "zed": {"mode": "slow"}}, catalog.Answers{})
+			require.NoError(t, err)
+
+			require.Equal(t, []question{
+				{feature: "zed", option: "mode", value: "slow", source: "need of alpha, beta", defaultValue: "fast", accepted: []string{"slow", "fast"}, needOf: []string{"alpha", "beta"}},
+				{feature: "zed", option: "token", value: "", source: "default", defaultValue: "", pattern: "^.*$", missing: true},
+				{feature: "zed", option: "mode", value: "slow", source: "command line, need of alpha, beta", defaultValue: "fast", given: true, accepted: []string{"slow", "fast"}, needOf: []string{"alpha", "beta"}},
+			}, contentsOf([]catalog.Question{questionOf(t, needed, "zed", "mode"), questionOf(t, needed, "zed", "token"), questionOf(t, alsoGiven, "zed", "mode")}))
 		})
 
 		t.Run("an option that the answers give has the source answered", func(t *testing.T) {
@@ -1378,6 +1447,17 @@ Options:
 			arguments := argumentsOf(t, nil, nil, catalog.Answers{Features: []string{"a"}, FeatureValues: map[string]map[string]string{"y": {"mode": "slow"}}}, "my-service")
 
 			require.Equal(t, "service my-service --feature a --feature y:mode=slow", arguments)
+		})
+
+		t.Run("a value that a need sets is not in the command, because the need sets it again", func(t *testing.T) {
+			files := withArguments()
+			files["features/a/feature.yml"] = &fstest.MapFile{Data: []byte("summary: A.\ntargets: [service]\nneeds:\n  x:\n  y:\n    mode: slow\n")}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"a": {}}, catalog.Answers{})
+			require.NoError(t, err)
+
+			require.Equal(t, "service my-service --feature a", selection.Arguments("my-service"))
 		})
 
 		t.Run("give --output-dir only when the output folder is not the name of the repo", func(t *testing.T) {

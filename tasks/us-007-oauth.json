@@ -44,7 +44,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Give an option the value that a need sets, and stop on a flag or a need with another value",
       "language": "Go",
       "testable": true,

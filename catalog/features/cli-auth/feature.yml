@@ -1,6 +1,9 @@
 summary: The CLI sends the API key that the API asks for, which it takes from an environment variable or a credential command.
 targets: [go-event-sourcing-service]
-needs: [cli, api-auth]
+needs:
+  cli:
+  api-auth:
+    method: api-key
 
 files:
   - path: files/common/

@@ -720,6 +720,96 @@ folders:
 			require.Equal(t, []string{"oauth", "auth;cli-auth;"}, []string{files["auth.txt"], files["server.go"]})
 		})
 
+		withNeedValue := func(definitions map[string]string) fstest.MapFS {
+			all := map[string]string{
+				"cli-auth": "needs:\n  auth:\n    method: oauth\n",
+				"auth":     "options:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n",
+				"plain":    "",
+			}
+			for featureName, definition := range definitions {
+				all[featureName] = definition
+			}
+			files := withNeeds(all)
+			files["features/auth/files/go/auth.txt"] = &fstest.MapFile{Data: []byte(`{{ option "method" }}`)}
+			files["features/cli-auth/files/go/method.txt"] = &fstest.MapFile{Data: []byte(`{{ option "auth.method" }}`)}
+			return files
+		}
+
+		t.Run("a need that sets a value gives the option of the needed feature that value, and the templates of both features read it", func(t *testing.T) {
+			starter, err := catalog.New(withNeedValue(nil)).Starter("service")
+			require.NoError(t, err)
+
+			selection, err := starter.Select("my-service", nil, withoutValues("cli-auth"), catalog.Answers{})
+
+			require.NoError(t, err)
+			files := written(t, selection)
+			require.Equal(t, []string{"oauth", "oauth"}, []string{files["auth.txt"], files["method.txt"]})
+		})
+
+		t.Run("a flag that gives an option another value than a need stops, and the message names the value of the command line and the value of the need with the feature whose need sets it", func(t *testing.T) {
+			starter, err := catalog.New(withNeedValue(nil)).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil, "auth": {"method": "api-key"}}, catalog.Answers{})
+
+			require.ErrorContains(t, err, `the option method of the feature auth has two values: "api-key" from the command line and "oauth" from the need of cli-auth`)
+		})
+
+		t.Run("the needs of two selected features that set one option to different values stop, and the message names each value with the need that sets it", func(t *testing.T) {
+			starter, err := catalog.New(withNeedValue(map[string]string{"other": "needs:\n  auth:\n    method: api-key\n"})).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, withoutValues("cli-auth", "other"), catalog.Answers{})
+
+			require.ErrorContains(t, err, `the option method of the feature auth has two values: "oauth" from the need of cli-auth and "api-key" from the need of other`)
+		})
+
+		t.Run("the needs of two selected features that agree on one option and set a later option to different values stop", func(t *testing.T) {
+			auth := "options:\n  level:\n    default: low\n  method:\n    values: [api-key, oauth]\n    default: api-key\n"
+			starter, err := catalog.New(withNeedValue(map[string]string{
+				"auth":     auth,
+				"cli-auth": "needs:\n  auth:\n    level: high\n    method: oauth\n",
+				"other":    "needs:\n  auth:\n    level: high\n    method: api-key\n",
+			})).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, withoutValues("cli-auth", "other"), catalog.Answers{})
+
+			require.ErrorContains(t, err, `the option method of the feature auth has two values: "oauth" from the need of cli-auth and "api-key" from the need of other`)
+		})
+
+		for name, test := range map[string]struct {
+			needs   string
+			message string
+		}{
+			"a value that its option does not have":       {"needs:\n  auth:\n    method: basic\n", `the value "basic" of the option method is not one of its values: api-key, oauth`},
+			"an option that the feature does not declare": {"needs:\n  auth:\n    mode: fast\n", `unknown option "mode": the options of the feature auth are method`},
+			"an option of a feature with no option":       {"needs:\n  plain:\n    mode: fast\n", `unknown option "mode": the feature plain has no option`},
+		} {
+			t.Run("a need that sets "+name+" stops with the message of the same flag, and the message names the feature whose need sets it", func(t *testing.T) {
+				starter, err := catalog.New(withNeedValue(map[string]string{"cli-auth": test.needs})).Starter("service")
+				require.NoError(t, err)
+
+				_, err = starter.Select("my-service", nil, withoutValues("cli-auth"), catalog.Answers{})
+
+				require.ErrorContains(t, err, "the need of cli-auth")
+				require.ErrorContains(t, err, test.message)
+			})
+		}
+
+		t.Run("an answer for an option that a need sets gives way to the value of the need, and the option has the answer when no selected need sets it", func(t *testing.T) {
+			starter, err := catalog.New(withNeedValue(map[string]string{"auth": "options:\n  method:\n    values: [api-key, oauth, basic]\n    default: api-key\n"})).Starter("service")
+			require.NoError(t, err)
+			answered := map[string]map[string]string{"auth": {"method": "basic"}}
+
+			withNeed, err := starter.Select("my-service", nil, nil, catalog.Answers{Features: []string{"cli-auth"}, FeatureValues: answered})
+			require.NoError(t, err)
+			withoutNeed, err := starter.Select("my-service", nil, nil, catalog.Answers{Features: []string{"auth"}, FeatureValues: answered})
+			require.NoError(t, err)
+
+			require.Equal(t, []string{"oauth", "basic"}, []string{written(t, withNeed)["auth.txt"], written(t, withoutNeed)["auth.txt"]})
+		})
+
 		t.Run("a feature that adds items to an extension point that only its need declares selects alone, and its items render in the file of the need", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},

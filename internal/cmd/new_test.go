@@ -503,6 +503,17 @@ folders:
 			require.Contains(t, printed, "Options:\n  starter.go-version: 1.28.0 (command line)\n  starter.module: github.com/hpcsc/my-service (default)\n  auth.method: oauth (command line)\n  auth.realm: api (default)\n\n")
 		})
 
+		t.Run("--dry-run shows the source need of <feature> for a value that a need sets", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			files := withNeeds()
+			files["features/v/feature.yml"] = &fstest.MapFile{Data: []byte("summary: V.\ntargets: [service]\nneeds:\n  b:\n    mode: slow\n")}
+
+			printed, err := runNew(t, files, "service", "my-service", "--feature", "v", "--dry-run")
+
+			require.NoError(t, err)
+			require.Contains(t, printed, "Options:\n  b.mode: slow (need of v)\n\n")
+		})
+
 		t.Run("the two orders of the flags of a feature and its need give the same preview", func(t *testing.T) {
 			t.Chdir(t.TempDir())
 
@@ -827,6 +838,26 @@ folders:
 				_, err := runNew(t, withFeatures(), append([]string{"service", "my-service"}, flags...)...)
 
 				require.ErrorContains(t, err, `the option method of the feature auth has two values: "oauth" and "api-key"`)
+				require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
+			})
+		}
+
+		for name, arguments := range map[string][]string{
+			"the need first":          {"--feature", "v", "--feature", "b:mode=fast"},
+			"the flag first":          {"--feature", "b:mode=fast", "--feature", "v"},
+			"the need first, dry run": {"--feature", "v", "--feature", "b:mode=fast", "--dry-run"},
+			"the flag first, dry run": {"--feature", "b:mode=fast", "--feature", "v", "--dry-run"},
+		} {
+			t.Run("a flag that gives an option another value than a need stops new, names both sources, prints nothing and makes no output folder: "+name, func(t *testing.T) {
+				workingFolder := t.TempDir()
+				t.Chdir(workingFolder)
+				files := withNeeds()
+				files["features/v/feature.yml"] = &fstest.MapFile{Data: []byte("summary: V.\ntargets: [service]\nneeds:\n  b:\n    mode: slow\n")}
+
+				printed, err := runNew(t, files, append([]string{"service", "my-service"}, arguments...)...)
+
+				require.ErrorContains(t, err, `the option mode of the feature b has two values: "fast" from the command line and "slow" from the need of v`)
+				require.Equal(t, "", printed)
 				require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
 			})
 		}

@@ -13,7 +13,7 @@ describe('feature-compose show', () => {
     const starter = catalog.starters['go-event-sourcing-service']
     expect(starter.summary).toBe('A Go service with an event store, an HTTP API, and a catchup process.')
     expect(starter.folders.go.after_render[0]).toBe('go mod tidy')
-    expect(catalog.features['cli-auth'].needs).toEqual({ cli: {}, 'api-auth': {} })
+    expect(catalog.features['cli-auth'].needs).toEqual({ cli: {}, 'api-auth': { method: 'api-key' } })
     expect(Object.keys(catalog.features.cli.extension_points)).toEqual(['cli.commands'])
     expect(readdirSync(dir)).toEqual([])
   })

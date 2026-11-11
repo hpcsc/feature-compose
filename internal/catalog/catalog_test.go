@@ -829,14 +829,29 @@ add_to:
 			apiAuth := string(files["features/api-auth/feature.yml"].Data)
 			require.Contains(t, apiAuth, "values: [api-key]")
 			files["features/api-auth/feature.yml"] = &fstest.MapFile{Data: []byte(strings.Replace(apiAuth, "values: [api-key]", "values: [api-key, zzmethod]", 1))}
+			cliAuth := string(files["features/cli-auth/feature.yml"].Data)
+			require.Contains(t, cliAuth, "method: api-key")
+			files["features/cli-auth/feature.yml"] = &fstest.MapFile{Data: []byte(strings.Replace(cliAuth, "method: api-key", "method: zzmethod", 1))}
 			starter, err := catalog.New(files).Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil, "api-auth": {"method": "zzmethod"}}, catalog.Answers{})
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil}, catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 			require.NoError(t, selection.Write(output))
 
 			require.Contains(t, filesIn(t, output)["docs/cli-auth.md"], "the method `zzmethod`")
+		})
+
+		t.Run("the need of cli-auth sets the method api-key of api-auth, and the preview names the need as its source", func(t *testing.T) {
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil}, catalog.Answers{})
+			require.NoError(t, err)
+
+			preview, err := selection.Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, "  api-auth.method: api-key (need of cli-auth)\n")
 		})
 
 		t.Run("the files of cli hold no value of scaffold", func(t *testing.T) {

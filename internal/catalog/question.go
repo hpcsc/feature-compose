@@ -11,6 +11,7 @@ type Question struct {
 	Value    string
 	Source   string
 	Given    bool
+	NeedOf   []string
 	Missing  bool
 	Default  string
 	Accepted []string

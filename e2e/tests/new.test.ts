@@ -188,7 +188,7 @@ describe('feature-compose new', () => {
     const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--option', 'go-version=1.28', '--feature', 'cli-auth', '--dry-run'])
 
     expect(result.status, result.stderr).toBe(0)
-    expect(result.stdout).toContain('Options:\n  starter.go-version: 1.28 (command line)\n  starter.module: github.com/hpcsc/my-service (default)\n  api-auth.method: api-key (default)\n\n')
+    expect(result.stdout).toContain('Options:\n  starter.go-version: 1.28 (command line)\n  starter.module: github.com/hpcsc/my-service (default)\n  api-auth.method: api-key (need of cli-auth)\n\n')
     expect(readdirSync(dir)).toEqual([])
   })
 
@@ -353,7 +353,7 @@ describe('feature-compose new in a terminal', () => {
     await session.press('w')
     await session.waitForText('Write the repo?')
     const preview = await session.text()
-    for (const part of ['starter.go-version: 1.28 (answered)', 'starter.module: github.com/hpcsc/my-service (default)', 'api-auth.method: api-key (default)']) {
+    for (const part of ['starter.go-version: 1.28 (answered)', 'starter.module: github.com/hpcsc/my-service (default)', 'api-auth.method: api-key (need of cli-auth)']) {
       expect(preview).toContain(part)
     }
     await session.press('q')

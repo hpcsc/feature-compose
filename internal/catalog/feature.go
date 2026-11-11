@@ -17,6 +17,7 @@ type feature struct {
 	extensionPoints map[string]extensionPoint
 	addTo           map[string][]map[string]string
 	needs           []string
+	needValues      map[string]map[string]string
 }
 
 func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool, error) {
@@ -60,7 +61,7 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 	for name, declared := range parsed.ExtensionPoints {
 		extensionPoints[name] = extensionPoint{name: name, declarer: "the feature " + featureName, itemFields: declared.Item}
 	}
-	return feature{name: featureName, templates: templates, rules: rules, options: declaredOptions, extensionPoints: extensionPoints, addTo: parsed.AddTo, needs: parsed.needNames}, true, nil
+	return feature{name: featureName, templates: templates, rules: rules, options: declaredOptions, extensionPoints: extensionPoints, addTo: parsed.AddTo, needs: parsed.needNames, needValues: parsed.Needs}, true, nil
 }
 
 func (f feature) placedIn(folders map[string]folder) ([]template, error) {

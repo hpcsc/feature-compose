@@ -271,42 +271,42 @@ stop, and the message names both needs. In the catalog of this repo, the need of
 (decision 7).
 
 **Acceptance Criteria:**
-- [ ] With a catalog where `cli-auth` needs `auth` and sets `method: oauth`, and the default of `method` is `api-key`,
+- [x] With a catalog where `cli-auth` needs `auth` and sets `method: oauth`, and the default of `method` is `api-key`,
   `--feature cli-auth` writes the files of `auth` with `oauth`, and the preview shows
   `auth.method: oauth (need of cli-auth)`. A need that sets the value of the default also shows
   `need of <feature>`.
-- [ ] When the needs of two selected features set one option to the same value, the source names both features in the
+- [x] When the needs of two selected features set one option to the same value, the source names both features in the
   order of their names, for example `need of a, b`.
-- [ ] A flag that gives an option the value that a need sets does not stop, and the source is
+- [x] A flag that gives an option the value that a need sets does not stop, and the source is
   `command line, need of cli-auth`.
-- [ ] A flag that gives an option another value than a need stops `Select`, and the message names the option, its
+- [x] A flag that gives an option another value than a need stops `Select`, and the message names the option, its
   feature, the value of the flag with the command line, and the value of the need with the need of its feature, for
   example `oauth` from the command line and `api-key` from the need of `cli-auth`. `new` and `new --dry-run` stop with
   that message, make no output folder, run no command and print no preview, in each order of the flags.
-- [ ] The needs of two selected features that set one option to different values stop `Select`, and the message names
+- [x] The needs of two selected features that set one option to different values stop `Select`, and the message names
   the option, its feature, and each value with the need that sets it.
-- [ ] A need value that its option does not have, a need value for an option that the feature does not declare, and a
+- [x] A need value that its option does not have, a need value for an option that the feature does not declare, and a
   need value for a feature with no option stop `Select` with the message of the same flag, and the message also names
   the feature whose need sets the value.
-- [ ] An answer for an option that a need sets does not stop `Select`: the option has the value of the need, with the
+- [x] An answer for an option that a need sets does not stop `Select`: the option has the value of the need, with the
   source `need of <features>`. With no selected feature whose need sets it, the option has the answer again.
-- [ ] A template of the needed feature reads the value of the need with `option`, and a template of the feature that
+- [x] A template of the needed feature reads the value of the need with `option`, and a template of the feature that
   needs it reads it as `<need>.<option>`.
-- [ ] `Selection.Questions` gives such an option with the value of the need, the source of the preview, and `NeedOf`
+- [x] `Selection.Questions` gives such an option with the value of the need, the source of the preview, and `NeedOf`
   with the features whose needs set it, in the order of their names. `Given` is true only for a value from a flag, and
   `NeedOf` is empty for a value that no need sets. The groups `preview` and `questions` of `TestSelection` and the
   group `select` of `TestStarter` hold these cases.
-- [ ] `catalog/features/cli-auth/feature.yml` writes its need of `api-auth` with `method: api-key`, and its need of
+- [x] `catalog/features/cli-auth/feature.yml` writes its need of `api-auth` with `method: api-key`, and its need of
   `cli` with no value. `new go-event-sourcing-service my-service --feature cli-auth --dry-run` shows
   `api-auth.method: api-key (need of cli-auth)`. The test of the docs of `cli-auth`
   (`internal/catalog/catalog_test.go:800-813`) sets its other method through the need of `cli-auth` in its copy of the
   catalog, since a flag with another value now stops.
-- [ ] `README.md`, in "Preview a Repo": the example shows `api-auth.method: api-key (need of cli-auth)`; the table of the
+- [x] `README.md`, in "Preview a Repo": the example shows `api-auth.method: api-key (need of cli-auth)`; the table of the
   sources of an option has `need of <features>` and says when the line starts with `command line, `; and the paragraph
   of the stops of `--dry-run` names a flag that gives an option another value than a need.
-- [ ] `e2e/tests/new.test.ts:185-195` and `e2e/tests/new.test.ts:337-362` expect
+- [x] `e2e/tests/new.test.ts:185-195` and `e2e/tests/new.test.ts:337-362` expect
   `api-auth.method: api-key (need of cli-auth)`, and the e2e tests of `new` pass on the host.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `internal/catalog/starter.go` — `Select` collects the values of the needs of the selected features, and stops on a

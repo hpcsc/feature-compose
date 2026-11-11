@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 )
 
 type optionValues struct {
 	byName   map[string]string
 	given    map[string]bool
+	needOf   map[string][]string
 	answered map[string]bool
 	defaults map[string]string
 }
@@ -44,19 +46,24 @@ func (o optionValues) missing(optionName string) bool {
 }
 
 func (o optionValues) source(optionName string) string {
+	needOf := strings.Join(o.needOf[optionName], ", ")
 	switch {
+	case o.given[optionName] && needOf != "":
+		return "command line, need of " + needOf
 	case o.given[optionName]:
 		return "command line"
+	case needOf != "":
+		return "need of " + needOf
 	case o.answered[optionName]:
 		return "answered"
 	}
 	return "default"
 }
 
-func (o optionValues) notDefault() map[string]string {
+func (o optionValues) valuesOfArguments() map[string]string {
 	values := map[string]string{}
 	for optionName, value := range o.byName {
-		if value != o.defaults[optionName] {
+		if value != o.defaults[optionName] && len(o.needOf[optionName]) == 0 {
 			values[optionName] = value
 		}
 	}

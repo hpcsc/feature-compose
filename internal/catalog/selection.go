@@ -103,9 +103,9 @@ func (s Selection) Arguments(output string) string {
 	if output != s.name {
 		words = append(words, "--output-dir", output)
 	}
-	words = append(words, flagValues(s.starter.values.notDefault()).optionWords()...)
+	words = append(words, flagValues(s.starter.values.valuesOfArguments()).optionWords()...)
 	for _, f := range s.featuresOfArguments() {
-		words = append(words, flagValues(f.values.notDefault()).featureWords(f.name)...)
+		words = append(words, flagValues(f.values.valuesOfArguments()).featureWords(f.name)...)
 	}
 	quoted := make([]string, 0, len(words))
 	for _, word := range words {
@@ -165,7 +165,7 @@ func (s Selection) featuresOfArguments() []selectedFeature {
 		switch {
 		case f.requested():
 			requested = append(requested, f)
-		case len(f.values.notDefault()) > 0:
+		case len(f.values.valuesOfArguments()) > 0:
 			others = append(others, f)
 		}
 	}

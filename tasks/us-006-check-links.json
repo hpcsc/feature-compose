@@ -1,0 +1,170 @@
+{
+  "story": "Check the links between features and starters",
+  "story_id": "feature-compose/US-006",
+  "tasks_file": "tasks/us-006-check-links.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Add `check`, which finds an `add_to` that no target or need declares, and an item without the fields of its extension point",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/cmd/show.go:15-54",
+        "internal/cmd/root.go:27-40",
+        "internal/cmd/root.go:53-59",
+        "internal/cmd/show_test.go:25-34",
+        "internal/cmd/root_test.go:39-60",
+        "internal/catalog/catalog.go:33-47",
+        "internal/catalog/starter.go:317-341",
+        "internal/catalog/starter.go:171-188",
+        "internal/catalog/extension_point.go:17-28",
+        "internal/catalog/starter_test.go:346-417",
+        "internal/catalog/catalog_test.go:299-311",
+        "e2e/tests/show.test.ts:5-40",
+        "e2e/testUtils.ts:30-40",
+        "README.md:218-237",
+        "PROPOSAL.md:475-491",
+        "PROPOSAL.md:328-337",
+        "tasks/learnings.md:134-140",
+        "tasks/learnings.md:183-189",
+        "tasks/learnings.md:197-203",
+        "tasks/learnings.md:204-210",
+        "tasks/learnings.md:211-216",
+        "tasks/learnings.md:58-64"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "internal/catalog/catalog.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/extension_point.go",
+        "internal/catalog/catalog_test.go",
+        "internal/cmd/check.go",
+        "internal/cmd/check_test.go",
+        "internal/cmd/root.go",
+        "internal/cmd/root_test.go",
+        "README.md",
+        "e2e/tests/check.test.ts"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Find a folder that a target does not have, and targets that declare one extension point with other item fields",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1",
+        "internal/catalog/template.go:48-64",
+        "internal/catalog/feature.go:41-62",
+        "internal/catalog/extension_point.go:17-28",
+        "internal/catalog/starter_test.go:308-317",
+        "tasks/learnings.md:134-140",
+        "tasks/learnings.md:183-189",
+        "tasks/learnings.md:197-203"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "internal/catalog/catalog.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/template.go",
+        "internal/catalog/catalog_test.go",
+        "README.md"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Find a need that does not exist, does not target each target, or sets a value that its option does not have",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1",
+        "internal/catalog/starter.go:208-224",
+        "internal/catalog/starter.go:272-292",
+        "internal/catalog/option.go:103-117",
+        "internal/catalog/feature.go:23-75",
+        "internal/catalog/catalog.go:76-92",
+        "internal/catalog/starter_test.go:781-798",
+        "internal/catalog/starter_test.go:830-855",
+        "tasks/learnings.md:134-140",
+        "tasks/learnings.md:183-189",
+        "tasks/learnings.md:197-203",
+        "tasks/learnings.md:204-210",
+        "tasks/learnings.md:285-291"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "internal/catalog/feature.go",
+        "internal/catalog/catalog.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/catalog_test.go",
+        "README.md"
+      ]
+    },
+    {
+      "n": 4,
+      "done": false,
+      "title": "Find each cycle in the needs, and name each feature in it",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1",
+        "internal/catalog/starter.go:226-261",
+        "internal/catalog/starter.go:171-188",
+        "internal/catalog/starter_test.go:857-881",
+        "tasks/learnings.md:148-154",
+        "tasks/learnings.md:134-140",
+        "tasks/learnings.md:183-189"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "internal/catalog/starter.go",
+        "internal/catalog/catalog_test.go",
+        "README.md"
+      ]
+    },
+    {
+      "n": 5,
+      "done": false,
+      "title": "Run `check` on the catalog of this repo in CI",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1",
+        "internal/cmd/show.go:15-54",
+        "internal/config/file.go:43-46",
+        "Taskfile.test.yml:11-14",
+        ".github/workflows/ci.yml:14-39",
+        "README.md:342-360"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "internal/cmd/check.go",
+        "internal/cmd/check_test.go",
+        "Taskfile.test.yml",
+        ".github/workflows/ci.yml",
+        "README.md"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-006-check-links.design.yaml"
+}

@@ -23,7 +23,7 @@ available in the channel, the installer lists them for you to pick.
 
 ## Configure the catalog
 
-`feature-compose new` and `feature-compose show` read the starters and the features from a catalog folder. The config file
+`feature-compose new`, `feature-compose show` and `feature-compose check` read the starters and the features from a catalog folder. The config file
 `~/.config/feature-compose/config.yml` names the folder (`$XDG_CONFIG_HOME/feature-compose/config.yml` when
 `XDG_CONFIG_HOME` is set):
 
@@ -33,8 +33,8 @@ catalog: ~/code/feature-compose/catalog
 
 The folder holds `starters/` and `features/`. The catalog of this repo is in `catalog/`. A path that starts
 with `~/` is in your home folder, and another relative path is relative to the folder of the config file.
-Without the config file, `new` and `show` stop and name the path of the file. `version` and `update` do not
-read it.
+Without the config file, `new`, `show` and `check` stop and name the path of the file. `version` and `update` do
+not read it.
 
 `feature-compose update` also installs from a release, and it replaces this very binary, so the
 installer and the update command do the same kind of job; use whichever you find convenient on a fresh
@@ -289,6 +289,33 @@ is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each
 | `features.<name>.extension_points.<name>.file` | The file of the feature that renders the items. |
 | `features.<name>.extension_points.<name>.item` | The fields of each item. |
 | `features.<name>.add_to.<name>` | The items that the feature adds to the extension point, each with the fields of that extension point. |
+
+## Check the Catalog
+
+`feature-compose check` finds each feature of the catalog that does not fit its targets or its needs, so that a
+mistake in the catalog stops before a developer runs `new`. It reads the catalog folder that the config file
+names, and checks each feature against each starter that its `targets` name.
+
+```shell
+feature-compose check
+```
+
+`check` finds these mistakes:
+
+| Mistake | Example of the message |
+| --- | --- |
+| An `add_to` names an extension point that the starter, the feature and its needs do not declare. A need of a need counts as a need. Another feature of the starter does not count, also when `new` selects it. | `the starter service: the feature tools adds to the extension point "cli.commands", which the starter, the feature and its needs do not declare` |
+| An item does not have the item fields of its extension point. The order of the fields does not matter. | `the starter service: the item 2 that the feature auth adds to the extension point "api.middleware" has the fields [code], but the extension point declares the fields [code, import]` |
+
+Each message names the starter, the feature, and the extension point that is wrong. A feature with two targets
+gives one mistake for each target that it does not fit.
+
+`check` prints each mistake on its own line to stdout, in the order of the starters, the features, the extension
+points and the items. Then it writes the number of the mistakes to stderr, for example
+`the catalog has 2 mistakes`, and exits with the status 1. With no mistake, it prints
+`The catalog has no mistakes.` and exits with the status 0. A catalog that `check` cannot read, for example a
+`starter.yml` that is not valid YAML, stops `check` with the message that `new` and `show` give, and the exit
+status is 1.
 
 ## Build
 

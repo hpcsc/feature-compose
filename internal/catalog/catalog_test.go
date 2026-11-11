@@ -348,6 +348,156 @@ func TestCatalog(t *testing.T) {
 		})
 	})
 
+	t.Run("check", func(t *testing.T) {
+		withFeatures := func(features map[string]string) fstest.MapFS {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code, import]\n")},
+				"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte("package server\n")},
+			}
+			for featureName, definition := range features {
+				files["features/"+featureName+"/feature.yml"] = &fstest.MapFile{Data: []byte(definition)}
+			}
+			return files
+		}
+
+		for name, extensionPoint := range map[string]string{
+			"that nothing declares": "cli.commands",
+			"that only a feature that the feature does not need declares": "docs.pages",
+		} {
+			t.Run("an add_to to an extension point "+name+" is a mistake, and the message names the starter, the feature and the extension point", func(t *testing.T) {
+				files := withFeatures(map[string]string{
+					"auth": "targets: [service]\nadd_to:\n  " + extensionPoint + ":\n    - path: auth.md\n",
+					"docs": "targets: [service]\nextension_points:\n  docs.pages:\n    file: go/index.md\n    item: [path]\n",
+				})
+
+				mistakes, err := catalog.New(files).Check()
+
+				require.NoError(t, err)
+				require.Equal(t, []string{
+					`the starter service: the feature auth adds to the extension point "` + extensionPoint + `", which the starter, the feature and its needs do not declare`,
+				}, mistakes)
+			})
+		}
+
+		t.Run("an add_to to an extension point that the starter, the feature itself, a need or a need of a need declares is not a mistake", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"app": `targets: [service]
+needs: [cli]
+extension_points:
+  app.routes:
+    file: go/routes.go
+    item: [path]
+add_to:
+  api.middleware:
+    - code: app.Middleware()
+      import: internal/app
+  app.routes:
+    - path: /app
+  cli.commands:
+    - code: newAppCommand()
+  cli.flags:
+    - name: verbose
+  base.hooks:
+    - code: appHook()
+  docs.pages:
+    - path: app.md
+`,
+				"cli":  "targets: [service]\nneeds: [base]\nextension_points:\n  cli.commands:\n    file: go/cli.go\n    item: [code]\n  cli.flags:\n    file: go/flags.go\n    item: [name]\n",
+				"base": "targets: [service]\nextension_points:\n  base.hooks:\n    file: go/base.go\n    item: [code]\n",
+			})
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the starter service: the feature app adds to the extension point "docs.pages", which the starter, the feature and its needs do not declare`,
+			}, mistakes)
+		})
+
+		for name, item := range map[string][2]string{
+			"that lacks a field of its extension point":              {"    - code: auth.Middleware\n", "[code]"},
+			"with a field that its extension point does not declare": {"    - code: auth.Middleware\n      import: internal/auth\n      order: first\n", "[code, import, order]"},
+		} {
+			t.Run("an item "+name+" is a mistake, and the message names the starter, the feature, the extension point, the item, its fields and the declared fields", func(t *testing.T) {
+				files := withFeatures(map[string]string{"auth": "targets: [service]\nadd_to:\n  api.middleware:\n" + item[0]})
+
+				mistakes, err := catalog.New(files).Check()
+
+				require.NoError(t, err)
+				require.Equal(t, []string{
+					`the starter service: the item 1 that the feature auth adds to the extension point "api.middleware" has the fields ` + item[1] + `, but the extension point declares the fields [code, import]`,
+				}, mistakes)
+			})
+		}
+
+		t.Run("an item with the fields of its extension point in another order is not a mistake", func(t *testing.T) {
+			files := withFeatures(map[string]string{"auth": "targets: [service]\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n  cli.commands:\n    - code: newAuthCommand()\n"})
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [import, code]\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the starter service: the feature auth adds to the extension point "cli.commands", which the starter, the feature and its needs do not declare`,
+			}, mistakes)
+		})
+
+		t.Run("all mistakes of the catalog are in one list, in the order of the starters, the features, the extension points and the items, and each target of a feature gives its own mistake", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth": `targets: [service, worker]
+add_to:
+  api.middleware:
+    - code: auth.Middleware
+    - code: auth.Audit
+      import: internal/auth
+    - code: auth.Log
+      import: internal/auth
+      order: last
+`,
+				"tools": "targets: [service]\nadd_to:\n  cli.commands:\n    - code: newToolsCommand()\n  admin.pages:\n    - path: tools.md\n",
+			})
+			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")}
+			files["starters/worker/files/go/main.go"] = &fstest.MapFile{Data: []byte("package main\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the starter service: the item 1 that the feature auth adds to the extension point "api.middleware" has the fields [code], but the extension point declares the fields [code, import]`,
+				`the starter service: the item 3 that the feature auth adds to the extension point "api.middleware" has the fields [code, import, order], but the extension point declares the fields [code, import]`,
+				`the starter service: the feature tools adds to the extension point "admin.pages", which the starter, the feature and its needs do not declare`,
+				`the starter service: the feature tools adds to the extension point "cli.commands", which the starter, the feature and its needs do not declare`,
+				`the starter worker: the feature auth adds to the extension point "api.middleware", which the starter, the feature and its needs do not declare`,
+			}, mistakes)
+		})
+
+		t.Run("the catalog of this repo has no mistake", func(t *testing.T) {
+			mistakes, err := repoCatalog().Check()
+
+			require.NoError(t, err)
+			require.Empty(t, mistakes)
+		})
+
+		t.Run("a starter.yml that is not valid YAML stops the check, and the message names the file", func(t *testing.T) {
+			files := withFeatures(nil)
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders: [go\n")}
+
+			_, err := catalog.New(files).Check()
+
+			require.ErrorContains(t, err, "starters/service/starter.yml")
+		})
+
+		for _, failing := range []string{"starters", "starters/service/starter.yml", "features", "features/auth/feature.yml"} {
+			t.Run("a read of "+failing+" that fails stops the check with its cause", func(t *testing.T) {
+				files := failingFS{failing: failing, files: withFeatures(map[string]string{"auth": "targets: [service]\nadd_to:\n  cli.commands:\n    - code: newAuthCommand()\n"})}
+
+				_, err := catalog.New(files).Check()
+
+				require.ErrorContains(t, err, "disk failure")
+			})
+		}
+	})
+
 	t.Run("embedded", func(t *testing.T) {
 		writtenStarter := func(t *testing.T, given map[string]string) (string, map[string]string) {
 			t.Helper()

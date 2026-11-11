@@ -168,6 +168,44 @@ func (s Starter) combinations() []Combination {
 	return combinations
 }
 
+func (s Starter) mistakes() []string {
+	var mistakes []string
+	for _, featureName := range slices.Sorted(maps.Keys(s.features)) {
+		f := s.features[featureName]
+		declared := s.extensionPointsDeclaredFor(f)
+		for _, name := range slices.Sorted(maps.Keys(f.addTo)) {
+			extensionPoint, ok := declared[name]
+			if !ok {
+				mistakes = append(mistakes, fmt.Sprintf("the feature %s adds to the extension point %q, which the starter, the feature and its needs do not declare", f.name, name))
+				continue
+			}
+			for i, item := range f.addTo[name] {
+				if err := extensionPoint.checkItem(f.name, i+1, item); err != nil {
+					mistakes = append(mistakes, err.Error())
+				}
+			}
+		}
+	}
+	for i, mistake := range mistakes {
+		mistakes[i] = "the starter " + s.name + ": " + mistake
+	}
+	return mistakes
+}
+
+func (s Starter) extensionPointsDeclaredFor(f feature) map[string]extensionPoint {
+	declared := maps.Clone(s.extensionPoints)
+	declarers := append([]string{f.name}, slices.Sorted(maps.Keys(s.allNeedsOf(f.name)))...)
+	for _, declarer := range declarers {
+		extensionPoints := s.features[declarer].extensionPoints
+		for _, name := range slices.Sorted(maps.Keys(extensionPoints)) {
+			if _, ok := declared[name]; !ok {
+				declared[name] = extensionPoints[name]
+			}
+		}
+	}
+	return declared
+}
+
 func (s Starter) oneNeedsTheOther(first, second string) bool {
 	return s.allNeedsOf(first)[second] || s.allNeedsOf(second)[first]
 }

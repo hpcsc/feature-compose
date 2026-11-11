@@ -15,16 +15,22 @@ type extensionPoint struct {
 }
 
 func (e extensionPoint) add(featureName string, items []map[string]string) (extensionPoint, error) {
-	declared := slices.Sorted(slices.Values(e.itemFields))
 	for i, item := range items {
-		fields := slices.Sorted(maps.Keys(item))
-		if !slices.Equal(fields, declared) {
-			return extensionPoint{}, fmt.Errorf("the item %d that the feature %s adds to the extension point %q has the fields [%s], but the extension point declares the fields [%s]",
-				i+1, featureName, e.name, strings.Join(fields, ", "), strings.Join(e.itemFields, ", "))
+		if err := e.checkItem(featureName, i+1, item); err != nil {
+			return extensionPoint{}, err
 		}
 	}
 	e.items = append(slices.Clone(e.items), items...)
 	return e, nil
+}
+
+func (e extensionPoint) checkItem(featureName string, number int, item map[string]string) error {
+	fields := slices.Sorted(maps.Keys(item))
+	if !slices.Equal(fields, slices.Sorted(slices.Values(e.itemFields))) {
+		return fmt.Errorf("the item %d that the feature %s adds to the extension point %q has the fields [%s], but the extension point declares the fields [%s]",
+			number, featureName, e.name, strings.Join(fields, ", "), strings.Join(e.itemFields, ", "))
+	}
+	return nil
 }
 
 func (e extensionPoint) values(field string) ([]string, error) {

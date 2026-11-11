@@ -59,6 +59,41 @@ func TestRootCommand(t *testing.T) {
 			require.Contains(t, printed.String(), `"extra": {`)
 		})
 
+		t.Run("check finds the mistakes of the catalog folder that the config file names", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			configHome := t.TempDir()
+			catalogDir := t.TempDir()
+			t.Setenv("XDG_CONFIG_HOME", configHome)
+			writeFile := func(path, contents string) {
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+				require.NoError(t, os.WriteFile(path, []byte(contents), 0o644))
+			}
+			writeFile(filepath.Join(catalogDir, "starters", "alpha", "starter.yml"), "folders:\n  go:\n    path: .\n")
+			writeFile(filepath.Join(catalogDir, "starters", "alpha", "files", "go", "main.go"), "package main\n")
+			writeFile(filepath.Join(catalogDir, "features", "extra", "feature.yml"), "targets: [alpha]\nadd_to:\n  cli.commands:\n    - code: newExtraCommand()\n")
+			writeFile(filepath.Join(configHome, "feature-compose", "config.yml"), "catalog: "+catalogDir+"\n")
+			var printed bytes.Buffer
+			command := newCommand()
+			command.Writer, command.ErrWriter = &printed, io.Discard
+
+			err := command.Run(context.Background(), []string{"feature-compose", "check"})
+
+			require.EqualError(t, err, "the catalog has 1 mistake")
+			require.Equal(t, "the starter alpha: the feature extra adds to the extension point \"cli.commands\", which the starter, the feature and its needs do not declare\n", printed.String())
+		})
+
+		t.Run("with no config file, check stops and names the path of the config file", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			configHome := t.TempDir()
+			t.Setenv("XDG_CONFIG_HOME", configHome)
+			command := newCommand()
+			command.Writer, command.ErrWriter = io.Discard, io.Discard
+
+			err := command.Run(context.Background(), []string{"feature-compose", "check"})
+
+			require.ErrorContains(t, err, "no config file at "+filepath.Join(configHome, "feature-compose", "config.yml"))
+		})
+
 		t.Run("with no config file, new stops, names the path of the config file, and makes no output folder", func(t *testing.T) {
 			workingFolder := t.TempDir()
 			t.Chdir(workingFolder)
@@ -102,6 +137,7 @@ func TestRootCommand(t *testing.T) {
 			require.NoError(t, err)
 			require.Contains(t, printed.String(), "make a new repo from a starter")
 			require.Contains(t, printed.String(), "show the starters, the features and the extension points of the catalog")
+			require.Contains(t, printed.String(), "find each feature of the catalog that does not fit its targets or its needs")
 			require.Contains(t, printed.String(), "replace feature-compose with the latest release")
 		})
 	})

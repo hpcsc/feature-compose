@@ -33,6 +33,7 @@ func newCommand() *cli.Command {
 		Commands: []*cli.Command{
 			newNewCommand(catalogInConfig),
 			newShowCommand(catalogInConfig),
+			newCheckCommand(catalogInConfig),
 			newVersionCommand(),
 			newUpdateCommand(),
 		},

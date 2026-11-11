@@ -1,0 +1,59 @@
+design: planned
+types:
+  - name: Catalog
+    package: internal/catalog
+    change: changed
+    does: finds a starter by name with the features that target it, lists the combinations that CI makes a repo from, reads the definitions, and checks the links of each feature to its targets and its needs
+    owns:
+      - Check gives each mistake of each starter of the catalog in one list, in a fixed order, and stops only on a catalog that it cannot read, with the message that new and show give
+      - Check reads each feature of the catalog whatever its targets, so it finds a wrong need value also when the need does not target the starter
+      - a feature whose targets declare one extension point of its add_to with item fields that differ, in any order, is a mistake, and its message names the feature, the extension point and each target with its item fields
+      - Check gathers the mistakes itself and does not call Select, because Select stops at its first error, reports the mistake of a need under each feature that needs it, and never compares two starters; it applies the rule of new to one item, one file and one need value, so check and new agree on each rule
+    fields: [fsys]
+    methods: [Starter, Combinations, Definitions, Check]
+  - name: Starter
+    package: internal/catalog
+    change: changed
+    does: one starter of the catalog with the features that target it, which each selection of a repo starts from and whose features check checks against it
+    owns:
+      - a feature adds only to an extension point that the starter, the feature itself, or a need of the feature or a need of a need declares; another feature that targets the starter does not count
+      - each item that a feature adds has the item fields of its extension point, in any order, and each item with other fields is one mistake
+      - each file of each files entry of a feature, whatever its when, is in a folder of the starter, and each folder that the starter does not have is one mistake
+      - each need of a feature is a feature of the catalog that targets the starter, and each value that a need sets is a value of its option
+      - each feature that is in a cycle of the needs of the features that target the starter is named in a cycle mistake, in the order of the needs, and a feature out of the cycle is named in none
+      - each mistake names the starter, the feature, and the extension point, folder or need that is wrong
+    fields: [name, options, folders, templates, features, extensionPoints]
+    methods: [Select, FeatureNames, mistakes]
+  - name: feature
+    package: internal/catalog
+    change: changed
+    does: one feature.yml with its targets, its templates, its options, its needs with the values that they set, the extension points that it declares and the items that it adds
+    owns:
+      - a feature reads whatever its targets, and only a feature whose targets name a starter is a feature of that starter
+    fields: [name, targets, templates, rules, options, extensionPoints, addTo, needs, needValues]
+    methods: [placedIn, addsToOneExtensionPointWith]
+functions: []
+words:
+  - concept: a link of a feature to a target or a need that does not fit, which check finds and reports with the others, and which does not stop check
+    word: mistake
+    not: [error, problem, issue, violation, finding, defect, lint]
+  - concept: the command that finds the mistakes of the catalog, and Catalog.Check that it calls
+    word: check
+    not: [lint, validate, verify, audit, doctor]
+  - concept: a starter that the targets of a feature.yml name
+    word: target
+    not: [host, platform, starter of the feature, supported starter]
+  - concept: the starter or the feature that declares an extension point
+    word: declarer
+    not: [owner, provider, source, origin]
+  - concept: the fields that an extension point declares in item, which each item must have
+    word: item fields
+    not: [schema, shape, columns, keys, item type]
+  - concept: features whose needs lead back to the first of them
+    word: cycle
+    not: [loop, circular dependency, recursion, ring]
+  - concept: the catalog folder that check reads instead of the one that the config file names
+    word: catalog
+    not: [catalog-dir, root, path, source]
+dependencies:
+  - internal/cmd -> internal/catalog

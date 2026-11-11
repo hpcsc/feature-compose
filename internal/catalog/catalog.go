@@ -73,6 +73,22 @@ func (c Catalog) Definitions() (Definitions, error) {
 	return definitions, nil
 }
 
+func (c Catalog) Check() ([]string, error) {
+	names, err := c.starterNames()
+	if err != nil {
+		return nil, err
+	}
+	var mistakes []string
+	for _, starterName := range names {
+		starter, err := c.Starter(starterName)
+		if err != nil {
+			return nil, err
+		}
+		mistakes = append(mistakes, starter.mistakes()...)
+	}
+	return mistakes, nil
+}
+
 func (c Catalog) featuresTargeting(starterName string) (map[string]feature, error) {
 	featureNames, err := c.featureNames()
 	if err != nil {

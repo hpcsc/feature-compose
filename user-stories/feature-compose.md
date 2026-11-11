@@ -64,7 +64,7 @@ flowchart LR
     E --> K
     J --> L
     G --> M
-    L --> M
+    R --> M
     E --> N
     D --> O
     E --> O
@@ -73,18 +73,20 @@ flowchart LR
     P --> Q
     L --> R
     N --> R
+    R --> G
 
     classDef critical fill:#fde68a,stroke:#b45309,stroke-width:2px,color:#1f2937
-    class A,B,C,E,J,L,M,R critical
+    class A,B,C,E,J,L,R,G,H,I,M critical
 ```
 
 All stories start from US-001. US-005 is the bottleneck: six stories wait for it, because it is the first
 story with a need, and those stories show, check, record, or ask about needs.
 
-The critical path is six stories deep: US-001, then US-002 or US-003, then US-005, US-010, US-012, and
-US-013 or US-018. Build US-002 and US-003 at the same time, and start the TUI (US-010, then US-012) soon
-after US-005. US-018 also waits for `show` (US-014), because the form of `new` has the look and the keys of
-`show`.
+The critical path is eight stories deep: US-001, then US-002 or US-003, then US-005, US-010, US-012, US-018,
+and US-007, and then US-008, US-009, or US-013. Build US-002 and US-003 at the same time, and start the TUI
+(US-010, then US-012) soon after US-005. US-018 also waits for `show` (US-014), because the form of `new` has
+the look and the keys of `show`. US-007 and US-013 wait for the form, because each one changes what its tree
+shows.
 
 ## User Stories
 
@@ -281,6 +283,9 @@ tokens that an OAuth issuer signs, and no API key goes to each user.
   `api-key`.
 - [ ] `new --dry-run` shows the source `need` for each option value that a need sets, with the feature whose
   need sets it, for example the `method` of `api-auth` that the need of `cli-auth` sets.
+- [ ] In the form of `new` (US-018), the tree marks an option value that a need sets as `fixed`, and the
+  details name the need as its source. Enter at that option starts no edit, and the details say which need
+  sets the value.
 - [ ] A repo with each value of `method` builds and passes its tests.
 
 **Context:** The fifth criterion keeps a developer from a CLI that cannot sign in, because `cli-auth`
@@ -289,7 +294,7 @@ and a need give different values, the tool stops and names both sources. Open qu
 asks which issuer to use. This story works with each issuer that signs JWT access tokens and publishes
 discovery. Google does not give a JWT access token for your own API.
 
-**Depends on:** US-005
+**Depends on:** US-005, US-018
 
 ### US-008: The CLI signs in with OAuth
 
@@ -427,7 +432,8 @@ store, so that the users of the CLI give the key one time with `auth login`, and
 
 - [ ] `cli-auth` has the option `store-key`, with the values `true` and `false`. The default is `false`.
 - [ ] The tool asks for `store-key` only when `api-auth.method` is `api-key`. When the method is `oauth`,
-  the TUI does not show the question, and `store-key` has its default value.
+  the tree of the form of `new` (US-018) does not show `store-key`, and `store-key` has its default value.
+  The tree shows or hides `store-key` after each change of `method`.
 - [ ] With `store-key=true`, `auth login` stores the key in the OS credential store, and the CLI sends the
   stored key on later calls. `auth logout` removes the stored key. The environment variable still works.
 - [ ] With `store-key=false`, the CLI has no code for the store.
@@ -438,7 +444,7 @@ store, so that the users of the CLI give the key one time with `auth login`, and
 tokens in the same store (US-008), so the files of the store serve both methods. The `when` of `store-key`
 reads an option of a need.
 
-**Depends on:** US-007, US-012
+**Depends on:** US-007, US-018
 
 ### US-014: Show the catalog
 

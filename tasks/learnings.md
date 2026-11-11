@@ -211,9 +211,9 @@
 ## A full clerk mutants run of a story in internal/catalog passes its 10 minutes
 - Type: constraint
 - Recorded: 2026-11-11
-- Observed: us-018-form
-- Learning: A story that changes several files of internal/catalog, internal/form, internal/screen or internal/browser makes hundreds of mutants against the run base (US-018: 27 files, 309 mutants), and clerk mutants stops at 10 minutes with an INCOMPLETE row; each later run, --id or in another worktree included, replaces the kept run that clerk audit accept reads. To read only the lines of the audit fixes, run clerk mutants --base HEAD while the fixes are still uncommitted (git add -N a new file first), then fold, run the full --since-last-run against the run base last, accept its INCOMPLETE key, and name the --base HEAD run in the reason.
-- Apply when: running clerk mutants after the audit fixes of a story that changes several files of internal/catalog, internal/form, internal/screen or internal/browser, or clerk audit accept refuses on an INCOMPLETE mutants row
+- Observed: task 3 — us-007-oauth
+- Learning: A story that changes several files of internal/catalog, internal/form, internal/screen or internal/browser makes hundreds of mutants against the run base (US-018: 27 files, 309 mutants), and clerk mutants stops at 10 minutes with an INCOMPLETE row. One task can pass the limit too: the parser of when in US-007 made 269 mutants in 5 files, and each runs the tests of internal/catalog (about 10 seconds) on 4 workers. To read only the lines of a fix, run clerk mutants --base HEAD while the fix is still uncommitted (git add -N a new file first), then fold. When a task or a run against the base stops at the limit, run mutants run --base HEAD --tags unit --workers 6 with no --limit and a --json report (about 15 minutes), and accept the INCOMPLETE key with that report as the reason.
+- Apply when: running clerk mutants on a task or after the audit fixes of a story that changes internal/catalog, internal/form, internal/screen or internal/browser, or clerk finish or clerk audit accept refuses on an INCOMPLETE mutants row
 ## Test new in a pseudo-terminal that has a size, with a context that ends
 - Type: pattern
 - Recorded: 2026-11-11
@@ -222,11 +222,10 @@
 - Apply when: writing a test in internal/cmd of when new starts the TUI, or of what new does after the TUI ends
 ## tuistory starts each command about 5 seconds late
 - Type: constraint
-- Recorded: 2026-11-10
-- Observed: task 5 — us-012-tui
-- Learning: In the terminal of tuistory a command that writes to the terminal draws its first output about 5 seconds after the start, also feature-compose version and also before the TUI of new existed, so a screen test waits up to 15 seconds for its first text and for an EXIT that follows it.
+- Recorded: 2026-11-11
+- Observed: us-007-oauth
+- Learning: In the terminal of tuistory a command that writes to the terminal draws its first output about 5 seconds after the start, also feature-compose version and also before the TUI of new existed, so a screen test waits up to 15 seconds for its first text and for an EXIT that follows it. Two tests of e2e/tests/show.test.ts (the tree with each starter open, and the contract of api.middleware) wait for their first text with the default 5 seconds, and each failed one time in US-007 when show.test.ts ran next to new.test.ts on a busy host; both pass when show.test.ts runs alone.
 - Apply when: writing an e2e screen test with openCli, or reading a waitForText timeout of about 5 seconds as a defect of the TUI
-
 ## The shell refuses > onto a file that exists
 - Type: constraint
 - Recorded: 2026-11-10
@@ -268,3 +267,31 @@
 - Observed: us-018-form
 - Learning: After the audit fixes of US-018, clerk audit accept refused on 14 CALLER GAP rows: internal/cmd calls the form only through form.New, tea.Program and Model.Confirmed, so its tests do not run the details, the edits or the messages of the form. TestModel of internal/form runs each of those lines through the public API, so accept each row with that reason (check it with a coverage profile of internal/form) instead of a pty test in internal/cmd for each row.
 - Apply when: clerk audit accept or clerk mutants reports CALLER GAP rows for internal/form, internal/browser or another package that internal/cmd runs through a TUI
+
+## A feature that caches an outside service needs its rules of time and concurrency planned
+- Type: pattern
+- Recorded: 2026-11-11
+- Observed: task 4 — us-007-oauth
+- Learning: Task 4 of US-007 (the oauth method, which reads OIDC discovery and the signing keys of an issuer) was rated low certainty and went green at the first attempt, but two audit rounds found six runtime defects in its cache: a lock held across the HTTP calls, no pause after a failed read, keys that never expire, a cancelled request that spends the pause, and a known key that waits for a refresh. Plan them in the task: one read at a time in a goroutine with a context of its own, a known value that never waits, an expiry that keeps the old values while a refresh fails, a pause after each kind of read, and a clock from the constructor with tests of the cache in the package.
+- Apply when: decomposing or building a feature whose written code reads an outside service and keeps the result, for example signing keys, tokens, discovery or remote config
+
+## clerk audit run --recheck takes the JSON text, not a file path
+- Type: constraint
+- Recorded: 2026-11-11
+- Observed: us-007-oauth
+- Learning: In US-007 a path given to --recheck stopped the round before it began with 'needs a JSON array of findings, and this will not parse as JSON', while the background command still ended with exit 0. Pass --recheck "$(cat <file>)", and read the first lines of the log once to see 'scope · round N' before you wait.
+- Apply when: launching a second or later audit round with clerk audit run --recheck
+
+## task test:unit does not build the combinations test
+- Type: constraint
+- Recorded: 2026-11-11
+- Observed: us-007-oauth
+- Learning: internal/catalog/combination_test.go has the build tag combinations, so task test:unit and clerk mutants never build it. A call in it that lost its import on main (commit 2c7fc25) showed only when task test:combinations ran, as 'undefined: catalog', and no combination ran. Run go vet -tags combinations ./internal/catalog/ after a change to an API of internal/catalog that the test calls, and before task test:combinations.
+- Apply when: changing a signature or a type of internal/catalog that combination_test.go uses, or before running task test:combinations
+
+## A design-check fix that renames a type is a design change of its own
+- Type: constraint
+- Recorded: 2026-11-11
+- Observed: us-007-oauth
+- Learning: In US-007 the design check of needValues asked for a new name and a new shape; clerk design note then recorded valuesSetByNeeds as D3, and clerk step asked for a check of D3 before the audit could be accepted again, which cost one more agent, one more fold and one more mutants run against the base. Plan a design-check fix that renames or reshapes a type as its own change, and record its note before you close the earlier check.
+- Apply when: fixing a finding of a design check with a new name or a new shape of a type

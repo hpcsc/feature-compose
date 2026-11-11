@@ -77,7 +77,7 @@ that it needs, with its source:
 | Source | Meaning |
 | --- | --- |
 | `command line` | A `--feature` flag selects the feature. When other selected features also need it, the line ends with `, needed by <features>`. |
-| `answered` | You select the feature in the TUI (see [Answer the Questions in a TUI](#answer-the-questions-in-a-tui)). When other selected features also need it, the line ends with `, needed by <features>`. `--dry-run` starts no TUI, so it never shows this source. |
+| `answered` | You select the feature in the form (see [Answer the Questions in a TUI](#answer-the-questions-in-a-tui)). When other selected features also need it, the line ends with `, needed by <features>`. `--dry-run` opens no form, so it never shows this source. |
 | `needed by <features>` | Only a need selects the feature. The line is the line that `new` prints for it. |
 
 Then the preview gives each option by the name with which a template reads it: the options of the starter as
@@ -87,7 +87,7 @@ above. Each option shows the value that the templates read, and its source:
 | Source | Meaning |
 | --- | --- |
 | `command line` | `--option <name>=<value>` or `--feature <name>:<option>=<value>` gives the value, also when it is the same as the default. |
-| `answered` | You give the value in the TUI, also when you keep the default. `--dry-run` starts no TUI, so it never shows this source. |
+| `answered` | You keep the value with Enter in the form, also when it is the default. `--dry-run` opens no form, so it never shows this source. |
 | `default` | No flag gives the value, so the option has its default. A default that holds `{{ .Name }}` shows with the name of the repo. |
 
 Last, the preview gives each file of the repo by its path, in the order of the paths, with its owner: the starter,
@@ -103,97 +103,89 @@ The preview is text for a person, and its layout can change. A script reads the 
 
 ## Answer the Questions in a TUI
 
-When stdin and stdout are both terminals, `feature-compose new` starts a TUI. The TUI asks for each answer that the
-arguments and the flags do not give, one step at a time, in this order:
-
-1. **The starter step** lists the starters of the catalog, in the order of the names, with their `summary`.
-2. **The name step** asks for the name of the repo. While the name is not valid, the TUI shows why, and `enter`
-   does not go on.
-3. **The feature step** and **the needs step**: see below.
-4. **The options step**: see below.
-5. **The confirm step**: see below.
-
-The arguments and the flags answer steps before the TUI starts:
-
-| You give | The TUI starts at |
-| --- | --- |
-| No argument | The starter step |
-| `<starter>` | The name step |
-| `<starter> <name>` | The feature step, or the options step when no feature targets the starter |
-| `<starter> <name>` and a `--feature` flag | The options step, or the confirm step when no option needs an answer |
-
-An unknown starter stops `new` before the TUI starts. When the TUI asks for the starter, `new` checks the flags after
-the name step, and a flag that the starter does not know ends the TUI with the message that `new` gives without the
-TUI.
-
-In the lists, `↑` and `↓` move and `enter` chooses. A list has no filter. In each step, `esc` or `ctrl+c` cancels.
-
-**The feature step** lists each feature that targets the starter, in the order of the names, with its `summary`.
-Select none, one or more features:
-
-| Key | Action |
-| --- | --- |
-| `↑` or `↓` | Move to a feature. |
-| `x` or `space` | Select the feature, or clear it. |
-| `enter` | Go on, also with no feature selected. |
-
-**The needs step** comes after the feature step when a need adds a feature. It shows each feature that a need adds,
-for example `api-auth: needed by cli-auth`. Choose `Continue` to go on, or `Change the features` to go back to the
-feature step with your features still selected.
-
-A `--feature` flag answers the feature step, so the TUI then shows neither the feature step nor the needs step. For
-example, `feature-compose new go-event-sourcing-service my-service` starts at the feature step, and
-`feature-compose new go-event-sourcing-service my-service --feature cli` starts at the options step, because no flag
-gives the options of the starter.
-
-**The options step** comes next. It asks each option that no `--option` or `--feature` flag gives, in one group for
-the options of the starter and then one group for each feature with such an option. The groups of the features come
-in the order of the preview, so a need comes before the feature that needs it, and the TUI asks each option one
-time. A text option starts with its default, and an option with `values` starts with its default chosen, above the
-other values. While a text does not match the `pattern` of its option, the TUI shows the message under the group,
-and `enter` does not go on. The TUI also does not accept the empty text for an option with no default, or a comma
-in a value of an option of a feature, because `--feature` cannot give that value.
-
-| Key | Action |
-| --- | --- |
-| `↑` or `↓` | Choose a value of an option with `values`. |
-| `enter` | Go to the next option, or to the next group. |
-| `shift+tab` | Go back to the option before, in the same group. |
-
-**The confirm step** shows the preview of the repo, which is the text that `--dry-run` prints, and asks whether to
-write the repo:
+When stdin and stdout are both terminals, `feature-compose new` opens a form. The form has the look and the keys of
+the TUI of `show` (see [Show the Catalog](#show-the-catalog)). The left pane is a tree of the answers, and the right
+pane shows the details of the selected row. You can change any answer in any order. This is
+`feature-compose new go-event-sourcing-service my-service --feature cli-auth`:
 
 ```text
-feature-compose new
-Repo: my-service
-Starter: go-event-sourcing-service
 
-Features:
-  api-auth: needed by cli-auth
-  cli: needed by cli-auth
-  cli-auth: command line
-...
-
-┃ Write the repo?
-┃
-┃   Yes     No
- 0% · ctrl+d/u scroll • ←/→ move • enter confirm • esc cancel
+ feature-compose new                                                                               3 features
+╭─ Repo ───────────────────────────────────╮╭─ name ─────────────────────────────────────────────────────────╮
+│ ▌  name     my-service  fixed            ││ value   my-service                                             │
+│  ▾ starter  go-event-sourcing-service  … ││ source  command line                                           │
+│    ├─   go-version  1.27.1               ││                                                                │
+│    ├─   module      github.com/hpcsc/my… ││                                                                │
+│    ├─ ▾ [x] api-auth  needed by cli-auth ││                                                                │
+│    │  └─   method  api-key               ││                                                                │
+│    ├─   [x] cli  needed by cli-auth      ││                                                                │
+│    └─   [x] cli-auth  fixed              ││                                                                │
+╰──────────────────────────────────────────╯╰────────────────────────────────────────────────────────────────╯
+ j/k move • l open • h close • space select • w write • ctrl+d/u scroll details • q quit
 ```
 
-A feature or a value that a flag gives shows the source `command line`. The flag fixes it, and the TUI does not ask
-for it. A feature that you select in the TUI, and a value that you give in the TUI, show the source `answered`.
+The tree has these rows:
+
+| Row | What it shows |
+| --- | --- |
+| `name` | The name of the repo. |
+| `starter` | The starter. Under it come the options of the starter, in the order of the names, and then each feature that targets the starter, each after the features that it needs. |
+| A feature | `[x]` when the repo gets the feature, and `[ ]` when it does not. Under a selected feature come its options. |
+| An option | The option and its value. |
+
+A mark after a row tells you more about it:
+
+| Mark | Meaning |
+| --- | --- |
+| `fixed` | An argument or a flag gives the value, so the form does not change it. |
+| `needed by <features>` | Selected features need the feature, so it stays selected. |
+| `missing` | The row has no value yet, and `w` stops on it. |
+
+The keys of the form:
 
 | Key | Action |
 | --- | --- |
-| `ctrl+d` or `pgdown` | Scroll the preview down. When the preview is longer than the screen, the last line starts with how far it is scrolled. |
-| `ctrl+u` or `pgup` | Scroll the preview up. |
-| `←` or `→` | Move between Yes and No. |
-| `enter` | Write the repo when Yes is chosen, and cancel when No is chosen. |
-| `y` | Write the repo. |
-| `n`, `esc` or `ctrl+c` | Cancel. |
+| `j`, `k`, or the up and down arrows | Move down and up in the tree. |
+| `l` or the right arrow | Open the selected starter or feature. At an open row, select its first row. |
+| `h`, Esc, or the left arrow | Close an open row. At another row, select the row that it is under. |
+| Space | Select the feature of the row, or clear it. |
+| Enter | Edit the name, the starter or the option of the row. At a feature, do what `l` does. |
+| `w` | Show the preview of the repo, and ask whether to write it. |
+| ctrl+d and ctrl+u, or Page Down and Page Up | Scroll the details down and up by half the pane. |
+| `q` or ctrl+c | Stop the form and write nothing. During an edit of a text, `q` goes to the text, and ctrl+c stops the form. |
 
-`new` writes nothing until you choose Yes. A cancel writes no file, makes no output folder and runs no command.
-`new` then prints `you canceled new, so it wrote no file` and ends with the status 1.
+**The features and their needs.** Space at a feature selects it, and the form also selects each feature that it
+needs, with the mark `needed by <features>`. Space at a needed feature changes nothing, and the details name the
+features that need it. Space at a feature that you selected clears it, and also clears each feature that only its
+needs selected. A feature that a `--feature` flag gives stays selected, and you can select more features next to it.
+When the selection stops, for example because two features declare one extension point, the feature stays as it was
+and the details show the message.
+
+**The edit.** Enter at the name, or at an option without `values`, starts an edit of the text in the right pane. Each
+key goes to the text. While the text does not pass its check, the details say why, for example that it does not match
+the `pattern` of the option. Enter keeps a text that passes, and Esc drops the change. Enter at an option with
+`values`, or at the starter, lists the values or the starters in the right pane: `j` and `k` move, Enter keeps the
+chosen one, and Esc drops the change. Enter at a value that an argument or a flag gives starts no edit.
+
+A value that you keep has the source `answered`, also when it is the default. Until you keep a value for an option,
+the option has its default, and a default that reads the name, for example `github.com/hpcsc/{{ .Name }}`, follows
+the name. A clear of a feature drops the values that you kept for it.
+
+**The starter.** A change of the starter keeps each feature that you selected and that targets the new starter, with
+the values that you kept for it. It clears the other features, and the values that you kept for the options of the
+old starter. A starter that the flags do not fit, or whose features have needs that form a cycle, is not kept, and
+the details show the message.
+
+**Write the repo.** `w` shows the preview in the right pane, which is the text that `--dry-run` prints, and asks
+`Write the repo?`. `y` writes the repo, and `n` or Esc goes back to the form. While an answer is missing (the name,
+the starter, or the value of an option with no default), `w` selects its row, opens the rows above it, and the details
+say what is missing.
+
+An unknown starter, and a flag that the starter does not know, stop `new` before the form opens, with the message that
+`new` gives without the form.
+
+`new` writes nothing until you press `y`. A cancel writes no file, makes no output folder and runs no command. `new`
+then prints `you canceled new, so it wrote no file` and ends with the status 1.
 
 After `new` writes the repo, it prints the command that makes the same repo:
 
@@ -207,7 +199,7 @@ The command names each value that is not its default, and each feature that you 
 shell splits, expands or matches against files in single quotes. That command with `--no-prompt` makes the same
 files.
 
-`new` starts no TUI when stdin or stdout is not a terminal, or with `--no-prompt` or `--dry-run`. CI uses this mode.
+`new` opens no form when stdin or stdout is not a terminal, or with `--no-prompt` or `--dry-run`. CI uses this mode.
 `new` then needs both arguments, `<starter>` and `<name>`.
 Each option without a value then gets its default. An option with no default and no value stops `new`, and the
 message names the option and the flag that gives it:

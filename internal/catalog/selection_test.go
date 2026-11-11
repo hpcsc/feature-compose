@@ -1216,25 +1216,25 @@ Options:
 			return selection
 		}
 		type question struct {
-			declarer, feature, option, value, source, defaultValue, pattern string
-			given, missing                                                  bool
-			accepted                                                        []string
+			feature, option, value, source, defaultValue, pattern string
+			given, missing                                        bool
+			accepted                                              []string
 		}
 		contentsOf := func(questions []catalog.Question) []question {
 			contents := make([]question, 0, len(questions))
 			for _, q := range questions {
-				contents = append(contents, question{declarer: q.Declarer(), feature: q.Feature, option: q.Option, value: q.Value, source: q.Source, defaultValue: q.Default, pattern: q.Pattern, given: q.Given, missing: q.Missing, accepted: q.Accepted})
+				contents = append(contents, question{feature: q.Feature, option: q.Option, value: q.Value, source: q.Source, defaultValue: q.Default, pattern: q.Pattern, given: q.Given, missing: q.Missing, accepted: q.Accepted})
 			}
 			return contents
 		}
-		questionOf := func(t *testing.T, selection catalog.Selection, declarer, optionName string) catalog.Question {
+		questionOf := func(t *testing.T, selection catalog.Selection, featureName, optionName string) catalog.Question {
 			t.Helper()
 			for _, q := range selection.Questions() {
-				if q.Declarer() == declarer && q.Option == optionName {
+				if q.Feature == featureName && q.Option == optionName {
 					return q
 				}
 			}
-			require.Failf(t, "no question", "%s %s", declarer, optionName)
+			require.Failf(t, "no question", "%s %s", featureName, optionName)
 			return catalog.Question{}
 		}
 
@@ -1244,12 +1244,12 @@ Options:
 			questions := selection.Questions()
 
 			require.Equal(t, []question{
-				{declarer: "the starter service", option: "label", value: "x", source: "default", defaultValue: "x"},
-				{declarer: "the starter service", option: "module", value: "example.com/my-service", source: "default", defaultValue: "example.com/my-service", pattern: "^[a-z./-]+$"},
-				{declarer: "the starter service", option: "region", value: "", source: "default", defaultValue: "", pattern: "^[a-z]+$", missing: true},
-				{declarer: "the feature zed", feature: "zed", option: "mode", value: "fast", source: "default", defaultValue: "fast", accepted: []string{"slow", "fast"}},
-				{declarer: "the feature zed", feature: "zed", option: "token", value: "", source: "default", defaultValue: "", pattern: "^.*$", missing: true},
-				{declarer: "the feature alpha", feature: "alpha", option: "level", value: "1", source: "default", defaultValue: "1"},
+				{option: "label", value: "x", source: "default", defaultValue: "x"},
+				{option: "module", value: "example.com/my-service", source: "default", defaultValue: "example.com/my-service", pattern: "^[a-z./-]+$"},
+				{option: "region", value: "", source: "default", defaultValue: "", pattern: "^[a-z]+$", missing: true},
+				{feature: "zed", option: "mode", value: "fast", source: "default", defaultValue: "fast", accepted: []string{"slow", "fast"}},
+				{feature: "zed", option: "token", value: "", source: "default", defaultValue: "", pattern: "^.*$", missing: true},
+				{feature: "alpha", option: "level", value: "1", source: "default", defaultValue: "1"},
 			}, contentsOf(questions))
 		})
 
@@ -1259,11 +1259,11 @@ Options:
 			questions := selection.Questions()
 
 			require.Equal(t, []question{
-				{declarer: "the starter service", option: "label", value: "y", source: "command line", defaultValue: "x", given: true},
-				{declarer: "the starter service", option: "module", value: "example.com/my-service", source: "default", defaultValue: "example.com/my-service", pattern: "^[a-z./-]+$"},
-				{declarer: "the starter service", option: "region", value: "eu", source: "command line", defaultValue: "", pattern: "^[a-z]+$", given: true},
-				{declarer: "the feature zed", feature: "zed", option: "mode", value: "slow", source: "command line", defaultValue: "fast", given: true, accepted: []string{"slow", "fast"}},
-				{declarer: "the feature zed", feature: "zed", option: "token", value: "", source: "default", defaultValue: "", pattern: "^.*$", missing: true},
+				{option: "label", value: "y", source: "command line", defaultValue: "x", given: true},
+				{option: "module", value: "example.com/my-service", source: "default", defaultValue: "example.com/my-service", pattern: "^[a-z./-]+$"},
+				{option: "region", value: "eu", source: "command line", defaultValue: "", pattern: "^[a-z]+$", given: true},
+				{feature: "zed", option: "mode", value: "slow", source: "command line", defaultValue: "fast", given: true, accepted: []string{"slow", "fast"}},
+				{feature: "zed", option: "token", value: "", source: "default", defaultValue: "", pattern: "^.*$", missing: true},
 			}, contentsOf(questions))
 		})
 
@@ -1273,19 +1273,7 @@ Options:
 			selection, err := starter.Select("my-service", nil, nil, catalog.Answers{StarterValues: map[string]string{"label": "z"}})
 			require.NoError(t, err)
 
-			require.Equal(t, question{declarer: "the starter service", option: "label", value: "z", source: "answered", defaultValue: "x"}, contentsOf(selection.Questions())[0])
-		})
-
-		t.Run("the answers with the values of the questions hold each value of the starter and of each feature, and keep the features", func(t *testing.T) {
-			questions := selectionWith(t, nil, map[string]map[string]string{"alpha": {}}).Questions()
-
-			answers := catalog.Answers{Features: []string{"alpha"}}.WithValues(questions, []string{"l", "m", "r", "fast", "t", "2"})
-
-			require.Equal(t, catalog.Answers{
-				Features:      []string{"alpha"},
-				StarterValues: map[string]string{"label": "l", "module": "m", "region": "r"},
-				FeatureValues: map[string]map[string]string{"zed": {"mode": "fast", "token": "t"}, "alpha": {"level": "2"}},
-			}, answers)
+			require.Equal(t, question{option: "label", value: "z", source: "answered", defaultValue: "x"}, contentsOf(selection.Questions())[0])
 		})
 
 		t.Run("each question of a selection whose each value a flag gives is given", func(t *testing.T) {
@@ -1298,16 +1286,16 @@ Options:
 			require.Equal(t, []bool{true, true, true, true, true}, given)
 		})
 
-		for name, test := range map[string]struct{ declarer, optionName, value string }{
-			"a value that does not match the pattern of its option": {declarer: "the starter service", optionName: "region", value: "EU"},
-			"a value that is not one of the values of its option":   {declarer: "the feature zed", optionName: "mode", value: "medium"},
+		for name, test := range map[string]struct{ featureName, optionName, value string }{
+			"a value that does not match the pattern of its option": {featureName: "", optionName: "region", value: "EU"},
+			"a value that is not one of the values of its option":   {featureName: "zed", optionName: "mode", value: "medium"},
 		} {
 			t.Run("check refuses "+name+" with the message that the selection gives for the same answer", func(t *testing.T) {
 				selection := selectionWith(t, nil, map[string]map[string]string{"zed": {}})
-				q := questionOf(t, selection, test.declarer, test.optionName)
+				q := questionOf(t, selection, test.featureName, test.optionName)
 				starter, err := catalog.New(withQuestions()).Starter("service")
 				require.NoError(t, err)
-				_, selectErr := starter.Select("my-service", nil, map[string]map[string]string{"zed": {}}, catalog.Answers{}.WithValues([]catalog.Question{q}, []string{test.value}))
+				_, selectErr := starter.Select("my-service", nil, map[string]map[string]string{"zed": {}}, catalog.Answers{}.WithValue(q.Feature, q.Option, test.value))
 				require.Error(t, selectErr)
 
 				err = q.Check(test.value)
@@ -1319,7 +1307,7 @@ Options:
 		t.Run("check refuses the empty text for an option with no default, and names the option", func(t *testing.T) {
 			selection := selectionWith(t, nil, map[string]map[string]string{"zed": {}})
 
-			err := questionOf(t, selection, "the feature zed", "token").Check("")
+			err := questionOf(t, selection, "zed", "token").Check("")
 
 			require.EqualError(t, err, "the option token of the feature zed has no default, so it needs a value")
 		})
@@ -1327,7 +1315,7 @@ Options:
 		t.Run("check accepts the empty text for an option with a default when the option accepts it", func(t *testing.T) {
 			selection := selectionWith(t, nil, nil)
 
-			err := questionOf(t, selection, "the starter service", "label").Check("")
+			err := questionOf(t, selection, "", "label").Check("")
 
 			require.NoError(t, err)
 		})
@@ -1335,7 +1323,7 @@ Options:
 		t.Run("check refuses a comma in a value of an option of a feature, because --feature cannot give it", func(t *testing.T) {
 			selection := selectionWith(t, nil, map[string]map[string]string{"zed": {}})
 
-			err := questionOf(t, selection, "the feature zed", "token").Check("a,b")
+			err := questionOf(t, selection, "zed", "token").Check("a,b")
 
 			require.EqualError(t, err, `the value "a,b" of the option token of the feature zed holds a comma, which --feature cannot give`)
 		})
@@ -1343,18 +1331,18 @@ Options:
 		t.Run("each answer that check accepts, given back to the selection, gives the files with that value, and a value of the starter keeps its commas", func(t *testing.T) {
 			selection := selectionWith(t, nil, map[string]map[string]string{"alpha": {}})
 			answerOf := map[string]string{
-				"the starter service module": "example.com/acme", "the starter service region": "eu", "the starter service label": "a,b",
-				"the feature zed mode": "slow", "the feature zed token": "t", "the feature alpha level": "2",
+				"module": "example.com/acme", "region": "eu", "label": "a,b",
+				"zed mode": "slow", "zed token": "t", "alpha level": "2",
 			}
-			questions := selection.Questions()
-			values := make([]string, len(questions))
-			for i, q := range questions {
-				values[i] = answerOf[q.Declarer()+" "+q.Option]
-				require.NoError(t, q.Check(values[i]), q.Option)
+			answers := catalog.Answers{}
+			for _, q := range selection.Questions() {
+				value := answerOf[strings.TrimSpace(q.Feature+" "+q.Option)]
+				require.NoError(t, q.Check(value), q.Option)
+				answers = answers.WithValue(q.Feature, q.Option, value)
 			}
 			starter, err := catalog.New(withQuestions()).Starter("service")
 			require.NoError(t, err)
-			answered, err := starter.Select("my-service", nil, map[string]map[string]string{"alpha": {}}, catalog.Answers{}.WithValues(questions, values))
+			answered, err := starter.Select("my-service", nil, map[string]map[string]string{"alpha": {}}, answers)
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 

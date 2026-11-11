@@ -18,10 +18,6 @@ type Question struct {
 	options  options
 }
 
-func (q Question) Declarer() string {
-	return q.options.declarer
-}
-
 func (q Question) Check(value string) error {
 	if err := q.options.check(map[string]string{q.Option: value}); err != nil {
 		return err

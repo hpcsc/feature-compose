@@ -275,64 +275,73 @@ describe('feature-compose new', () => {
 
 describe('feature-compose new in a terminal', () => {
   const flags = ['--feature', 'cli-auth', '--feature', 'api-auth:method=api-key', '--option', 'go-version=1.28', '--option', 'module=github.com/acme/my-service']
+  const pressed = async (session: Awaited<ReturnType<typeof openCli>>, keys: string[]) => {
+    for (const key of keys) {
+      await session.press(key as Parameters<typeof session.press>[0])
+    }
+  }
 
-  it('the confirm step shows the preview with the values of the flags as command line, ctrl+d scrolls it, and n cancels and writes nothing', async () => {
+  it('the form marks the values of the arguments and the flags as fixed and the needs as needed by, w shows the preview, ctrl+d scrolls it, esc goes back, and q cancels and writes nothing', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', ...flags])
 
-    await session.waitForText('Write the repo?', { timeout: 15_000 })
-    const screen = await session.text()
+    await session.waitForText('needed by cli-auth', { timeout: 15_000 })
+    const tree = await session.text()
+    for (const part of ['name     my-service  fixed', 'starter  go-event-sourcing-service  fixed', 'go-version  1.28', '[x] cli-auth  fixed', '[x] api-auth  fixed, needed by cli-auth', '[x] cli  needed by cli-auth']) {
+      expect(tree).toContain(part)
+    }
+    expect(tree).toMatch(/go-version {2}1\.28 {2}fixed/)
+    await session.press('w')
+    await session.waitForText('Write the repo?')
+    const preview = await session.text()
     for (const part of ['Repo: my-service', 'cli-auth: command line', 'api-auth: command line, needed by cli-auth', 'cli: needed by cli-auth', 'starter.go-version: 1.28 (command line)']) {
-      expect(screen).toContain(part)
+      expect(preview).toContain(part)
     }
     for (let i = 0; i < 20 && !(await session.text()).includes('go.mod: the starter'); i++) {
       await session.press(['ctrl', 'd'])
     }
     expect(await session.text()).toContain('go.mod: the starter')
-    await session.press('n')
+    await session.press('escape')
+    await session.waitForText('name     my-service  fixed')
+    expect(await session.text()).not.toContain('Write the repo?')
+    await session.press('q')
     await session.waitForText('EXIT:1')
     expect(await session.text()).toContain('you canceled new, so it wrote no file')
     expect(readdirSync(dir)).toEqual([])
   })
 
-  it('without --feature, the feature step lists the features with their summaries, the needs step shows what cli-auth needs and goes back, and the confirm step shows the selected feature as answered', async () => {
+  it('space at cli-auth selects its needs, space at a need keeps it and names cli-auth, space at cli-auth clears the three, and a feature that space selects shows answered in the preview', async () => {
     const dir = scratchDir()
-    const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--option', 'go-version=1.28', '--option', 'module=github.com/acme/my-service'])
+    const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service'])
 
-    await session.waitForText('Select the features', { timeout: 15_000 })
-    const features = await session.text()
-    for (const part of ['api-auth — The API accepts a request', 'cli — A command line program', 'cli-auth — The CLI sends the API key']) {
-      expect(features).toContain(part)
-    }
-    for (const key of ['down', 'down', 'x', 'enter'] as const) {
-      await session.press(key)
-    }
-    await session.waitForText('api-auth: needed by cli-auth')
-    expect(await session.text()).toContain('cli: needed by cli-auth')
-    await session.press('down')
-    await session.press('enter')
-    await session.waitForText('✓ cli-auth')
-    for (const key of ['x', 'up', 'x', 'enter'] as const) {
-      await session.press(key)
-    }
+    await session.waitForText('[ ] cli-auth', { timeout: 15_000 })
+    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'j', 'space'])
+    await session.waitForText('[x] cli  needed by cli-auth')
+    expect(await session.text()).toContain('[x] api-auth  needed by cli-auth')
+    await pressed(session, ['k', 'k', 'k', 'space'])
+    await session.waitForText('api-auth stays selected: it is needed by cli-auth.')
+    expect(await session.text()).toContain('[x] api-auth  needed by cli-auth')
+    await pressed(session, ['j', 'j', 'j', 'space'])
+    await session.waitForText('[ ] api-auth')
+    const cleared = await session.text()
+    expect(cleared).toContain('[ ] cli ')
+    expect(cleared).toContain('[ ] cli-auth')
+    await pressed(session, ['k', 'space', 'w'])
     await session.waitForText('Write the repo?')
     expect(await session.text()).toContain('cli: answered')
-    await session.press('n')
+    await session.press('q')
     await session.waitForText('EXIT:1')
     expect(readdirSync(dir)).toEqual([])
   })
 
-  it('the options step asks the options of the starter and then of api-auth, refuses a go-version that does not match its pattern, and the confirm step shows each answer as answered', async () => {
+  it('enter at go-version edits it, the form refuses a text that does not match its pattern and keeps one that matches, and the preview shows it as answered next to the defaults', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth'])
 
-    await session.waitForText('The options of the starter go-event-sourcing-service', { timeout: 15_000 })
-    const starterOptions = await session.text()
-    expect(starterOptions).toContain('> 1.27.1')
-    expect(starterOptions).toContain('> github.com/hpcsc/my-service')
-    for (let i = 0; i < '1.27.1'.length; i++) {
-      await session.press('backspace')
-    }
+    await session.waitForText('go-version  1.27.1', { timeout: 15_000 })
+    await pressed(session, ['j', 'j', 'enter'])
+    await session.waitForText('> 1.27.1')
+    await pressed(session, Array(6).fill('backspace'))
     await session.type('1.20')
     await session.waitForText('^1\\.(2[7-9]|[3-9][0-9])(\\.[0-9]+)?$')
     await session.press('enter')
@@ -340,38 +349,20 @@ describe('feature-compose new in a terminal', () => {
     await session.press('backspace')
     await session.type('8')
     await session.press('enter')
-    await session.press('enter')
-    await session.waitForText('The options of the feature api-auth')
-    expect(await session.text()).toContain('> api-key')
-    await session.press('enter')
+    await session.waitForText('go-version  1.28')
+    await session.press('w')
     await session.waitForText('Write the repo?')
-    const screen = await session.text()
-    for (const part of ['starter.go-version: 1.28 (answered)', 'starter.module: github.com/hpcsc/my-service (answered)', 'api-auth.method: api-key (answered)', 'cli-auth: command line']) {
-      expect(screen).toContain(part)
+    const preview = await session.text()
+    for (const part of ['starter.go-version: 1.28 (answered)', 'starter.module: github.com/hpcsc/my-service (default)', 'api-auth.method: api-key (default)']) {
+      expect(preview).toContain(part)
     }
-    await session.press('n')
-    await session.waitForText('EXIT:1')
-    expect(readdirSync(dir)).toEqual([])
-  })
-
-  it('an option that --option gives is not asked, and the confirm step shows it with command line', async () => {
-    const dir = scratchDir()
-    const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--option', 'go-version=1.28'])
-
-    await session.waitForText('The options of the starter go-event-sourcing-service', { timeout: 15_000 })
-    expect(await session.text()).not.toContain('go-version')
-    await session.press('enter')
-    await session.waitForText('The options of the feature api-auth')
-    await session.press('enter')
-    await session.waitForText('Write the repo?')
-    expect(await session.text()).toContain('starter.go-version: 1.28 (command line)')
-    await session.press('escape')
+    await session.press('q')
     await session.waitForText('EXIT:1')
     expect(readdirSync(dir)).toEqual([])
   })
 
   it(
-    'with no argument, new asks for the starter, the name, the features and the options, writes the repo after y, and the printed command with --no-prompt makes the same files',
+    'with no argument, w selects the missing name, the form takes the name and the starter, the default of module follows the name, y writes the repo, and the printed command with --no-prompt makes the same files',
     async () => {
       const dir = scratchDir()
       const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
@@ -379,22 +370,20 @@ describe('feature-compose new in a terminal', () => {
       mkdirSync(join(dir, 'flags'))
       const session = await openCli(join(dir, 'tui'), ['new'], env)
 
-      await session.waitForText('go-event-sourcing-service — A Go service with an event store, an HTTP API, and a catchup process.', { timeout: 15_000 })
+      await session.waitForText('starter    missing', { timeout: 15_000 })
+      await session.press('w')
+      await session.waitForText('the name "" of the repo')
       await session.press('enter')
-      await session.waitForText('Enter the name of the repo')
       await session.type('my-service')
       await session.press('enter')
-      await session.waitForText('Select the features')
-      for (const key of ['down', 'down', 'x', 'enter'] as const) {
-        await session.press(key)
-      }
-      await session.waitForText('api-auth: needed by cli-auth')
+      await session.waitForText('name     my-service')
+      await pressed(session, ['j', 'enter'])
+      await session.waitForText('A Go service with an event store, an HTTP API, and a catchup process.')
       await session.press('enter')
-      await session.waitForText('The options of the starter go-event-sourcing-service')
-      await session.press('enter')
-      await session.press('enter')
-      await session.waitForText('The options of the feature api-auth')
-      await session.press('enter')
+      await session.waitForText('go-version  1.27.1')
+      await pressed(session, ['j', 'j'])
+      await session.waitForText('github.com/hpcsc/my-service')
+      await pressed(session, ['j', 'j', 'j', 'space', 'w'])
       await session.waitForText('Write the repo?')
       await session.press('y')
       await session.waitForText('EXIT:0', { timeout: 14 * 60 * 1000 })
@@ -408,39 +397,12 @@ describe('feature-compose new in a terminal', () => {
     15 * 60 * 1000,
   )
 
-  it('esc at the confirm step cancels, and writes nothing', async () => {
-    const dir = scratchDir()
-    const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', ...flags])
-
-    await session.waitForText('Write the repo?', { timeout: 15_000 })
-    await session.press('escape')
-    await session.waitForText('EXIT:1')
-    expect(await session.text()).toContain('you canceled new, so it wrote no file')
-    expect(readdirSync(dir)).toEqual([])
-  })
-
-  it(
-    'y at the confirm step writes the repo, and prints the command that makes the same repo',
-    async () => {
-      const dir = scratchDir()
-      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
-      const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli', '--option', 'go-version=1.27.1', '--option', 'module=github.com/acme/my-service'], env)
-
-      await session.waitForText('Write the repo?', { timeout: 15_000 })
-      await session.press('y')
-      await session.waitForText('EXIT:0', { timeout: 14 * 60 * 1000 })
-      expect(await session.text()).toContain('feature-compose new go-event-sourcing-service my-service --option module=github.com/acme/my-service --feature cli')
-      expect(readFileSync(join(dir, 'my-service', 'go.mod'), 'utf8')).toContain('module github.com/acme/my-service\n')
-    },
-    15 * 60 * 1000,
-  )
-
   for (const [name, args] of [
     ['stdin is not a terminal', ['<', '/dev/null']],
     ['stdout is not a terminal', ['|', 'cat']],
     ['--no-prompt asks for it', ['--no-prompt']],
   ]) {
-    it(`starts no TUI when ${name}`, async () => {
+    it(`opens no form when ${name}`, async () => {
       const dir = scratchDir()
       mkdirSync(join(dir, 'taken'))
       writeFileSync(join(dir, 'taken', 'notes.txt'), 'notes\n')
@@ -449,18 +411,18 @@ describe('feature-compose new in a terminal', () => {
       await session.waitForText(/EXIT:\d+/, { timeout: 15_000 })
       const screen = await session.text()
       expect(screen).toContain('the output folder taken is not empty')
-      expect(screen).not.toContain('Write the repo?')
+      expect(screen).not.toContain('j/k move')
     })
   }
 
-  it('--dry-run in a terminal prints the preview and starts no TUI', async () => {
+  it('--dry-run in a terminal prints the preview and opens no form', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--dry-run'])
 
     await session.waitForText('EXIT:0', { timeout: 15_000 })
     const screen = await session.text()
     expect(screen).toContain(': the starter')
-    expect(screen).not.toContain('Write the repo?')
+    expect(screen).not.toContain('j/k move')
     expect(readdirSync(dir)).toEqual([])
   })
 })

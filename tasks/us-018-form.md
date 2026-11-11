@@ -757,31 +757,31 @@ and the command that it prints today. A cancel ends with the status 1 and writes
 go away (decision 1). The tests in a terminal, the e2e tests and the README tell the form.
 
 **Acceptance Criteria:**
-- [ ] `new` opens the form only when stdin and stdout are both terminals, without `--no-prompt` and without
+- [x] `new` opens the form only when stdin and stdout are both terminals, without `--no-prompt` and without
   `--dry-run`, with zero, one or two arguments. Else it starts no form and acts as today: the tests of
   `TestNewCommand` that run without a terminal pass unchanged.
-- [ ] In a terminal, `w` and then `y` make `new` write the repo, run the `after_render` commands, and print the
+- [x] In a terminal, `w` and then `y` make `new` write the repo, run the `after_render` commands, and print the
   `needed by` lines, `Made <output> from the starter <starter>.` and the command `feature-compose new` with
   `Selection.Arguments` of the output folder, with the status 0.
-- [ ] In a terminal, `q`, and ctrl+c, stop `new` with `you canceled new, so it wrote no file` on stderr and the status
+- [x] In a terminal, `q`, and ctrl+c, stop `new` with `you canceled new, so it wrote no file` on stderr and the status
   1, and `new` writes no file, makes no output folder and runs no command.
-- [ ] An unknown starter, and a flag that `Select` refuses, stop `new` before the form opens, with the message of `new`
+- [x] An unknown starter, and a flag that `Select` refuses, stop `new` before the form opens, with the message of `new`
   without the form.
-- [ ] The group `tui` of `TestNewCommand` types the keys of the form in a pseudo-terminal: `w` and `y` write the repo
+- [x] The group `tui` of `TestNewCommand` types the keys of the form in a pseudo-terminal: `w` and `y` write the repo
   and print the command; `q` cancels; with no argument and with one argument the form opens and `q` cancels;
   `--no-prompt` and `--dry-run` open no form; a stdin or a stdout that is not a terminal opens no form.
-- [ ] No Go file imports `github.com/charmbracelet/huh`, `go.mod` does not require it, `internal/prompt` is gone, and
+- [x] No Go file imports `github.com/charmbracelet/huh`, `go.mod` does not require it, `internal/prompt` is gone, and
   `go mod tidy` leaves `go.mod` and `go.sum` as they are.
-- [ ] No exported name of `internal/catalog` is left without a caller outside its package, for example
+- [x] No exported name of `internal/catalog` is left without a caller outside its package, for example
   `Answers.WithValues` when the form does not call it.
-- [ ] The section "Answer the Questions in a TUI" of `README.md` tells the form: when `new` opens it; the tree and its
+- [x] The section "Answer the Questions in a TUI" of `README.md` tells the form: when `new` opens it; the tree and its
   rows; the keys (`j`, `k`, `l`, `h`, Esc, Space, Enter, `w`, `y`, `n`, ctrl+d, ctrl+u, `q`, and ctrl+c during an
   edit); the marks `fixed` and `needed by`; the rules of the needs; the edit with its check, keep and drop; the
   change of the starter; the default that follows the name; `w` with the preview and the missing answers; the cancel
   and its status; the printed command; and when `new` opens no form. The rows `answered` of the tables of the sources
   in "Preview a Repo" say that a value is answered when the developer keeps it with Enter, also when it is the
   default.
-- [ ] `e2e/tests/new.test.ts`, describe "feature-compose new in a terminal", on the catalog of this repo:
+- [x] `e2e/tests/new.test.ts`, describe "feature-compose new in a terminal", on the catalog of this repo:
   - `new go-event-sourcing-service my-service --feature cli-auth --feature api-auth:method=api-key --option
     go-version=1.28 --option module=github.com/acme/my-service` shows the tree with `my-service`, the starter,
     `cli-auth` and `go-version` marked `fixed`, and `api-auth` and `cli` with `needed by cli-auth`. `w` shows
@@ -802,7 +802,7 @@ go away (decision 1). The tests in a terminal, the e2e tests and the README tell
     --feature cli-auth`. That command with `--no-prompt`, run in a second scratch folder, writes a repo with the same
     files and the same contents.
   - With stdin from `/dev/null`, with stdout to `cat`, with `--no-prompt`, and with `--dry-run`, `new` opens no form.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the
   host.
 
 **Affected Files/Modules:**

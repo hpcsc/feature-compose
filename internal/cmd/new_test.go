@@ -18,7 +18,6 @@ import (
 	"testing/fstest"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/creack/pty"
 	"github.com/hpcsc/feature-compose/internal/catalog"
 	"github.com/stretchr/testify/require"
@@ -74,7 +73,10 @@ folders:
 			for !strings.Contains(screen.String(), after) && ctx.Err() == nil {
 				time.Sleep(10 * time.Millisecond)
 			}
-			_, _ = master.WriteString(keys)
+			for _, key := range keys {
+				_, _ = master.WriteString(string(key))
+				time.Sleep(50 * time.Millisecond)
+			}
 		}()
 		command := newNewCommand(loaded(files))
 		command.Reader, command.Writer, command.ErrWriter = tty, tty, tty
@@ -611,43 +613,47 @@ folders:
 	})
 
 	t.Run("tui", func(t *testing.T) {
-		t.Run("in a terminal, y at the confirm step writes the repo, and new prints the command that makes the same repo", func(t *testing.T) {
+		t.Run("in a terminal, w and y write the repo, and new prints the command that makes the same repo", func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			output := filepath.Join(t.TempDir(), "my-service")
 
-			screen, err := runInTerminal(t, withFeatures(), "Write the repo?", "y", "service", "my-service", "--output-dir", output, "--feature", "cli", "--option", "go-version=1.27.1", "--option", "module=github.com/hpcsc/my-service")
+			screen, err := runInTerminal(t, withFeatures(), "Repo", "wy", "service", "my-service", "--output-dir", output, "--feature", "cli", "--option", "go-version=1.27.1", "--option", "module=github.com/hpcsc/my-service")
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{"go.mod": "module github.com/hpcsc/my-service\ngo 1.27.1\n", "cmd/my-service/main.go": "package main // my-service\n"}, filesIn(t, output))
 			require.Contains(t, screen, "To make the same repo again, run:\r\n  feature-compose new service my-service --output-dir "+output+" --feature cli\r\n")
 		})
 
-		t.Run("in a terminal, n at the confirm step stops new with the cancel, and writes nothing", func(t *testing.T) {
-			t.Chdir(t.TempDir())
-			output := filepath.Join(t.TempDir(), "my-service")
-
-			screen, err := runInTerminal(t, withFeatures(), "Write the repo?", "n", "service", "my-service", "--output-dir", output, "--feature", "cli", "--option", "go-version=1.27.1", "--option", "module=github.com/hpcsc/my-service")
-
-			require.EqualError(t, err, "you canceled new, so it wrote no file")
-			require.Contains(t, screen, "Write the repo?")
-			require.NoDirExists(t, output)
-		})
-
-		for name, test := range map[string]struct {
-			arguments []string
-			step      string
-		}{
-			"with no argument, new starts at the starter step": {arguments: nil, step: "Select the starter"},
-			"with one argument, new starts at the name step":   {arguments: []string{"service"}, step: "Enter the name of the repo"},
+		for name, keys := range map[string]string{
+			"q":                        "q",
+			"w, n back to the form, q": "wnq",
+			"ctrl+c":                   "\x03",
 		} {
-			t.Run("in a terminal, "+name+", and esc cancels", func(t *testing.T) {
+			t.Run("in a terminal, "+name+" stops new with the cancel, and new writes nothing", func(t *testing.T) {
+				workingFolder := t.TempDir()
+				t.Chdir(workingFolder)
+				output := filepath.Join(t.TempDir(), "my-service")
+
+				_, err := runInTerminal(t, withFeatures(), "Repo", keys, "service", "my-service", "--output-dir", output, "--feature", "cli")
+
+				require.EqualError(t, err, "you canceled new, so it wrote no file")
+				require.NoDirExists(t, output)
+				require.Empty(t, filesIn(t, workingFolder))
+			})
+		}
+
+		for name, arguments := range map[string][]string{
+			"with no argument":  nil,
+			"with one argument": {"service"},
+		} {
+			t.Run("in a terminal, "+name+", new opens the form with the missing answers, and q cancels", func(t *testing.T) {
 				workingFolder := t.TempDir()
 				t.Chdir(workingFolder)
 
-				screen, err := runInTerminal(t, withFeatures(), test.step, "\x1b", test.arguments...)
+				screen, err := runInTerminal(t, withFeatures(), "Repo", "q", arguments...)
 
 				require.EqualError(t, err, "you canceled new, so it wrote no file")
-				require.Contains(t, screen, test.step)
+				require.Contains(t, screen, "missing")
 				require.Empty(t, filesIn(t, workingFolder))
 			})
 		}
@@ -657,11 +663,11 @@ folders:
 				t.Chdir(t.TempDir())
 				output := filepath.Join(t.TempDir(), "my-service")
 
-				screen, err := runInTerminal(t, withFeatures(), "Write the repo?", "", "service", "my-service", "--output-dir", output, flag)
+				screen, err := runInTerminal(t, withFeatures(), "a screen that new never shows", "", "service", "my-service", "--output-dir", output, flag)
 
 				require.NoError(t, err)
 				require.Contains(t, screen, "my-service")
-				require.NotContains(t, screen, "Write the repo?")
+				require.NotContains(t, screen, "feature-compose new")
 			})
 		}
 
@@ -696,16 +702,6 @@ folders:
 				require.FileExists(t, filepath.Join(output, "go.mod"))
 			})
 		}
-
-		t.Run("in a terminal, a TUI that stops with an error gives that error to new, which writes nothing", func(t *testing.T) {
-			workingFolder := t.TempDir()
-			t.Chdir(workingFolder)
-
-			_, err := runInTerminal(t, withFeatures(), "a screen that the TUI never shows", "", "service", "my-service", "--feature", "cli")
-
-			require.ErrorIs(t, err, tea.ErrProgramKilled)
-			require.Empty(t, filesIn(t, workingFolder))
-		})
 
 		t.Run("in a terminal, an unknown starter stops new before the TUI starts", func(t *testing.T) {
 			screen, err := runInTerminal(t, withFeatures(), "", "", "nope", "my-service")

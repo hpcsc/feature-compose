@@ -9,7 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/hpcsc/feature-compose/internal/catalog"
-	"github.com/hpcsc/feature-compose/internal/prompt"
+	"github.com/hpcsc/feature-compose/internal/form"
 	"github.com/urfave/cli/v3"
 )
 
@@ -96,7 +96,7 @@ func selected(c catalog.Catalog, starterName, name string, given map[string]stri
 }
 
 func ask(ctx context.Context, cmd *cli.Command, c catalog.Catalog, starterName, name string, given map[string]string, givenByFeature map[string]map[string]string) (catalog.Selection, error) {
-	model, err := prompt.New(c, starterName, name, given, givenByFeature)
+	model, err := form.New(c, starterName, name, given, givenByFeature)
 	if err != nil {
 		return catalog.Selection{}, err
 	}
@@ -104,7 +104,7 @@ func ask(ctx context.Context, cmd *cli.Command, c catalog.Catalog, starterName, 
 	if err != nil {
 		return catalog.Selection{}, err
 	}
-	return final.(prompt.Model).Confirmed()
+	return final.(form.Model).Confirmed()
 }
 
 func givenStarterValues(flags []string) (map[string]string, error) {

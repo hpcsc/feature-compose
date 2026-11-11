@@ -24,9 +24,13 @@ func (e extensionPoint) add(featureName string, items []map[string]string) (exte
 	return e, nil
 }
 
+func (e extensionPoint) hasItemFields(fields []string) bool {
+	return slices.Equal(slices.Sorted(slices.Values(fields)), slices.Sorted(slices.Values(e.itemFields)))
+}
+
 func (e extensionPoint) checkItem(featureName string, number int, item map[string]string) error {
 	fields := slices.Sorted(maps.Keys(item))
-	if !slices.Equal(fields, slices.Sorted(slices.Values(e.itemFields))) {
+	if !e.hasItemFields(fields) {
 		return fmt.Errorf("the item %d that the feature %s adds to the extension point %q has the fields [%s], but the extension point declares the fields [%s]",
 			number, featureName, e.name, strings.Join(fields, ", "), strings.Join(e.itemFields, ", "))
 	}

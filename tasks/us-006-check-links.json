@@ -51,7 +51,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Find a folder that a target does not have, and targets that declare one extension point with other item fields",
       "language": "Go",
       "testable": true,

@@ -172,22 +172,48 @@ func (s Starter) mistakes() []string {
 	var mistakes []string
 	for _, featureName := range slices.Sorted(maps.Keys(s.features)) {
 		f := s.features[featureName]
-		declared := s.extensionPointsDeclaredFor(f)
-		for _, name := range slices.Sorted(maps.Keys(f.addTo)) {
-			extensionPoint, ok := declared[name]
-			if !ok {
-				mistakes = append(mistakes, fmt.Sprintf("the feature %s adds to the extension point %q, which the starter, the feature and its needs do not declare", f.name, name))
-				continue
-			}
-			for i, item := range f.addTo[name] {
-				if err := extensionPoint.checkItem(f.name, i+1, item); err != nil {
-					mistakes = append(mistakes, err.Error())
-				}
-			}
-		}
+		mistakes = append(mistakes, s.addToMistakes(f)...)
+		mistakes = append(mistakes, s.folderMistakes(f)...)
 	}
 	for i, mistake := range mistakes {
 		mistakes[i] = "the starter " + s.name + ": " + mistake
+	}
+	return mistakes
+}
+
+func (s Starter) addToMistakes(f feature) []string {
+	var mistakes []string
+	declared := s.extensionPointsDeclaredFor(f)
+	for _, name := range slices.Sorted(maps.Keys(f.addTo)) {
+		extensionPoint, ok := declared[name]
+		if !ok {
+			mistakes = append(mistakes, fmt.Sprintf("the feature %s adds to the extension point %q, which the starter, the feature and its needs do not declare", f.name, name))
+			continue
+		}
+		for i, item := range f.addTo[name] {
+			if err := extensionPoint.checkItem(f.name, i+1, item); err != nil {
+				mistakes = append(mistakes, err.Error())
+			}
+		}
+	}
+	return mistakes
+}
+
+func (s Starter) folderMistakes(f feature) []string {
+	var mistakes []string
+	missing := map[string]bool{}
+	for _, t := range f.templates {
+		folderName, inFolder := t.folderIn(s.folders)
+		if inFolder {
+			continue
+		}
+		switch {
+		case folderName == "":
+			mistakes = append(mistakes, t.description()+" is not in a folder")
+		case !missing[folderName]:
+			missing[folderName] = true
+			mistakes = append(mistakes, fmt.Sprintf("the feature %s adds files to the folder %s, which the starter does not have", f.name, folderName))
+		}
 	}
 	return mistakes
 }

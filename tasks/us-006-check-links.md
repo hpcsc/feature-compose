@@ -266,22 +266,22 @@ of the feature, whatever its `when` gives. It also finds a feature whose targets
 and each starter that the mistake is about.
 
 **Acceptance Criteria:**
-- [ ] A feature with a file in a folder that a target does not have is a mistake. The message names the starter, the
+- [x] A feature with a file in a folder that a target does not have is a mistake. The message names the starter, the
   feature and the folder, and a folder with many files gives one mistake.
-- [ ] The files of each files entry are checked, also the files of an entry with a `when`, whatever its expression
+- [x] The files of each files entry are checked, also the files of an entry with a `when`, whatever its expression
   gives.
-- [ ] A file directly in a files entry, which is in no folder, is a mistake, and the message names the starter, the
+- [x] A file directly in a files entry, which is in no folder, is a mistake, and the message names the starter, the
   feature and the file.
-- [ ] A feature whose targets declare one extension point of its `add_to` with different item fields is a mistake. The
+- [x] A feature whose targets declare one extension point of its `add_to` with different item fields is a mistake. The
   message names the feature, the extension point, and each target with its item fields. In a target where a need of
   the feature declares the extension point, the fields of that need count.
-- [ ] Targets that declare the item fields in another order are not a mistake. A target that does not declare the
+- [x] Targets that declare the item fields in another order are not a mistake. A target that does not declare the
   extension point is not named in this mistake.
-- [ ] An extension point that two targets declare with different item fields, and that the feature does not add to,
+- [x] An extension point that two targets declare with different item fields, and that the feature does not add to,
   is not a mistake (decision 3).
-- [ ] The mistakes of Task 1 are still found next to these, and `Catalog.Check` on `catalog/` gives no mistake.
-- [ ] "Check the Catalog" in `README.md` names both mistakes.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] The mistakes of Task 1 are still found next to these, and `Catalog.Check` on `catalog/` gives no mistake.
+- [x] "Check the Catalog" in `README.md` names both mistakes.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `internal/catalog/catalog.go` — the item fields of an extension point across the targets of a feature

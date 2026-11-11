@@ -306,12 +306,16 @@ feature-compose check
 | --- | --- |
 | An `add_to` names an extension point that the starter, the feature and its needs do not declare. A need of a need counts as a need. Another feature of the starter does not count, also when `new` selects it. | `the starter service: the feature tools adds to the extension point "cli.commands", which the starter, the feature and its needs do not declare` |
 | An item does not have the item fields of its extension point. The order of the fields does not matter. | `the starter service: the item 2 that the feature auth adds to the extension point "api.middleware" has the fields [code], but the extension point declares the fields [code, import]` |
+| A feature adds files to a folder that the starter does not have. `check` reads the files of each files entry, also of an entry whose `when` is false. A folder with many files gives one mistake. | `the starter service: the feature web adds files to the folder web, which the starter does not have` |
+| A file is directly in a files entry, so it is in no folder. | `the starter service: the template README.md of the files entry files/ of the feature cli is not in a folder` |
+| Two targets of a feature declare an extension point of its `add_to` with different item fields. In a target where a need of the feature declares the extension point, the item fields of the need count. A target that does not declare the extension point is not in this message. | `the feature auth adds to the extension point "api.middleware", which its targets declare with different item fields: [code, import] in the starter service, [code] in the starter worker` |
 
-Each message names the starter, the feature, and the extension point that is wrong. A feature with two targets
-gives one mistake for each target that it does not fit.
+Each message names the feature, the starter, and the extension point or the folder that is wrong. A feature with
+two targets gives one mistake for each target that it does not fit.
 
-`check` prints each mistake on its own line to stdout, in the order of the starters, the features, the extension
-points and the items. Then it writes the number of the mistakes to stderr, for example
+`check` prints each mistake on its own line to stdout. The mistakes of each starter come first, in the order of the
+starters, the features, the extension points and the items. The mistakes of targets with different item fields
+come last. Then `check` writes the number of the mistakes to stderr, for example
 `the catalog has 2 mistakes`, and exits with the status 1. With no mistake, it prints
 `The catalog has no mistakes.` and exits with the status 0. A catalog that `check` cannot read, for example a
 `starter.yml` that is not valid YAML, stops `check` with the message that `new` and `show` give, and the exit

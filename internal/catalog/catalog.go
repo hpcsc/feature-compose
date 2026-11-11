@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"slices"
+	"strings"
 )
 
 type Catalog struct {
@@ -79,14 +81,53 @@ func (c Catalog) Check() ([]string, error) {
 		return nil, err
 	}
 	var mistakes []string
+	var starters []Starter
 	for _, starterName := range names {
 		starter, err := c.Starter(starterName)
 		if err != nil {
 			return nil, err
 		}
+		starters = append(starters, starter)
 		mistakes = append(mistakes, starter.mistakes()...)
 	}
-	return mistakes, nil
+	return append(mistakes, c.itemFieldsMistakes(starters)...), nil
+}
+
+func (c Catalog) itemFieldsMistakes(starters []Starter) []string {
+	var featureNames []string
+	for _, s := range starters {
+		featureNames = slices.AppendSeq(featureNames, maps.Keys(s.features))
+	}
+	slices.Sort(featureNames)
+	var mistakes []string
+	for _, featureName := range slices.Compact(featureNames) {
+		var targets []Starter
+		for _, s := range starters {
+			if _, ok := s.features[featureName]; ok {
+				targets = append(targets, s)
+			}
+		}
+		for _, name := range slices.Sorted(maps.Keys(targets[0].features[featureName].addTo)) {
+			var declarations []string
+			var first extensionPoint
+			differ := false
+			for _, s := range targets {
+				declared, ok := s.extensionPointsDeclaredFor(s.features[featureName])[name]
+				if !ok {
+					continue
+				}
+				if declarations == nil {
+					first = declared
+				}
+				differ = differ || !declared.hasItemFields(first.itemFields)
+				declarations = append(declarations, fmt.Sprintf("[%s] in the starter %s", strings.Join(declared.itemFields, ", "), s.name))
+			}
+			if differ {
+				mistakes = append(mistakes, fmt.Sprintf("the feature %s adds to the extension point %q, which its targets declare with different item fields: %s", featureName, name, strings.Join(declarations, ", ")))
+			}
+		}
+	}
+	return mistakes
 }
 
 func (c Catalog) featuresTargeting(starterName string) (map[string]feature, error) {

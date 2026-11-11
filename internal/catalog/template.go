@@ -46,14 +46,13 @@ func readTemplates(fsys fs.FS, root, featureName string) ([]template, error) {
 }
 
 func (t template) place(folders map[string]folder, rules []delimitersRule) (template, error) {
-	folderName, pathInFolder, _ := strings.Cut(t.catalogPath, "/")
-	pathInFolder = strings.TrimSuffix(pathInFolder, ".tmpl")
-	declared, ok := folders[folderName]
-	if !ok || pathInFolder == "" {
+	folderName, inFolder := t.folderIn(folders)
+	if !inFolder {
 		return template{}, fmt.Errorf("the template %s of %s is not in a folder of the starter: the folders are %s",
 			t.catalogPath, t.owner, strings.Join(slices.Sorted(maps.Keys(folders)), ", "))
 	}
-	t.folder, t.pathInFolder, t.delimiters = declared, pathInFolder, defaultDelimiters
+	_, pathInFolder := t.splitPath()
+	t.folder, t.pathInFolder, t.delimiters = folders[folderName], pathInFolder, defaultDelimiters
 	for _, rule := range rules {
 		if rule.matches(t.catalogPath) {
 			t.delimiters = rule.delimiters
@@ -61,6 +60,20 @@ func (t template) place(folders map[string]folder, rules []delimitersRule) (temp
 		}
 	}
 	return t, nil
+}
+
+func (t template) folderIn(folders map[string]folder) (string, bool) {
+	folderName, pathInFolder := t.splitPath()
+	if pathInFolder == "" {
+		return "", false
+	}
+	_, ok := folders[folderName]
+	return folderName, ok
+}
+
+func (t template) splitPath() (folderName, pathInFolder string) {
+	folderName, pathInFolder, _ = strings.Cut(t.catalogPath, "/")
+	return folderName, strings.TrimSuffix(pathInFolder, ".tmpl")
 }
 
 func (t template) description() string {

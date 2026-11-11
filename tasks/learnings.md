@@ -295,3 +295,24 @@
 - Observed: us-007-oauth
 - Learning: In US-007 the design check of needValues asked for a new name and a new shape; clerk design note then recorded valuesSetByNeeds as D3, and clerk step asked for a check of D3 before the audit could be accepted again, which cost one more agent, one more fold and one more mutants run against the base. Plan a design-check fix that renames or reshapes a type as its own change, and record its note before you close the earlier check.
 - Apply when: fixing a finding of a design check with a new name or a new shape of a type
+
+## clerk mutants finds a caller gap only when the diff changes the caller
+- Type: constraint
+- Recorded: 2026-11-11
+- Observed: us-006-check-links
+- Learning: In US-006, the per-task clerk mutants runs of Tasks 2 to 4 changed only internal/catalog and reported no caller gap, but the run against the base after the audit, whose diff also held internal/cmd/check.go, reported 7: the folder, need, cycle and item field paths of the catalog that no test of internal/cmd ran. Closing them cost two more test folds and two more full mutants runs after the audit.
+- Apply when: decomposing or building a story that adds a command in internal/cmd in one task and the paths of internal/catalog that the command reaches in later tasks; give each later task a test of the command that reaches its new path
+
+## A rule about one feature belongs on feature in internal/catalog
+- Type: pattern
+- Recorded: 2026-11-11
+- Observed: us-006-check-links
+- Learning: The planned design of US-006 put the comparison of the item fields of the targets of a feature on Catalog and the rules of its needs on Starter; the audit found that Catalog.itemFieldsMistakes did not use the catalog, and the design check found that Starter.needMistakes read only the name of the starter, so both moved to feature (itemFieldsMistakes(starters), needMistakes(starterName, catalogFeatures), targetsStarter). That cost an audit fix and two design checks.
+- Apply when: planning the design of a check, a rule or a message about one feature of the catalog, its targets or its needs, in internal/catalog
+
+## A second read of the same catalog files hides the error checks of the first from clerk mutants
+- Type: constraint
+- Recorded: 2026-11-11
+- Observed: us-006-check-links
+- Learning: Catalog.Check in US-006 first read every feature and then called Catalog.Starter, which read the same files again; a mutant that removed an error check of the first read lived, because the second read failed on the same file with the same error (7 mutants). Building each starter from the one read of the features (readStarter with the features that target it) gave each error one path, and every mutant died.
+- Apply when: writing code in internal/catalog that reads the starters or the features of the catalog more than one time in one operation, or reading live mutants on the error checks of a read

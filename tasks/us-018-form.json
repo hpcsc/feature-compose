@@ -234,7 +234,7 @@
     },
     {
       "n": 8,
-      "done": false,
+      "done": true,
       "title": "Show the preview with `w`, and confirm the write",
       "language": "Go",
       "testable": true,

@@ -17,7 +17,7 @@ import (
 var errCanceled = errors.New("you canceled new, so it wrote no file")
 
 var keys = struct {
-	down, up, open, enter, close, toggle, scrollDown, scrollUp, quit, keep, drop, quitWhileTyping key.Binding
+	down, up, open, enter, close, toggle, write, scrollDown, scrollUp, quit, keep, drop, quitWhileTyping, confirm, back key.Binding
 }{
 	down:            key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "move")),
 	up:              key.NewBinding(key.WithKeys("k", "up")),
@@ -25,12 +25,15 @@ var keys = struct {
 	enter:           key.NewBinding(key.WithKeys("enter")),
 	close:           key.NewBinding(key.WithKeys("h", "left", "esc"), key.WithHelp("h", "close")),
 	toggle:          key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "select")),
+	write:           key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "write")),
 	scrollDown:      key.NewBinding(key.WithKeys("ctrl+d", "pgdown"), key.WithHelp("ctrl+d/u", "scroll details")),
 	scrollUp:        key.NewBinding(key.WithKeys("ctrl+u", "pgup")),
 	quit:            key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 	keep:            key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "keep")),
 	drop:            key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "drop")),
 	quitWhileTyping: key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp("ctrl+c", "quit")),
+	confirm:         key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "write")),
+	back:            key.NewBinding(key.WithKeys("n", "esc"), key.WithHelp("esc", "back")),
 }
 
 var _ tea.Model = Model{}
@@ -44,6 +47,9 @@ type Model struct {
 	message      string
 	editing      bool
 	edit         edit
+	previewing   bool
+	preview      string
+	canWrite     bool
 	help         help.Model
 	width        int
 	height       int
@@ -68,6 +74,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		return m.laidOut(m.tree.selected), nil
 	case tea.KeyMsg:
+		if m.previewing {
+			return m.updatePreview(msg)
+		}
 		if m.editing {
 			return m.updateEdit(msg)
 		}
@@ -87,6 +96,9 @@ func (m Model) View() string {
 	treePane := screen.Pane{Title: "Repo", Width: m.treeWidth(), Height: paneHeight, Border: screen.FocusedBorder}
 	treePane.Lines = m.tree.lines(m.treeOffset, treePane.InnerWidth(), paneHeight-2)
 	detailsPane := screen.Pane{Title: m.detailsTitle, Lines: strings.Split(m.details.View(), "\n"), Width: m.width - treePane.Width, Height: paneHeight, Border: screen.PlainBorder}
+	if m.previewing {
+		treePane.Border, detailsPane.Border = screen.PlainBorder, screen.FocusedBorder
+	}
 	if m.details.TotalLineCount() > m.details.Height {
 		detailsPane.Note = fmt.Sprintf("%d%%", int(m.details.ScrollPercent()*100))
 	}
@@ -119,12 +131,47 @@ func (m Model) updateTree(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.tree = m.tree.closed()
 	case key.Matches(msg, keys.toggle) && m.tree.selected.kind == featureKind:
 		m.draft, m.message = m.draft.toggled(m.tree.selected.feature)
+	case key.Matches(msg, keys.write):
+		m = m.previewed()
 	case key.Matches(msg, keys.scrollDown):
 		m.details.HalfPageDown()
 	case key.Matches(msg, keys.scrollUp):
 		m.details.HalfPageUp()
 	}
 	return m.laidOut(before), nil
+}
+
+func (m Model) previewed() Model {
+	if r, message, isMissing := m.draft.missingAnswer(); isMissing {
+		m.tree = m.tree.revealed(r)
+		m.message = message
+		return m
+	}
+	preview, err := m.draft.selection.Preview()
+	m.previewing, m.preview, m.canWrite = true, strings.TrimSuffix(preview, "\n"), err == nil
+	if err != nil {
+		m.preview = err.Error()
+	}
+	m.details.GotoTop()
+	return m
+}
+
+func (m Model) updatePreview(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch {
+	case key.Matches(msg, keys.quit):
+		return m, tea.Quit
+	case m.canWrite && key.Matches(msg, keys.confirm):
+		m.confirmed = true
+		return m, tea.Quit
+	case key.Matches(msg, keys.back):
+		m.previewing = false
+		m.details.GotoTop()
+	case key.Matches(msg, keys.scrollDown):
+		m.details.HalfPageDown()
+	case key.Matches(msg, keys.scrollUp):
+		m.details.HalfPageUp()
+	}
+	return m.laidOut(m.tree.selected), nil
 }
 
 func (m Model) entered() Model {
@@ -187,6 +234,12 @@ func (m Model) laidOut(before row) Model {
 	if m.editing {
 		text = m.edit.text(m.draft.check(m.edit.row, m.edit.value()), m.details.Width)
 	}
+	if m.previewing {
+		m.detailsTitle, text = "Preview", strings.Join(screen.Wrapped(m.preview, m.details.Width), "\n")
+		if m.canWrite {
+			text = "Write the repo?\n\n" + text
+		}
+	}
 	linesAbove := 0
 	if m.message != "" {
 		message := screen.Message(m.message, m.details.Width)
@@ -211,10 +264,14 @@ func (m Model) treeWidth() int {
 func (m Model) footer() string {
 	m.help.Width = m.width - 1
 	switch {
+	case m.previewing && m.canWrite:
+		return " " + m.help.ShortHelpView([]key.Binding{keys.confirm, keys.back, keys.scrollDown, keys.quit})
+	case m.previewing:
+		return " " + m.help.ShortHelpView([]key.Binding{keys.back, keys.scrollDown, keys.quit})
 	case m.editing && m.edit.isList():
 		return " " + m.help.ShortHelpView([]key.Binding{keys.down, keys.keep, keys.drop, keys.quit})
 	case m.editing:
 		return " " + m.help.ShortHelpView([]key.Binding{keys.keep, keys.drop, keys.quitWhileTyping})
 	}
-	return " " + m.help.ShortHelpView([]key.Binding{keys.down, keys.open, keys.close, keys.toggle, keys.scrollDown, keys.quit})
+	return " " + m.help.ShortHelpView([]key.Binding{keys.down, keys.open, keys.close, keys.toggle, keys.write, keys.scrollDown, keys.quit})
 }

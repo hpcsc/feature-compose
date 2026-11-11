@@ -120,6 +120,26 @@ func (t tree) closed() tree {
 	return t
 }
 
+func (t tree) revealed(r row) tree {
+	for _, parent := range t.parentsOf(r, t.nodes) {
+		t = t.withOpen(parent, true)
+	}
+	t.selected = r
+	return t
+}
+
+func (t tree) parentsOf(r row, nodes []node) []row {
+	for _, n := range nodes {
+		if n.row == r {
+			return []row{}
+		}
+		if parents := t.parentsOf(r, n.children); parents != nil {
+			return append([]row{n.row}, parents...)
+		}
+	}
+	return nil
+}
+
 func (t tree) widestRow() int {
 	widest := 0
 	for _, r := range t.rows() {

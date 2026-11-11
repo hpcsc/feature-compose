@@ -696,23 +696,23 @@ the new starter
 form. While an answer is missing, `w` selects its row and the details show the message.
 
 **Acceptance Criteria:**
-- [ ] With no answer missing, `w` gives the details pane the title `Preview` and the focused border, and shows the text
+- [x] With no answer missing, `w` gives the details pane the title `Preview` and the focused border, and shows the text
   of `Selection.Preview` of the current selection, with the source of each feature and each option (`command line`,
   `answered`, `default`, `needed by <features>`), and the question `Write the repo?` with its keys.
-- [ ] ctrl+d and pgdown scroll the preview down, ctrl+u and pgup scroll it up, and the bottom border shows how far it
+- [x] ctrl+d and pgdown scroll the preview down, ctrl+u and pgup scroll it up, and the bottom border shows how far it
   is scrolled, so each line of a preview that is longer than the pane can be shown.
-- [ ] `y` stops the form, and `Confirmed` then gives the selection of the preview, with the answers of the developer.
-- [ ] `n` and Esc go back to the form, with the same row selected and its details. `q` and ctrl+c stop the form with
+- [x] `y` stops the form, and `Confirmed` then gives the selection of the preview, with the answers of the developer.
+- [x] `n` and Esc go back to the form, with the same row selected and its details. `q` and ctrl+c stop the form with
   the cancel, also while the preview shows.
-- [ ] An answer is missing when no starter is chosen, when the repo has no name, or when an option has no default and
+- [x] An answer is missing when no starter is chosen, when the repo has no name, or when an option has no default and
   no value. Then `w` shows no preview: it selects the row of the first missing answer in the order of the tree, opens
   the rows above it, and the details show the message: of `CheckRepoName` for the empty name, of `Question.Check` for
   the empty text of the option, and a message that names the missing starter.
-- [ ] A preview that stops, for example on a template that fails to render, shows its message in the details pane
+- [x] A preview that stops, for example on a template that fails to render, shows its message in the details pane
   with no question, and Esc goes back to the form.
-- [ ] The form writes no file. `Confirmed` gives a selection only after `y`.
-- [ ] The footer shows `w` with its help, and the keys of the preview while it shows.
-- [ ] The tests of `internal/form` drive `w`, `y`, `n` and Esc through `Update` and `View`, with a catalog that has an
+- [x] The form writes no file. `Confirmed` gives a selection only after `y`.
+- [x] The footer shows `w` with its help, and the keys of the preview while it shows.
+- [x] The tests of `internal/form` drive `w`, `y`, `n` and Esc through `Update` and `View`, with a catalog that has an
   option with no default and a catalog with a template that fails to render.
 
 **Affected Files/Modules:**

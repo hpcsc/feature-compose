@@ -293,6 +293,21 @@ func (d draft) question(r row) catalog.Question {
 	return catalog.Question{}
 }
 
+func (d draft) missingAnswer() (row, string, bool) {
+	switch {
+	case d.name == "":
+		return row{kind: nameKind}, "", true
+	case d.starterName == "":
+		return row{kind: starterKind}, "", true
+	}
+	for _, q := range d.selection.Questions() {
+		if q.Missing {
+			return row{kind: optionKind, feature: q.Feature, option: q.Option}, q.Check("").Error(), true
+		}
+	}
+	return row{}, "", false
+}
+
 func (d draft) featureCount() int {
 	count := 0
 	for _, featureName := range d.featureNames {

@@ -100,7 +100,7 @@ func TestModel(t *testing.T) {
 │                                  ││                                                    │
 │                                  ││                                                    │
 ╰──────────────────────────────────╯╰────────────────────────────────────────────────────╯
- j/k move • l open • h close • space select • ctrl+d/u scroll details • q quit`, screenOf(opened(t, withNeeds(), "service", "my-service", withAlpha())))
+ j/k move • l open • h close • space select • w write • ctrl+d/u scroll details • q quit`, screenOf(opened(t, withNeeds(), "service", "my-service", withAlpha())))
 		})
 
 		t.Run("the title line counts one selected feature in the singular", func(t *testing.T) {
@@ -144,8 +144,8 @@ func TestModel(t *testing.T) {
 		})
 
 		for width, footer := range map[int]string{
-			77: " j/k move • l open • h close • space select • ctrl+d/u scroll details …",
-			78: " j/k move • l open • h close • space select • ctrl+d/u scroll details • q quit",
+			87: " j/k move • l open • h close • space select • w write • ctrl+d/u scroll details …",
+			88: " j/k move • l open • h close • space select • w write • ctrl+d/u scroll details • q quit",
 		} {
 			t.Run(fmt.Sprintf("the footer shows each key that fits in %d columns", width), func(t *testing.T) {
 				require.Equal(t, footer, linesOf(sized(opened(t, withNeeds(), "service", "my-service", nil), width, 10))[9])
@@ -610,7 +610,7 @@ func TestModel(t *testing.T) {
 		t.Run("after a value of a list is kept, the footer shows the keys of the tree again", func(t *testing.T) {
 			m := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter", "enter")
 
-			require.Equal(t, " j/k move • l open • h close • space select • ctrl+d/u scroll details • q quit", linesOf(m)[19])
+			require.Equal(t, " j/k move • l open • h close • space select • w write • ctrl+d/u scroll details • q quit", linesOf(m)[19])
 		})
 
 		t.Run("a space at another feature keeps the values kept for the selected features", func(t *testing.T) {
@@ -793,6 +793,150 @@ func TestModel(t *testing.T) {
 
 		t.Run("enter at the starter of an argument starts no list, and the details say that the command line fixes it", func(t *testing.T) {
 			require.Equal(t, "The starter is fixed: the command line gives it.", firstDetailsLineOf(pressed(opened(t, withStarters(), "service", "my-service", nil), "j", "enter")))
+		})
+	})
+
+	t.Run("write", func(t *testing.T) {
+		withBadTemplate := func() fstest.MapFS {
+			files := withNeeds()
+			files["starters/service/files/go/bad.go"] = &fstest.MapFile{Data: []byte("package {{ .Nmae }}\n")}
+			return files
+		}
+		withManyFiles := func() fstest.MapFS {
+			files := withNeeds()
+			for i := range 30 {
+				files[fmt.Sprintf("starters/service/files/go/f%02d.txt", i)] = &fstest.MapFile{Data: []byte("x\n")}
+			}
+			return files
+		}
+		t.Run("w with no answer missing shows the preview with the source of each feature and option, and asks whether to write the repo", func(t *testing.T) {
+			m := pressed(sized(opened(t, withNeeds(), "service", "my-service", withAlpha()), 120, 20), "w")
+
+			_, title := paneTitlesOf(m)
+			require.Equal(t, "Preview", title)
+			require.Equal(t, "Write the repo?\n\nRepo: my-service\nStarter: service\n\nFeatures:\n  zed: needed by alpha\n  alpha: command line\n\nOptions: none\n\nFiles:\n  main.go: the starter", detailsOf(m))
+		})
+
+		t.Run("the preview shows the answers of the developer with the source answered", func(t *testing.T) {
+			m := pressed(sized(opened(t, withOptions(), "service", "my-service", map[string]map[string]string{"zed": {}}), 120, 30), "j", "j", "j", "j", "enter", "a", "b", "c", "enter", "w")
+
+			require.Contains(t, detailsOf(m), "\n  starter.zone: abc (answered)\n")
+		})
+
+		t.Run("ctrl+d and ctrl+u scroll the preview, and the bottom border shows how far it is scrolled", func(t *testing.T) {
+			top := pressed(sized(opened(t, withManyFiles(), "service", "my-service", nil), 120, 14), "w")
+			scrolled := pressed(top, "ctrl+d")
+
+			require.Equal(t, []string{"Write the repo?", "0%"}, []string{firstDetailsLineOf(top), scrollNoteOf(top)})
+			require.NotEqual(t, "Write the repo?", firstDetailsLineOf(scrolled))
+			require.Equal(t, screenOf(top), screenOf(pressed(scrolled, "ctrl+u")))
+		})
+
+		t.Run("the preview starts at its top after a scroll of the details, and the details start at their top after a scroll of the preview", func(t *testing.T) {
+			var words []string
+			for i := range 200 {
+				words = append(words, fmt.Sprintf("w%03d", i))
+			}
+			files := withManyFiles()
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("summary: " + strings.Join(words, " ") + "\nfolders:\n  go:\n    path: .\n")}
+			preview := pressed(sized(opened(t, files, "service", "my-service", nil), 120, 14), "j", "ctrl+d", "w")
+			back := pressed(preview, "ctrl+d", "n")
+
+			require.Equal(t, "Write the repo?", firstDetailsLineOf(preview))
+			require.True(t, strings.HasPrefix(firstDetailsLineOf(back), "w000 w001 "), firstDetailsLineOf(back))
+		})
+
+		t.Run("y stops the form, which then gives the selection of the preview with the answers of the developer", func(t *testing.T) {
+			m, quit := pressedAndQuit(sized(opened(t, withOptions(), "service", "my-service", map[string]map[string]string{"zed": {}}), 120, 30), "j", "j", "j", "j", "enter", "a", "b", "c", "enter", "w", "y")
+
+			selection, err := m.Confirmed()
+			require.NoError(t, err)
+			require.True(t, quit)
+			preview, err := selection.Preview()
+			require.NoError(t, err)
+			require.Contains(t, preview, "\n  starter.zone: abc (answered)\n")
+		})
+
+		for _, back := range []string{"n", "esc"} {
+			t.Run(back+" goes back to the form with the same row selected and its details", func(t *testing.T) {
+				atAlpha := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j")
+				m, quit := pressedAndQuit(atAlpha, "w", back)
+
+				require.False(t, quit)
+				require.Equal(t, screenOf(atAlpha), screenOf(m))
+			})
+		}
+
+		for name, keys := range map[string][]string{
+			"q at the preview":      {"w", "q"},
+			"ctrl+c at the preview": {"w", "ctrl+c"},
+			"n and then q":          {"w", "n", "q"},
+		} {
+			t.Run(name+" stops the form with the cancel", func(t *testing.T) {
+				m, quit := pressedAndQuit(opened(t, withNeeds(), "service", "my-service", nil), keys...)
+
+				_, err := m.Confirmed()
+				require.True(t, quit)
+				require.EqualError(t, err, "you canceled new, so it wrote no file")
+			})
+		}
+
+		t.Run("the form gives the selection only after y", func(t *testing.T) {
+			m, quit := pressedAndQuit(opened(t, withNeeds(), "service", "my-service", nil), "w", "j", "k", "space")
+
+			_, err := m.Confirmed()
+			require.False(t, quit)
+			require.EqualError(t, err, "you canceled new, so it wrote no file")
+		})
+
+		t.Run("w with no name selects the name row, and its details show the message of the check of the name", func(t *testing.T) {
+			m, quit := pressedAndQuit(opened(t, withNeeds(), "service", "", nil), "j", "j", "w")
+
+			require.False(t, quit)
+			require.Equal(t, "▌  name       missing", selectedRowOf(m))
+			require.Contains(t, strings.Join(strings.Fields(detailsOf(m)), " "), `the name "" of the repo must start with a letter or a digit`)
+		})
+
+		t.Run("w with more than one missing answer selects the first in the order of the tree", func(t *testing.T) {
+			m, err := form.New(catalog.New(withOptions()), "service", "", nil, nil)
+			require.NoError(t, err)
+
+			require.Equal(t, "▌  name       missing", selectedRowOf(pressed(sized(m, 120, 30), "j", "j", "j", "j", "w")))
+		})
+
+		t.Run("w with no starter selects the starter row, and its details say that no starter is chosen", func(t *testing.T) {
+			m := pressed(opened(t, withNeeds(), "", "my-service", nil), "w")
+
+			require.Equal(t, "▌  starter    missing", selectedRowOf(m))
+			require.Equal(t, "No starter is chosen.", firstDetailsLineOf(m))
+		})
+
+		t.Run("w with an option that has no default and no value selects its row, opens the rows above it, and the details show the message of its check", func(t *testing.T) {
+			closed := pressed(sized(opened(t, withOptions(), "service", "my-service", nil), 120, 30), "j", "j", "j", "j", "enter", "a", "b", "c", "enter", "j", "space", "h", "k", "k", "k", "k", "h")
+			m := pressed(closed, "w")
+
+			require.Equal(t, []string{"   name     my-service  fixed", "▌▸ starter  service  fixed"}, treeOf(closed))
+			require.Equal(t, "▌  │  └─   color    missing", selectedRowOf(m))
+			require.Equal(t, `the feature beta: the value "" of the option color is not one of its values: red, blue`, strings.Join(strings.Fields(strings.SplitN(detailsOf(m), "\n\n", 2)[0]), " "))
+		})
+
+		t.Run("a preview that stops shows its message with no question, y does not write, and esc goes back to the form", func(t *testing.T) {
+			stopped := pressed(sized(opened(t, withBadTemplate(), "service", "my-service", nil), 120, 20), "w")
+			m, quit := pressedAndQuit(stopped, "y")
+
+			_, err := m.Confirmed()
+			require.False(t, quit)
+			require.EqualError(t, err, "you canceled new, so it wrote no file")
+			require.Contains(t, detailsOf(stopped), "bad.go")
+			require.NotContains(t, detailsOf(stopped), "Write the repo?")
+			require.Equal(t, "▌  name     my-service  fixed", selectedRowOf(pressed(stopped, "esc")))
+		})
+
+		t.Run("the footer shows the keys of the preview while it shows", func(t *testing.T) {
+			require.Equal(t, []string{" y write • esc back • ctrl+d/u scroll details • q quit", " esc back • ctrl+d/u scroll details • q quit"}, []string{
+				linesOf(pressed(sized(opened(t, withNeeds(), "service", "my-service", nil), 120, 20), "w"))[19],
+				linesOf(pressed(sized(opened(t, withBadTemplate(), "service", "my-service", nil), 120, 20), "w"))[19],
+			})
 		})
 	})
 

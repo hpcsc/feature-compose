@@ -35,6 +35,9 @@ jobs:
     - name: Run Unit Test
       run: task test:unit
 
+    - name: Check the catalog
+      run: task test:catalog
+
     - name: Run vulnerabilities check
       run: task test:vulnerabilities
 

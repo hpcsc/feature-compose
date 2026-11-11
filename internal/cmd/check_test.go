@@ -5,6 +5,10 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"errors"
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
 	"testing/fstest"
 
@@ -106,6 +110,36 @@ the starter worker: the item 1 that the feature auth adds to the extension point
 the feature auth adds to the extension point "api.middleware", which its targets declare with different item fields: [code, import] in the starter service, [code] in the starter worker
 `, printed)
 		})
+
+		t.Run("--catalog checks the catalog in that folder, also with no config file", func(t *testing.T) {
+			catalogDir := t.TempDir()
+			for path, contents := range map[string]string{
+				"starters/service/starter.yml":      "folders:\n  go:\n    path: .\n",
+				"starters/service/files/go/main.go": "package main\n",
+				"features/tools/feature.yml":        "targets: [service]\nadd_to:\n  cli.commands:\n    - code: newToolsCommand()\n",
+			} {
+				require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(catalogDir, path)), 0o755))
+				require.NoError(t, os.WriteFile(filepath.Join(catalogDir, path), []byte(contents), 0o644))
+			}
+			command := newCheckCommand(func() (catalog.Catalog, error) { return catalog.Catalog{}, errors.New("no config file") })
+			var printed bytes.Buffer
+			command.Writer, command.ErrWriter = &printed, io.Discard
+
+			err := command.Run(context.Background(), []string{"check", "--catalog", catalogDir})
+
+			require.EqualError(t, err, "the catalog has 1 mistake")
+			require.Equal(t, "the starter service: the feature tools adds to the extension point \"cli.commands\", which the starter, the feature and its needs do not declare\n", printed.String())
+		})
+	})
+
+	t.Run("help", func(t *testing.T) {
+		t.Run("--help names --catalog and the folder that it checks", func(t *testing.T) {
+			printed, err := runCheck(t, withFeatures(nil), "--help")
+
+			require.NoError(t, err)
+			require.Contains(t, printed, "--catalog")
+			require.Contains(t, printed, "check the catalog in this folder, not the catalog folder of the config file")
+		})
 	})
 
 	t.Run("stop", func(t *testing.T) {
@@ -121,6 +155,25 @@ the feature auth adds to the extension point "api.middleware", which its targets
 
 			require.EqualError(t, err, "check takes no argument")
 		})
+
+		for name, folder := range map[string]func(t *testing.T) string{
+			"that does not exist": func(t *testing.T) string { return filepath.Join(t.TempDir(), "missing") },
+			"that is a file": func(t *testing.T) string {
+				file := filepath.Join(t.TempDir(), "catalog.yml")
+				require.NoError(t, os.WriteFile(file, []byte("starters: []\n"), 0o644))
+				return file
+			},
+		} {
+			t.Run("a --catalog path "+name+" stops check, and the message names it", func(t *testing.T) {
+				path := folder(t)
+				command := newCheckCommand(func() (catalog.Catalog, error) { return catalog.Catalog{}, errors.New("no config file") })
+				command.Writer, command.ErrWriter = io.Discard, io.Discard
+
+				err := command.Run(context.Background(), []string{"check", "--catalog", path})
+
+				require.EqualError(t, err, "the catalog folder "+path+" is not a folder")
+			})
+		}
 
 		t.Run("a catalog that check cannot read stops it with the cause, and prints nothing", func(t *testing.T) {
 			files := withFeatures(nil)

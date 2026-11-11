@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/hpcsc/feature-compose/internal/catalog"
@@ -14,11 +15,14 @@ func newCheckCommand(load func() (catalog.Catalog, error)) *cli.Command {
 	return &cli.Command{
 		Name:  "check",
 		Usage: "find each feature of the catalog that does not fit its targets or its needs",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "catalog", Usage: "check the catalog in this folder, not the catalog folder of the config file"},
+		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.NArg() > 0 {
 				return errors.New("check takes no argument")
 			}
-			c, err := load()
+			c, err := catalogToCheck(cmd.String("catalog"), load)
 			if err != nil {
 				return err
 			}
@@ -39,4 +43,15 @@ func newCheckCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			return fmt.Errorf("the catalog has %d mistakes", len(mistakes))
 		},
 	}
+}
+
+func catalogToCheck(catalogDir string, load func() (catalog.Catalog, error)) (catalog.Catalog, error) {
+	if catalogDir == "" {
+		return load()
+	}
+	info, err := os.Stat(catalogDir)
+	if err != nil || !info.IsDir() {
+		return catalog.Catalog{}, fmt.Errorf("the catalog folder %s is not a folder", catalogDir)
+	}
+	return catalog.New(os.DirFS(catalogDir)), nil
 }

@@ -294,11 +294,17 @@ is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each
 
 `feature-compose check` finds each feature of the catalog that does not fit its targets or its needs, so that a
 mistake in the catalog stops before a developer runs `new`. It reads the catalog folder that the config file
-names, and checks each feature against each starter that its `targets` name.
+names, and checks each feature against each starter that its `targets` name. `--catalog <folder>` checks the
+catalog in that folder, and `check` then does not read the config file. A `--catalog` path that is not a folder
+stops `check`, and the message names the path.
 
 ```shell
 feature-compose check
+feature-compose check --catalog ./catalog
 ```
+
+`task test:catalog` runs `check --catalog catalog` on the catalog of this repo. CI runs it on each push, in the job
+`build`, so a change that puts a mistake in `catalog/` fails CI.
 
 `check` finds these mistakes:
 

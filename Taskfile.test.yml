@@ -13,6 +13,11 @@ tasks:
     cmds:
       - gotestsum --format testname -- -tags=combinations -count=1 -timeout=60m ./internal/catalog/
 
+  catalog:
+    desc: Check the links between the features and the starters of the catalog in catalog/
+    cmds:
+      - go run ./cmd/feature-compose check --catalog catalog
+
   e2e:
     desc: Run the end-to-end tests in Docker against a fresh binary, as CI does
     cmds:

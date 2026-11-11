@@ -140,7 +140,7 @@
     },
     {
       "n": 5,
-      "done": false,
+      "done": true,
       "title": "Run `check` on the catalog of this repo in CI",
       "language": "Go",
       "testable": true,

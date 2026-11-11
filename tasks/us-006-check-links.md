@@ -440,16 +440,16 @@ names (decision 8). `task test:catalog` runs it on `catalog/`, and the job `buil
 CI runs `check` on each change and fails when `check` finds a mistake.
 
 **Acceptance Criteria:**
-- [ ] `check --catalog <folder>` checks the catalog in that folder, also with no config file. A folder that does not
+- [x] `check --catalog <folder>` checks the catalog in that folder, also with no config file. A folder that does not
   exist, or is not a folder, stops `check`, and the message names it.
-- [ ] Without the flag, `check` reads the folder that the config file names, as in Task 1.
-- [ ] `task test:catalog` runs `check` on `catalog/` and exits with 0. With a feature in `catalog/` that adds to an
+- [x] Without the flag, `check` reads the folder that the config file names, as in Task 1.
+- [x] `task test:catalog` runs `check` on `catalog/` and exits with 0. With a feature in `catalog/` that adds to an
   extension point that nothing declares, it exits with a status that is not zero and names that feature; with the
   file restored, it exits with 0 again.
-- [ ] The job `build` of `.github/workflows/ci.yml` runs `task test:catalog` in a step of its own, so CI runs `check` on
+- [x] The job `build` of `.github/workflows/ci.yml` runs `task test:catalog` in a step of its own, so CI runs `check` on
   each push to a branch and on each run of the workflow for `main`.
-- [ ] "Check the Catalog" in `README.md` names `--catalog`, `task test:catalog`, and the job of CI that runs it.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] "Check the Catalog" in `README.md` names `--catalog`, `task test:catalog`, and the job of CI that runs it.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `internal/cmd/check.go`, `internal/cmd/check_test.go` — the flag `--catalog`

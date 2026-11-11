@@ -50,6 +50,13 @@ func (s Selection) Holds(featureName string) bool {
 	return slices.ContainsFunc(s.features, func(f selectedFeature) bool { return f.name == featureName })
 }
 
+func (s Selection) FeatureSource(featureName string) string {
+	if !s.Holds(featureName) {
+		return ""
+	}
+	return s.feature(featureName).source()
+}
+
 func (s Selection) NeededBy(featureName string) []string {
 	return slices.Clone(s.feature(featureName).neededBy)
 }
@@ -350,20 +357,24 @@ type selectedFeature struct {
 }
 
 func (f selectedFeature) line() string {
+	return f.name + ": " + f.source()
+}
+
+func (f selectedFeature) source() string {
 	switch {
 	case !f.requested():
-		return f.asNeed().String()
+		return f.asNeed().source()
 	case len(f.neededBy) > 0:
-		return f.name + ": " + f.source() + ", " + f.asNeed().source()
+		return f.requestedBy() + ", " + f.asNeed().source()
 	}
-	return f.name + ": " + f.source()
+	return f.requestedBy()
 }
 
 func (f selectedFeature) requested() bool {
 	return f.given || f.answered
 }
 
-func (f selectedFeature) source() string {
+func (f selectedFeature) requestedBy() string {
 	if f.given {
 		return "command line"
 	}

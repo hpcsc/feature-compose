@@ -90,7 +90,7 @@ func TestModel(t *testing.T) {
 │                                  ││                                                    │
 │                                  ││                                                    │
 ╰──────────────────────────────────╯╰────────────────────────────────────────────────────╯
- j/k move • l open • h close • ctrl+d/u scroll details • q quit`, screenOf(opened(t, withNeeds(), "service", "my-service", withAlpha())))
+ j/k move • l open • h close • space select • ctrl+d/u scroll details • q quit`, screenOf(opened(t, withNeeds(), "service", "my-service", withAlpha())))
 		})
 
 		t.Run("the title line counts one selected feature in the singular", func(t *testing.T) {
@@ -134,8 +134,8 @@ func TestModel(t *testing.T) {
 		})
 
 		for width, footer := range map[int]string{
-			62: " j/k move • l open • h close • ctrl+d/u scroll details …",
-			63: " j/k move • l open • h close • ctrl+d/u scroll details • q quit",
+			77: " j/k move • l open • h close • space select • ctrl+d/u scroll details …",
+			78: " j/k move • l open • h close • space select • ctrl+d/u scroll details • q quit",
 		} {
 			t.Run(fmt.Sprintf("the footer shows each key that fits in %d columns", width), func(t *testing.T) {
 				require.Equal(t, footer, linesOf(sized(opened(t, withNeeds(), "service", "my-service", nil), width, 10))[9])
@@ -238,6 +238,102 @@ func TestModel(t *testing.T) {
 				require.Equal(t, screenOf(atFeature), screenOf(pressed(atFeature, open)))
 			})
 		}
+	})
+
+	t.Run("features", func(t *testing.T) {
+		withSameExtensionPoint := func() fstest.MapFS {
+			files := withNeeds()
+			files["features/p/feature.yml"] = &fstest.MapFile{Data: []byte("summary: P.\ntargets: [service]\nextension_points:\n  shared.point:\n    summary: A point.\n    file: go/main.go\n    item: [code]\n")}
+			files["features/q/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Q.\ntargets: [service]\nextension_points:\n  shared.point:\n    summary: A point.\n    file: go/main.go\n    item: [code]\n")}
+			files["features/r/feature.yml"] = &fstest.MapFile{Data: []byte("summary: R.\ntargets: [service]\nneeds: [missing]\n")}
+			return files
+		}
+
+		t.Run("space at a feature that is not selected selects it with the source answered, and the count follows", func(t *testing.T) {
+			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "space")
+
+			require.Equal(t, "▌  ├─   [x] beta", selectedRowOf(m))
+			require.Equal(t, "source  answered", lastLineOf(detailsOf(m)))
+			require.True(t, strings.HasSuffix(linesOf(m)[0], " 1 feature"), linesOf(m)[0])
+		})
+
+		t.Run("space at a feature also selects the features that it needs, each marked needed by", func(t *testing.T) {
+			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "j", "j", "space")
+
+			require.Equal(t, []string{"   ├─   [ ] beta", "   ├─   [x] zed  needed by alpha", "▌  ├─   [x] alpha", "   └─   [ ] gamma"}, treeOf(m)[2:])
+			require.True(t, strings.HasSuffix(linesOf(m)[0], " 2 features"), linesOf(m)[0])
+		})
+
+		t.Run("space at a feature that the developer selected clears it and each feature that only its needs selected", func(t *testing.T) {
+			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "j", "j", "space", "space")
+
+			require.Equal(t, []string{"   ├─   [ ] beta", "   ├─   [ ] zed", "▌  ├─   [ ] alpha", "   └─   [ ] gamma"}, treeOf(m)[2:])
+		})
+
+		t.Run("a clear keeps a need that the developer selected before, with the source answered", func(t *testing.T) {
+			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "j", "space", "j", "space", "space", "k")
+
+			require.Equal(t, []string{"   ├─   [ ] beta", "▌  ├─   [x] zed", "   ├─   [ ] alpha", "   └─   [ ] gamma"}, treeOf(m)[2:])
+			require.Equal(t, "source  answered", lastLineOf(detailsOf(m)))
+		})
+
+		t.Run("a feature that the developer selected and that a selected feature needs shows both sources", func(t *testing.T) {
+			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "j", "space", "j", "space", "k")
+
+			require.Equal(t, "source  answered, needed by alpha", lastLineOf(detailsOf(m)))
+		})
+
+		for name, keys := range map[string][]string{
+			"selected only by the need":      {"j", "j", "j", "j", "space", "k", "space"},
+			"also selected by the developer": {"j", "j", "j", "space", "j", "space", "k", "space"},
+		} {
+			t.Run("space at a feature that a selected feature needs changes nothing, and the details say which features need it: "+name, func(t *testing.T) {
+				m := pressed(opened(t, withNeeds(), "service", "my-service", nil), keys...)
+
+				require.Equal(t, "▌  ├─   [x] zed  needed by alpha", selectedRowOf(m))
+				require.Equal(t, "zed stays selected: it is needed by alpha.", firstDetailsLineOf(m))
+			})
+		}
+
+		t.Run("space at a feature of --feature changes nothing, and the details say that the command line selects it", func(t *testing.T) {
+			m := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j", "space")
+
+			require.Equal(t, "▌  ├─   [x] alpha  fixed", selectedRowOf(m))
+			require.Equal(t, "alpha stays selected: --feature selects it.", firstDetailsLineOf(m))
+		})
+
+		t.Run("the developer can select more features next to a feature of --feature", func(t *testing.T) {
+			m := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j", "j", "space")
+
+			require.Equal(t, "▌  └─   [x] gamma", selectedRowOf(m))
+		})
+
+		for name, test := range map[string]struct {
+			keys    []string
+			message string
+		}{
+			"two features that declare one extension point": {[]string{"j", "j", "j", "space", "j", "space"}, `both declare the extension point "shared.point"`},
+			"a need that does not target the starter":       {[]string{"j", "j", "j", "j", "j", "space"}, `the feature r needs "missing", which is not a feature that targets the starter service`},
+		} {
+			t.Run("space at a feature whose selection Select refuses leaves the row as it was, and the details show the message of Select: "+name, func(t *testing.T) {
+				m := pressed(opened(t, withSameExtensionPoint(), "service", "my-service", nil), test.keys...)
+
+				require.Contains(t, selectedRowOf(m), "[ ]")
+				require.Contains(t, strings.Join(strings.Fields(detailsOf(m)), " "), test.message)
+			})
+		}
+
+		t.Run("space at the name row or at the starter row changes nothing", func(t *testing.T) {
+			m := opened(t, withNeeds(), "service", "my-service", nil)
+
+			require.Equal(t, []string{screenOf(m), screenOf(pressed(m, "j"))}, []string{screenOf(pressed(m, "space")), screenOf(pressed(m, "j", "space"))})
+		})
+
+		t.Run("the message of a space goes away at the next key", func(t *testing.T) {
+			m := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j", "space", "k", "j")
+
+			require.Equal(t, "Feature alpha.", firstDetailsLineOf(m))
+		})
 	})
 
 	t.Run("details", func(t *testing.T) {
@@ -541,6 +637,8 @@ func keyMsg(name string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyPgDown}
 	case "pgup":
 		return tea.KeyMsg{Type: tea.KeyPgUp}
+	case "space":
+		return tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}
 	case "ctrl+c":
 		return tea.KeyMsg{Type: tea.KeyCtrlC}
 	case "ctrl+d":

@@ -65,7 +65,27 @@ func (d draft) selected(starter catalog.Starter, answers catalog.Answers) (catal
 	return answers, selection, err
 }
 
-func (d draft) rows(t tree) []treeRow {
+func (d draft) toggled(featureName string) (draft, string) {
+	if _, isGiven := d.givenByFeature[featureName]; isGiven {
+		return d, featureName + " stays selected: --feature selects it."
+	}
+	if neededBy := d.selection.NeededBy(featureName); len(neededBy) > 0 {
+		return d, featureName + " stays selected: it is needed by " + strings.Join(neededBy, ", ") + "."
+	}
+	answers := d.answers
+	answers.Features = slices.DeleteFunc(slices.Clone(answers.Features), func(answered string) bool { return answered == featureName })
+	if len(answers.Features) == len(d.answers.Features) {
+		answers.Features = append(answers.Features, featureName)
+	}
+	answers, selection, err := d.selected(d.starter, answers)
+	if err != nil {
+		return d, err.Error()
+	}
+	d.answers, d.selection = answers, selection
+	return d, ""
+}
+
+func (d draft) nodes() []node {
 	nameMark := ""
 	switch {
 	case d.nameGiven:
@@ -73,8 +93,6 @@ func (d draft) rows(t tree) []treeRow {
 	case d.name == "":
 		nameMark = "missing"
 	}
-	rows := []treeRow{{row: row{kind: nameKind}, prefix: screen.Arrow(false, false), text: "name     " + d.name, mark: nameMark}}
-
 	starterMark := ""
 	switch {
 	case d.starterGiven:
@@ -82,20 +100,15 @@ func (d draft) rows(t tree) []treeRow {
 	case d.starterName == "":
 		starterMark = "missing"
 	}
-	starterRow := row{kind: starterKind}
-	children := d.featureRows()
-	canOpen := len(children) > 0
-	isOpen := t.isOpen(starterRow, canOpen)
-	rows = append(rows, treeRow{row: starterRow, prefix: screen.Arrow(canOpen, isOpen), text: "starter  " + d.starterName, mark: starterMark, canOpen: canOpen})
-	if isOpen {
-		rows = append(rows, children...)
+	return []node{
+		{row: row{kind: nameKind}, text: "name     " + d.name, mark: nameMark},
+		{row: row{kind: starterKind}, text: "starter  " + d.starterName, mark: starterMark, children: d.featureNodes()},
 	}
-	return rows
 }
 
-func (d draft) featureRows() []treeRow {
-	rows := make([]treeRow, 0, len(d.featureNames))
-	for i, featureName := range d.featureNames {
+func (d draft) featureNodes() []node {
+	nodes := make([]node, 0, len(d.featureNames))
+	for _, featureName := range d.featureNames {
 		box := "[ ] "
 		if d.selection.Holds(featureName) {
 			box = "[x] "
@@ -107,9 +120,9 @@ func (d draft) featureRows() []treeRow {
 		if neededBy := d.selection.NeededBy(featureName); len(neededBy) > 0 {
 			marks = append(marks, "needed by "+strings.Join(neededBy, ", "))
 		}
-		rows = append(rows, treeRow{row: row{kind: featureKind, feature: featureName}, prefix: "  " + screen.Branch(i == len(d.featureNames)-1), text: screen.Arrow(false, false) + box + featureName, mark: strings.Join(marks, ", ")})
+		nodes = append(nodes, node{row: row{kind: featureKind, feature: featureName}, text: box + featureName, mark: strings.Join(marks, ", ")})
 	}
-	return rows
+	return nodes
 }
 
 func (d draft) featureCount() int {
@@ -170,17 +183,7 @@ func (d draft) featureDetails(featureName string, width int) string {
 }
 
 func (d draft) featureSource(featureName string) string {
-	var sources []string
-	if _, isGiven := d.givenByFeature[featureName]; isGiven {
-		sources = append(sources, "command line")
-	}
-	if neededBy := d.selection.NeededBy(featureName); len(neededBy) > 0 {
-		sources = append(sources, "needed by "+strings.Join(neededBy, ", "))
-	}
-	if len(sources) == 0 {
-		return "not selected"
-	}
-	return strings.Join(sources, ", ")
+	return cmp.Or(d.selection.FeatureSource(featureName), "not selected")
 }
 
 func (d draft) withSource(details, source string, width int) string {

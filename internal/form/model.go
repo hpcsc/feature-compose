@@ -17,12 +17,13 @@ import (
 var errCanceled = errors.New("you canceled new, so it wrote no file")
 
 var keys = struct {
-	down, up, open, close, scrollDown, scrollUp, quit key.Binding
+	down, up, open, close, toggle, scrollDown, scrollUp, quit key.Binding
 }{
 	down:       key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "move")),
 	up:         key.NewBinding(key.WithKeys("k", "up")),
 	open:       key.NewBinding(key.WithKeys("l", "right"), key.WithHelp("l", "open")),
 	close:      key.NewBinding(key.WithKeys("h", "left", "esc"), key.WithHelp("h", "close")),
+	toggle:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "select")),
 	scrollDown: key.NewBinding(key.WithKeys("ctrl+d", "pgdown"), key.WithHelp("ctrl+d/u", "scroll details")),
 	scrollUp:   key.NewBinding(key.WithKeys("ctrl+u", "pgup")),
 	quit:       key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
@@ -36,6 +37,7 @@ type Model struct {
 	treeOffset   int
 	details      viewport.Model
 	detailsTitle string
+	message      string
 	help         help.Model
 	width        int
 	height       int
@@ -92,6 +94,7 @@ func (m Model) Confirmed() (catalog.Selection, error) {
 
 func (m Model) updateTree(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	before := m.tree.selected
+	m.message = ""
 	switch {
 	case key.Matches(msg, keys.quit):
 		return m, tea.Quit
@@ -103,6 +106,8 @@ func (m Model) updateTree(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.tree = m.tree.opened()
 	case key.Matches(msg, keys.close):
 		m.tree = m.tree.closed()
+	case key.Matches(msg, keys.toggle) && m.tree.selected.kind == featureKind:
+		m.draft, m.message = m.draft.toggled(m.tree.selected.feature)
 	case key.Matches(msg, keys.scrollDown):
 		m.details.HalfPageDown()
 	case key.Matches(msg, keys.scrollUp):
@@ -112,17 +117,20 @@ func (m Model) updateTree(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) laidOut(before row) Model {
-	m.tree.rows = m.draft.rows(m.tree)
+	m.tree.nodes = m.draft.nodes()
 	m.details.Width = max(m.width-m.treeWidth()-4, 0)
 	m.details.Height = max(m.height-4, 0)
 	var text string
 	m.detailsTitle, text = m.draft.details(m.tree.selected, m.details.Width)
+	if m.message != "" {
+		text = screen.MessageStyle.Render(strings.Join(screen.Wrapped(m.message, m.details.Width), "\n")) + "\n\n" + text
+	}
 	m.details.SetContent(text)
 	if m.tree.selected != before {
 		m.details.GotoTop()
 	}
 	treeHeight := max(m.height-4, 1)
-	m.treeOffset = max(min(screen.OffsetShowing(m.treeOffset, m.tree.selectedIndex(), treeHeight), len(m.tree.rows)-treeHeight), 0)
+	m.treeOffset = max(min(screen.OffsetShowing(m.treeOffset, m.tree.selectedIndex(), treeHeight), len(m.tree.rows())-treeHeight), 0)
 	return m
 }
 
@@ -132,5 +140,5 @@ func (m Model) treeWidth() int {
 
 func (m Model) footer() string {
 	m.help.Width = m.width - 1
-	return " " + m.help.ShortHelpView([]key.Binding{keys.down, keys.open, keys.close, keys.scrollDown, keys.quit})
+	return " " + m.help.ShortHelpView([]key.Binding{keys.down, keys.open, keys.close, keys.toggle, keys.scrollDown, keys.quit})
 }

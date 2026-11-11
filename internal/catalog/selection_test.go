@@ -1747,6 +1747,20 @@ folders:
 		})
 	})
 
+	t.Run("feature source", func(t *testing.T) {
+		t.Run("the source of each feature has the text of the preview, and a feature that the selection does not hold has none", func(t *testing.T) {
+			starter, err := catalog.New(withTwoNeeds()).Starter("service")
+			require.NoError(t, err)
+			given, err := starter.Select("my-service", nil, withoutValues("x", "b"), catalog.Answers{Features: []string{"y"}})
+			require.NoError(t, err)
+			answered, err := starter.Select("my-service", nil, withoutValues("x"), catalog.Answers{Features: []string{"y", "b", "c"}})
+			require.NoError(t, err)
+
+			require.Equal(t,
+				[]string{"command line", "command line, needed by x, y", "answered", "answered, needed by x, y", "answered", ""},
+				[]string{given.FeatureSource("x"), given.FeatureSource("b"), given.FeatureSource("y"), answered.FeatureSource("b"), answered.FeatureSource("c"), given.FeatureSource("c")})
+		})
+	})
 }
 
 func filesIn(t *testing.T, dir string) map[string]string {

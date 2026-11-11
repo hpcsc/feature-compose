@@ -114,7 +114,7 @@
     },
     {
       "n": 4,
-      "done": false,
+      "done": true,
       "title": "Select and clear features with Space, with their needs",
       "language": "Go",
       "testable": true,

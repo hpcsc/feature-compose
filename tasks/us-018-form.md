@@ -449,23 +449,23 @@ feature of `--feature`, and a feature that a selected feature needs, cannot be c
 `Select` refuses changes nothing, and the details show the message of `Select`.
 
 **Acceptance Criteria:**
-- [ ] Space at a feature that is not selected selects it: its row shows `[x]`, its details show the source
+- [x] Space at a feature that is not selected selects it: its row shows `[x]`, its details show the source
   `answered`, and each feature that it needs, and their needs, show `[x]` and `needed by <features>`. The count of the
   title line follows.
-- [ ] Space at a feature that the developer selected and that no selected feature needs clears it, and also clears
+- [x] Space at a feature that the developer selected and that no selected feature needs clears it, and also clears
   each feature that only its needs selected. A feature that the developer selected before stays: after Space at
   `api-auth` and then at `cli-auth`, a Space at `cli-auth` clears `cli-auth` and `cli`, and `api-auth` stays selected
   with the source `answered`.
-- [ ] Space at a feature that a selected feature needs changes nothing, whether only the need or also the developer
+- [x] Space at a feature that a selected feature needs changes nothing, whether only the need or also the developer
   selected it, and the details show a message that names the features that need it.
-- [ ] Space at a feature of `--feature` changes nothing, and the details say that the command line fixes it. The
+- [x] Space at a feature of `--feature` changes nothing, and the details say that the command line fixes it. The
   developer can select more features next to it.
-- [ ] Space at a feature whose selection `Select` refuses, for example two features that declare the same extension
+- [x] Space at a feature whose selection `Select` refuses, for example two features that declare the same extension
   point, or a need that does not target the starter, leaves the selection and the tree as they were, and the details
   show the message of `Select`.
-- [ ] Space at the name row or at the starter row changes nothing.
-- [ ] The footer shows Space with its help.
-- [ ] The tests of `internal/form` drive these keys through `Update` and `View`.
+- [x] Space at the name row or at the starter row changes nothing.
+- [x] The footer shows Space with its help.
+- [x] The tests of `internal/form` drive these keys through `Update` and `View`.
 
 **Affected Files/Modules:**
 - `internal/form/model.go` — Space, the answered features, and the message of a feature that cannot change

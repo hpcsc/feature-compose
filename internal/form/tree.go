@@ -8,6 +8,13 @@ import (
 	"github.com/hpcsc/feature-compose/internal/screen"
 )
 
+type node struct {
+	row
+	text     string
+	mark     string
+	children []node
+}
+
 type treeRow struct {
 	row
 	prefix  string
@@ -42,9 +49,30 @@ func (r treeRow) withMark(text, mark string) string {
 }
 
 type tree struct {
-	rows     []treeRow
+	nodes    []node
 	selected row
 	open     map[row]bool
+}
+
+func (t tree) rows() []treeRow {
+	return t.rowsOf(t.nodes, "", false)
+}
+
+func (t tree) rowsOf(nodes []node, indent string, areChildren bool) []treeRow {
+	var rows []treeRow
+	for i, n := range nodes {
+		branch, childIndent := "", "  "
+		if areChildren {
+			branch, childIndent = screen.Branch(i == len(nodes)-1), indent+screen.ChildIndent(i == len(nodes)-1)
+		}
+		canOpen := len(n.children) > 0
+		isOpen := t.isOpen(n.row, canOpen)
+		rows = append(rows, treeRow{row: n.row, prefix: indent + branch + screen.Arrow(canOpen, isOpen), text: n.text, mark: n.mark, canOpen: canOpen})
+		if isOpen {
+			rows = append(rows, t.rowsOf(n.children, childIndent, true)...)
+		}
+	}
+	return rows
 }
 
 func (t tree) isOpen(r row, canOpen bool) bool {
@@ -62,28 +90,29 @@ func (t tree) withOpen(r row, isOpen bool) tree {
 }
 
 func (t tree) selectedIndex() int {
-	return slices.IndexFunc(t.rows, func(r treeRow) bool { return r.row == t.selected })
+	return slices.IndexFunc(t.rows(), func(r treeRow) bool { return r.row == t.selected })
 }
 
 func (t tree) moved(by int) tree {
-	t.selected = t.rows[min(max(t.selectedIndex()+by, 0), len(t.rows)-1)].row
+	rows := t.rows()
+	t.selected = rows[min(max(t.selectedIndex()+by, 0), len(rows)-1)].row
 	return t
 }
 
 func (t tree) opened() tree {
+	rows := t.rows()
 	i := t.selectedIndex()
-	r := t.rows[i]
 	switch {
-	case t.isOpen(r.row, r.canOpen):
-		t.selected = t.rows[i+1].row
-	case r.canOpen:
-		return t.withOpen(r.row, true)
+	case t.isOpen(rows[i].row, rows[i].canOpen):
+		t.selected = rows[i+1].row
+	case rows[i].canOpen:
+		return t.withOpen(rows[i].row, true)
 	}
 	return t
 }
 
 func (t tree) closed() tree {
-	r := t.rows[t.selectedIndex()]
+	r := t.rows()[t.selectedIndex()]
 	if t.isOpen(r.row, r.canOpen) {
 		return t.withOpen(r.row, false)
 	}
@@ -93,15 +122,16 @@ func (t tree) closed() tree {
 
 func (t tree) widestRow() int {
 	widest := 0
-	for _, r := range t.rows {
+	for _, r := range t.rows() {
 		widest = max(widest, lipgloss.Width(r.plain()))
 	}
 	return widest
 }
 
 func (t tree) lines(offset, width, height int) []string {
+	rows := t.rows()
 	lines := make([]string, 0, height)
-	for _, r := range t.rows[min(offset, len(t.rows)):min(offset+height, len(t.rows))] {
+	for _, r := range rows[min(offset, len(rows)):min(offset+height, len(rows))] {
 		lines = append(lines, r.line(r.row == t.selected, width))
 	}
 	return lines

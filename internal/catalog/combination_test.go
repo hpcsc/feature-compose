@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hpcsc/feature-compose/internal/catalog"
 	"github.com/stretchr/testify/require"
 )
 

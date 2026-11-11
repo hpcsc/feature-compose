@@ -391,6 +391,36 @@ describe('feature-compose new in a terminal', () => {
     expect(readdirSync(dir)).toEqual([])
   })
 
+  it('with --feature cli-auth, the form marks the method of api-auth as fixed with the source need of cli-auth, and enter at it starts no edit and names cli-auth', async () => {
+    const dir = scratchDir()
+    const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth'])
+
+    await session.waitForText('method  api-key  fixed', { timeout: 15_000 })
+    await pressed(session, ['j', 'j', 'j', 'j', 'j'])
+    await session.waitForText('source   need of cli-auth')
+    await session.press('enter')
+    await session.waitForText('The option method is fixed: the need of')
+    expect(await session.text()).toContain('cli-auth sets it.')
+    await session.press('q')
+    await session.waitForText('EXIT:1')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  it('with --feature api-auth:method=oauth, space at cli-auth leaves it unselected, and the details name oauth from the command line and api-key from the need of cli-auth', async () => {
+    const dir = scratchDir()
+    const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'api-auth:method=oauth'])
+
+    await session.waitForText('method  oauth  fixed', { timeout: 15_000 })
+    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'j', 'j', 'space'])
+    await session.waitForText('two values')
+    const refused = await session.text()
+    expect(refused).toContain('[ ] cli-auth')
+    expect(detailsPaneOf(refused)).toContain('"oauth" from the command line and "api-key" from the need of cli-auth')
+    await session.press('q')
+    await session.waitForText('EXIT:1')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
   it('enter at go-version edits it, the form refuses a text that does not match its pattern and keeps one that matches, and the preview shows it as answered next to the defaults', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth'])
@@ -651,6 +681,14 @@ function passedPackages(output: string): string[] {
     .split('\n')
     .filter((line) => line.startsWith('✓'))
     .map((line) => line.split(/\s+/)[1])
+}
+
+function detailsPaneOf(screen: string): string {
+  return screen
+    .split('\n')
+    .map((line) => (line.split('││')[1] ?? '').replace(/│\s*$/, '').trim())
+    .join(' ')
+    .replace(/\s+/g, ' ')
 }
 
 function commandsIn(help: string): string[] {

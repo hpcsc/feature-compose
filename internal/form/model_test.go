@@ -41,6 +41,14 @@ func TestModel(t *testing.T) {
 			"features/zed/feature.yml":          &fstest.MapFile{Data: []byte("summary: Feature zed.\ntargets: [service]\noptions:\n  level:\n    values: [low, mid, high]\n    default: low\n")},
 		}
 	}
+	withNeedValue := func() fstest.MapFS {
+		return fstest.MapFS{
+			"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n")},
+			"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			"features/auth/feature.yml":         &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [service]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n")},
+			"features/cli-auth/feature.yml":     &fstest.MapFile{Data: []byte("summary: CLI auth.\ntargets: [service]\nneeds:\n  auth:\n    method: api-key\n")},
+		}
+	}
 	withCycle := func() fstest.MapFS {
 		files := withNeeds()
 		files["features/beta/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Feature beta.\ntargets: [service]\nneeds: [gamma]\n")}
@@ -333,6 +341,13 @@ func TestModel(t *testing.T) {
 			})
 		}
 
+		t.Run("space at a feature whose need sets another value than a flag leaves the row as it was, and the details show the message that names both sources", func(t *testing.T) {
+			m := pressed(opened(t, withNeedValue(), "service", "my-service", map[string]map[string]string{"auth": {"method": "oauth"}}), "j", "j", "j", "j", "space")
+
+			require.Contains(t, selectedRowOf(m), "[ ] cli-auth")
+			require.Contains(t, strings.Join(strings.Fields(detailsOf(m)), " "), `the option method of the feature auth has two values: "oauth" from the command line and "api-key" from the need of cli-auth`)
+		})
+
 		t.Run("space at the name row or at the starter row changes nothing", func(t *testing.T) {
 			m := opened(t, withNeeds(), "service", "my-service", nil)
 
@@ -409,6 +424,27 @@ func TestModel(t *testing.T) {
 		t.Run("an option with no default that a flag gives the empty text is marked fixed and missing", func(t *testing.T) {
 			require.Equal(t, "   ├─   zone      fixed, missing", treeOf(openedWith(t, map[string]string{"zone": ""}, nil))[4])
 		})
+
+		t.Run("an option whose value the need of a selected feature sets is marked fixed, and the mark goes when no selected need sets it", func(t *testing.T) {
+			needed := pressed(sized(opened(t, withNeedValue(), "service", "my-service", nil), 120, 20), "j", "j", "space", "j", "j", "space")
+			cleared := pressed(needed, "space")
+
+			require.Equal(t, []string{"   │  └─   method  api-key  fixed", "   │  └─   method  api-key"}, []string{treeOf(needed)[3], treeOf(cleared)[3]})
+		})
+
+		for name, test := range map[string]struct {
+			givenByFeature map[string]map[string]string
+			source         string
+		}{
+			"the need of a selected feature sets":                   {nil, "need of cli-auth"},
+			"a flag gives with the value that a selected need sets": {map[string]map[string]string{"auth": {"method": "api-key"}}, "command line, need of cli-auth"},
+		} {
+			t.Run("the details of an option whose value "+name+" show the source "+test.source, func(t *testing.T) {
+				m := pressed(opened(t, withNeedValue(), "service", "my-service", test.givenByFeature), "j", "j", "j", "j", "space", "k")
+
+				require.Equal(t, "value    api-key\ndefault  api-key\nvalues   api-key, oauth\nsource   "+test.source, detailsOf(m))
+			})
+		}
 
 		t.Run("an option that --option or --feature gives is marked fixed", func(t *testing.T) {
 			m := openedWith(t, map[string]string{"region": "eu"}, map[string]map[string]string{"zed": {"level": "high"}})
@@ -528,6 +564,28 @@ func TestModel(t *testing.T) {
 
 		t.Run("enter at the name of an argument starts no edit, and the details say that the command line fixes it", func(t *testing.T) {
 			require.Equal(t, "The name is fixed: the command line gives it.", firstDetailsLineOf(pressed(opened(t, withOptions(), "service", "my-service", nil), "enter")))
+		})
+
+		for name, test := range map[string]struct {
+			givenByFeature map[string]map[string]string
+			message        string
+		}{
+			"a need sets":                          {nil, "The option method is fixed: the need of cli-auth sets it."},
+			"a need sets and a flag gives with it": {map[string]map[string]string{"auth": {"method": "api-key"}}, "The option method is fixed: the command line and the need of cli-auth give it."},
+		} {
+			t.Run("enter at an option that "+name+" starts no edit, and the details say what fixes it", func(t *testing.T) {
+				m := pressed(opened(t, withNeedValue(), "service", "my-service", test.givenByFeature), "j", "j", "j", "j", "space", "k", "enter")
+
+				require.Equal(t, test.message, strings.Join(strings.Fields(strings.SplitN(detailsOf(m), "\n\n", 2)[0]), " "))
+			})
+		}
+
+		t.Run("a value that the developer kept gives way to the value of a need, and the option has the kept value again when no selected need sets it", func(t *testing.T) {
+			kept := pressed(sized(opened(t, withNeedValue(), "service", "my-service", nil), 120, 20), "j", "j", "space", "j", "enter", "j", "enter")
+			needed := pressed(kept, "j", "space")
+			cleared := pressed(needed, "space")
+
+			require.Equal(t, []string{"▌  │  └─   method  oauth", "   │  └─   method  api-key  fixed", "   │  └─   method  oauth"}, []string{treeOf(kept)[3], treeOf(needed)[3], treeOf(cleared)[3]})
 		})
 
 		t.Run("enter at an option of a flag starts no edit, and the details say that the command line fixes it", func(t *testing.T) {
@@ -1101,14 +1159,15 @@ func TestModel(t *testing.T) {
 			givenByFeature map[string]map[string]string
 			message        string
 		}{
-			"an unknown starter":                               {withNeeds(), "nope", "my-service", nil, nil, `unknown starter "nope": the catalog has other, service`},
-			"an unknown feature":                               {withNeeds(), "service", "my-service", nil, map[string]map[string]string{"nope": {}}, `unknown feature "nope": the features that target the starter service are alpha, beta, gamma, zed`},
-			"an unknown feature with no name":                  {withNeeds(), "service", "", nil, map[string]map[string]string{"nope": {}}, `unknown feature "nope": the features that target the starter service are alpha, beta, gamma, zed`},
-			"an unknown option":                                {withOptions(), "service", "my-service", map[string]string{"nope": "x"}, nil, `unknown option "nope": the options of the starter service are module, region, zone`},
-			"a value that does not match its pattern":          {withOptions(), "service", "my-service", map[string]string{"region": "EU"}, nil, `the starter service: the value "EU" of the option region does not match its pattern ^[a-z]+$`},
-			"features of the starter whose needs form a cycle": {withCycle(), "service", "my-service", nil, nil, "the needs of the features form a cycle: beta needs gamma needs beta"},
-			"a catalog that cannot load, with no starter":      {fstest.MapFS{"starters/service/starter.yml": &fstest.MapFile{Data: []byte("folders: [")}}, "", "", nil, nil, "starters/service/starter.yml"},
-			"a name that the check refuses, with no starter":   {withNeeds(), "", "../x", nil, nil, `the name "../x" of the repo`},
+			"an unknown starter":                                    {withNeeds(), "nope", "my-service", nil, nil, `unknown starter "nope": the catalog has other, service`},
+			"an unknown feature":                                    {withNeeds(), "service", "my-service", nil, map[string]map[string]string{"nope": {}}, `unknown feature "nope": the features that target the starter service are alpha, beta, gamma, zed`},
+			"an unknown feature with no name":                       {withNeeds(), "service", "", nil, map[string]map[string]string{"nope": {}}, `unknown feature "nope": the features that target the starter service are alpha, beta, gamma, zed`},
+			"an unknown option":                                     {withOptions(), "service", "my-service", map[string]string{"nope": "x"}, nil, `unknown option "nope": the options of the starter service are module, region, zone`},
+			"a value that does not match its pattern":               {withOptions(), "service", "my-service", map[string]string{"region": "EU"}, nil, `the starter service: the value "EU" of the option region does not match its pattern ^[a-z]+$`},
+			"features of the starter whose needs form a cycle":      {withCycle(), "service", "my-service", nil, nil, "the needs of the features form a cycle: beta needs gamma needs beta"},
+			"a catalog that cannot load, with no starter":           {fstest.MapFS{"starters/service/starter.yml": &fstest.MapFile{Data: []byte("folders: [")}}, "", "", nil, nil, "starters/service/starter.yml"},
+			"a flag that gives an option another value than a need": {withNeedValue(), "service", "my-service", nil, map[string]map[string]string{"auth": {"method": "oauth"}, "cli-auth": {}}, `"oauth" from the command line and "api-key" from the need of cli-auth`},
+			"a name that the check refuses, with no starter":        {withNeeds(), "", "../x", nil, nil, `the name "../x" of the repo`},
 		} {
 			t.Run(name+" stops the form before it opens, with the message of the catalog", func(t *testing.T) {
 				_, err := form.New(catalog.New(test.files), test.starterName, test.name, test.given, test.givenByFeature)

@@ -72,7 +72,7 @@ func (d draft) selected(starter catalog.Starter, answers catalog.Answers) (catal
 }
 
 func (d draft) toggled(featureName string) (draft, string) {
-	if d.isGiven(row{kind: featureKind, feature: featureName}) {
+	if d.isFixed(row{kind: featureKind, feature: featureName}) {
 		return d, featureName + " stays selected: --feature selects it."
 	}
 	if neededBy := d.selection.NeededBy(featureName); len(neededBy) > 0 {
@@ -134,7 +134,7 @@ func (d draft) withKeptStarter(starterName string) (draft, error) {
 	return kept, nil
 }
 
-func (d draft) isGiven(r row) bool {
+func (d draft) isFixed(r row) bool {
 	switch r.kind {
 	case nameKind:
 		return d.nameGiven
@@ -144,13 +144,13 @@ func (d draft) isGiven(r row) bool {
 		_, isGiven := d.givenByFeature[r.feature]
 		return isGiven
 	case optionKind:
-		return d.question(r).Given
+		return d.question(r).Fixed()
 	}
 	panic(fmt.Sprintf("the form has no source for the row kind %d", r.kind))
 }
 
 func (d draft) editOf(r row) (edit, string) {
-	if message := d.givenMessage(r); message != "" {
+	if message := d.fixedMessage(r); message != "" {
 		return edit{}, message
 	}
 	if r.kind == starterKind && len(d.definitions.Starters) == 0 {
@@ -162,14 +162,21 @@ func (d draft) editOf(r row) (edit, string) {
 	return newTextEdit(r, d.value(r)), ""
 }
 
-func (d draft) givenMessage(r row) string {
+func (d draft) fixedMessage(r row) string {
 	switch {
-	case !d.isGiven(r):
+	case !d.isFixed(r):
 		return ""
 	case r.kind == nameKind:
 		return "The name is fixed: the command line gives it."
 	case r.kind == starterKind:
 		return "The starter is fixed: the command line gives it."
+	}
+	q := d.question(r)
+	switch {
+	case q.Given && len(q.NeedOf) > 0:
+		return "The option " + r.option + " is fixed: the command line and the need of " + strings.Join(q.NeedOf, ", ") + " give it."
+	case len(q.NeedOf) > 0:
+		return "The option " + r.option + " is fixed: the need of " + strings.Join(q.NeedOf, ", ") + " sets it."
 	}
 	return "The option " + r.option + " is fixed: the command line gives it."
 }
@@ -269,7 +276,7 @@ func (d draft) optionNodes(featureName string) []node {
 	nodes := make([]node, 0, len(questions))
 	for _, q := range questions {
 		var marks []string
-		if q.Given {
+		if q.Fixed() {
 			marks = append(marks, "fixed")
 		}
 		if q.Missing {

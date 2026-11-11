@@ -714,6 +714,19 @@ folders:
 			})
 		}
 
+		t.Run("in a terminal, a flag that gives an option another value than a need stops new before the TUI starts, and new writes nothing", func(t *testing.T) {
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+			files := withNeeds()
+			files["features/v/feature.yml"] = &fstest.MapFile{Data: []byte("summary: V.\ntargets: [service]\nneeds:\n  b:\n    mode: slow\n")}
+
+			screen, err := runInTerminal(t, files, "", "", "service", "my-service", "--feature", "v", "--feature", "b:mode=fast")
+
+			require.ErrorContains(t, err, `"fast" from the command line and "slow" from the need of v`)
+			require.NotContains(t, screen, "feature-compose new")
+			require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
+		})
+
 		t.Run("in a terminal, an unknown starter stops new before the TUI starts", func(t *testing.T) {
 			screen, err := runInTerminal(t, withFeatures(), "", "", "nope", "my-service")
 

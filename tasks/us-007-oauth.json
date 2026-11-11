@@ -172,7 +172,7 @@
     },
     {
       "n": 5,
-      "done": false,
+      "done": true,
       "title": "Mark a value that a need sets as fixed in the form of `new`",
       "language": "Go",
       "testable": true,

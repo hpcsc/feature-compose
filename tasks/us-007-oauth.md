@@ -578,33 +578,33 @@ Space at a feature whose need sets another value than a flag leaves the feature 
 message of `Select`, which names both sources. Flags that conflict with a need stop `new` before the form opens.
 
 **Acceptance Criteria:**
-- [ ] An option whose value the need of a selected feature sets shows `fixed` in the tree, for example
+- [x] An option whose value the need of a selected feature sets shows `fixed` in the tree, for example
   `method  api-key  fixed` under `api-auth` after a Space at `cli-auth`. When no selected feature's need sets the
   option, the mark goes, unless a flag gives the value.
-- [ ] The details of that option show its value, its default, its values or its pattern, and the source
+- [x] The details of that option show its value, its default, its values or its pattern, and the source
   `need of <features>`, or `command line, need of <features>` when a flag gives the same value.
-- [ ] Enter at that option starts no edit, and the first line of the details says that the option is fixed and names
+- [x] Enter at that option starts no edit, and the first line of the details says that the option is fixed and names
   the features whose need sets it, and also the command line when a flag gives the value.
-- [ ] A value that the developer kept for an option gives way to the value of a need while the need of a selected
+- [x] A value that the developer kept for an option gives way to the value of a need while the need of a selected
   feature sets it, and the option shows that value again when no selected feature's need sets it.
-- [ ] With `--feature auth:method=oauth` and a feature whose need sets `method: api-key`, a Space at that feature leaves
+- [x] With `--feature auth:method=oauth` and a feature whose need sets `method: api-key`, a Space at that feature leaves
   its row `[ ]`, and the details show the message of `Select`, which names `oauth` with the command line and `api-key`
   with the need of that feature.
-- [ ] `form.New` with the two features in `--feature`, whose need and flag give different values, stops with that
+- [x] `form.New` with the two features in `--feature`, whose need and flag give different values, stops with that
   message (the group `start` of `TestModel`). In a terminal, `new` with those flags stops before the form opens and
   writes nothing (the group `tui` of `TestNewCommand`).
-- [ ] `README.md`, in "Answer the Questions in a TUI": the mark `fixed` names an argument, a flag or a need; the example
+- [x] `README.md`, in "Answer the Questions in a TUI": the mark `fixed` names an argument, a flag or a need; the example
   of the screen shows `method  api-key  fixed`; Enter at a value that an argument, a flag or a need gives starts no
   edit; and a Space at a feature whose need gives another value than a flag leaves the feature unselected and shows the
   message.
-- [ ] `e2e/tests/new.test.ts`, describe "feature-compose new in a terminal", on the catalog of this repo:
+- [x] `e2e/tests/new.test.ts`, describe "feature-compose new in a terminal", on the catalog of this repo:
   `new go-event-sourcing-service my-service --feature cli-auth` shows `method  api-key  fixed`, and Enter at that row
   shows a message that names `cli-auth`, with the source `need of cli-auth`;
   `new go-event-sourcing-service my-service --feature api-auth:method=oauth` and a Space at `cli-auth` leave
   `[ ] cli-auth` and show a message that names `oauth` and the need of `cli-auth`; `q` ends with a status other than
   0 and a scratch folder with no entry.
-- [ ] The tests of `internal/form` drive these keys through `Update` and `View`, with catalogs in `fstest.MapFS`.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, also with `CLICOLOR_FORCE=1` and with `NO_COLOR=1`,
+- [x] The tests of `internal/form` drive these keys through `Update` and `View`, with catalogs in `fstest.MapFS`.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, also with `CLICOLOR_FORCE=1` and with `NO_COLOR=1`,
   and the e2e tests of `new` pass on the host.
 
 **Affected Files/Modules:**

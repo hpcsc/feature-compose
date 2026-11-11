@@ -19,6 +19,10 @@ type Question struct {
 	options  options
 }
 
+func (q Question) Fixed() bool {
+	return q.Given || len(q.NeedOf) > 0
+}
+
 func (q Question) Check(value string) error {
 	if err := q.options.check(map[string]string{q.Option: value}); err != nil {
 		return err

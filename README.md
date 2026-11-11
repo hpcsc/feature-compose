@@ -119,7 +119,7 @@ pane shows the details of the selected row. You can change any answer in any ord
 │    ├─   go-version  1.27.1               ││                                                                │
 │    ├─   module      github.com/hpcsc/my… ││                                                                │
 │    ├─ ▾ [x] api-auth  needed by cli-auth ││                                                                │
-│    │  └─   method  api-key               ││                                                                │
+│    │  └─   method  api-key  fixed        ││                                                                │
 │    ├─   [x] cli  needed by cli-auth      ││                                                                │
 │    └─   [x] cli-auth  fixed              ││                                                                │
 ╰──────────────────────────────────────────╯╰────────────────────────────────────────────────────────────────╯
@@ -139,7 +139,7 @@ A mark after a row tells you more about it:
 
 | Mark | Meaning |
 | --- | --- |
-| `fixed` | An argument or a flag gives the value, so the form does not change it. |
+| `fixed` | An argument, a flag or the need of a selected feature gives the value, so the form does not change it. |
 | `needed by <features>` | Selected features need the feature, so it stays selected. |
 | `missing` | The row has no value yet, and `w` stops on it. |
 
@@ -161,17 +161,22 @@ needs, with the mark `needed by <features>`. Space at a needed feature changes n
 features that need it. Space at a feature that you selected clears it, and also clears each feature that only its
 needs selected. A feature that a `--feature` flag gives stays selected, and you can select more features next to it.
 When the selection stops, for example because two features declare one extension point, the feature stays as it was
-and the details show the message.
+and the details show the message. The selection also stops when the need of a feature sets another value than a flag,
+for example a Space at `cli-auth`, whose need sets `api-auth.method` to `api-key`, with
+`--feature api-auth:method=oauth`. The message names both sources.
 
 **The edit.** Enter at the name, or at an option without `values`, starts an edit of the text in the right pane. Each
 key goes to the text. While the text does not pass its check, the details say why, for example that it does not match
 the `pattern` of the option. Enter keeps a text that passes, and Esc drops the change. Enter at an option with
 `values`, or at the starter, lists the values or the starters in the right pane: `j` and `k` move, Enter keeps the
-chosen one, and Esc drops the change. Enter at a value that an argument or a flag gives starts no edit.
+chosen one, and Esc drops the change. Enter at a value that an argument, a flag or a need gives starts no edit, and
+the details say what gives the value.
 
 A value that you keep has the source `answered`, also when it is the default. Until you keep a value for an option,
 the option has its default, and a default that reads the name, for example `github.com/hpcsc/{{ .Name }}`, follows
-the name. A clear of a feature drops the values that you kept for it.
+the name. A clear of a feature drops the values that you kept for it. While the need of a selected feature sets an
+option, the option has the value of the need, and a value that you kept for it comes back when no selected need sets
+it.
 
 **The starter.** A change of the starter keeps each feature that you selected and that targets the new starter, with
 the values that you kept for it. It clears the other features, and the values that you kept for the options of the
@@ -183,8 +188,8 @@ the details show the message.
 the starter, or the value of an option with no default), `w` selects its row, opens the rows above it, and the details
 say what is missing.
 
-An unknown starter, and a flag that the starter does not know, stop `new` before the form opens, with the message that
-`new` gives without the form.
+An unknown starter, a flag that the starter does not know, and a flag that gives an option another value than a need,
+stop `new` before the form opens, with the message that `new` gives without the form.
 
 `new` writes nothing until you press `y`. A cancel writes no file, makes no output folder and runs no command. `new`
 then prints `you canceled new, so it wrote no file` and ends with the status 1.

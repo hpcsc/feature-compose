@@ -1336,6 +1336,17 @@ Options:
 			}, contentsOf([]catalog.Question{questionOf(t, needed, "zed", "mode"), questionOf(t, needed, "zed", "token"), questionOf(t, alsoGiven, "zed", "mode")}))
 		})
 
+		t.Run("an option is fixed when a flag gives it or a need sets it, and not when it has its default", func(t *testing.T) {
+			files := withQuestions()
+			files["features/alpha/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Alpha.\ntargets: [service]\nneeds:\n  zed:\n    mode: slow\n")}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", map[string]string{"region": "eu"}, map[string]map[string]string{"alpha": {}}, catalog.Answers{})
+			require.NoError(t, err)
+
+			require.Equal(t, []bool{true, true, false}, []bool{questionOf(t, selection, "", "region").Fixed(), questionOf(t, selection, "zed", "mode").Fixed(), questionOf(t, selection, "zed", "token").Fixed()})
+		})
+
 		t.Run("an option that the answers give has the source answered", func(t *testing.T) {
 			starter, err := catalog.New(withQuestions()).Starter("service")
 			require.NoError(t, err)

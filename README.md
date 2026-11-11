@@ -309,9 +309,13 @@ feature-compose check
 | A feature adds files to a folder that the starter does not have. `check` reads the files of each files entry, also of an entry whose `when` is false. A folder with many files gives one mistake. | `the starter service: the feature web adds files to the folder web, which the starter does not have` |
 | A file is directly in a files entry, so it is in no folder. | `the starter service: the template README.md of the files entry files/ of the feature cli is not in a folder` |
 | Two targets of a feature declare an extension point of its `add_to` with different item fields. In a target where a need of the feature declares the extension point, the item fields of the need count. A target that does not declare the extension point is not in this message. | `the feature auth adds to the extension point "api.middleware", which its targets declare with different item fields: [code, import] in the starter service, [code] in the starter worker` |
+| A need is not a feature of the catalog. | `the starter service: the feature auth needs vault, which is not a feature of the catalog` |
+| A need does not target each target of the feature. | `the starter worker: the feature auth needs cli, which does not target the starter` |
+| A need sets a value that its option does not have: a value that is not one of the values of the option or does not match its pattern, or an option that the needed feature does not declare. Each wrong value is one mistake, also in a target that the need does not target. | `the starter service: the need of the feature cli-auth: the feature api-auth: the value "basic" of the option method is not one of its values: api-key, oauth` |
 
-Each message names the feature, the starter, and the extension point or the folder that is wrong. A feature with
-two targets gives one mistake for each target that it does not fit.
+Each message names the feature, the starter, and the extension point, the folder or the need that is wrong. A
+feature with two targets gives one mistake for each target that it does not fit. A wrong need of a need is a
+mistake of the feature that has the need, not of the features that need that feature.
 
 `check` prints each mistake on its own line to stdout. The mistakes of each starter come first, in the order of the
 starters, the features, the extension points and the items. The mistakes of targets with different item fields

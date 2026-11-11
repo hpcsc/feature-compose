@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"maps"
 	"slices"
-	"strings"
 )
 
 type Catalog struct {
@@ -80,54 +79,42 @@ func (c Catalog) Check() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	catalogFeatures, err := c.features()
+	if err != nil {
+		return nil, err
+	}
 	var mistakes []string
 	var starters []Starter
 	for _, starterName := range names {
-		starter, err := c.Starter(starterName)
+		targeting := maps.Clone(catalogFeatures)
+		maps.DeleteFunc(targeting, func(_ string, f feature) bool { return !f.targetsStarter(starterName) })
+		starter, err := readStarter(c.fsys, starterName, targeting)
 		if err != nil {
 			return nil, err
 		}
 		starters = append(starters, starter)
-		mistakes = append(mistakes, starter.mistakes()...)
+		mistakes = append(mistakes, starter.mistakes(catalogFeatures)...)
 	}
-	return append(mistakes, c.itemFieldsMistakes(starters)...), nil
+	for _, featureName := range slices.Sorted(maps.Keys(catalogFeatures)) {
+		mistakes = append(mistakes, catalogFeatures[featureName].itemFieldsMistakes(starters)...)
+	}
+	return mistakes, nil
 }
 
-func (c Catalog) itemFieldsMistakes(starters []Starter) []string {
-	var featureNames []string
-	for _, s := range starters {
-		featureNames = slices.AppendSeq(featureNames, maps.Keys(s.features))
+func (c Catalog) features() (map[string]feature, error) {
+	featureNames, err := c.featureNames()
+	if err != nil {
+		return nil, err
 	}
-	slices.Sort(featureNames)
-	var mistakes []string
-	for _, featureName := range slices.Compact(featureNames) {
-		var targets []Starter
-		for _, s := range starters {
-			if _, ok := s.features[featureName]; ok {
-				targets = append(targets, s)
-			}
+	features := map[string]feature{}
+	for _, featureName := range featureNames {
+		f, err := readFeature(c.fsys, featureName)
+		if err != nil {
+			return nil, err
 		}
-		for _, name := range slices.Sorted(maps.Keys(targets[0].features[featureName].addTo)) {
-			var declarations []string
-			var first extensionPoint
-			differ := false
-			for _, s := range targets {
-				declared, ok := s.extensionPointsDeclaredFor(s.features[featureName])[name]
-				if !ok {
-					continue
-				}
-				if declarations == nil {
-					first = declared
-				}
-				differ = differ || !declared.hasItemFields(first.itemFields)
-				declarations = append(declarations, fmt.Sprintf("[%s] in the starter %s", strings.Join(declared.itemFields, ", "), s.name))
-			}
-			if differ {
-				mistakes = append(mistakes, fmt.Sprintf("the feature %s adds to the extension point %q, which its targets declare with different item fields: %s", featureName, name, strings.Join(declarations, ", ")))
-			}
-		}
+		features[f.name] = f
 	}
-	return mistakes
+	return features, nil
 }
 
 func (c Catalog) featuresTargeting(starterName string) (map[string]feature, error) {

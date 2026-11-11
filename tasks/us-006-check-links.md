@@ -324,24 +324,24 @@ it finds a wrong need value also when the need does not target the starter. A mi
 starter gives one mistake for each target (decision 4).
 
 **Acceptance Criteria:**
-- [ ] A need that is not a feature of the catalog is a mistake, and the message names the starter, the feature and the
+- [x] A need that is not a feature of the catalog is a mistake, and the message names the starter, the feature and the
   need, and says that the catalog has no such feature.
-- [ ] A need that is a feature of the catalog but does not target the starter is a mistake, and the message names the
+- [x] A need that is a feature of the catalog but does not target the starter is a mistake, and the message names the
   starter, the feature and the need, and says that the need does not target the starter. A feature with two targets
   and a need that targets only one of them gives one mistake, for the other target.
-- [ ] Each value that a need sets and its option does not have is a mistake: a value that is not one of the values of
+- [x] Each value that a need sets and its option does not have is a mistake: a value that is not one of the values of
   the option, a value that does not match the pattern of the option, an option that the needed feature does not
   declare, and an option of a feature with no option. The message names the starter, the feature, the need, the
   option and the value. A need that sets two wrong values gives two mistakes.
-- [ ] A wrong need value is a mistake also when the need does not target the starter.
-- [ ] A need that does not exist, in a feature with two targets, gives one mistake for each target, each with its own
+- [x] A wrong need value is a mistake also when the need does not target the starter.
+- [x] A need that does not exist, in a feature with two targets, gives one mistake for each target, each with its own
   starter.
-- [ ] A need of a need that is wrong is the mistake of the feature that needs it directly, not of the feature that
+- [x] A need of a need that is wrong is the mistake of the feature that needs it directly, not of the feature that
   needs its need.
-- [ ] The mistakes of Tasks 1 and 2 are still found next to these, and `Catalog.Check` on `catalog/` gives no mistake.
+- [x] The mistakes of Tasks 1 and 2 are still found next to these, and `Catalog.Check` on `catalog/` gives no mistake.
   `Catalog.Starter` and `Starter.Select` give the same results as before.
-- [ ] "Check the Catalog" in `README.md` names the three mistakes.
-- [ ] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass.
+- [x] "Check the Catalog" in `README.md` names the three mistakes.
+- [x] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `internal/catalog/feature.go` — the read of a feature whatever its targets, with its targets

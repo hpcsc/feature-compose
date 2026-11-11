@@ -100,5 +100,12 @@ the starter service: the feature tools adds to the extension point "cli.commands
 			require.ErrorContains(t, err, "starters/service/starter.yml")
 			require.Empty(t, printed)
 		})
+
+		t.Run("a files entry that leads out of the feature stops check, and the message names the feature.yml and the files entry", func(t *testing.T) {
+			printed, err := runCheck(t, withFeatures(map[string]string{"cli": "targets: [service]\nfiles:\n  - path: ../docs/files/\n"}))
+
+			require.ErrorContains(t, err, `read features/cli/feature.yml: the files entry "../docs/files/" is outside the folder of the feature`)
+			require.Empty(t, printed)
+		})
 	})
 }

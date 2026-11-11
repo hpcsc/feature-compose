@@ -168,12 +168,13 @@ func (s Starter) combinations() []Combination {
 	return combinations
 }
 
-func (s Starter) mistakes() []string {
+func (s Starter) mistakes(catalogFeatures map[string]feature) []string {
 	var mistakes []string
 	for _, featureName := range slices.Sorted(maps.Keys(s.features)) {
 		f := s.features[featureName]
 		mistakes = append(mistakes, s.addToMistakes(f)...)
 		mistakes = append(mistakes, s.folderMistakes(f)...)
+		mistakes = append(mistakes, f.needMistakes(s.name, catalogFeatures)...)
 	}
 	for i, mistake := range mistakes {
 		mistakes[i] = "the starter " + s.name + ": " + mistake

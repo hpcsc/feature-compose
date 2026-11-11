@@ -532,6 +532,7 @@ files:
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
+				`the starter service: the feature auth needs queue, which does not target the starter`,
 				`the starter worker: the item 1 that the feature auth adds to the extension point "api.middleware" has the fields [code, import], but the extension point declares the fields [code]`,
 				`the feature auth adds to the extension point "api.middleware", which its targets declare with different item fields: [code, import] in the starter service, [code] in the starter worker`,
 			}, mistakes)
@@ -605,6 +606,98 @@ files:
 				`the starter service: the feature tools adds to the extension point "cli.commands", which the starter, the feature and its needs do not declare`,
 				`the starter worker: the feature tools adds to the extension point "cli.commands", which the starter, the feature and its needs do not declare`,
 			}, mistakes)
+		})
+
+		withWorker := func(files fstest.MapFS) fstest.MapFS {
+			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")}
+			files["starters/worker/files/go/main.go"] = &fstest.MapFile{Data: []byte("package main\n")}
+			return files
+		}
+
+		t.Run("a need that is not a feature of the catalog is a mistake for each target of the feature, and the message names the starter, the feature and the need", func(t *testing.T) {
+			files := withWorker(withFeatures(map[string]string{"auth": "targets: [service, worker]\nneeds: [vault]\n"}))
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				"the starter service: the feature auth needs vault, which is not a feature of the catalog",
+				"the starter worker: the feature auth needs vault, which is not a feature of the catalog",
+			}, mistakes)
+		})
+
+		t.Run("a need that does not target a target of the feature is a mistake for that target only, and the message names the starter, the feature and the need", func(t *testing.T) {
+			files := withWorker(withFeatures(map[string]string{
+				"auth":  "targets: [service, worker]\nneeds: [cli, vault]\n",
+				"cli":   "targets: [service]\n",
+				"vault": "targets: [worker]\n",
+			}))
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				"the starter service: the feature auth needs vault, which does not target the starter",
+				"the starter worker: the feature auth needs cli, which does not target the starter",
+			}, mistakes)
+		})
+
+		t.Run("each value that a need sets and its option does not have is a mistake, and the message names the starter, the feature, the need, the option and the value", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"api-auth": "targets: [service]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n  port:\n    pattern: '^[0-9]+$'\n    default: \"80\"\n",
+				"plain":    "targets: [service]\n",
+				"cli-auth": "targets: [service]\nneeds:\n  api-auth:\n    method: basic\n    port: http\n    region: us\n  plain:\n    mode: fast\n",
+			})
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the starter service: the need of the feature cli-auth: the feature api-auth: the value "basic" of the option method is not one of its values: api-key, oauth`,
+				`the starter service: the need of the feature cli-auth: the feature api-auth: the value "http" of the option port does not match its pattern ^[0-9]+$`,
+				`the starter service: the need of the feature cli-auth: unknown option "region": the options of the feature api-auth are method, port`,
+				`the starter service: the need of the feature cli-auth: unknown option "mode": the feature plain has no option`,
+			}, mistakes)
+		})
+
+		t.Run("a value that a need sets and its option has is not a mistake", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"api-auth": "targets: [service]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n",
+				"cli-auth": "targets: [service]\nneeds:\n  api-auth:\n    method: oauth\n  vault:\n    mode: fast\n",
+			})
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"the starter service: the feature cli-auth needs vault, which is not a feature of the catalog"}, mistakes)
+		})
+
+		t.Run("a wrong value that a need sets is a mistake also in a target that the need does not target", func(t *testing.T) {
+			files := withWorker(withFeatures(map[string]string{
+				"api-auth": "targets: [service]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n",
+				"cli-auth": "targets: [service, worker]\nneeds:\n  api-auth:\n    method: basic\n",
+			}))
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the starter service: the need of the feature cli-auth: the feature api-auth: the value "basic" of the option method is not one of its values: api-key, oauth`,
+				`the starter worker: the feature cli-auth needs api-auth, which does not target the starter`,
+				`the starter worker: the need of the feature cli-auth: the feature api-auth: the value "basic" of the option method is not one of its values: api-key, oauth`,
+			}, mistakes)
+		})
+
+		t.Run("a wrong need of a need is the mistake of the feature that needs it, not of the feature that needs that feature", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"app": "targets: [service]\nneeds: [cli]\n",
+				"cli": "targets: [service]\nneeds: [vault]\n",
+			})
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"the starter service: the feature cli needs vault, which is not a feature of the catalog"}, mistakes)
 		})
 
 		t.Run("the catalog of this repo has no mistake", func(t *testing.T) {

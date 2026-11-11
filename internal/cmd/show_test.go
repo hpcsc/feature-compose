@@ -62,7 +62,10 @@ delimiters:
 			"starters/worker/files/go/x.txt": &fstest.MapFile{Data: []byte("x\n")},
 			"features/auth/feature.yml": &fstest.MapFile{Data: []byte(`summary: Auth.
 targets: [api]
-needs: [cli]
+needs:
+  cli:
+  log:
+    level: debug
 files:
   - path: files/
 options:
@@ -80,12 +83,13 @@ add_to:
       import: internal/auth
 `)},
 			"features/cli/feature.yml": &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [worker, api]\n")},
+			"features/log/feature.yml": &fstest.MapFile{Data: []byte("summary: Logs.\ntargets: [api]\noptions:\n  level:\n    default: info\n")},
 		}
 	}
 	const workerAndCLI = `
 		"worker": {"summary": "A worker.", "folders": {"go": {"path": ".", "after_render": [], "test": []}}, "options": {}, "extension_points": {}}`
 	const cliJSON = `
-		"cli": {"summary": "A CLI.", "targets": ["worker", "api"], "needs": [], "options": {}, "extension_points": {}, "add_to": {}}`
+		"cli": {"summary": "A CLI.", "targets": ["worker", "api"], "needs": {}, "options": {}, "extension_points": {}, "add_to": {}}`
 
 	t.Run("json", func(t *testing.T) {
 		t.Run("--output json prints each starter and each feature with each field, a field with no value as [], {} or an empty text, and the lists in the order of the files", func(t *testing.T) {
@@ -108,11 +112,12 @@ add_to:
 					"auth": {
 						"summary": "Auth.",
 						"targets": ["api"],
-						"needs": ["cli"],
+						"needs": {"cli": {}, "log": {"level": "debug"}},
 						"options": {"method": {"default": "api-key", "pattern": "", "values": ["oauth", "api-key"]}},
 						"extension_points": {"auth.checks": {"summary": "A check.", "file": "go/auth.go", "item": ["code"]}},
 						"add_to": {"api.middleware": [{"code": "auth.Middleware", "import": "internal/auth"}]}
-					},`+cliJSON+`
+					},`+cliJSON+`,
+					"log": {"summary": "Logs.", "targets": ["api"], "needs": {}, "options": {"level": {"default": "info", "pattern": "", "values": []}}, "extension_points": {}, "add_to": {}}
 				}
 			}`, printed)
 		})
@@ -288,7 +293,7 @@ func fieldPaths(value any, parent string) []string {
 	}
 	var paths []string
 	for key, field := range object {
-		if slices.Contains([]string{"starters", "features", "folders", "options", "extension_points", "add_to"}, lastSegment(parent)) {
+		if slices.Contains([]string{"starters", "features", "folders", "options", "extension_points", "add_to", "needs"}, lastSegment(parent)) || strings.HasSuffix(parent, ".needs.<name>") {
 			key = "<name>"
 		}
 		child := key

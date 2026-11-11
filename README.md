@@ -274,7 +274,7 @@ is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each
 | `starters.<name>.extension_points.<name>.item` | The fields of each item. |
 | `features.<name>.summary` | One sentence about what the feature adds. |
 | `features.<name>.targets` | The starters that the feature works with. |
-| `features.<name>.needs` | The features that the tool also selects when you select this feature. |
+| `features.<name>.needs.<name>.<name>` | The value that the need sets for an option of the needed feature. Each key of `needs` is a feature that the tool also selects when you select this feature, and a need that sets no value is `{}`. |
 | `features.<name>.options.<name>.default` | The default of the option, as the file writes it. |
 | `features.<name>.options.<name>.pattern` | The regular expression that a value must match, or `""`. |
 | `features.<name>.options.<name>.values` | The values that the option accepts, or `[]` for any value. |

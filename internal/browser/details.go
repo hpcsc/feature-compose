@@ -76,10 +76,7 @@ func extensionPointsDetails(narrowed catalog.Definitions, starterName string, wi
 }
 
 func featureDetails(feature catalog.FeatureDefinition, width int) string {
-	needs := screen.Section{Heading: "Needs", None: "none"}
-	for _, name := range feature.Needs {
-		needs.Entries = append(needs.Entries, screen.Entry{Name: name})
-	}
+	needs := screen.ValuesSection("Needs", "none", feature.Needs)
 
 	declared := screen.Section{Heading: "Extension points that it declares", None: "none"}
 	for _, name := range slices.Sorted(maps.Keys(feature.ExtensionPoints)) {

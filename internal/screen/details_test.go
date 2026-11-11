@@ -60,6 +60,18 @@ func TestDetails(t *testing.T) {
 	})
 }
 
+func TestValuesSection(t *testing.T) {
+	t.Run("gives each name in the order of the names, each with its values in the order of their labels, and a name with no value alone", func(t *testing.T) {
+		section := screen.ValuesSection("Needs", "none", map[string]map[string]string{"b": {"mode": "fast", "level": "high"}, "a": {}})
+
+		require.Equal(t, "Needs\n  a\n  b  level  high\n     mode   fast", plain(screen.Details("", 40, section)))
+	})
+
+	t.Run("with no name, gives the text for none", func(t *testing.T) {
+		require.Equal(t, "Needs\n  none", plain(screen.Details("", 40, screen.ValuesSection("Needs", "none", map[string]map[string]string{}))))
+	})
+}
+
 func TestEntry(t *testing.T) {
 	t.Run("gives its summary and then its fields, each label as wide as the widest and each value wrapped after it", func(t *testing.T) {
 		entry := screen.Entry{Summary: "A summary.", Fields: []screen.Field{

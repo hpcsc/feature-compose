@@ -1,6 +1,8 @@
 package screen
 
 import (
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -91,6 +93,18 @@ func (s Section) lines(width int) []string {
 		}
 	}
 	return lines
+}
+
+func ValuesSection(heading, none string, valuesByName map[string]map[string]string) Section {
+	s := Section{Heading: heading, None: none}
+	for _, name := range slices.Sorted(maps.Keys(valuesByName)) {
+		var fields []Field
+		for _, label := range slices.Sorted(maps.Keys(valuesByName[name])) {
+			fields = append(fields, Field{Label: label, Values: []string{valuesByName[name][label]}})
+		}
+		s.Entries = append(s.Entries, Entry{Name: name, Fields: fields})
+	}
+	return s
 }
 
 func Details(summary string, width int, sections ...Section) string {

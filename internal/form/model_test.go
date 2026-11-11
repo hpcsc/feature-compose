@@ -965,6 +965,18 @@ func TestModel(t *testing.T) {
 			require.Equal(t, "No starter is chosen.\n\nStarters\n  none", detailsOf(pressed(opened(t, fstest.MapFS{"starters": &fstest.MapFile{Mode: fs.ModeDir | 0o755}}, "", "", nil), "j")))
 		})
 
+		t.Run("a need that sets values shows each option that it sets with its value beside the need, and the needs come in the order of their names", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"features/a/feature.yml":            &fstest.MapFile{Data: []byte("summary: A.\ntargets: [service]\noptions:\n  level:\n    default: low\n  mode:\n    default: slow\n")},
+				"features/b/feature.yml":            &fstest.MapFile{Data: []byte("summary: B.\ntargets: [service]\n")},
+				"features/c/feature.yml":            &fstest.MapFile{Data: []byte("summary: Needs two.\ntargets: [service]\nneeds:\n  b:\n  a:\n    mode: fast\n    level: high\n")},
+			}
+
+			require.Equal(t, "Needs two.\n\nNeeds\n  a  level  high\n     mode   fast\n  b\n\nsource  not selected", detailsOf(pressed(opened(t, files, "service", "my-service", nil), "j", "j", "j", "j")))
+		})
+
 		t.Run("a feature with no need says none, and a feature with two needs lists each", func(t *testing.T) {
 			atBeta := pressed(opened(t, withTwoNeeds(), "service", "my-service", nil), "j", "j")
 			atDelta := pressed(atBeta, "j", "j", "j")

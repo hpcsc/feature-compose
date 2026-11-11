@@ -360,10 +360,7 @@ func (d draft) starterDetails(width int) string {
 
 func (d draft) featureDetails(featureName string, width int) string {
 	feature := d.definitions.Features[featureName]
-	needs := screen.Section{Heading: "Needs", None: "none"}
-	for _, need := range feature.Needs {
-		needs.Entries = append(needs.Entries, screen.Entry{Name: need})
-	}
+	needs := screen.ValuesSection("Needs", "none", feature.Needs)
 	return d.withSource(screen.Details(feature.Summary, width, needs), d.featureSource(featureName), width)
 }
 

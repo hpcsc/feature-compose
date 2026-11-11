@@ -1,0 +1,135 @@
+design: planned
+types:
+  - name: FeatureDefinition
+    package: internal/catalog
+    change: changed
+    does: the fields of one feature.yml that show gives, with the needs of the feature and the values that each need sets
+    owns:
+      - Needs gives each need of the feature with the values that it sets for the options of that need, and {} for a need that sets no value
+      - needs in feature.yml is a list of names or a map from each need to its values, and the two forms of one need give the same Needs
+    fields: [Summary, Targets, Needs, Options, ExtensionPoints, AddTo]
+    methods: []
+  - name: featureYML
+    package: internal/catalog
+    change: changed
+    does: one feature.yml as the catalog reads it, with the files entries and the delimiters that show does not give
+    owns:
+      - a files entry has a path and can have a when
+      - a needs that is neither a list of names nor a map from names to option values stops the read, and the message names the file
+    fields: [FeatureDefinition, Files, Delimiters]
+    methods: []
+  - name: feature
+    package: internal/catalog
+    change: changed
+    does: one feature.yml with its templates, its options, its needs with the values that they set, the extension points that it declares and the items that it adds
+    owns:
+      - the needs of the list form keep the order of the file, and either form of needs selects the same needs
+    fields: [name, templates, rules, options, extensionPoints, addTo, needs, needValues]
+    methods: [placedIn, addsToOneExtensionPointWith]
+  - name: template
+    package: internal/catalog
+    change: changed
+    does: one file of a starter or a feature in the catalog, which a selection renders into the repo
+    owns:
+      - a template of a feature carries the when of its files entry, and a template without when is always written
+    fields: [catalogPath, owner, featureName, folder, pathInFolder, contents, delimiters, when]
+    methods: [place, render]
+  - name: expression
+    package: internal/catalog
+    change: new
+    does: the parsed when of a files entry, which holds or does not hold for the option values that its feature can read
+    owns:
+      - <name> == "<value>" holds when the option has that value, and <name> != "<value>" when it has another; a bare name holds when the option has the value true
+      - "the operator ! comes before &&, && comes before ||, and parentheses group; a name can hold - and ."
+      - a text that does not parse is refused, and the message names the text
+      - a name that is not an option of the feature, <need>.<option> of one of its needs, or starter.<option> stops, and the message names the expression and lists the names that the feature can read
+    fields: [operator, name, value, operands]
+    methods: [holds]
+  - name: Starter
+    package: internal/catalog
+    change: changed
+    does: one starter of the catalog, which each selection of a repo starts from
+    owns:
+      - an option takes the value of a flag, else the value that the needs of the selected features set, else an answer, else its default
+      - a flag that gives an option another value than a need stops the selection, and the message names the value of the command line and the value of the need with the feature whose need sets it
+      - the needs of two selected features that give one option different values stop the selection, and the message names each value with the need that sets it
+      - a need value that its option does not have, or a need value for an option that the feature does not declare, stops with the message of the same flag and the name of the feature whose need sets it
+    fields: [name, options, folders, templates, features, extensionPoints]
+    methods: [Select, FeatureNames]
+  - name: optionValues
+    package: internal/catalog
+    change: changed
+    does: the values of the options of the starter or of one selected feature, each with its source
+    owns:
+      - the source of a value that a need sets is need of <features>, with the features whose needs set it in the order of their names, and command line, need of <features> when a flag gives the same value
+    fields: [byName, given, needOf, answered, defaults]
+    methods: [source, lines]
+  - name: Selection
+    package: internal/catalog
+    change: changed
+    does: one repo that new makes, from a starter, its features with the values of their options, a name and the values of the starter options
+    owns:
+      - Write and Preview render the templates of a files entry only while its when holds, and check the paths that two templates write among the templates that they render
+      - Questions gives an option that a need sets with the value of the need, its source and the features whose needs set it
+    fields: [folders, name, starter, features, templates, extensionPoints]
+    methods: [Write, Preview, Questions]
+  - name: Question
+    package: internal/catalog
+    change: changed
+    does: one option of a selection as the form of new shows it, with its value and its source, its default rendered with the name, its values or its pattern, and its check
+    owns:
+      - NeedOf gives the features whose needs set the value, in the order of their names, and none for a value that no need sets; Given is true only for a value from a flag
+    fields: [Feature, Option, Value, Source, Given, NeedOf, Missing, Default, Accepted, Pattern]
+    methods: [Check, Declarer]
+  - name: draft
+    package: internal/form
+    change: changed
+    does: the answers of the form of new, the selection that they give, and the rows, marks and details that the form shows for them
+    owns:
+      - a value that a flag or a need gives is fixed; its row shows fixed, Enter starts no edit, and the details name the command line or the features whose need sets it
+      - the details of a feature list each need with the values that it sets
+    fields: [catalog, definitions, starter, starterName, starterGiven, featureNames, name, nameGiven, given, givenByFeature, answers, selection]
+    methods: [toggled, withAnswer, editOf, nodes, details]
+functions: []
+words:
+  - concept: a value that the needs of a feature.yml set for an option of the feature that it needs, as in needs with api-auth and method api-key
+    word: need value
+    not: [preset, constraint, override, pinned value, requirement]
+  - concept: the source of an option value that a need sets, as the preview and the form show it, with the features whose needs set it
+    word: need of
+    not: [needed by, set by, required by, forced by]
+  - concept: the key of a files entry that holds an expression, whose files the selection writes only while it holds
+    word: when
+    not: [if, condition, only_if, guard]
+  - concept: a text of the small language of section 8 of the proposal, which holds or does not hold for the values of options
+    word: expression
+    not: [condition, predicate, rule, filter, query]
+  - concept: a value from an argument, a flag or a need, which the developer cannot change in the form
+    word: fixed
+    not: [locked, readonly, frozen, pinned]
+  - concept: the server that signs the access tokens and publishes discovery, named by its URL in the config of the repo
+    word: issuer
+    not: [provider, IdP, authority, authorization server]
+  - concept: the value that the aud claim of an access token must hold, which names the API
+    word: audience
+    not: [client ID, resource, scope]
+  - concept: the JWT that the issuer signs and a client sends as Authorization Bearer, with the method oauth
+    word: access token
+    not: [ID token, bearer token, jwt, key]
+  - concept: the public keys of the issuer that the API checks the signature of an access token with, from the jwks_uri of discovery
+    word: signing keys
+    not: [JWKS, certs, key set, keys]
+  - concept: the document of the issuer at .well-known/openid-configuration, which names its issuer and the URL of its signing keys
+    word: discovery
+    not: [metadata, well-known, config, OIDC config]
+  - concept: the algorithms that the API accepts in the alg header of an access token
+    word: allowlist
+    not: [whitelist, supported algorithms, accepted algorithms]
+  - concept: what a client sends after Bearer, an API key with api-key or an access token with oauth
+    word: credential
+    not: [token, secret, auth]
+dependencies:
+  - internal/browser -> internal/catalog
+  - internal/form -> internal/catalog
+  - internal/cmd -> internal/catalog
+  - internal/cmd -> internal/form

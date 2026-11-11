@@ -58,7 +58,7 @@ func (s StarterDefinition) filled() StarterDefinition {
 type FeatureDefinition struct {
 	Summary         string                              `json:"summary" yaml:"summary"`
 	Targets         []string                            `json:"targets" yaml:"targets"`
-	Needs           []string                            `json:"needs" yaml:"needs"`
+	Needs           map[string]map[string]string        `json:"needs" yaml:"-"`
 	Options         map[string]OptionDefinition         `json:"options" yaml:"options"`
 	ExtensionPoints map[string]ExtensionPointDefinition `json:"extension_points" yaml:"extension_points"`
 	AddTo           map[string][]map[string]string      `json:"add_to" yaml:"add_to"`
@@ -66,7 +66,6 @@ type FeatureDefinition struct {
 
 func (f FeatureDefinition) filled() FeatureDefinition {
 	f.Targets = nonNil(f.Targets)
-	f.Needs = nonNil(f.Needs)
 	f.Options = filled(f.Options, OptionDefinition.filled)
 	f.ExtensionPoints = filled(f.ExtensionPoints, ExtensionPointDefinition.filled)
 	f.AddTo = filled(f.AddTo, nonNil[map[string]string])

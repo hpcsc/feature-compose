@@ -45,7 +45,7 @@ func TestModel(t *testing.T) {
 					"cli.flags":    {Summary: "A flag.", File: "go/flags.go", Item: []string{"name"}},
 				}},
 				"auth": {
-					Summary: "API keys.", Targets: []string{"api"}, Needs: []string{"cli"},
+					Summary: "API keys.", Targets: []string{"api"}, Needs: map[string]map[string]string{"cli": {}},
 					Options: map[string]catalog.OptionDefinition{"method": {Default: "api-key", Values: []string{"api-key", "oauth"}}},
 					AddTo:   map[string][]map[string]string{"api.middleware": {{"code": "auth.Middleware"}}, "api.config": {{"name": "Auth"}}},
 				},
@@ -414,11 +414,24 @@ Extension points that it adds items to
 				Features: map[string]catalog.FeatureDefinition{
 					"a": {Targets: []string{"api"}},
 					"b": {Targets: []string{"api"}},
-					"c": {Summary: "Needs two.", Targets: []string{"api"}, Needs: []string{"a", "b"}},
+					"c": {Summary: "Needs two.", Targets: []string{"api"}, Needs: map[string]map[string]string{"b": {}, "a": {}}},
 				},
 			}
 
 			require.True(t, strings.HasPrefix(detailsOf(pressed(opened(browser.New(twoNeeds)), "j", "j", "j", "j")), "Needs two.\n\nNeeds\n  a\n  b\n"), detailsOf(pressed(opened(browser.New(twoNeeds)), "j", "j", "j", "j")))
+		})
+
+		t.Run("a need that sets values shows each option that it sets with its value beside the need", func(t *testing.T) {
+			withValues := catalog.Definitions{
+				Starters: map[string]catalog.StarterDefinition{"api": {}},
+				Features: map[string]catalog.FeatureDefinition{
+					"a": {Targets: []string{"api"}},
+					"b": {Targets: []string{"api"}},
+					"c": {Summary: "Needs two.", Targets: []string{"api"}, Needs: map[string]map[string]string{"a": {}, "b": {"mode": "fast", "level": "high"}}},
+				},
+			}
+
+			require.True(t, strings.HasPrefix(detailsOf(pressed(opened(browser.New(withValues)), "j", "j", "j", "j")), "Needs two.\n\nNeeds\n  a\n  b  level  high\n     mode   fast\n"), detailsOf(pressed(opened(browser.New(withValues)), "j", "j", "j", "j")))
 		})
 
 		t.Run("details that fit the pane show no scroll position", func(t *testing.T) {

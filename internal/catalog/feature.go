@@ -60,7 +60,7 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 	for name, declared := range parsed.ExtensionPoints {
 		extensionPoints[name] = extensionPoint{name: name, declarer: "the feature " + featureName, itemFields: declared.Item}
 	}
-	return feature{name: featureName, templates: templates, rules: rules, options: declaredOptions, extensionPoints: extensionPoints, addTo: parsed.AddTo, needs: parsed.Needs}, true, nil
+	return feature{name: featureName, templates: templates, rules: rules, options: declaredOptions, extensionPoints: extensionPoints, addTo: parsed.AddTo, needs: parsed.needNames}, true, nil
 }
 
 func (f feature) placedIn(folders map[string]folder) ([]template, error) {

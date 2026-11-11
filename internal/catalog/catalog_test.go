@@ -206,6 +206,31 @@ func TestCatalog(t *testing.T) {
 			})
 		}
 
+		for name, needs := range map[string]string{
+			"a text": "needs: cli\n",
+			"a list with an entry that is not a name": "needs:\n  - [cli]\n",
+			"a need whose values are a list":          "needs:\n  cli: [fast]\n",
+			"a need with a value that is not a text":  "needs:\n  cli:\n    mode: {fast: true}\n",
+			"a list that names one need two times":    "needs: [docs, docs]\n",
+			"a map that names one need two times":     "needs:\n  docs:\n  docs:\n    mode: fast\n",
+		} {
+			t.Run("needs as "+name+" stops the read of the starter and of the definitions, and the message names the feature.yml and needs", func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+					"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+					"features/cli/feature.yml":          &fstest.MapFile{Data: []byte("targets: [service]\n" + needs)},
+				}
+
+				_, starterErr := catalog.New(files).Starter("service")
+				_, definitionsErr := catalog.New(files).Definitions()
+
+				for _, err := range []error{starterErr, definitionsErr} {
+					require.ErrorContains(t, err, "features/cli/feature.yml")
+					require.ErrorContains(t, err, "needs")
+				}
+			})
+		}
+
 		t.Run("a file directly in the features folder is not a feature", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
@@ -255,12 +280,13 @@ func TestCatalog(t *testing.T) {
 			})
 		}
 
-		t.Run("a field with no value is an empty list, an empty object or an empty text, so the JSON of the definitions holds no null", func(t *testing.T) {
+		t.Run("a field with no value is an empty list, an empty object or an empty text, so the JSON of the definitions holds no null, and each need gives the values that it sets", func(t *testing.T) {
 			files := fstest.MapFS{
-				"starters/api/starter.yml":  &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n  web:\n    path: web\noptions:\n  module:\n    default: x\n  region:\n    default: us\nextension_points:\n  api.middleware:\n    file: go/server.go\n  api.config:\n    file: go/config.go\n")},
-				"starters/bare/starter.yml": &fstest.MapFile{Data: []byte("summary: Bare.\n")},
-				"features/auth/feature.yml": &fstest.MapFile{Data: []byte("options:\n  method:\n    default: api-key\nextension_points:\n  auth.checks:\n    file: go/auth.go\nadd_to:\n  api.middleware:\n  api.config:\n")},
-				"features/bare/feature.yml": &fstest.MapFile{Data: []byte("summary: Bare.\n")},
+				"starters/api/starter.yml":    &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n  web:\n    path: web\noptions:\n  module:\n    default: x\n  region:\n    default: us\nextension_points:\n  api.middleware:\n    file: go/server.go\n  api.config:\n    file: go/config.go\n")},
+				"starters/bare/starter.yml":   &fstest.MapFile{Data: []byte("summary: Bare.\n")},
+				"features/auth/feature.yml":   &fstest.MapFile{Data: []byte("needs:\n  bare:\n  listed:\n    mode: fast\noptions:\n  method:\n    default: api-key\nextension_points:\n  auth.checks:\n    file: go/auth.go\nadd_to:\n  api.middleware:\n  api.config:\n")},
+				"features/bare/feature.yml":   &fstest.MapFile{Data: []byte("summary: Bare.\nneeds:\n")},
+				"features/listed/feature.yml": &fstest.MapFile{Data: []byte("needs: [auth, bare]\noptions:\n  mode:\n    default: slow\n")},
 			}
 			definitions, err := catalog.New(files).Definitions()
 			require.NoError(t, err)
@@ -280,12 +306,13 @@ func TestCatalog(t *testing.T) {
 				},
 				"features": {
 					"auth": {
-						"summary": "", "targets": [], "needs": [],
+						"summary": "", "targets": [], "needs": {"bare": {}, "listed": {"mode": "fast"}},
 						"options": {"method": {"default": "api-key", "pattern": "", "values": []}},
 						"extension_points": {"auth.checks": {"summary": "", "file": "go/auth.go", "item": []}},
 						"add_to": {"api.middleware": [], "api.config": []}
 					},
-					"bare": {"summary": "Bare.", "targets": [], "needs": [], "options": {}, "extension_points": {}, "add_to": {}}
+					"bare": {"summary": "Bare.", "targets": [], "needs": {}, "options": {}, "extension_points": {}, "add_to": {}},
+					"listed": {"summary": "", "targets": [], "needs": {"auth": {}, "bare": {}}, "options": {"mode": {"default": "slow", "pattern": "", "values": []}}, "extension_points": {}, "add_to": {}}
 				}
 			}`, string(encoded))
 		})

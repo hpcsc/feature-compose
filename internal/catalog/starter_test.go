@@ -675,6 +675,24 @@ folders:
 			require.Equal(t, "base;zone;app;", written(t, selection)["server.go"])
 		})
 
+		t.Run("needs as a map from each need to its values selects the same features as needs as a list, with the same files and the same items", func(t *testing.T) {
+			definitions := func(needs string) map[string]string {
+				return map[string]string{"app": needs, "zone": "", "base": "options:\n  level:\n    default: low\n"}
+			}
+			listed, err := catalog.New(withNeeds(definitions("needs: [zone, base]\n"))).Starter("service")
+			require.NoError(t, err)
+			mapped, err := catalog.New(withNeeds(definitions("needs:\n  zone:\n  base:\n    level: low\n"))).Starter("service")
+			require.NoError(t, err)
+
+			fromList, err := listed.Select("my-service", nil, withoutValues("app"), catalog.Answers{})
+			require.NoError(t, err)
+			fromMap, err := mapped.Select("my-service", nil, withoutValues("app"), catalog.Answers{})
+			require.NoError(t, err)
+
+			expected := map[string]string{"server.go": "base;zone;app;", "app.txt": "app", "zone.txt": "zone", "base.txt": "base"}
+			require.Equal(t, []map[string]string{expected, expected}, []map[string]string{written(t, fromList), written(t, fromMap)})
+		})
+
 		withMethod := func() fstest.MapFS {
 			files := withNeeds(map[string]string{"cli-auth": "needs: [auth]\n", "auth": "options:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n"})
 			files["features/auth/files/go/auth.txt"] = &fstest.MapFile{Data: []byte(`{{ option "method" }}`)}

@@ -574,29 +574,29 @@ default that reads the name follows the name until the developer keeps a value f
 at a fixed row starts no edit.
 
 **Acceptance Criteria:**
-- [ ] Enter at the name row starts an edit that holds the current name, and the screen shows the text as it is typed.
+- [x] Enter at the name row starts an edit that holds the current name, and the screen shows the text as it is typed.
   While the text is edited, each key goes to it, also `q`, `j`, `k`, `h`, `l`, `w` and Space.
-- [ ] While `CheckRepoName` refuses the text, the details show its message, and Enter keeps nothing and the edit goes
+- [x] While `CheckRepoName` refuses the text, the details show its message, and Enter keeps nothing and the edit goes
   on. Enter with a text that it accepts keeps the name: the edit ends, the name row shows the name, and its details
   show the source `answered`. Esc drops the change, and the name row shows the name before the edit.
-- [ ] Enter at an option without `values` starts an edit that holds the current value. While `Question.Check` refuses
+- [x] Enter at an option without `values` starts an edit that holds the current value. While `Question.Check` refuses
   the text, the details show its message, which names the option and its pattern, its missing default, or the comma
   that `--feature` cannot give, and Enter keeps nothing. Enter with a text that passes keeps the value.
-- [ ] Enter at an option with `values` lists its values in the details pane, in the order of the file, with the current
+- [x] Enter at an option with `values` lists its values in the details pane, in the order of the file, with the current
   value chosen. `j`, `k` and the arrow keys move, Enter keeps the chosen value, and Esc drops the change.
-- [ ] A kept value has the source `answered`, also when it equals the default, and the details show it.
-- [ ] An edit whose selection `Select` refuses is not kept, and the details show the message of `Select`.
-- [ ] Enter at the name of an argument, or at an option of a flag, starts no edit, and the details say that the value
+- [x] A kept value has the source `answered`, also when it equals the default, and the details show it.
+- [x] An edit whose selection `Select` refuses is not kept, and the details show the message of `Select`.
+- [x] Enter at the name of an argument, or at an option of a flag, starts no edit, and the details say that the value
   is fixed and name its source.
-- [ ] An option whose default reads the name follows the name until the developer keeps a value for it: with the
+- [x] An option whose default reads the name follows the name until the developer keeps a value for it: with the
   default `github.com/hpcsc/{{ .Name }}`, keeping the name `my-service` shows `github.com/hpcsc/my-service`, and then
   keeping `other` shows `github.com/hpcsc/other`. After the developer keeps a value for that option, a new name does
   not change it.
-- [ ] A feature that a Space clears loses the values that the developer kept for it, also a need that the clear
+- [x] A feature that a Space clears loses the values that the developer kept for it, also a need that the clear
   removes: after a new Space selects it, its options show their defaults.
-- [ ] ctrl+c stops the form during an edit, and `Confirmed` gives the cancel.
-- [ ] During an edit, the footer shows the keys of the edit: Enter keeps, Esc drops, ctrl+c stops.
-- [ ] The tests of `internal/form` drive these edits through `Update` and `View`.
+- [x] ctrl+c stops the form during an edit, and `Confirmed` gives the cancel.
+- [x] During an edit, the footer shows the keys of the edit: Enter keeps, Esc drops, ctrl+c stops.
+- [x] The tests of `internal/form` drive these edits through `Update` and `View`.
 
 **Affected Files/Modules:**
 - `internal/form/model.go` — the edit of the name and of an option, the list of values, the answered values

@@ -36,9 +36,9 @@ func TestModel(t *testing.T) {
 			"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\noptions:\n  region:\n    default: us\n    pattern: '^[a-z]+$'\n  module:\n    default: example.com/{{ .Name }}\n  zone:\n    pattern: '^[a-z]*$'\nfolders:\n  go:\n    path: .\n")},
 			"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
 			"features/alpha/feature.yml":        &fstest.MapFile{Data: []byte("summary: Feature alpha.\ntargets: [service]\nneeds: [zed]\noptions:\n  mode:\n    default: fast\n  timeout:\n    default: \"30\"\n")},
-			"features/beta/feature.yml":         &fstest.MapFile{Data: []byte("summary: Feature beta.\ntargets: [service]\n")},
+			"features/beta/feature.yml":         &fstest.MapFile{Data: []byte("summary: Feature beta.\ntargets: [service]\noptions:\n  color:\n    values: [red, blue]\n")},
 			"features/gamma/feature.yml":        &fstest.MapFile{Data: []byte("summary: Feature gamma.\ntargets: [service]\nneeds: [zed]\noptions:\n  tone:\n    values: [soft]\n    default: soft\n")},
-			"features/zed/feature.yml":          &fstest.MapFile{Data: []byte("summary: Feature zed.\ntargets: [service]\noptions:\n  level:\n    values: [low, high]\n    default: low\n")},
+			"features/zed/feature.yml":          &fstest.MapFile{Data: []byte("summary: Feature zed.\ntargets: [service]\noptions:\n  level:\n    values: [low, mid, high]\n    default: low\n")},
 		}
 	}
 	withCycle := func() fstest.MapFS {
@@ -425,7 +425,7 @@ func TestModel(t *testing.T) {
 			"an option of the starter with a pattern":    {nil, nil, []string{"j", "j", "j"}, "starter › region", "value    us\ndefault  us\npattern  ^[a-z]+$\nsource   default"},
 			"an option of the starter that a flag gives": {map[string]string{"region": "eu"}, nil, []string{"j", "j", "j"}, "starter › region", "value    eu\ndefault  us\npattern  ^[a-z]+$\nsource   command line"},
 			"an option whose default reads the name":     {nil, nil, []string{"j", "j"}, "starter › module", "value    example.com/my-service\ndefault  example.com/my-service\nsource   default"},
-			"an option of a feature with values":         {nil, map[string]map[string]string{"zed": {}}, []string{"j", "j", "j", "j", "j", "j", "j"}, "zed › level", "value    low\ndefault  low\nvalues   low, high\nsource   default"},
+			"an option of a feature with values":         {nil, map[string]map[string]string{"zed": {}}, []string{"j", "j", "j", "j", "j", "j", "j"}, "zed › level", "value    low\ndefault  low\nvalues   low, mid, high\nsource   default"},
 			"an option of a feature with one value":      {nil, map[string]map[string]string{"gamma": {}}, []string{"j", "j", "j", "j", "j", "j", "j", "j", "j", "j"}, "gamma › tone", "value    soft\ndefault  soft\nvalues   soft\nsource   default"},
 		} {
 			t.Run("the details of "+name+" show its value, its default, its values or its pattern, and its source", func(t *testing.T) {
@@ -441,6 +441,215 @@ func TestModel(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, "   ├─   module  example.com/", treeOf(sized(m, 120, 20))[2])
+		})
+	})
+
+	t.Run("edit", func(t *testing.T) {
+		editable := func(t *testing.T, given map[string]string, givenByFeature map[string]map[string]string) form.Model {
+			t.Helper()
+			m, err := form.New(catalog.New(withOptions()), "service", "", given, givenByFeature)
+			require.NoError(t, err)
+			return sized(m, 120, 20)
+		}
+		typed := func(text string) []string {
+			keys := make([]string, 0, len(text))
+			for _, letter := range text {
+				keys = append(keys, string(letter))
+			}
+			return keys
+		}
+		keysOf := func(groups ...[]string) []string {
+			var keys []string
+			for _, group := range groups {
+				keys = append(keys, group...)
+			}
+			return keys
+		}
+
+		t.Run("enter at the name row starts an edit, and each key goes to the text, also q, j, k, h, l, w and space", func(t *testing.T) {
+			m, quit := pressedAndQuit(editable(t, nil, nil), keysOf([]string{"enter"}, typed("my"), []string{"q", "j", "k", "h", "l", "w", "space", "x"})...)
+
+			require.False(t, quit)
+			require.Equal(t, "> myqjkhlw x", firstDetailsLineOf(m))
+		})
+
+		t.Run("while the check of the name refuses the text, the details show its message, and enter keeps nothing", func(t *testing.T) {
+			m := pressed(editable(t, nil, nil), keysOf([]string{"enter"}, typed("-x"), []string{"enter"})...)
+
+			require.Equal(t, "> -x", firstDetailsLineOf(m))
+			require.Contains(t, strings.Join(strings.Fields(detailsOf(m)), " "), `the name "-x" of the repo must start with a letter or a digit`)
+			require.Equal(t, "▌  name       missing", treeOf(m)[0])
+		})
+
+		t.Run("enter keeps a name that the check accepts, and the name has the source answered", func(t *testing.T) {
+			m := pressed(editable(t, nil, nil), keysOf([]string{"enter"}, typed("my"), []string{"enter"})...)
+
+			require.Equal(t, []string{"▌  name     my", "value   my\nsource  answered"}, []string{treeOf(m)[0], detailsOf(m)})
+		})
+
+		t.Run("esc drops the change, and the name stays as it was before the edit", func(t *testing.T) {
+			m := pressed(editable(t, nil, nil), keysOf([]string{"enter"}, typed("my"), []string{"enter", "enter"}, typed("x"), []string{"esc"})...)
+
+			require.Equal(t, []string{"▌  name     my", "value   my\nsource  answered"}, []string{treeOf(m)[0], detailsOf(m)})
+		})
+
+		t.Run("an option without values takes typed text: a text that fails its check shows the message and is not kept, and a text that passes is kept with the source answered", func(t *testing.T) {
+			atRegion := pressed(editable(t, nil, nil), "j", "j", "j", "enter")
+			refused := pressed(atRegion, keysOf([]string{"backspace", "backspace"}, typed("EU"), []string{"enter"})...)
+			kept := pressed(refused, keysOf([]string{"backspace", "backspace"}, typed("eu"), []string{"enter"})...)
+
+			require.Equal(t, "> us", firstDetailsLineOf(atRegion))
+			require.Contains(t, strings.Join(strings.Fields(detailsOf(refused)), " "), `the value "EU" of the option region does not match its pattern ^[a-z]+$`)
+			require.Equal(t, []string{"▌  ├─   region  eu", "source   answered"}, []string{selectedRowOf(kept), lastLineOf(detailsOf(kept))})
+		})
+
+		t.Run("a kept value that equals the default has the source answered", func(t *testing.T) {
+			require.Equal(t, "source   answered", lastLineOf(detailsOf(pressed(editable(t, nil, nil), "j", "j", "j", "enter", "enter"))))
+		})
+
+		t.Run("an option with no default shows no missing mark once the developer keeps a value", func(t *testing.T) {
+			require.Equal(t, "▌  ├─   zone    abc", selectedRowOf(pressed(editable(t, nil, nil), keysOf([]string{"j", "j", "j", "j", "enter"}, typed("abc"), []string{"enter"})...)))
+		})
+
+		t.Run("enter at an option with values lists them in the order of the file with the current value chosen, j and k move, and enter keeps the chosen value", func(t *testing.T) {
+			listed := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter")
+			moved := pressed(listed, "j", "j", "k", "j")
+			kept := pressed(moved, "enter")
+
+			require.Equal(t, []string{"▌low\n mid\n high", " low\n mid\n▌high"}, []string{detailsOf(listed), detailsOf(moved)})
+			require.Equal(t, []string{"▌  │  └─   level  high", "source   answered"}, []string{selectedRowOf(kept), lastLineOf(detailsOf(kept))})
+		})
+
+		t.Run("esc drops the chosen value of a list", func(t *testing.T) {
+			m := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter", "j", "esc")
+
+			require.Equal(t, "▌  │  └─   level  low", selectedRowOf(m))
+		})
+
+		t.Run("enter at the name of an argument starts no edit, and the details say that the command line fixes it", func(t *testing.T) {
+			require.Equal(t, "The name is fixed: the command line gives it.", firstDetailsLineOf(pressed(opened(t, withOptions(), "service", "my-service", nil), "enter")))
+		})
+
+		t.Run("enter at an option of a flag starts no edit, and the details say that the command line fixes it", func(t *testing.T) {
+			require.Equal(t, "The option region is fixed: the command line gives it.", firstDetailsLineOf(pressed(editable(t, map[string]string{"region": "eu"}, nil), "j", "j", "j", "enter")))
+		})
+
+		t.Run("an option whose default reads the name follows the name until the developer keeps a value for it", func(t *testing.T) {
+			named := pressed(editable(t, nil, nil), keysOf([]string{"enter"}, typed("my-service"), []string{"enter"})...)
+			renamed := pressed(named, keysOf([]string{"enter"}, []string{"backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace"}, typed("other"), []string{"enter"})...)
+			moduleKept := pressed(renamed, "j", "j", "enter", "enter", "k", "k")
+			renamedAgain := pressed(moduleKept, keysOf([]string{"enter"}, []string{"backspace", "backspace", "backspace", "backspace", "backspace"}, typed("third"), []string{"enter"})...)
+
+			require.Equal(t, []string{"   ├─   module  example.com/", "   ├─   module  example.com/my-service", "   ├─   module  example.com/other", "   ├─   module  example.com/other"}, []string{treeOf(editable(t, nil, nil))[2], treeOf(named)[2], treeOf(renamed)[2], treeOf(renamedAgain)[2]})
+		})
+
+		t.Run("a feature that a space clears loses the values kept for it, also a need that the clear removes", func(t *testing.T) {
+			selected := pressed(editable(t, nil, nil), "j", "j", "j", "j", "j", "j", "j", "space")
+			edited := pressed(selected, keysOf([]string{"j", "enter", "backspace", "backspace", "backspace", "backspace"}, typed("slow"), []string{"enter", "k", "k", "enter", "j", "enter", "j"})...)
+			again := pressed(edited, "space", "space")
+
+			require.Equal(t, []string{"   │  └─   level  mid", "   │  ├─   mode     slow"}, []string{treeOf(edited)[7], treeOf(edited)[9]})
+			require.Equal(t, []string{"   │  └─   level  low", "   │  ├─   mode     fast"}, []string{treeOf(again)[7], treeOf(again)[9]})
+		})
+
+		t.Run("an empty name is not kept, and the details show the message of the check of the name", func(t *testing.T) {
+			m := pressed(editable(t, nil, nil), "enter", "enter")
+
+			require.Equal(t, ">", firstDetailsLineOf(m))
+			require.Contains(t, strings.Join(strings.Fields(detailsOf(m)), " "), `the name "" of the repo must start with a letter or a digit`)
+		})
+
+		t.Run("an empty value of an option with no default is not kept, and the details say that it needs a value", func(t *testing.T) {
+			m := pressed(editable(t, nil, nil), "j", "j", "j", "j", "enter", "enter")
+
+			require.Equal(t, ">", firstDetailsLineOf(m))
+			require.Contains(t, strings.Join(strings.Fields(detailsOf(m)), " "), "the option zone of the starter service has no default, so it needs a value")
+		})
+
+		t.Run("a second edit of the name starts with the kept name", func(t *testing.T) {
+			require.Equal(t, "> my", firstDetailsLineOf(pressed(editable(t, nil, nil), keysOf([]string{"enter"}, typed("my"), []string{"enter", "enter"})...)))
+		})
+
+		for keys, details := range map[string]string{
+			"j":     " low\n▌mid\n high",
+			"j k":   "▌low\n mid\n high",
+			"k":     "▌low\n mid\n high",
+			"j j j": " low\n mid\n▌high",
+			"down":  " low\n▌mid\n high",
+			"j up":  "▌low\n mid\n high",
+		} {
+			t.Run("j and k move the chosen value by one, as down and up do, and stop at the ends: "+keys, func(t *testing.T) {
+				m := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), keysOf([]string{"j", "j", "j", "j", "j", "j", "j", "enter"}, strings.Fields(keys))...)
+
+				require.Equal(t, details, detailsOf(m))
+			})
+		}
+
+		t.Run("an option with values and no value yet lists its values with the first chosen", func(t *testing.T) {
+			require.Equal(t, "▌red\n blue", detailsOf(pressed(editable(t, nil, nil), "j", "j", "j", "j", "j", "space", "j", "enter")))
+		})
+
+		t.Run("an option with one value lists that value", func(t *testing.T) {
+			require.Equal(t, "▌soft", detailsOf(pressed(editable(t, nil, map[string]map[string]string{"gamma": {}}), "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "enter")))
+		})
+
+		t.Run("a second edit of an option with values chooses the kept value", func(t *testing.T) {
+			m := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter", "j", "j", "enter", "enter")
+
+			require.Equal(t, " low\n mid\n▌high", detailsOf(m))
+		})
+
+		t.Run("h and l at a list change nothing", func(t *testing.T) {
+			listed := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter")
+			m, quit := pressedAndQuit(listed, "h", "l")
+
+			require.False(t, quit)
+			require.Equal(t, screenOf(listed), screenOf(m))
+		})
+
+		t.Run("after a value of a list is kept, the footer shows the keys of the tree again", func(t *testing.T) {
+			m := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter", "enter")
+
+			require.Equal(t, " j/k move • l open • h close • space select • ctrl+d/u scroll details • q quit", linesOf(m)[19])
+		})
+
+		t.Run("a space at another feature keeps the values kept for the selected features", func(t *testing.T) {
+			edited := pressed(editable(t, nil, nil), keysOf([]string{"j", "j", "j", "j", "j", "j", "j", "space", "j", "enter", "backspace", "backspace", "backspace", "backspace"}, typed("slow"), []string{"enter"})...)
+			m := pressed(edited, "k", "k", "k", "k", "space")
+
+			require.Equal(t, []string{"▌  ├─ ▾ [x] beta", "   │  ├─   mode     slow"}, []string{treeOf(m)[5], treeOf(m)[10]})
+		})
+
+		t.Run("enter at the starter row starts no edit", func(t *testing.T) {
+			require.Equal(t, "A service.\n\nsource  command line", detailsOf(pressed(editable(t, nil, nil), "j", "enter")))
+		})
+
+		t.Run("with no starter yet, the name of an edit is kept also when flags are given", func(t *testing.T) {
+			m, err := form.New(catalog.New(withNeeds()), "", "", nil, withAlpha())
+			require.NoError(t, err)
+
+			require.Equal(t, "▌  name     my", treeOf(pressed(sized(m, 120, 20), "enter", "m", "y", "enter"))[0])
+		})
+
+		t.Run("ctrl+c stops the form during an edit, and the form then gives the cancel", func(t *testing.T) {
+			m, quit := pressedAndQuit(editable(t, nil, nil), "enter", "m", "ctrl+c")
+
+			_, err := m.Confirmed()
+			require.True(t, quit)
+			require.EqualError(t, err, "you canceled new, so it wrote no file")
+		})
+
+		t.Run("q at a list of values stops the form", func(t *testing.T) {
+			_, quit := pressedAndQuit(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter", "q")
+
+			require.True(t, quit)
+		})
+
+		t.Run("during an edit, the footer shows the keys of the edit", func(t *testing.T) {
+			text := pressed(editable(t, nil, nil), "enter")
+			list := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter")
+
+			require.Equal(t, []string{" enter keep • esc drop • ctrl+c quit", " j/k move • enter keep • esc drop • q quit"}, []string{linesOf(text)[19], linesOf(list)[19]})
 		})
 	})
 
@@ -747,6 +956,8 @@ func keyMsg(name string) tea.KeyMsg {
 		return tea.KeyMsg{Type: tea.KeyPgUp}
 	case "space":
 		return tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}
+	case "backspace":
+		return tea.KeyMsg{Type: tea.KeyBackspace}
 	case "ctrl+c":
 		return tea.KeyMsg{Type: tea.KeyCtrlC}
 	case "ctrl+d":

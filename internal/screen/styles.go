@@ -13,7 +13,6 @@ var (
 	GroupStyle    = lipgloss.NewStyle().Foreground(accent)
 	NoneStyle     = lipgloss.NewStyle().Foreground(faint).Italic(true)
 	MarkStyle     = lipgloss.NewStyle().Foreground(faint)
-	MessageStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#D2003F", Dark: "#FF5F87"})
 
 	titleStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#1B1530"}).Background(accent).Padding(0, 1)
 	countStyle       = lipgloss.NewStyle().Foreground(faint)
@@ -22,4 +21,5 @@ var (
 	treeLineStyle    = lipgloss.NewStyle().Foreground(faint)
 	headingStyle     = lipgloss.NewStyle().Bold(true).Foreground(accent)
 	labelStyle       = lipgloss.NewStyle().Foreground(faint)
+	messageStyle     = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#D2003F", Dark: "#FF5F87"})
 )

@@ -61,12 +61,18 @@ func (d draft) withStarter(starterName string) (draft, error) {
 }
 
 func (d draft) selected(starter catalog.Starter, answers catalog.Answers) (catalog.Answers, catalog.Selection, error) {
+	held, err := starter.Select(d.name, d.given, d.givenByFeature, catalog.Answers{Features: answers.Features})
+	if err != nil {
+		return answers, catalog.Selection{}, err
+	}
+	answers.FeatureValues = maps.Clone(answers.FeatureValues)
+	maps.DeleteFunc(answers.FeatureValues, func(answeredFeature string, _ map[string]string) bool { return !held.Holds(answeredFeature) })
 	selection, err := starter.Select(d.name, d.given, d.givenByFeature, answers)
 	return answers, selection, err
 }
 
 func (d draft) toggled(featureName string) (draft, string) {
-	if _, isGiven := d.givenByFeature[featureName]; isGiven {
+	if d.isGiven(row{kind: featureKind, feature: featureName}) {
 		return d, featureName + " stays selected: --feature selects it."
 	}
 	if neededBy := d.selection.NeededBy(featureName); len(neededBy) > 0 {
@@ -83,6 +89,81 @@ func (d draft) toggled(featureName string) (draft, string) {
 	}
 	d.answers, d.selection = answers, selection
 	return d, ""
+}
+
+func (d draft) withAnswer(r row, value string) (draft, error) {
+	name, answers := d.name, d.answers
+	switch r.kind {
+	case nameKind:
+		if d.starterName == "" {
+			d.name = value
+			return d, nil
+		}
+		name = value
+	case optionKind:
+		answers = answers.WithValue(r.feature, r.option, value)
+	default:
+		panic(fmt.Sprintf("the form keeps no answer for the row kind %d", r.kind))
+	}
+	selection, err := d.starter.Select(name, d.given, d.givenByFeature, answers)
+	if err != nil {
+		return d, err
+	}
+	d.name, d.answers, d.selection = name, answers, selection
+	return d, nil
+}
+
+func (d draft) isGiven(r row) bool {
+	switch r.kind {
+	case nameKind:
+		return d.nameGiven
+	case featureKind:
+		_, isGiven := d.givenByFeature[r.feature]
+		return isGiven
+	case optionKind:
+		return d.question(r).Given
+	}
+	panic(fmt.Sprintf("the form has no source for the row kind %d", r.kind))
+}
+
+func (d draft) givenMessage(r row) string {
+	switch {
+	case !d.isGiven(r):
+		return ""
+	case r.kind == nameKind:
+		return "The name is fixed: the command line gives it."
+	}
+	return "The option " + r.option + " is fixed: the command line gives it."
+}
+
+func (d draft) value(r row) string {
+	switch r.kind {
+	case nameKind:
+		return d.name
+	case optionKind:
+		return d.question(r).Value
+	}
+	panic(fmt.Sprintf("the form has no value for the row kind %d", r.kind))
+}
+
+func (d draft) choices(r row) []string {
+	switch r.kind {
+	case nameKind:
+		return nil
+	case optionKind:
+		return d.question(r).Accepted
+	}
+	panic(fmt.Sprintf("the form has no choices for the row kind %d", r.kind))
+}
+
+func (d draft) check(r row, value string) error {
+	switch r.kind {
+	case nameKind:
+		return catalog.CheckRepoName(value)
+	case optionKind:
+		return d.question(r).Check(value)
+	}
+	panic(fmt.Sprintf("the form has no check for the row kind %d", r.kind))
 }
 
 func (d draft) nodes() []node {

@@ -177,7 +177,7 @@
     },
     {
       "n": 6,
-      "done": false,
+      "done": true,
       "title": "Edit the name and the options with Enter",
       "language": "Go",
       "testable": true,

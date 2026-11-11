@@ -1,0 +1,23 @@
+package auth
+
+import (
+	"fmt"
+	"net"
+	"net/url"
+)
+
+type IssuerURL string
+
+func (u *IssuerURL) UnmarshalText(text []byte) error {
+	parsed, err := url.Parse(string(text))
+	if err != nil || parsed.Host == "" || !(parsed.Scheme == "https" || parsed.Scheme == "http" && u.isLoopback(parsed.Hostname())) {
+		return fmt.Errorf("OAUTH_ISSUER_URL %q must be an absolute https URL, or an http URL of a loopback host such as http://127.0.0.1:8080", text)
+	}
+	*u = IssuerURL(text)
+	return nil
+}
+
+func (u IssuerURL) isLoopback(host string) bool {
+	ip := net.ParseIP(host)
+	return host == "localhost" || ip != nil && ip.IsLoopback()
+}

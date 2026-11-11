@@ -1,0 +1,64 @@
+//go:build unit
+
+package auth_test
+
+import (
+	"os"
+	"testing"
+
+	"github.com/caarlos0/env/v6"
+	"{{ option "starter.module" }}/internal/auth"
+	"github.com/stretchr/testify/require"
+)
+
+func TestIssuerURL(t *testing.T) {
+	t.Run("read", func(t *testing.T) {
+		for _, issuer := range []string{
+			"https://issuer.example.com",
+			"https://issuer.example.com/realms/my-service",
+			"http://127.0.0.1:8080",
+			"http://localhost:9000",
+			"http://[::1]:8080",
+		} {
+			t.Run("the config loader reads the issuer URL "+issuer+" from OAUTH_ISSUER_URL, and the audience from OAUTH_AUDIENCE", func(t *testing.T) {
+				t.Setenv("OAUTH_ISSUER_URL", issuer)
+				t.Setenv("OAUTH_AUDIENCE", "my-api")
+				var cfg auth.Config
+
+				require.NoError(t, env.Parse(&cfg))
+
+				require.Equal(t, auth.Config{IssuerURL: auth.IssuerURL(issuer), Audience: "my-api"}, cfg)
+			})
+		}
+
+		for _, issuer := range []string{
+			"http://issuer.example.com",
+			"http://127.0.0.1.example.com",
+			"issuer.example.com",
+			"/realms/my-service",
+			"ftp://issuer.example.com",
+			"https://",
+		} {
+			t.Run("an issuer URL that is not an absolute https URL or an http URL of a loopback host stops the read, and the message names OAUTH_ISSUER_URL: "+issuer, func(t *testing.T) {
+				t.Setenv("OAUTH_ISSUER_URL", issuer)
+				var cfg auth.Config
+
+				err := env.Parse(&cfg)
+
+				require.ErrorContains(t, err, "OAUTH_ISSUER_URL")
+			})
+		}
+
+		t.Run("with no OAUTH_ISSUER_URL and no OAUTH_AUDIENCE, the config has neither", func(t *testing.T) {
+			for _, name := range []string{"OAUTH_ISSUER_URL", "OAUTH_AUDIENCE"} {
+				t.Setenv(name, "")
+				require.NoError(t, os.Unsetenv(name))
+			}
+			var cfg auth.Config
+
+			require.NoError(t, env.Parse(&cfg))
+
+			require.Equal(t, auth.Config{}, cfg)
+		})
+	})
+}

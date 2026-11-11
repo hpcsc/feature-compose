@@ -1,13 +1,17 @@
-summary: The API accepts a request to a protected route only when it carries a key that the API knows.
+summary: The API accepts a request to a protected route only when it carries a credential that the API accepts, an API key or an OAuth access token.
 targets: [go-event-sourcing-service]
 
 options:
   method:
-    values: [api-key]
+    values: [api-key, oauth]
     default: api-key
 
 files:
   - path: files/common/
+  - path: files/api-key/
+    when: method == "api-key"
+  - path: files/oauth/
+    when: method == "oauth"
 
 add_to:
   api.middleware:

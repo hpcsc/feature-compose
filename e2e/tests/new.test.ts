@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, generateKeyPairSync, sign } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { type AddressInfo, createServer as createNetServer, type Socket } from 'node:net'
@@ -95,6 +95,51 @@ describe('feature-compose new', () => {
         expect(refused.headers.get('www-authenticate'), label).toBe('Bearer')
       }
       expect((await openAccount(api, `Bearer ${key}`)).status).toBe(400)
+      const withoutApiAuth = scratchDir()
+      const plain = await runCli(withoutApiAuth, ['new', 'go-event-sourcing-service', 'my-service', '--no-prompt'], {
+        MISE_TRUSTED_CONFIG_PATHS: realpathSync(withoutApiAuth),
+      })
+      expect(plain.status, plain.stdout + plain.stderr).toBe(0)
+      expect(readFileSync(join(repo, 'go.mod'), 'utf8')).toBe(readFileSync(join(withoutApiAuth, 'my-service', 'go.mod'), 'utf8'))
+    },
+    15 * 60 * 1000,
+  )
+
+  it(
+    'makes a repo with api-auth:method=oauth that passes its unit tests, and whose API accepts only an access token of its issuer for its audience, also after a restart with another audience',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'api-auth:method=oauth', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      const repo = join(dir, 'my-service')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      const build = await runProgram(repo, 'go', ['build', './...'], env)
+      expect(build.status, build.stdout + build.stderr).toBe(0)
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      expect(passedPackages(unit.stdout)).toEqual(expect.arrayContaining(['internal/auth', 'internal/api/use_cases']))
+      const issuer = await startedTestIssuer()
+      const api = await startedApi(repo, { ...env, OAUTH_ISSUER_URL: issuer.url, OAUTH_AUDIENCE: 'my-api' })
+      expect((await fetch(`${api}/`)).status).toBe(200)
+      const refusals: Array<[string, string | undefined]> = [
+        ['no Authorization header', undefined],
+        ['a token for another audience', `Bearer ${issuer.token({ aud: 'another-api' })}`],
+        ['a token whose exp is before now', `Bearer ${issuer.token({ aud: 'my-api', exp: Math.floor(Date.now() / 1000) - 60 })}`],
+      ]
+      for (const [label, authorization] of refusals) {
+        const refused = await openAccount(api, authorization)
+        expect(refused.status, label).toBe(401)
+        expect(refused.headers.get('www-authenticate'), label).toBe('Bearer')
+      }
+      const token = issuer.token({ aud: 'my-api' })
+      expect((await openAccount(api, `Bearer ${token}`)).status).toBe(400)
+      const restarted = await startedApi(repo, { ...env, OAUTH_ISSUER_URL: issuer.url, OAUTH_AUDIENCE: 'another-api' })
+      expect((await openAccount(restarted, `Bearer ${token}`)).status).toBe(401)
+      expect((await openAccount(restarted, `Bearer ${issuer.token({ aud: 'another-api' })}`)).status).toBe(400)
     },
     15 * 60 * 1000,
   )
@@ -102,12 +147,24 @@ describe('feature-compose new', () => {
   it('a value that the option method of api-auth does not have stops new, names method and its values, and makes no folder', async () => {
     const dir = scratchDir()
 
-    const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'x', '--feature', 'api-auth:method=oauth'])
+    const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'x', '--feature', 'api-auth:method=basic'])
 
     expect(result.status).not.toBe(0)
-    expect(result.stdout + result.stderr).toContain('the option method is not one of its values: api-key')
+    expect(result.stdout + result.stderr).toContain('the option method is not one of its values: api-key, oauth')
     expect(readdirSync(dir)).toEqual([])
   })
+
+  for (const flag of ['--no-prompt', '--dry-run']) {
+    it(`cli-auth with the method oauth stops new ${flag}, names oauth from the command line and api-key from the need of cli-auth, and makes no folder`, async () => {
+      const dir = scratchDir()
+
+      const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--feature', 'api-auth:method=oauth', flag])
+
+      expect(result.status).not.toBe(0)
+      expect(result.stdout + result.stderr).toContain('"oauth" from the command line and "api-key" from the need of cli-auth')
+      expect(readdirSync(dir)).toEqual([])
+    })
+  }
 
   it(
     'makes a repo with cli-auth, which also selects cli and api-auth, passes its unit tests, shows where the API key comes from, and calls its API with the key',
@@ -498,6 +555,32 @@ async function startedApi(repo: string, env: Record<string, string>): Promise<st
     if (waited > 20000) throw new Error(`the API did not answer within 20 seconds: ${printed}`)
     await new Promise((done) => setTimeout(done, 100))
   }
+}
+
+async function startedTestIssuer(): Promise<{ url: string; token: (claims: Record<string, unknown>) => string }> {
+  const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  let url = ''
+  const server = createServer((request, response) => {
+    const documents: Record<string, unknown> = {
+      '/.well-known/openid-configuration': { issuer: url, jwks_uri: `${url}/signing-keys` },
+      '/signing-keys': { keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'e2e', use: 'sig', alg: 'RS256' }] },
+    }
+    const document = documents[request.url ?? '']
+    response.writeHead(document ? 200 : 404, { 'Content-Type': 'application/json' })
+    response.end(JSON.stringify(document ?? {}))
+  })
+  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done))
+  url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  onTestFinished(() => {
+    server.closeAllConnections()
+    server.close()
+  })
+  const encoded = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url')
+  const token = (claims: Record<string, unknown>) => {
+    const signed = `${encoded({ alg: 'RS256', typ: 'JWT', kid: 'e2e' })}.${encoded({ iss: url, exp: Math.floor(Date.now() / 1000) + 3600, ...claims })}`
+    return `${signed}.${sign('RSA-SHA256', Buffer.from(signed), privateKey).toString('base64url')}`
+  }
+  return { url, token }
 }
 
 async function answers(url: string): Promise<boolean> {

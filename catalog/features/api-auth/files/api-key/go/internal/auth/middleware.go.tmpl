@@ -1,0 +1,18 @@
+package auth
+
+import (
+	"net/http"
+)
+
+func Middleware(cfg Config) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			key, ok := bearerCredential(r.Header.Get("Authorization"))
+			if !ok || !cfg.KeyHashes.contain(key) {
+				refuse(w)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}

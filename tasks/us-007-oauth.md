@@ -443,10 +443,10 @@ of `method` builds and passes its tests, in `task test:combinations` and in an e
 issuer.
 
 **Acceptance Criteria:**
-- [ ] `catalog/features/api-auth/feature.yml` has `method` with `values: [api-key, oauth]` and `default: api-key`, the
+- [x] `catalog/features/api-auth/feature.yml` has `method` with `values: [api-key, oauth]` and `default: api-key`, the
   files entries `files/common/` with no `when`, `files/api-key/` with `when: method == "api-key"` and `files/oauth/`
   with `when: method == "oauth"`, and the `add_to` that it has today.
-- [ ] With `oauth`, the unit tests of `internal/auth` of the written repo run in `task test:unit`, against a test issuer
+- [x] With `oauth`, the unit tests of `internal/auth` of the written repo run in `task test:unit`, against a test issuer
   that serves discovery and the signing keys and signs tokens with a key of the test, and show:
   - a request with `Authorization: Bearer <token>`, for a token signed with `RS256` by a signing key that the issuer
     publishes, with `iss` the issuer URL, `aud` that holds the audience as a text or in a list, and `exp` after now,
@@ -464,30 +464,30 @@ issuer.
   - while the issuer does not answer, or answers with an error, a request with a token gets 401, and after the issuer
     answers again, a request with a valid token gets to the handler;
   - no request gets 403.
-- [ ] The config of the API reads the issuer URL from `OAUTH_ISSUER_URL` and the audience from `OAUTH_AUDIENCE`. With
+- [x] The config of the API reads the issuer URL from `OAUTH_ISSUER_URL` and the audience from `OAUTH_AUDIENCE`. With
   no `OAUTH_ISSUER_URL` or no `OAUTH_AUDIENCE`, the API starts and answers 401 to each request to a protected route. An
   issuer URL that is not an absolute `https` URL, or an `http` URL of a loopback host, stops the config loader at
   start, and the message names `OAUTH_ISSUER_URL`. A call of the API to the issuer has a time limit.
-- [ ] No written file holds an issuer URL or an audience that the API uses: a new issuer or a new audience needs new
+- [x] No written file holds an issuer URL or an audience that the API uses: a new issuer or a new audience needs new
   values of the two settings and a restart of the API, and no new render.
-- [ ] With `api-key`, a request with a known key gets to the handler and each other request gets 401 with
+- [x] With `api-key`, a request with a known key gets to the handler and each other request gets 401 with
   `WWW-Authenticate: Bearer`, as the tests of `internal/auth` of an `api-key` repo show. The repo holds no file of
   `files/oauth/`: no written file names an issuer, an audience, discovery or a JWT, and no Go file imports the JWT
   module that the files of `oauth` import.
-- [ ] With each method, no Go file of `api-auth` imports a package of the module other than the packages under
+- [x] With each method, no Go file of `api-auth` imports a package of the module other than the packages under
   `internal/auth` (rule 6).
-- [ ] With `oauth`, `docs/api-auth.md` tells: that the issuer must sign JWT access tokens and publish discovery, and
+- [x] With `oauth`, `docs/api-auth.md` tells: that the issuer must sign JWT access tokens and publish discovery, and
   that Google gives no JWT access token for your own API; the two settings, and how to change them with no new render,
   for example `OAUTH_ISSUER_URL=<url> OAUTH_AUDIENCE=<audience> task api:run`; the allowlist and the checks; how a
   client sends the token; and the answers of the API. It names only files that the repo has. With `api-key`, the docs
   pass the checks of `internal/catalog/catalog_test.go:576-598`.
-- [ ] The test of a value that `method` does not have (`internal/catalog/catalog_test.go:548-555`) uses a value other
+- [x] The test of a value that `method` does not have (`internal/catalog/catalog_test.go:548-555`) uses a value other
   than `oauth`, and its message lists `api-key, oauth`.
-- [ ] In the catalog of this repo, `--feature cli-auth --feature api-auth:method=oauth` stops `Select`, and the message
+- [x] In the catalog of this repo, `--feature cli-auth --feature api-auth:method=oauth` stops `Select`, and the message
   names `oauth` with the command line and `api-key` with the need of `cli-auth`.
-- [ ] `task test:combinations` passes, and its combinations hold
+- [x] `task test:combinations` passes, and its combinations hold
   `go-event-sourcing-service --feature api-auth:method=oauth`.
-- [ ] `e2e/tests/new.test.ts`:
+- [x] `e2e/tests/new.test.ts`:
   - `new go-event-sourcing-service my-service --feature api-auth:method=oauth --no-prompt` makes a repo in which
     `gofmt -l .` lists no file, `go build ./...` builds, and `task test:unit` passes with `internal/auth` among the
     packages that passed. The test starts a test issuer on `127.0.0.1` that serves discovery and the signing keys and
@@ -504,7 +504,7 @@ issuer.
     and with `--dry-run`, ends with a status other than 0, a message that names `oauth` with the command line and
     `api-key` with the need of `cli-auth`, and a scratch folder with no entry.
   - `docs/e2e-tests.md` tells the test of the `oauth` repo and its test issuer.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` pass on the host.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` pass on the host.
 
 **Affected Files/Modules:**
 - `catalog/features/api-auth/feature.yml` — the value `oauth`, and the three files entries
@@ -523,11 +523,11 @@ issuer.
 **Patterns to Follow:**
 - `task:2` for the need of `cli-auth` and the stop of a flag against a need
 - `task:3` for the `when` of a files entry
-- `catalog/features/api-auth/files/common/go/internal/auth/middleware.go.tmpl:1-29` for the middleware and its 401
-- `catalog/features/api-auth/files/common/go/internal/auth/middleware_test.go.tmpl:16-104` for the tests of a request
+- `catalog/features/api-auth/files/api-key/go/internal/auth/middleware.go.tmpl:1-18` for the middleware and its 401
+- `catalog/features/api-auth/files/api-key/go/internal/auth/middleware_test.go.tmpl:16-104` for the tests of a request
   that is refused or reaches the handler
-- `catalog/features/api-auth/files/common/go/internal/auth/key_hashes.go.tmpl:13-24` and
-  `catalog/features/api-auth/files/common/go/internal/auth/key_hashes_test.go.tmpl:22-72` for a setting that the config
+- `catalog/features/api-auth/files/api-key/go/internal/auth/key_hashes.go.tmpl:13-24` and
+  `catalog/features/api-auth/files/api-key/go/internal/auth/key_hashes_test.go.tmpl:22-72` for a setting that the config
   loader reads through `UnmarshalText`, and its tests
 - `catalog/features/cli/files/go/internal/cli/release/updater_test.go.tmpl:35-84` for a fake outside service on
   `httptest` in a test of a template

@@ -1,0 +1,74 @@
+package auth
+
+import (
+	"context"
+	"crypto/rsa"
+	"fmt"
+	"sync"
+	"time"
+)
+
+const (
+	keysMaxAge      = time.Hour
+	unknownKeyPause = 5 * time.Minute
+	failedReadPause = 10 * time.Second
+)
+
+type signingKeys struct {
+	issuer     *issuer
+	now        func() time.Time
+	mu         sync.Mutex
+	byKeyID    map[string]*rsa.PublicKey
+	readAt     time.Time
+	nextReadAt time.Time
+	reading    chan struct{}
+}
+
+func newSigningKeys(issuer *issuer, now func() time.Time) *signingKeys {
+	return &signingKeys{issuer: issuer, now: now}
+}
+
+func (s *signingKeys) key(ctx context.Context, keyID string) (*rsa.PublicKey, error) {
+	waited := false
+	for {
+		s.mu.Lock()
+		key, known := s.byKeyID[keyID]
+		now := s.now()
+		fresh := s.byKeyID != nil && now.Before(s.readAt.Add(keysMaxAge))
+		if (!known || !fresh) && s.reading == nil && !waited && !now.Before(s.nextReadAt) {
+			s.reading = make(chan struct{})
+			go s.readFromIssuer()
+		}
+		reading := s.reading
+		s.mu.Unlock()
+		switch {
+		case known:
+			return key, nil
+		case reading == nil || waited:
+			return nil, fmt.Errorf("the issuer publishes no signing key %q", keyID)
+		}
+		select {
+		case <-reading:
+			waited = true
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
+func (s *signingKeys) readFromIssuer() {
+	byKeyID, err := s.issuer.signingKeys(context.Background())
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := s.now()
+	switch {
+	case err != nil:
+		s.nextReadAt = now.Add(failedReadPause)
+	case s.byKeyID != nil:
+		s.byKeyID, s.readAt, s.nextReadAt = byKeyID, now, now.Add(unknownKeyPause)
+	default:
+		s.byKeyID, s.readAt = byKeyID, now
+	}
+	close(s.reading)
+	s.reading = nil
+}

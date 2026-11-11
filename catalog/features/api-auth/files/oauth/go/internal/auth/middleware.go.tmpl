@@ -1,0 +1,32 @@
+package auth
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+)
+
+var allowlist = []string{"RS256"}
+
+func Middleware(cfg Config) func(http.Handler) http.Handler {
+	keys := newSigningKeys(newIssuer(string(cfg.IssuerURL)), time.Now)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token, ok := bearerCredential(r.Header.Get("Authorization"))
+			if !ok || cfg.IssuerURL == "" || cfg.Audience == "" {
+				refuse(w)
+				return
+			}
+			_, err := jwt.Parse(token, func(parsed *jwt.Token) (any, error) {
+				keyID, _ := parsed.Header["kid"].(string)
+				return keys.key(r.Context(), keyID)
+			}, jwt.WithValidMethods(allowlist), jwt.WithIssuer(string(cfg.IssuerURL)), jwt.WithAudience(cfg.Audience), jwt.WithExpirationRequired())
+			if err != nil {
+				refuse(w)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}

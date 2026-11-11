@@ -1,0 +1,14 @@
+package auth
+
+import (
+	"strings"
+)
+
+func bearerCredential(authorization string) (string, bool) {
+	scheme, credential, _ := strings.Cut(authorization, " ")
+	credential = strings.TrimLeft(credential, " ")
+	if !strings.EqualFold(scheme, "Bearer") || credential == "" {
+		return "", false
+	}
+	return credential, true
+}

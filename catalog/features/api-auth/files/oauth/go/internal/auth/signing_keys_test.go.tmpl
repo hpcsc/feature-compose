@@ -1,0 +1,198 @@
+//go:build unit
+
+package auth
+
+import (
+	"context"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+type testClock struct {
+	mu sync.Mutex
+	at time.Time
+}
+
+func (c *testClock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.at
+}
+
+func (c *testClock) advance(by time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.at = c.at.Add(by)
+}
+
+func signingKeysOf(issuer *testIssuer) (*signingKeys, *testClock) {
+	clock := &testClock{at: time.Date(2030, time.January, 1, 9, 0, 0, 0, time.UTC)}
+	return newSigningKeys(newIssuer(issuer.server.URL), clock.now), clock
+}
+
+func endOfRead(t *testing.T, keys *signingKeys) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		keys.mu.Lock()
+		defer keys.mu.Unlock()
+		return keys.reading == nil
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
+func returnsWithin(t *testing.T, limit time.Duration, call func() error) error {
+	t.Helper()
+	result := make(chan error, 1)
+	go func() { result <- call() }()
+	select {
+	case err := <-result:
+		return err
+	case <-time.After(limit):
+		require.FailNow(t, "the call did not return within "+limit.String())
+		return nil
+	}
+}
+
+func TestSigningKeys(t *testing.T) {
+	t.Run("read", func(t *testing.T) {
+		t.Run("after a read that fails, the API reads the issuer again only after 10 seconds, and then gets the key", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			keys, clock := signingKeysOf(issuer)
+			issuer.fails(true)
+			_, failed := keys.key(context.Background(), "first")
+			issuer.fails(false)
+			clock.advance(9 * time.Second)
+			_, waited := keys.key(context.Background(), "first")
+			readsWhileWaiting := issuer.discoveryReadCount()
+			clock.advance(2 * time.Second)
+
+			_, err := keys.key(context.Background(), "first")
+
+			require.Equal(t, []any{true, true, 1, nil, 2}, []any{failed != nil, waited != nil, readsWhileWaiting, err, issuer.discoveryReadCount()})
+		})
+
+		t.Run("the signing keys expire after an hour: the next request with a known key gets it and starts a read, and after that read a key that the issuer withdrew is refused", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			keys, clock := signingKeysOf(issuer)
+			_, err := keys.key(context.Background(), "first")
+			require.NoError(t, err)
+			issuer.publish("second")
+			issuer.withdraw("first")
+			clock.advance(59 * time.Minute)
+			_, beforeAnHour := keys.key(context.Background(), "first")
+			readsBeforeAnHour := issuer.keyReadCount()
+			clock.advance(2 * time.Minute)
+			_, afterAnHour := keys.key(context.Background(), "first")
+			endOfRead(t, keys)
+
+			_, afterTheRead := keys.key(context.Background(), "first")
+
+			require.Equal(t, []any{nil, 1, nil, true, 2}, []any{beforeAnHour, readsBeforeAnHour, afterAnHour, afterTheRead != nil, issuer.keyReadCount()})
+		})
+
+		t.Run("while a read after an hour fails, the API keeps the signing keys that it has, and reads again only after 10 seconds", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			keys, clock := signingKeysOf(issuer)
+			_, err := keys.key(context.Background(), "first")
+			require.NoError(t, err)
+			issuer.fails(true)
+			clock.advance(61 * time.Minute)
+			_, err = keys.key(context.Background(), "first")
+			require.NoError(t, err)
+			endOfRead(t, keys)
+			clock.advance(5 * time.Second)
+
+			key, err := keys.key(context.Background(), "first")
+
+			require.NoError(t, err)
+			require.Equal(t, []any{true, 2}, []any{key.Equal(&privateKeyNamed(t, "first").PublicKey), issuer.keyReadCount()})
+		})
+
+		t.Run("an unknown key ID reads the signing keys again only after 5 minutes, and then gets a key that the issuer published in the meantime", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			keys, clock := signingKeysOf(issuer)
+			_, err := keys.key(context.Background(), "first")
+			require.NoError(t, err)
+			_, unknown := keys.key(context.Background(), "unpublished")
+			issuer.publish("second")
+			clock.advance(4 * time.Minute)
+			_, paused := keys.key(context.Background(), "second")
+			readsWhilePaused := issuer.keyReadCount()
+			clock.advance(2 * time.Minute)
+
+			_, err = keys.key(context.Background(), "second")
+
+			require.Equal(t, []any{true, true, 2, nil, 3}, []any{unknown != nil, paused != nil, readsWhilePaused, err, issuer.keyReadCount()})
+		})
+
+		t.Run("a request whose context ends before its read keeps the signing keys of the read for the next requests", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			keys, _ := signingKeysOf(issuer)
+			ended, end := context.WithCancel(context.Background())
+			end()
+			_, _ = keys.key(ended, "first")
+			endOfRead(t, keys)
+
+			_, err := keys.key(context.Background(), "first")
+
+			require.Equal(t, []any{nil, 1}, []any{err, issuer.keyReadCount()})
+		})
+	})
+
+	t.Run("wait", func(t *testing.T) {
+		t.Run("a request with a known key does not wait for a read of the signing keys in flight", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			keys, _ := signingKeysOf(issuer)
+			_, err := keys.key(context.Background(), "first")
+			require.NoError(t, err)
+			release := issuer.holdsSigningKeys()
+			defer release()
+			go func() { _, _ = keys.key(context.Background(), "unpublished") }()
+			require.Eventually(t, func() bool { return issuer.keyReadCount() == 2 }, 5*time.Second, 10*time.Millisecond)
+
+			err = returnsWithin(t, time.Second, func() error {
+				_, err := keys.key(context.Background(), "first")
+				return err
+			})
+
+			require.NoError(t, err)
+		})
+
+		t.Run("after an hour, a request with a known key gets it at once while the read of the signing keys runs", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			keys, clock := signingKeysOf(issuer)
+			_, err := keys.key(context.Background(), "first")
+			require.NoError(t, err)
+			release := issuer.holdsSigningKeys()
+			defer release()
+			clock.advance(61 * time.Minute)
+
+			err = returnsWithin(t, time.Second, func() error {
+				_, err := keys.key(context.Background(), "first")
+				return err
+			})
+
+			require.NoError(t, err)
+		})
+
+		t.Run("a request whose context ends stops its wait for a read of the signing keys in flight", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			keys, _ := signingKeysOf(issuer)
+			release := issuer.holdsSigningKeys()
+			defer release()
+			go func() { _, _ = keys.key(context.Background(), "first") }()
+			require.Eventually(t, func() bool { return issuer.keyReadCount() == 1 }, 5*time.Second, 10*time.Millisecond)
+			ending, end := context.WithTimeout(context.Background(), 50*time.Millisecond)
+			defer end()
+
+			err := returnsWithin(t, time.Second, func() error {
+				_, err := keys.key(ending, "first")
+				return err
+			})
+
+			require.ErrorIs(t, err, context.DeadlineExceeded)
+		})
+	})
+}

@@ -79,7 +79,7 @@ tests keep the original binary.
 
 ## The full run of `new`
 
-Four tests in `e2e/tests/new.test.ts` make a repo from `go-event-sourcing-service` and check it. The first
+Five tests in `e2e/tests/new.test.ts` make a repo from `go-event-sourcing-service` and check it. The first
 makes the repo from the starter alone:
 
 1. `feature-compose new go-event-sourcing-service my-service --no-prompt` makes the repo. Its `after_render`
@@ -97,8 +97,24 @@ The second adds `--feature api-auth`, and checks the API key:
 2. The test starts the API with `API_KEY_HASHES` set to the SHA-256 hash of a key of the test. `GET /` gets
    200 with no key. `POST /accounts` gets 401 with `WWW-Authenticate: Bearer` with no `Authorization` header
    and with an unknown key, and it gets the answer 400 of the handler with the key of the test.
+3. The test makes a second repo from the starter alone. The `go.mod` of the two repos is the same, so the
+   method `api-key` adds no module, and no JWT library.
 
-The third adds `--feature cli`, and checks that the feature fits the starter:
+The next adds `--feature api-auth:method=oauth`, and checks the access tokens:
+
+1. `gofmt -l .` lists no file, `go build ./...` builds, and `task test:unit` stops with the exit status 0.
+   The tests of `internal/auth` ran and passed. They check the access tokens against a test issuer of their
+   own.
+2. The test starts a test issuer on `127.0.0.1`. It serves OpenID Connect discovery and one signing key, and
+   it signs access tokens with RS256 and that key.
+3. The test starts the API with `OAUTH_ISSUER_URL` set to the test issuer and `OAUTH_AUDIENCE` set to
+   `my-api`. `GET /` gets 200 with no token. `POST /accounts` gets 401 with `WWW-Authenticate: Bearer` with no
+   `Authorization` header, with a token for another audience, and with a token whose `exp` is before now. It
+   gets the answer 400 of the handler with a token for `my-api`.
+4. The test starts the API again with `OAUTH_AUDIENCE` set to `another-api`, with no new render. The token for
+   `my-api` now gets 401, and a token for `another-api` gets 400.
+
+The next adds `--feature cli`, and checks that the feature fits the starter:
 
 1. `gofmt -l .` lists no file, and `go build ./...` builds the service and the CLI.
 2. `task test:unit` stops with the exit status 0. The output of gotestsum shows that the tests of the CLI
@@ -107,7 +123,7 @@ The third adds `--feature cli`, and checks that the feature fits the starter:
 3. `go run ./cmd/my-service` with no command prints the commands of the CLI, which are only `version`,
    `update` and `help`, and reads no input.
 
-The fourth adds only `--feature cli-auth`, which needs `cli` and `api-auth`:
+The last adds only `--feature cli-auth`, which needs `cli` and `api-auth`:
 
 1. `new` prints `api-auth: needed by cli-auth` and `cli: needed by cli-auth` before the line that names the
    output folder.

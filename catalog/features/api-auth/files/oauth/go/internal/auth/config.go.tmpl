@@ -1,0 +1,6 @@
+package auth
+
+type Config struct {
+	IssuerURL IssuerURL `env:"OAUTH_ISSUER_URL"`
+	Audience  string    `env:"OAUTH_AUDIENCE"`
+}

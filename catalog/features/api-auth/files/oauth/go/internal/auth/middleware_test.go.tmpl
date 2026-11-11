@@ -1,0 +1,253 @@
+//go:build unit
+
+package auth
+
+import (
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/require"
+)
+
+type protectedRoute struct {
+	handler http.Handler
+	handled atomic.Int32
+}
+
+func protectedBy(cfg Config) *protectedRoute {
+	route := &protectedRoute{}
+	route.handler = Middleware(cfg)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		route.handled.Add(1)
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	return route
+}
+
+func (p *protectedRoute) serve(authorization string) *httptest.ResponseRecorder {
+	request := httptest.NewRequest("POST", "/accounts", nil)
+	if authorization != "" {
+		request.Header.Set("Authorization", authorization)
+	}
+	recorder := httptest.NewRecorder()
+	p.handler.ServeHTTP(recorder, request)
+	return recorder
+}
+
+func (p *protectedRoute) handledCount() int {
+	return int(p.handled.Load())
+}
+
+func TestMiddleware(t *testing.T) {
+	t.Run("accept", func(t *testing.T) {
+		for name, test := range map[string]struct {
+			scheme   string
+			audience any
+		}{
+			"the audience as a text":                       {"Bearer", audience},
+			"the audience in a list with another audience": {"Bearer", []string{"another-api", audience}},
+			"the scheme in lower case":                     {"bearer", audience},
+			"the scheme in upper case":                     {"BEARER", audience},
+		} {
+			t.Run("a request with an access token that a published signing key signs with RS256, with the issuer, an exp after now and "+name+" gets to the handler, and gets the answer of the handler", func(t *testing.T) {
+				issuer := newTestIssuer(t)
+				claims := issuer.claims()
+				claims["aud"] = test.audience
+				route := protectedBy(issuer.config())
+
+				recorder := route.serve(test.scheme + " " + issuer.token("first", claims))
+
+				require.Equal(t, []int{http.StatusAccepted, 1}, []int{recorder.Code, route.handledCount()})
+			})
+		}
+	})
+
+	t.Run("refuse", func(t *testing.T) {
+		withClaims := func(change func(jwt.MapClaims)) func(*testing.T, *testIssuer) string {
+			return func(t *testing.T, issuer *testIssuer) string {
+				claims := issuer.claims()
+				change(claims)
+				return "Bearer " + issuer.token("first", claims)
+			}
+		}
+		signedWith := func(method jwt.SigningMethod, key func(*testing.T) any) func(*testing.T, *testIssuer) string {
+			return func(t *testing.T, issuer *testIssuer) string {
+				token := jwt.NewWithClaims(method, issuer.claims())
+				token.Header["kid"] = "first"
+				signed, err := token.SignedString(key(t))
+				require.NoError(t, err)
+				return "Bearer " + signed
+			}
+		}
+		for name, authorization := range map[string]func(*testing.T, *testIssuer) string{
+			"no Authorization header":    func(*testing.T, *testIssuer) string { return "" },
+			"a scheme other than Bearer": func(_ *testing.T, issuer *testIssuer) string { return "Basic " + issuer.validToken() },
+			"Bearer and no token":        func(*testing.T, *testIssuer) string { return "Bearer" },
+			"Bearer and an empty token":  func(*testing.T, *testIssuer) string { return "Bearer " },
+			"a text that is not a JWT":   func(*testing.T, *testIssuer) string { return "Bearer not-a-jwt" },
+			"the algorithm none": signedWith(jwt.SigningMethodNone, func(*testing.T) any {
+				return jwt.UnsafeAllowNoneSignatureType
+			}),
+			"HS256 with the public signing key as its secret": signedWith(jwt.SigningMethodHS256, func(t *testing.T) any {
+				public, err := x509.MarshalPKIXPublicKey(&privateKeyNamed(t, "first").PublicKey)
+				require.NoError(t, err)
+				return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: public})
+			}),
+			"RS384, which the allowlist does not hold, with a published signing key": signedWith(jwt.SigningMethodRS384, func(t *testing.T) any {
+				return privateKeyNamed(t, "first")
+			}),
+			"a signature by a key that the issuer does not publish": signedWith(jwt.SigningMethodRS256, func(t *testing.T) any {
+				return privateKeyNamed(t, "unpublished")
+			}),
+			"a changed payload": func(t *testing.T, issuer *testIssuer) string {
+				parts := strings.Split(issuer.validToken(), ".")
+				claims := issuer.claims()
+				claims["sub"] = "another-client"
+				payload, err := json.Marshal(claims)
+				require.NoError(t, err)
+				return "Bearer " + parts[0] + "." + base64.RawURLEncoding.EncodeToString(payload) + "." + parts[2]
+			},
+			"another iss":                 withClaims(func(claims jwt.MapClaims) { claims["iss"] = "https://another-issuer.example.com" }),
+			"an aud without the audience": withClaims(func(claims jwt.MapClaims) { claims["aud"] = []string{"another-api"} }),
+			"an exp before now":           withClaims(func(claims jwt.MapClaims) { claims["exp"] = time.Now().Add(-time.Minute).Unix() }),
+			"no exp":                      withClaims(func(claims jwt.MapClaims) { delete(claims, "exp") }),
+		} {
+			t.Run("a request with "+name+" gets 401 with WWW-Authenticate: Bearer, and the handler does not run", func(t *testing.T) {
+				issuer := newTestIssuer(t)
+				route := protectedBy(issuer.config())
+
+				recorder := route.serve(authorization(t, issuer))
+
+				require.Equal(t, []any{http.StatusUnauthorized, "Bearer", 0}, []any{recorder.Code, recorder.Header().Get("WWW-Authenticate"), route.handledCount()})
+			})
+		}
+
+		for name, cfg := range map[string]func(*testIssuer) Config{
+			"no issuer URL": func(issuer *testIssuer) Config { return Config{Audience: audience} },
+			"no audience":   func(issuer *testIssuer) Config { return Config{IssuerURL: issuer.config().IssuerURL} },
+		} {
+			t.Run("with "+name+" in the config, a request with a valid access token gets 401, and the API reads nothing from the issuer", func(t *testing.T) {
+				issuer := newTestIssuer(t)
+				route := protectedBy(cfg(issuer))
+
+				recorder := route.serve("Bearer " + issuer.validToken())
+
+				require.Equal(t, []int{http.StatusUnauthorized, 0, 0, 0}, []int{recorder.Code, route.handledCount(), issuer.discoveryReadCount(), issuer.keyReadCount()})
+			})
+		}
+	})
+
+	t.Run("issuer", func(t *testing.T) {
+		t.Run("many requests read discovery at <issuer>/.well-known/openid-configuration and the signing keys at its jwks_uri one time", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			route := protectedBy(issuer.config())
+
+			for range 3 {
+				route.serve("Bearer " + issuer.validToken())
+			}
+
+			require.Equal(t, []int{3, 1, 1}, []int{route.handledCount(), issuer.discoveryReadCount(), issuer.keyReadCount()})
+		})
+
+		t.Run("requests that come at the same time read discovery and the signing keys one time, and each gets to the handler", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			route := protectedBy(issuer.config())
+			token := issuer.validToken()
+
+			var requests sync.WaitGroup
+			for range 8 {
+				requests.Go(func() { route.serve("Bearer " + token) })
+			}
+			requests.Wait()
+
+			require.Equal(t, []int{8, 1, 1}, []int{route.handledCount(), issuer.discoveryReadCount(), issuer.keyReadCount()})
+		})
+
+		t.Run("with a discovery whose issuer is not the issuer URL of the config, a valid access token gets 401", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			issuer.namesIssuer("https://another-issuer.example.com")
+			route := protectedBy(issuer.config())
+
+			recorder := route.serve("Bearer " + issuer.validToken())
+
+			require.Equal(t, []int{http.StatusUnauthorized, 0}, []int{recorder.Code, route.handledCount()})
+		})
+
+		t.Run("with a discovery that names no jwks_uri, a valid access token gets 401", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			issuer.namesNoJWKSURI()
+			route := protectedBy(issuer.config())
+
+			recorder := route.serve("Bearer " + issuer.validToken())
+
+			require.Equal(t, []int{http.StatusUnauthorized, 0}, []int{recorder.Code, route.handledCount()})
+		})
+
+		t.Run("an entry of the signing keys for encryption or of another key type does not take the place of the signing key with its key ID", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			issuer.publishEntry(publishedKey(t, "first", "unpublished", "RSA", "enc"))
+			issuer.publishEntry(publishedKey(t, "first", "unpublished", "EC", "sig"))
+			route := protectedBy(issuer.config())
+
+			recorder := route.serve("Bearer " + issuer.validToken())
+
+			require.Equal(t, []int{http.StatusAccepted, 1}, []int{recorder.Code, route.handledCount()})
+		})
+
+		t.Run("an access token signed with a key that the issuer publishes after the first read gets to the handler", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			route := protectedBy(issuer.config())
+			route.serve("Bearer " + issuer.validToken())
+			issuer.publish("second")
+
+			recorder := route.serve("Bearer " + issuer.token("second", issuer.claims()))
+
+			require.Equal(t, []int{http.StatusAccepted, 2}, []int{recorder.Code, route.handledCount()})
+		})
+
+		t.Run("requests with key IDs that the issuer does not publish read the signing keys again only one time", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			route := protectedBy(issuer.config())
+			route.serve("Bearer " + issuer.validToken())
+
+			var codes []int
+			for _, keyID := range []string{"unpublished", "unpublished", "unpublished-too"} {
+				codes = append(codes, route.serve("Bearer "+issuer.token(keyID, issuer.claims())).Code)
+			}
+
+			require.Equal(t, []int{http.StatusUnauthorized, http.StatusUnauthorized, http.StatusUnauthorized, 2}, append(codes, issuer.keyReadCount()))
+		})
+
+		t.Run("while the issuer answers with an error, a valid access token gets 401", func(t *testing.T) {
+			issuer := newTestIssuer(t)
+			issuer.fails(true)
+			route := protectedBy(issuer.config())
+
+			recorder := route.serve("Bearer " + issuer.validToken())
+
+			require.Equal(t, []int{http.StatusUnauthorized, 0}, []int{recorder.Code, route.handledCount()})
+		})
+
+		t.Run("while the issuer does not answer, a valid access token gets 401", func(t *testing.T) {
+			closed := httptest.NewServer(http.NotFoundHandler())
+			closed.Close()
+			issuer := newTestIssuer(t)
+			claims := issuer.claims()
+			claims["iss"] = closed.URL
+			route := protectedBy(Config{IssuerURL: IssuerURL(closed.URL), Audience: audience})
+
+			recorder := route.serve("Bearer " + issuer.token("first", claims))
+
+			require.Equal(t, []int{http.StatusUnauthorized, 0}, []int{recorder.Code, route.handledCount()})
+		})
+	})
+}

@@ -1,0 +1,187 @@
+//go:build unit
+
+package auth
+
+import (
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/base64"
+	"encoding/json"
+	"math/big"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/require"
+)
+
+const audience = "the-api-of-the-test"
+
+var (
+	privateKeysMu sync.Mutex
+	privateKeys   = map[string]*rsa.PrivateKey{}
+)
+
+func privateKeyNamed(t *testing.T, name string) *rsa.PrivateKey {
+	t.Helper()
+	privateKeysMu.Lock()
+	defer privateKeysMu.Unlock()
+	if key, ok := privateKeys[name]; ok {
+		return key
+	}
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	privateKeys[name] = key
+	return key
+}
+
+func publishedKey(t *testing.T, keyID, keyName, keyType, use string) map[string]string {
+	t.Helper()
+	public := privateKeyNamed(t, keyName).PublicKey
+	return map[string]string{
+		"kty": keyType, "kid": keyID, "use": use, "alg": "RS256",
+		"n": base64.RawURLEncoding.EncodeToString(public.N.Bytes()),
+		"e": base64.RawURLEncoding.EncodeToString(big.NewInt(int64(public.E)).Bytes()),
+	}
+}
+
+type testIssuer struct {
+	t              *testing.T
+	server         *httptest.Server
+	mu             sync.Mutex
+	published      []map[string]string
+	namedIssuer    string
+	namesJWKSURI   bool
+	failing        bool
+	held           chan struct{}
+	discoveryReads int
+	keyReads       int
+}
+
+func newTestIssuer(t *testing.T) *testIssuer {
+	t.Helper()
+	issuer := &testIssuer{t: t, namesJWKSURI: true}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", issuer.serveDiscovery)
+	mux.HandleFunc("/published/signing-keys", issuer.serveSigningKeys)
+	issuer.server = httptest.NewServer(mux)
+	t.Cleanup(issuer.server.Close)
+	issuer.namedIssuer = issuer.server.URL
+	issuer.publish("first")
+	return issuer
+}
+
+func (i *testIssuer) serveDiscovery(w http.ResponseWriter, _ *http.Request) {
+	i.mu.Lock()
+	i.discoveryReads++
+	failing := i.failing
+	discovery := map[string]string{"issuer": i.namedIssuer}
+	if i.namesJWKSURI {
+		discovery["jwks_uri"] = i.server.URL + "/published/signing-keys"
+	}
+	i.mu.Unlock()
+	if failing {
+		http.Error(w, "the issuer fails", http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(discovery)
+}
+
+func (i *testIssuer) serveSigningKeys(w http.ResponseWriter, _ *http.Request) {
+	i.mu.Lock()
+	i.keyReads++
+	failing, held, keys := i.failing, i.held, slices.Clone(i.published)
+	i.mu.Unlock()
+	if held != nil {
+		<-held
+	}
+	if failing {
+		http.Error(w, "the issuer fails", http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"keys": keys})
+}
+
+func (i *testIssuer) publish(keyID string) {
+	i.publishEntry(publishedKey(i.t, keyID, keyID, "RSA", "sig"))
+}
+
+func (i *testIssuer) publishEntry(entry map[string]string) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.published = append(i.published, entry)
+}
+
+func (i *testIssuer) withdraw(keyID string) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.published = slices.DeleteFunc(i.published, func(entry map[string]string) bool { return entry["kid"] == keyID })
+}
+
+func (i *testIssuer) namesIssuer(issuer string) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.namedIssuer = issuer
+}
+
+func (i *testIssuer) namesNoJWKSURI() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.namesJWKSURI = false
+}
+
+func (i *testIssuer) fails(failing bool) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.failing = failing
+}
+
+func (i *testIssuer) holdsSigningKeys() (release func()) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	held := make(chan struct{})
+	i.held = held
+	return sync.OnceFunc(func() {
+		i.mu.Lock()
+		defer i.mu.Unlock()
+		i.held = nil
+		close(held)
+	})
+}
+
+func (i *testIssuer) discoveryReadCount() int {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.discoveryReads
+}
+
+func (i *testIssuer) keyReadCount() int {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.keyReads
+}
+
+func (i *testIssuer) config() Config {
+	return Config{IssuerURL: IssuerURL(i.server.URL), Audience: audience}
+}
+
+func (i *testIssuer) claims() jwt.MapClaims {
+	return jwt.MapClaims{"iss": i.server.URL, "aud": audience, "sub": "a-client", "exp": time.Now().Add(time.Hour).Unix()}
+}
+
+func (i *testIssuer) token(keyID string, claims jwt.MapClaims) string {
+	i.t.Helper()
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = keyID
+	signed, err := token.SignedString(privateKeyNamed(i.t, keyID))
+	require.NoError(i.t, err)
+	return signed
+}
+
+func (i *testIssuer) validToken() string {
+	return i.token("first", i.claims())
+}

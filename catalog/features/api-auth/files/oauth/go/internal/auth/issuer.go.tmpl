@@ -1,0 +1,83 @@
+package auth
+
+import (
+	"context"
+	"crypto/rsa"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math/big"
+	"net/http"
+	"strings"
+	"time"
+)
+
+const issuerTimeout = 10 * time.Second
+
+type issuer struct {
+	url     string
+	client  *http.Client
+	jwksURI string
+}
+
+func newIssuer(url string) *issuer {
+	return &issuer{url: url, client: &http.Client{Timeout: issuerTimeout}}
+}
+
+func (i *issuer) signingKeys(ctx context.Context) (map[string]*rsa.PublicKey, error) {
+	if i.jwksURI == "" {
+		var discovery struct {
+			Issuer  string `json:"issuer"`
+			JWKSURI string `json:"jwks_uri"`
+		}
+		if err := i.get(ctx, strings.TrimSuffix(i.url, "/")+"/.well-known/openid-configuration", &discovery); err != nil {
+			return nil, err
+		}
+		if discovery.Issuer != i.url {
+			return nil, fmt.Errorf("the discovery of %s names the issuer %q", i.url, discovery.Issuer)
+		}
+		if discovery.JWKSURI == "" {
+			return nil, errors.New("the discovery of " + i.url + " names no jwks_uri")
+		}
+		i.jwksURI = discovery.JWKSURI
+	}
+	var published struct {
+		Keys []struct {
+			KeyType string `json:"kty"`
+			KeyID   string `json:"kid"`
+			Use     string `json:"use"`
+			N       string `json:"n"`
+			E       string `json:"e"`
+		} `json:"keys"`
+	}
+	if err := i.get(ctx, i.jwksURI, &published); err != nil {
+		return nil, err
+	}
+	byKeyID := map[string]*rsa.PublicKey{}
+	for _, k := range published.Keys {
+		n, nErr := base64.RawURLEncoding.DecodeString(k.N)
+		e, eErr := base64.RawURLEncoding.DecodeString(k.E)
+		if k.KeyType != "RSA" || k.Use != "" && k.Use != "sig" || nErr != nil || eErr != nil {
+			continue
+		}
+		byKeyID[k.KeyID] = &rsa.PublicKey{N: new(big.Int).SetBytes(n), E: int(new(big.Int).SetBytes(e).Int64())}
+	}
+	return byKeyID, nil
+}
+
+func (i *issuer) get(ctx context.Context, url string, into any) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	response, err := i.client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("GET %s: %s", url, response.Status)
+	}
+	return json.NewDecoder(response.Body).Decode(into)
+}

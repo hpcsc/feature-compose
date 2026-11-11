@@ -122,7 +122,7 @@
     },
     {
       "n": 4,
-      "done": false,
+      "done": true,
       "title": "Add the method `oauth` to `api-auth`",
       "language": "Go",
       "testable": true,
@@ -131,10 +131,10 @@
       "patterns_to_follow": [
         "task:2",
         "task:3",
-        "catalog/features/api-auth/files/common/go/internal/auth/middleware.go.tmpl:1-29",
-        "catalog/features/api-auth/files/common/go/internal/auth/middleware_test.go.tmpl:16-104",
-        "catalog/features/api-auth/files/common/go/internal/auth/key_hashes.go.tmpl:13-24",
-        "catalog/features/api-auth/files/common/go/internal/auth/key_hashes_test.go.tmpl:22-72",
+        "catalog/features/api-auth/files/api-key/go/internal/auth/middleware.go.tmpl:1-18",
+        "catalog/features/api-auth/files/api-key/go/internal/auth/middleware_test.go.tmpl:16-104",
+        "catalog/features/api-auth/files/api-key/go/internal/auth/key_hashes.go.tmpl:13-24",
+        "catalog/features/api-auth/files/api-key/go/internal/auth/key_hashes_test.go.tmpl:22-72",
         "catalog/features/cli/files/go/internal/cli/release/updater_test.go.tmpl:35-84",
         "internal/catalog/catalog_test.go:484-598",
         "e2e/tests/new.test.ts:69-100",

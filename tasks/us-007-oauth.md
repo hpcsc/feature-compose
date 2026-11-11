@@ -370,24 +370,24 @@ that does not parse stops the read of the feature. A name in a `when` that the f
 the preview before the first file.
 
 **Acceptance Criteria:**
-- [ ] `<name> == "<value>"` holds when the option has that value, and `<name> != "<value>"` when it has another. A bare
+- [x] `<name> == "<value>"` holds when the option has that value, and `<name> != "<value>"` when it has another. A bare
   name holds when the option has the value `true`, and not for another value. `!`, `&&`, `||` and parentheses combine
   expressions, with `!` before `&&` and `&&` before `||`: `a || b && c` holds as `a || (b && c)`. A name can hold `-`
   and `.`, so `store-key` is one name. Spaces between the parts do not change the result.
-- [ ] A name is an option of the feature, `<need>.<option>` of an option of one of its needs, or `starter.<option>`,
+- [x] A name is an option of the feature, `<need>.<option>` of an option of one of its needs, or `starter.<option>`,
   with the value of the selection, also a value from a flag, an answer or a need.
-- [ ] The preview lists no file of an entry whose `when` does not hold, and `Write` writes none of its files. The other
+- [x] The preview lists no file of an entry whose `when` does not hold, and `Write` writes none of its files. The other
   entries of the feature, and the starter, write their files as before.
-- [ ] Two entries of one feature whose `when` never hold together can each write one path. When both hold, the write
+- [x] Two entries of one feature whose `when` never hold together can each write one path. When both hold, the write
   stops with the message of two templates that write one path.
-- [ ] A `when` that does not parse stops `Catalog.Starter`, and the message names the `feature.yml`, the files entry
+- [x] A `when` that does not parse stops `Catalog.Starter`, and the message names the `feature.yml`, the files entry
   and the text of the `when`: for example `method ==`, `method = "oauth"`, `(method == "oauth"`, `a &&`, a lone
   `"oauth"`, and a text with no closing quote.
-- [ ] A `when` with a name that the feature cannot read stops `Write` and `Preview` before the first file, and the
+- [x] A `when` with a name that the feature cannot read stops `Write` and `Preview` before the first file, and the
   message names the `when`, the feature, and the names that it can read.
-- [ ] The tests of `TestCatalog`, `TestStarter` and `TestSelection` pass with their expected values unchanged: no
+- [x] The tests of `TestCatalog`, `TestStarter` and `TestSelection` pass with their expected values unchanged: no
   catalog file has a `when` yet.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `internal/catalog/feature_yml.go` — `when` of a files entry

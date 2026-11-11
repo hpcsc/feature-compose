@@ -231,6 +231,36 @@ func TestCatalog(t *testing.T) {
 			})
 		}
 
+		for when, message := range map[string]string{
+			`method ==`:          `method == needs a quoted value after it`,
+			`method == oauth`:    `method == needs a quoted value after it`,
+			`method = "oauth"`:   `"=" is not a part of an expression`,
+			`(method == "oauth"`: `a ( has no closing )`,
+			`(method method)`:    `a ( has no closing )`,
+			`method == "oauth")`: `) comes after the end of the expression`,
+			`a &&`:               `the expression ends where a name is expected`,
+			`a ||`:               `the expression ends where a name is expected`,
+			`!`:                  `the expression ends where a name is expected`,
+			`"oauth"`:            `"oauth" is where a name is expected`,
+			`()`:                 `) is where a name is expected`,
+			`method == "oauth`:   `the value "oauth has no closing quote`,
+		} {
+			t.Run("a when that does not parse stops, and the message names the feature.yml, the files entry, the when and why: "+when, func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+					"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+					"features/cli/feature.yml":          &fstest.MapFile{Data: []byte("targets: [service]\noptions:\n  method:\n    default: api-key\nfiles:\n  - path: files/\n    when: '" + when + "'\n")},
+					"features/cli/files/go/cli.txt":     &fstest.MapFile{Data: []byte("cli\n")},
+				}
+
+				_, err := catalog.New(files).Starter("service")
+
+				require.ErrorContains(t, err, "features/cli/feature.yml")
+				require.ErrorContains(t, err, `the files entry "files/"`)
+				require.ErrorContains(t, err, strconv.Quote(when)+` of the files entry "files/": `+message)
+			})
+		}
+
 		t.Run("a file directly in the features folder is not a feature", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},

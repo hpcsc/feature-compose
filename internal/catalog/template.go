@@ -18,6 +18,8 @@ type template struct {
 	pathInFolder string
 	contents     string
 	delimiters   delimiters
+	entry        string
+	when         expression
 }
 
 func readTemplates(fsys fs.FS, root, featureName string) ([]template, error) {
@@ -59,6 +61,13 @@ func (t template) place(folders map[string]folder, rules []delimitersRule) (temp
 		}
 	}
 	return t, nil
+}
+
+func (t template) description() string {
+	if t.entry == "" {
+		return "the template " + t.catalogPath + " of " + t.owner
+	}
+	return "the template " + t.catalogPath + " of the files entry " + t.entry + " of " + t.owner
 }
 
 func (t template) render(s Selection) (file, error) {

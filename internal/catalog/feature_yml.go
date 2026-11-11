@@ -13,6 +13,7 @@ type featureYML struct {
 	NeedsNode         yaml.Node `yaml:"needs"`
 	Files             []struct {
 		Path string `yaml:"path"`
+		When string `yaml:"when"`
 	} `yaml:"files"`
 	Delimiters []struct {
 		Glob  string `yaml:"glob"`

@@ -48,6 +48,16 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 		if err != nil {
 			return feature{}, false, err
 		}
+		var when expression
+		if entry.When != "" {
+			when, err = newExpression(entry.When)
+			if err != nil {
+				return feature{}, false, fmt.Errorf("read %s: the when %q of the files entry %q: %w", ymlPath, entry.When, entry.Path, err)
+			}
+		}
+		for i := range read {
+			read[i].entry, read[i].when = entry.Path, when
+		}
 		templates = append(templates, read...)
 	}
 	declaredOptions := options{declarer: "the feature " + featureName, declared: make(map[string]option, len(parsed.Options))}

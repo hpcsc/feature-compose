@@ -90,7 +90,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Write the files of a files entry only while its `when` holds",
       "language": "Go",
       "testable": true,

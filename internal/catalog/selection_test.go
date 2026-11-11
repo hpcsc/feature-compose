@@ -466,7 +466,7 @@ func TestSelection(t *testing.T) {
 			err := featureSelection(t, files, "cli").Write(output)
 
 			require.ErrorContains(t, err, "the template go/main.go of the starter")
-			require.ErrorContains(t, err, "the template go/main.go.tmpl of the feature cli")
+			require.ErrorContains(t, err, "the template go/main.go.tmpl of the files entry files/ of the feature cli")
 			require.ErrorContains(t, err, "both write main.go")
 			require.NoDirExists(t, output)
 		})
@@ -1810,6 +1810,139 @@ folders:
 			time.Sleep(2 * time.Second)
 			require.NoFileExists(t, filepath.Join(output, "finished"))
 		})
+	})
+
+	t.Run("write and preview", func(t *testing.T) {
+		withWhen := func(when string) fstest.MapFS {
+			return fstest.MapFS{
+				"starters/service/starter.yml":          &fstest.MapFile{Data: []byte("options:\n  region:\n    default: eu\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go":     &fstest.MapFile{Data: []byte("package main\n")},
+				"features/need/feature.yml":             &fstest.MapFile{Data: []byte("summary: Need.\ntargets: [service]\noptions:\n  tier:\n    default: gold\n  v2_mode:\n    default: \"on\"\n")},
+				"features/x/feature.yml":                &fstest.MapFile{Data: []byte("summary: X.\ntargets: [service]\nneeds: [need]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n  store-key:\n    default: \"false\"\nfiles:\n  - path: files/always/\n  - path: files/when/\n    when: '" + when + "'\n")},
+				"features/x/files/always/go/always.txt": &fstest.MapFile{Data: []byte("always\n")},
+				"features/x/files/when/go/when.txt":     &fstest.MapFile{Data: []byte("when\n")},
+				"features/x/files/when/go/when2.txt":    &fstest.MapFile{Data: []byte("when 2\n")},
+			}
+		}
+		writtenAndPreviewed := func(t *testing.T, files fstest.MapFS, givenByFeature map[string]map[string]string, answers catalog.Answers) []string {
+			t.Helper()
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, givenByFeature, answers)
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "repo")
+			require.NoError(t, selection.Write(output))
+			preview, err := selection.Preview()
+			require.NoError(t, err)
+			return append(slices.Sorted(maps.Keys(filesIn(t, output))), strings.Split(strings.TrimSpace(preview[strings.Index(preview, "Files:\n"):]), "\n  ")[1:]...)
+		}
+		writtenOnlyAlways := []string{"always.txt", "main.go", "always.txt: the feature x", "main.go: the starter"}
+		writtenWithWhen := []string{"always.txt", "main.go", "when.txt", "when2.txt", "always.txt: the feature x", "main.go: the starter", "when.txt: the feature x", "when2.txt: the feature x"}
+
+		for name, test := range map[string]struct {
+			when    string
+			values  map[string]string
+			written bool
+		}{
+			"== holds when the option has the value":                 {`method == "oauth"`, map[string]string{"method": "oauth"}, true},
+			"== does not hold for another value":                     {`method == "oauth"`, nil, false},
+			"!= holds for another value":                             {`method != "oauth"`, nil, true},
+			"!= does not hold when the option has the value":         {`method != "oauth"`, map[string]string{"method": "oauth"}, false},
+			"a bare name holds for the value true":                   {`store-key`, map[string]string{"store-key": "true"}, true},
+			"a bare name does not hold for another value":            {`store-key`, map[string]string{"store-key": "yes"}, false},
+			"! turns the result around":                              {`!store-key`, nil, true},
+			"! does not hold when its operand holds":                 {`!store-key`, map[string]string{"store-key": "true"}, false},
+			"&& holds when both sides hold":                          {`store-key && method == "oauth"`, map[string]string{"store-key": "true", "method": "oauth"}, true},
+			"&& does not hold when its right side does not hold":     {`store-key && method == "oauth"`, map[string]string{"store-key": "true"}, false},
+			"&& does not hold when its left side does not hold":      {`store-key && method == "oauth"`, map[string]string{"method": "oauth"}, false},
+			"|| holds when one side holds":                           {`store-key || method == "oauth"`, map[string]string{"method": "oauth"}, true},
+			"|| does not hold when no side holds":                    {`store-key || method == "oauth"`, nil, false},
+			"&& comes before ||":                                     {`store-key || method != "oauth" && method == "oauth"`, map[string]string{"store-key": "true"}, true},
+			"! comes before &&":                                      {`!store-key && method == "oauth"`, nil, false},
+			"parentheses group":                                      {`(store-key || method == "oauth") && method == "api-key"`, map[string]string{"store-key": "true", "method": "oauth"}, false},
+			"spaces between the parts do not change the result":      {`  ( store-key&&method=="oauth" )  `, map[string]string{"store-key": "true", "method": "oauth"}, true},
+			"a name of an option of a need is <need>.<option>":       {`need.tier == "gold"`, nil, true},
+			"a name can hold digits and _":                           {`need.v2_mode == "on"`, nil, true},
+			"a value can be the empty text":                          {`method != ""`, nil, true},
+			"a name of an option of the starter is starter.<option>": {`starter.region != "eu"`, nil, false},
+		} {
+			t.Run("the files of an entry are written and previewed only while its when holds: "+name, func(t *testing.T) {
+				expected := writtenOnlyAlways
+				if test.written {
+					expected = writtenWithWhen
+				}
+
+				require.Equal(t, expected, writtenAndPreviewed(t, withWhen(test.when), map[string]map[string]string{"x": test.values}, catalog.Answers{}))
+			})
+		}
+
+		for name, block := range map[string]string{
+			"a folded block":               "    when: >\n      method == \"oauth\"\n",
+			"a literal block on two lines": "    when: |-\n      method == \"oauth\" &&\n      store-key\n",
+		} {
+			t.Run("a when written as "+name+" of YAML holds as the same when on one line", func(t *testing.T) {
+				files := withWhen("x")
+				definition := string(files["features/x/feature.yml"].Data)
+				files["features/x/feature.yml"] = &fstest.MapFile{Data: []byte(strings.Replace(definition, "    when: 'x'\n", block, 1))}
+
+				require.Equal(t, writtenWithWhen, writtenAndPreviewed(t, files, map[string]map[string]string{"x": {"method": "oauth", "store-key": "true"}}, catalog.Answers{}))
+			})
+		}
+
+		t.Run("a when reads the value that a need sets and the value that an answer gives", func(t *testing.T) {
+			files := withWhen(`method == "oauth"`)
+			files["features/y/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Y.\ntargets: [service]\nneeds:\n  x:\n    method: oauth\n")}
+
+			fromNeed := writtenAndPreviewed(t, files, map[string]map[string]string{"y": {}}, catalog.Answers{})
+			fromAnswer := writtenAndPreviewed(t, files, nil, catalog.Answers{Features: []string{"x"}, FeatureValues: map[string]map[string]string{"x": {"method": "oauth"}}})
+
+			require.Equal(t, [][]string{writtenWithWhen, writtenWithWhen}, [][]string{fromNeed, fromAnswer})
+		})
+
+		t.Run("two entries whose whens never hold together each write one path, and when both hold the write stops with the message of two templates that write one path", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":         &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go":    &fstest.MapFile{Data: []byte("package main\n")},
+				"features/x/feature.yml":               &fstest.MapFile{Data: []byte("summary: X.\ntargets: [service]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n  extra:\n    default: \"false\"\nfiles:\n  - path: files/api-key/\n    when: method == \"api-key\"\n  - path: files/oauth/\n    when: method == \"oauth\"\n  - path: files/extra/\n    when: extra\n")},
+				"features/x/files/api-key/go/auth.txt": &fstest.MapFile{Data: []byte("api-key")},
+				"features/x/files/oauth/go/auth.txt":   &fstest.MapFile{Data: []byte("oauth")},
+				"features/x/files/extra/go/auth.txt":   &fstest.MapFile{Data: []byte("extra")},
+			}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			writtenAuth := func(values map[string]string) string {
+				selection, err := starter.Select("my-service", nil, map[string]map[string]string{"x": values}, catalog.Answers{})
+				require.NoError(t, err)
+				output := filepath.Join(t.TempDir(), "repo")
+				require.NoError(t, selection.Write(output))
+				return filesIn(t, output)["auth.txt"]
+			}
+			both, err := starter.Select("my-service", nil, map[string]map[string]string{"x": {"extra": "true"}}, catalog.Answers{})
+			require.NoError(t, err)
+
+			_, previewErr := both.Preview()
+
+			require.Equal(t, []string{"api-key", "oauth"}, []string{writtenAuth(nil), writtenAuth(map[string]string{"method": "oauth"})})
+			require.ErrorContains(t, previewErr, "the template go/auth.txt of the files entry files/api-key/ of the feature x and the template go/auth.txt of the files entry files/extra/ of the feature x both write auth.txt")
+		})
+
+		for _, when := range []string{`mode == "x"`, `!mode`, `mode && store-key`, `store-key || mode`} {
+			t.Run("a when with a name that the feature cannot read stops Write and Preview before the first file, and the message names the when, the feature and the names that it can read: "+when, func(t *testing.T) {
+				starter, err := catalog.New(withWhen(when)).Starter("service")
+				require.NoError(t, err)
+				selection, err := starter.Select("my-service", nil, map[string]map[string]string{"x": {"store-key": "true"}}, catalog.Answers{})
+				require.NoError(t, err)
+				output := filepath.Join(t.TempDir(), "repo")
+
+				writeErr := selection.Write(output)
+				_, previewErr := selection.Preview()
+
+				for _, err := range []error{writeErr, previewErr} {
+					require.ErrorContains(t, err, strconv.Quote(when)+` of the feature x: unknown name "mode": the names that it can read are method, need.tier, need.v2_mode, starter.region, store-key`)
+				}
+				require.NoDirExists(t, output)
+			})
+		}
 	})
 
 	t.Run("needed by", func(t *testing.T) {

@@ -207,13 +207,19 @@ func (s Selection) files() ([]file, error) {
 	files := make([]file, 0, len(s.templates))
 	writers := make(map[string]template, len(s.templates))
 	for _, t := range s.templates {
+		written, err := t.when.trueFor(s.readable(t.featureName))
+		if err != nil {
+			return nil, fmt.Errorf("the when %q of %s: %w", t.when.text, t.owner, err)
+		}
+		if !written {
+			continue
+		}
 		f, err := t.render(s)
 		if err != nil {
 			return nil, err
 		}
 		if other, ok := writers[f.path]; ok {
-			return nil, fmt.Errorf("the template %s of %s and the template %s of %s both write %s",
-				other.catalogPath, other.owner, t.catalogPath, t.owner, f.path)
+			return nil, fmt.Errorf("%s and %s both write %s", other.description(), t.description(), f.path)
 		}
 		writers[f.path] = t
 		files = append(files, f)

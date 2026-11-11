@@ -64,11 +64,10 @@
 
 ## Fold the fixes of an audit round hunk by hunk
 - Type: pattern
-- Recorded: 2026-11-10
-- Observed: us-012-tui
-- Learning: A fix that changes code of several task commits is split by the commit that last changed each hunk, each part a fixup of that commit, built from the fixed tip and checked against the work tree before the rebase; only a part whose fold conflicts stays its own commit, with a message that says what it fixes, never inside another task's commit. A fix that moves whole tests between t.Run groups conflicts with each later commit that edits those tests or adds a group next to them (US-012: internal/prompt/model_test.go), so fold only the edits in place, and when the boundaries need a move, build the task commits with git commit-tree from tree files, check that the last tree equals the tip, and test each commit.
-- Apply when: folding the fixes of an audit round or a design check, most of all in the umbrella test files of internal/catalog/ and internal/prompt/
-
+- Recorded: 2026-11-11
+- Observed: us-018-form
+- Learning: A fix that changes code of several task commits is split by the commit that last changed each hunk, each part a fixup of that commit, built from the fixed tip and checked against the work tree before the rebase; only a part whose fold conflicts stays its own commit, with a message that says what it fixes, never inside another task's commit. A story that grows one bubbletea model over many tasks (US-018: internal/form/draft.go, model.go and model_test.go in six of nine commits) or moves tests between t.Run groups makes clerk fixup replay conflict; then build the task commits with git commit-tree: apply each fix as an exact string replacement to the file of each commit from its target task on (an earlier form of the old text, for example a field that a later task made a method, needs its own pair), gofmt, check that the last tree equals the work tree, and test each changed commit.
+- Apply when: folding the fixes of an audit round or a design check, most of all in internal/form/, in the umbrella test files of internal/catalog/, or when clerk fixup mark comes back ambiguous
 ## A struct that a template function returns has exported fields in the design
 - Type: constraint
 - Recorded: 2026-11-09
@@ -211,32 +210,16 @@
 
 ## A full clerk mutants run of a story in internal/catalog passes its 10 minutes
 - Type: constraint
-- Recorded: 2026-11-10
-- Observed: us-012-tui
-- Learning: A story that changes several files of internal/catalog or internal/prompt makes hundreds of mutants against the run base, and clerk mutants stops at 10 minutes with an INCOMPLETE row; each later run, --id or in another worktree included, replaces the kept run that clerk audit accept reads. To read only the lines of the audit fixes, make a commit X with the tip minus those fixes, a commit Y with the tip tree whose parent is X (a base must be an ancestor), run clerk mutants --base X in a temporary worktree at Y, then run the full --since-last-run in the main checkout last, accept its INCOMPLETE key, and name the complete runs.
-- Apply when: running clerk mutants after the audit fixes of a story that changes several files of internal/catalog or internal/prompt, or clerk audit accept refuses on an INCOMPLETE mutants row
-
-## A huh form takes its size after its Init, and sizes each group from the content it has then
-- Type: constraint
-- Recorded: 2026-11-10
-- Observed: task 6,7 — us-012-tui
-- Learning: In internal/prompt a new huh form must get Init before the size of the terminal, else huh measures an empty group and cuts a list to one line; and huh sizes every group of a form when the first group starts, so a group that has not started gets no room, which is why the options step uses one form for each declarer.
-- Apply when: adding or changing a step of the TUI of new in internal/prompt, or holding any huh form in a bubbletea model
-
-## huh's Select scrolls to its value and keeps its filter, and its Input checks only on Enter
-- Type: constraint
-- Recorded: 2026-11-10
-- Observed: task 6,7,8 — us-012-tui
-- Learning: A huh Select scrolls its list to the chosen option with no limit, so Value must come before Options and the default is shown first; its filter cannot be turned off and takes Esc, which cancels the TUI of new, so the model drops / while a list has the focus; an Input runs Validate only on Enter, so the model shows the message of the check after each key.
-- Apply when: adding a huh Select, MultiSelect or Input to the TUI of new, or a key that a huh field also binds
-
+- Recorded: 2026-11-11
+- Observed: us-018-form
+- Learning: A story that changes several files of internal/catalog, internal/form, internal/screen or internal/browser makes hundreds of mutants against the run base (US-018: 27 files, 309 mutants), and clerk mutants stops at 10 minutes with an INCOMPLETE row; each later run, --id or in another worktree included, replaces the kept run that clerk audit accept reads. To read only the lines of the audit fixes, run clerk mutants --base HEAD while the fixes are still uncommitted (git add -N a new file first), then fold, run the full --since-last-run against the run base last, accept its INCOMPLETE key, and name the --base HEAD run in the reason.
+- Apply when: running clerk mutants after the audit fixes of a story that changes several files of internal/catalog, internal/form, internal/screen or internal/browser, or clerk audit accept refuses on an INCOMPLETE mutants row
 ## Test new in a pseudo-terminal that has a size, with a context that ends
 - Type: pattern
-- Recorded: 2026-11-10
-- Observed: task 5,8 — us-012-tui
-- Learning: TestNewCommand starts the TUI only when stdin and stdout are terminals, so runInTerminal opens a creack/pty, sets its size (a pty of size 0 makes the TUI draw nothing), types keys after a text shows, and gives new a context of 3 seconds; runNew gives an empty reader and the same limit, so a TUI that starts by mistake fails a test instead of waiting for keys.
+- Recorded: 2026-11-11
+- Observed: task 9 — us-018-form
+- Learning: TestNewCommand starts the TUI only when stdin and stdout are terminals, so runInTerminal opens a creack/pty, sets its size (a pty of size 0 makes the TUI draw nothing), types each key alone with a pause of 50 ms after a text shows (bubbletea reads a burst of letters as one KeyMsg), and gives new a context of 3 seconds as a limit only. Each test ends the form with a key (q, ctrl+c, or w and y): when the context kills the program, bubbletea v1.3.10 closes its cancelreader while the read loop calls Fd(), and task test:unit, which runs -race, fails. runNew gives an empty reader and the same limit, so a TUI that starts by mistake fails a test instead of waiting for keys.
 - Apply when: writing a test in internal/cmd of when new starts the TUI, or of what new does after the TUI ends
-
 ## tuistory starts each command about 5 seconds late
 - Type: constraint
 - Recorded: 2026-11-10
@@ -244,16 +227,44 @@
 - Learning: In the terminal of tuistory a command that writes to the terminal draws its first output about 5 seconds after the start, also feature-compose version and also before the TUI of new existed, so a screen test waits up to 15 seconds for its first text and for an EXIT that follows it.
 - Apply when: writing an e2e screen test with openCli, or reading a waitForText timeout of about 5 seconds as a defect of the TUI
 
-## A step of the TUI that adds a huh list or input costs more attempts than the step that first holds huh
-- Type: pattern
-- Recorded: 2026-11-10
-- Observed: task 5,6,7 — us-012-tui
-- Learning: In US-012 the confirm step, assessed low certainty, went green at once, and the feature and options steps, assessed medium, needed several attempts each, because each new kind of huh field brought a sizing, scrolling or key behaviour that only a run showed.
-- Apply when: assessing the certainty of a task that adds a step or a new kind of huh field to the TUI of new
-
 ## The shell refuses > onto a file that exists
 - Type: constraint
 - Recorded: 2026-11-10
 - Observed: us-012-tui
 - Learning: The zsh of this machine sets noclobber, so cat > file or cmd > file onto a file that exists fails and the next commands run with the old content; write with >| or with python, and note that mk is an alias and sed is GNU sed (sed -i with no suffix).
 - Apply when: writing or rewriting a file with a shell redirect, or naming a shell function, in a command of a run
+
+## A criterion that a breakdown defers needs a story that names it
+- Type: pattern
+- Recorded: 2026-11-11
+- Observed: us-018-form
+- Learning: The breakdown of US-018 deferred the when of an option and the values of a need to US-007, but US-007 named neither the form nor when (US-013 adds the first when), so the deferral lived only in the breakdown until match-request found it. When a breakdown defers a criterion because the catalog or the code lacks a capability, name the story that adds the capability and check that its criteria name the deferred behaviour, or ask for a criterion there.
+- Apply when: decomposing a story with a criterion that needs a capability of the catalog or of the tool that a later story adds, for example when, values of a need, or a new source of a value
+
+## A move of code into a new package makes each moved line a changed line
+- Type: pattern
+- Recorded: 2026-11-11
+- Observed: task 1 — us-018-form
+- Learning: Task 1 of US-018 moved the look of show into internal/screen and was rated high certainty, but it took two attempts: clerk mutants read every moved line as new, and the tests of show had gaps (a terminal of exactly 40 by 8, a title line too narrow for the counts, the width of the tree pane) that the move task then closed with new tests. Size a move by the gaps in the tests of the old code, not by the size of the move.
+- Apply when: assessing the certainty or the size of a task that moves code between packages or into a new shared package
+
+## An edit of a value in a bubbletea model of this repo is routine work
+- Type: pattern
+- Recorded: 2026-11-11
+- Observed: task 6 — us-018-form
+- Learning: Task 6 of US-018 (Enter edits the name with a bubbles textinput, or lists the values of an option) was rated low certainty and passed in one attempt with no lint finding: a textinput with cursor.CursorStatic sends no blink commands, and a list drawn with screen.RowLine and screen.SelectedRowLine needs no state of a library. The extra attempts that huh fields cost do not apply to plain bubbles.
+- Apply when: assessing the certainty of a task that adds a text input or a list of choices to the form of new (internal/form) or to show (internal/browser)
+
+## Fold a fix into the task that first makes its state happen
+- Type: convention
+- Recorded: 2026-11-11
+- Observed: us-018-form
+- Learning: In US-018 a round 1 fold put the drop of kept option values into Task 3, where draft.selected came in, but a value can be kept only from Task 6, so the code did nothing for three commits and the message of Task 6 told a change that its diff did not hold; a design-check fix that renamed the fields of Task 3 went into Task 4, where the check ran. run-verifier flagged both. Pick the commit of the task whose behaviour needs the fix, and fold a rename into the task that added the name.
+- Apply when: picking the target commit of an audit fix or a design-check fix, with clerk fixup mark or with a git commit-tree rebuild
+
+## clerk audit accept counts the lines of internal/form that the tests of internal/cmd do not run
+- Type: constraint
+- Recorded: 2026-11-11
+- Observed: us-018-form
+- Learning: After the audit fixes of US-018, clerk audit accept refused on 14 CALLER GAP rows: internal/cmd calls the form only through form.New, tea.Program and Model.Confirmed, so its tests do not run the details, the edits or the messages of the form. TestModel of internal/form runs each of those lines through the public API, so accept each row with that reason (check it with a coverage profile of internal/form) instead of a pty test in internal/cmd for each row.
+- Apply when: clerk audit accept or clerk mutants reports CALLER GAP rows for internal/form, internal/browser or another package that internal/cmd runs through a TUI

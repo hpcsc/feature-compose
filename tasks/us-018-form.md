@@ -642,21 +642,21 @@ the developer chooses the starter here, and the tree then shows its options and 
 not fit the flags is not kept.
 
 **Acceptance Criteria:**
-- [ ] Enter at the starter row lists each starter of the catalog in the details pane, in the order of the names, each
+- [x] Enter at the starter row lists each starter of the catalog in the details pane, in the order of the names, each
   with its summary, with the current starter chosen, or the first when none is chosen. `j`, `k` and the arrow keys
   move, Enter keeps the chosen starter, and Esc drops the change.
-- [ ] With no starter argument, a kept starter shows its options and its features in the tree, with the defaults that
+- [x] With no starter argument, a kept starter shows its options and its features in the tree, with the defaults that
   read the name.
-- [ ] A change of the starter keeps each feature that the developer selected and that targets the new starter, with
+- [x] A change of the starter keeps each feature that the developer selected and that targets the new starter, with
   the values that the developer kept for it, and clears each other feature. It drops the values that the developer
   kept for the options of the starter. The tree shows the features and the options of the new starter.
-- [ ] A starter whose selection `Select` refuses with the flags, for example with a `--feature` that does not target
+- [x] A starter whose selection `Select` refuses with the flags, for example with a `--feature` that does not target
   it or an `--option` that it does not declare, or whose features have needs that form a cycle, is not kept, the tree
   stays as it was, and the details show the message.
-- [ ] Keeping the current starter changes nothing.
-- [ ] Enter at the starter of an argument starts no list, and the details say that the starter is fixed and name its
+- [x] Keeping the current starter changes nothing.
+- [x] Enter at the starter of an argument starts no list, and the details say that the starter is fixed and name its
   source.
-- [ ] The tests of `internal/form` drive the choice of the starter through `Update` and `View` with a catalog of two
+- [x] The tests of `internal/form` drive the choice of the starter through `Update` and `View` with a catalog of two
   starters, with a feature that targets both and a feature that targets one.
 
 **Affected Files/Modules:**

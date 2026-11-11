@@ -620,10 +620,6 @@ func TestModel(t *testing.T) {
 			require.Equal(t, []string{"▌  ├─ ▾ [x] beta", "   │  ├─   mode     slow"}, []string{treeOf(m)[5], treeOf(m)[10]})
 		})
 
-		t.Run("enter at the starter row starts no edit", func(t *testing.T) {
-			require.Equal(t, "A service.\n\nsource  command line", detailsOf(pressed(editable(t, nil, nil), "j", "enter")))
-		})
-
 		t.Run("with no starter yet, the name of an edit is kept also when flags are given", func(t *testing.T) {
 			m, err := form.New(catalog.New(withNeeds()), "", "", nil, withAlpha())
 			require.NoError(t, err)
@@ -650,6 +646,153 @@ func TestModel(t *testing.T) {
 			list := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter")
 
 			require.Equal(t, []string{" enter keep • esc drop • ctrl+c quit", " j/k move • enter keep • esc drop • q quit"}, []string{linesOf(text)[19], linesOf(list)[19]})
+		})
+	})
+
+	t.Run("starter", func(t *testing.T) {
+		withStarters := func() fstest.MapFS {
+			return fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\noptions:\n  region:\n    default: us\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"starters/worker/starter.yml":       &fstest.MapFile{Data: []byte("summary: A worker.\noptions:\n  queue:\n    default: jobs\nfolders:\n  go:\n    path: .\n")},
+				"starters/worker/files/go/main.go":  &fstest.MapFile{Data: []byte("package main\n")},
+				"starters/broken/starter.yml":       &fstest.MapFile{Data: []byte("summary: Broken.\nfolders:\n  go:\n    path: .\n")},
+				"starters/broken/files/go/main.go":  &fstest.MapFile{Data: []byte("package main\n")},
+				"features/shared/feature.yml":       &fstest.MapFile{Data: []byte("summary: Shared.\ntargets: [service, worker]\noptions:\n  tone:\n    default: soft\n")},
+				"features/only/feature.yml":         &fstest.MapFile{Data: []byte("summary: Only.\ntargets: [service]\noptions:\n  mode:\n    default: fast\n")},
+				"features/x/feature.yml":            &fstest.MapFile{Data: []byte("summary: X.\ntargets: [broken]\nneeds: [y]\n")},
+				"features/y/feature.yml":            &fstest.MapFile{Data: []byte("summary: Y.\ntargets: [broken]\nneeds: [x]\n")},
+			}
+		}
+		unchosen := func(t *testing.T, given map[string]string, givenByFeature map[string]map[string]string) form.Model {
+			t.Helper()
+			m, err := form.New(catalog.New(withStarters()), "", "my-service", given, givenByFeature)
+			require.NoError(t, err)
+			return sized(m, 120, 20)
+		}
+		chosen := func(t *testing.T, keys ...string) form.Model {
+			t.Helper()
+			return pressed(unchosen(t, nil, nil), append([]string{"j", "enter", "j", "enter"}, keys...)...)
+		}
+
+		t.Run("enter at the starter row lists each starter in the order of the names with its summary, the first chosen when none is", func(t *testing.T) {
+			require.Equal(t, "▌broken   Broken.\n service  A service.\n worker   A worker.", detailsOf(pressed(unchosen(t, nil, nil), "j", "enter")))
+		})
+
+		t.Run("enter keeps the chosen starter, and the tree shows its options and its features with the source answered", func(t *testing.T) {
+			m := chosen(t)
+
+			require.Equal(t, []string{"▌▾ starter  service", "   ├─   region  us", "   ├─   [ ] only", "   └─   [ ] shared"}, treeOf(m)[1:])
+			require.Equal(t, "A service.\n\nsource  answered", detailsOf(m))
+		})
+
+		t.Run("a second edit of the starter chooses the kept starter", func(t *testing.T) {
+			require.Equal(t, " broken   Broken.\n▌service  A service.\n worker   A worker.", detailsOf(chosen(t, "enter")))
+		})
+
+		t.Run("esc drops the chosen starter", func(t *testing.T) {
+			require.Equal(t, "▌  starter    missing", treeOf(pressed(unchosen(t, nil, nil), "j", "enter", "j", "esc"))[1])
+		})
+
+		t.Run("a change of the starter keeps each selected feature that targets the new starter with its kept values, and clears the others and the kept values of the starter", func(t *testing.T) {
+			edited := chosen(t,
+				"j", "enter", "backspace", "backspace", "e", "u", "enter",
+				"j", "space", "j", "enter", "backspace", "backspace", "backspace", "backspace", "s", "l", "o", "w", "enter",
+				"j", "space", "j", "enter", "backspace", "backspace", "backspace", "backspace", "l", "o", "u", "d", "enter")
+			changed := pressed(edited, "k", "k", "k", "k", "k", "enter", "j", "enter")
+
+			require.Equal(t, []string{"   ├─   region  eu", "   ├─ ▾ [x] only", "   │  └─   mode  slow", "   └─ ▾ [x] shared", "▌     └─   tone  loud"}, treeOf(edited)[2:])
+			require.Equal(t, []string{"▌▾ starter  worker", "   ├─   queue  jobs", "   └─ ▾ [x] shared", "      └─   tone  loud"}, treeOf(changed)[1:])
+		})
+
+		t.Run("keeping the current starter keeps the kept values of the starter", func(t *testing.T) {
+			m := chosen(t, "j", "enter", "backspace", "backspace", "e", "u", "enter", "k", "enter", "enter")
+
+			require.Equal(t, "   ├─   region  eu", treeOf(m)[2])
+		})
+
+		t.Run("keeping the current starter changes nothing", func(t *testing.T) {
+			selected := chosen(t, "j", "j", "space", "k", "k")
+
+			require.Equal(t, screenOf(selected), screenOf(pressed(selected, "enter", "enter")))
+		})
+
+		for name, test := range map[string]struct {
+			given          map[string]string
+			givenByFeature map[string]map[string]string
+			keys           []string
+			message        string
+		}{
+			"a feature of --feature that does not target it": {nil, map[string]map[string]string{"only": {}}, []string{"j", "j"}, `unknown feature "only": the features that target the starter worker are shared`},
+			"an option of --option that it does not declare": {map[string]string{"region": "eu"}, nil, []string{"j", "j"}, `unknown option "region": the options of the starter worker are queue`},
+			"features whose needs form a cycle":              {nil, nil, nil, "the needs of the features form a cycle: x needs y needs x"},
+		} {
+			t.Run("a starter that does not fit is not kept, the tree stays as it was, and the details show the message: "+name, func(t *testing.T) {
+				m := pressed(unchosen(t, test.given, test.givenByFeature), append([]string{"j", "enter"}, append(test.keys, "enter")...)...)
+
+				require.Equal(t, "▌  starter    missing", treeOf(m)[1])
+				require.Equal(t, test.message, strings.Join(strings.Fields(strings.SplitN(detailsOf(m), "\n\n", 2)[0]), " "))
+			})
+		}
+
+		t.Run("the message of a starter that does not fit goes away at the next key", func(t *testing.T) {
+			m := pressed(unchosen(t, nil, nil), "j", "enter", "enter", "j")
+
+			require.Equal(t, " broken   Broken.\n▌service  A service.\n worker   A worker.", detailsOf(m))
+		})
+
+		t.Run("a change of the starter drops the kept values of a feature that only a cleared feature needed", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"starters/worker/starter.yml":       &fstest.MapFile{Data: []byte("summary: A worker.\nfolders:\n  go:\n    path: .\n")},
+				"starters/worker/files/go/main.go":  &fstest.MapFile{Data: []byte("package main\n")},
+				"features/p/feature.yml":            &fstest.MapFile{Data: []byte("summary: P.\ntargets: [service]\nneeds: [q]\n")},
+				"features/q/feature.yml":            &fstest.MapFile{Data: []byte("summary: Q.\ntargets: [service, worker]\noptions:\n  level:\n    values: [low, high]\n    default: low\n")},
+			}
+			m, err := form.New(catalog.New(files), "", "my-service", nil, nil)
+			require.NoError(t, err)
+			kept := pressed(sized(m, 120, 20), "j", "enter", "enter", "j", "j", "space", "k", "enter", "j", "enter")
+
+			changed := pressed(kept, "k", "k", "enter", "j", "enter")
+
+			require.Equal(t, "▌  │  └─   level  high", treeOf(kept)[3])
+			require.Equal(t, []string{"▌▾ starter  worker", "   └─   [ ] q"}, treeOf(changed)[1:])
+		})
+
+		t.Run("a list longer than the details pane shows the chosen starter", func(t *testing.T) {
+			m, err := form.New(catalog.New(manyStarters(12)), "", "my-service", nil, nil)
+			require.NoError(t, err)
+
+			down := pressed(sized(m, 90, 10), "j", "enter", "j", "j", "j", "j", "j", "j", "j", "j")
+			up := pressed(down, "k", "k", "k", "k", "k", "k")
+
+			require.Equal(t, []string{" starter-03  Summary 03.", "▌starter-08  Summary 08."}, []string{firstDetailsLineOf(down), strings.Split(detailsOf(down), "\n")[5]})
+			require.Equal(t, "▌starter-02  Summary 02.", firstDetailsLineOf(up))
+		})
+
+		t.Run("a list under a message shows the chosen starter, and the message while the chosen starter fits under it", func(t *testing.T) {
+			m, err := form.New(catalog.New(manyStarters(12)), "", "my-service", map[string]string{"x": "1"}, nil)
+			require.NoError(t, err)
+			keys := []string{"j", "enter", "j", "j", "j", "j", "j", "j", "j", "j", "enter"}
+
+			low := pressed(sized(m, 90, 10), keys...)
+			high := pressed(sized(m, 90, 16), keys...)
+
+			require.Equal(t, "▌starter-08  Summary 08.", lastLineOf(detailsOf(low)))
+			require.Equal(t, `unknown option "x": the starter starter-08 has no option`, strings.Join(strings.Fields(strings.SplitN(detailsOf(high), "\n\n", 2)[0]), " "))
+		})
+
+		t.Run("enter at the starter row of a catalog with no starter starts no list, and the details say that the catalog has no starter", func(t *testing.T) {
+			require.Equal(t, "The catalog has no starter.", firstDetailsLineOf(pressed(opened(t, fstest.MapFS{"starters": &fstest.MapFile{Mode: fs.ModeDir | 0o755}}, "", "", nil), "j", "enter")))
+		})
+
+		t.Run("enter at the name row of a catalog with no starter starts an edit of the name", func(t *testing.T) {
+			require.Equal(t, "> my", firstDetailsLineOf(pressed(opened(t, fstest.MapFS{"starters": &fstest.MapFile{Mode: fs.ModeDir | 0o755}}, "", "", nil), "enter", "m", "y")))
+		})
+
+		t.Run("enter at the starter of an argument starts no list, and the details say that the command line fixes it", func(t *testing.T) {
+			require.Equal(t, "The starter is fixed: the command line gives it.", firstDetailsLineOf(pressed(opened(t, withStarters(), "service", "my-service", nil), "j", "enter")))
 		})
 	})
 

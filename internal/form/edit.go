@@ -1,6 +1,7 @@
 package form
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -11,10 +12,11 @@ import (
 )
 
 type edit struct {
-	row     row
-	input   textinput.Model
-	choices []string
-	chosen  int
+	row       row
+	input     textinput.Model
+	choices   []string
+	summaries []string
+	chosen    int
 }
 
 func newTextEdit(r row, value string) edit {
@@ -25,8 +27,8 @@ func newTextEdit(r row, value string) edit {
 	return edit{row: r, input: input}
 }
 
-func newListEdit(r row, choices []string, value string) edit {
-	return edit{row: r, choices: choices, chosen: max(slices.Index(choices, value), 0)}
+func newListEdit(r row, choices, summaries []string, value string) edit {
+	return edit{row: r, choices: choices, summaries: summaries, chosen: max(slices.Index(choices, value), 0)}
 }
 
 func (e edit) isList() bool {
@@ -52,8 +54,15 @@ func (e edit) typed(msg tea.KeyMsg) (edit, tea.Cmd) {
 }
 
 func (e edit) text(check error, width int) string {
+	widest := 0
+	for _, choice := range e.choices {
+		widest = max(widest, len(choice))
+	}
 	var lines []string
 	for i, choice := range e.choices {
+		if i < len(e.summaries) {
+			choice = fmt.Sprintf("%-*s  %s", widest, choice, e.summaries[i])
+		}
 		if i == e.chosen {
 			lines = append(lines, screen.SelectedRowLine(choice, width))
 		} else {

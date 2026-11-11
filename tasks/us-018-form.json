@@ -208,7 +208,7 @@
     },
     {
       "n": 7,
-      "done": false,
+      "done": true,
       "title": "Choose the starter with Enter",
       "language": "Go",
       "testable": true,

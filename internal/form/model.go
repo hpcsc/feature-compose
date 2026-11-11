@@ -129,23 +129,16 @@ func (m Model) updateTree(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) entered() Model {
 	r := m.tree.selected
-	switch r.kind {
-	case featureKind:
+	if r.kind == featureKind {
 		m.tree = m.tree.opened()
 		return m
-	case starterKind:
-		return m
 	}
-	if message := m.draft.givenMessage(r); message != "" {
+	e, message := m.draft.editOf(r)
+	if message != "" {
 		m.message = message
 		return m
 	}
-	m.editing = true
-	if choices := m.draft.choices(r); len(choices) > 0 {
-		m.edit = newListEdit(r, choices, m.draft.value(r))
-		return m
-	}
-	m.edit = newTextEdit(r, m.draft.value(r))
+	m.editing, m.edit = true, e
 	return m
 }
 
@@ -194,12 +187,17 @@ func (m Model) laidOut(before row) Model {
 	if m.editing {
 		text = m.edit.text(m.draft.check(m.edit.row, m.edit.value()), m.details.Width)
 	}
+	linesAbove := 0
 	if m.message != "" {
-		text = screen.Message(m.message, m.details.Width) + "\n\n" + text
+		message := screen.Message(m.message, m.details.Width)
+		text, linesAbove = message+"\n\n"+text, lipgloss.Height(message)+1
 	}
 	m.details.SetContent(text)
 	if m.tree.selected != before {
 		m.details.GotoTop()
+	}
+	if m.editing {
+		m.details.SetYOffset(screen.OffsetShowing(m.details.YOffset, linesAbove+m.edit.chosen, m.details.Height))
 	}
 	treeHeight := max(m.height-4, 1)
 	m.treeOffset = max(min(screen.OffsetShowing(m.treeOffset, m.tree.selectedIndex(), treeHeight), len(m.tree.rows())-treeHeight), 0)

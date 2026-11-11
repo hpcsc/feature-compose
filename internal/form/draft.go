@@ -94,6 +94,8 @@ func (d draft) toggled(featureName string) (draft, string) {
 func (d draft) withAnswer(r row, value string) (draft, error) {
 	name, answers := d.name, d.answers
 	switch r.kind {
+	case starterKind:
+		return d.withKeptStarter(value)
 	case nameKind:
 		if d.starterName == "" {
 			d.name = value
@@ -113,10 +115,31 @@ func (d draft) withAnswer(r row, value string) (draft, error) {
 	return d, nil
 }
 
+func (d draft) withKeptStarter(starterName string) (draft, error) {
+	if starterName == d.starterName {
+		return d, nil
+	}
+	doesNotTarget := func(featureName string) bool {
+		return !slices.Contains(d.definitions.Features[featureName].Targets, starterName)
+	}
+	kept := d
+	kept.answers = catalog.Answers{
+		Features:      slices.DeleteFunc(slices.Clone(d.answers.Features), doesNotTarget),
+		FeatureValues: d.answers.FeatureValues,
+	}
+	kept, err := kept.withStarter(starterName)
+	if err != nil {
+		return d, err
+	}
+	return kept, nil
+}
+
 func (d draft) isGiven(r row) bool {
 	switch r.kind {
 	case nameKind:
 		return d.nameGiven
+	case starterKind:
+		return d.starterGiven
 	case featureKind:
 		_, isGiven := d.givenByFeature[r.feature]
 		return isGiven
@@ -126,12 +149,27 @@ func (d draft) isGiven(r row) bool {
 	panic(fmt.Sprintf("the form has no source for the row kind %d", r.kind))
 }
 
+func (d draft) editOf(r row) (edit, string) {
+	if message := d.givenMessage(r); message != "" {
+		return edit{}, message
+	}
+	if r.kind == starterKind && len(d.definitions.Starters) == 0 {
+		return edit{}, "The catalog has no starter."
+	}
+	if choices := d.choices(r); len(choices) > 0 {
+		return newListEdit(r, choices, d.summaries(r), d.value(r)), ""
+	}
+	return newTextEdit(r, d.value(r)), ""
+}
+
 func (d draft) givenMessage(r row) string {
 	switch {
 	case !d.isGiven(r):
 		return ""
 	case r.kind == nameKind:
 		return "The name is fixed: the command line gives it."
+	case r.kind == starterKind:
+		return "The starter is fixed: the command line gives it."
 	}
 	return "The option " + r.option + " is fixed: the command line gives it."
 }
@@ -140,6 +178,8 @@ func (d draft) value(r row) string {
 	switch r.kind {
 	case nameKind:
 		return d.name
+	case starterKind:
+		return d.starterName
 	case optionKind:
 		return d.question(r).Value
 	}
@@ -150,14 +190,28 @@ func (d draft) choices(r row) []string {
 	switch r.kind {
 	case nameKind:
 		return nil
+	case starterKind:
+		return slices.Sorted(maps.Keys(d.definitions.Starters))
 	case optionKind:
 		return d.question(r).Accepted
 	}
 	panic(fmt.Sprintf("the form has no choices for the row kind %d", r.kind))
 }
 
+func (d draft) summaries(r row) []string {
+	var summaries []string
+	if r.kind == starterKind {
+		for _, starterName := range d.choices(r) {
+			summaries = append(summaries, d.definitions.Starters[starterName].Summary)
+		}
+	}
+	return summaries
+}
+
 func (d draft) check(r row, value string) error {
 	switch r.kind {
+	case starterKind:
+		return nil
 	case nameKind:
 		return catalog.CheckRepoName(value)
 	case optionKind:

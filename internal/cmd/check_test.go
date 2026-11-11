@@ -75,6 +75,37 @@ the starter service: the feature tools adds to the extension point "cli.commands
 
 			require.EqualError(t, err, "the catalog has 1 mistake")
 		})
+
+		t.Run("prints the mistakes of the folders, the needs, the cycles and the item fields of the targets", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"api":   "targets: [service]\nneeds: [app]\n",
+				"app":   "targets: [service]\nneeds: [base]\n",
+				"base":  "targets: [service]\nneeds: [app]\n",
+				"auth":  "targets: [service, worker]\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n",
+				"cli":   "targets: [service]\nneeds:\n  jobs:\n  level:\n    mode: loud\n  vault:\n",
+				"jobs":  "targets: [worker]\n",
+				"level": "targets: [service]\noptions:\n  mode:\n    values: [quiet]\n    default: quiet\n",
+				"web":   "targets: [service]\nfiles:\n  - path: files/\n",
+			})
+			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n")}
+			files["starters/worker/files/go/server.go"] = &fstest.MapFile{Data: []byte("package server\n")}
+			files["features/web/files/README.md"] = &fstest.MapFile{Data: []byte("web\n")}
+			files["features/web/files/go/web.go"] = &fstest.MapFile{Data: []byte("package web\n")}
+			files["features/web/files/web/index.html"] = &fstest.MapFile{Data: []byte("<html></html>\n")}
+
+			printed, err := runCheck(t, files)
+
+			require.EqualError(t, err, "the catalog has 8 mistakes")
+			require.Equal(t, `the starter service: the feature cli needs jobs, which does not target the starter
+the starter service: the feature cli needs vault, which is not a feature of the catalog
+the starter service: the need of the feature cli: the feature level: the value "loud" of the option mode is not one of its values: quiet
+the starter service: the template README.md of the files entry files/ of the feature web is not in a folder
+the starter service: the feature web adds files to the folder web, which the starter does not have
+the starter service: the needs of the features form a cycle: app needs base needs app
+the starter worker: the item 1 that the feature auth adds to the extension point "api.middleware" has the fields [code, import], but the extension point declares the fields [code]
+the feature auth adds to the extension point "api.middleware", which its targets declare with different item fields: [code, import] in the starter service, [code] in the starter worker
+`, printed)
+		})
 	})
 
 	t.Run("stop", func(t *testing.T) {

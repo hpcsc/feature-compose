@@ -388,21 +388,21 @@ cycle (decision 5). Each feature that is in a cycle is named in a cycle mistake.
 other mistakes are still in the list.
 
 **Acceptance Criteria:**
-- [ ] Features of one starter whose needs form a cycle are a mistake. The message names the starter and each feature
+- [x] Features of one starter whose needs form a cycle are a mistake. The message names the starter and each feature
   of the cycle in the order of the needs, for example `app needs base needs app`, and names no other feature.
-- [ ] A feature that needs itself is a cycle, for example `app needs app`.
-- [ ] A cycle of three features that another feature needs gives a message that names the three features of the
+- [x] A feature that needs itself is a cycle, for example `app needs app`.
+- [x] A cycle of three features that another feature needs gives a message that names the three features of the
   cycle and not the feature that needs it.
-- [ ] Two cycles with no feature in common give two mistakes. One cycle gives one mistake for each starter whose
+- [x] Two cycles with no feature in common give two mistakes. One cycle gives one mistake for each starter whose
   features hold it, not one for each of its features.
-- [ ] Each feature that is in a cycle is named in at least one cycle mistake, also when two cycles share a feature.
-- [ ] Features whose needs form a cycle only through a feature that does not target the starter are not a cycle of
+- [x] Each feature that is in a cycle is named in at least one cycle mistake, also when two cycles share a feature.
+- [x] Features whose needs form a cycle only through a feature that does not target the starter are not a cycle of
   that starter; Task 3 gives the mistake of that need.
-- [ ] The mistakes of Tasks 1 to 3 are still found next to a cycle, and `Catalog.Check` on `catalog/` gives no mistake.
-- [ ] "Check the Catalog" in `README.md` names the cycle.
-- [ ] `clerk mutants` on the changed lines of `internal/catalog` completes within its time limit, with no mutant that
+- [x] The mistakes of Tasks 1 to 3 are still found next to a cycle, and `Catalog.Check` on `catalog/` gives no mistake.
+- [x] "Check the Catalog" in `README.md` names the cycle.
+- [x] `clerk mutants` on the changed lines of `internal/catalog` completes within its time limit, with no mutant that
   waits for its timeout.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `internal/catalog/starter.go` — the cycles of the needs of the features that target the starter

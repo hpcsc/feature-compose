@@ -176,6 +176,7 @@ func (s Starter) mistakes(catalogFeatures map[string]feature) []string {
 		mistakes = append(mistakes, s.folderMistakes(f)...)
 		mistakes = append(mistakes, f.needMistakes(s.name, catalogFeatures)...)
 	}
+	mistakes = append(mistakes, s.cycleMistakes()...)
 	for i, mistake := range mistakes {
 		mistakes[i] = "the starter " + s.name + ": " + mistake
 	}
@@ -217,6 +218,41 @@ func (s Starter) folderMistakes(f feature) []string {
 		}
 	}
 	return mistakes
+}
+
+func (s Starter) cycleMistakes() []string {
+	var mistakes []string
+	inReportedCycle := map[string]bool{}
+	for _, featureName := range slices.Sorted(maps.Keys(s.features)) {
+		if inReportedCycle[featureName] {
+			continue
+		}
+		cycle := s.pathOfNeeds(featureName, featureName, map[string]bool{})
+		if cycle == nil {
+			continue
+		}
+		for _, inCycle := range cycle {
+			inReportedCycle[inCycle] = true
+		}
+		mistakes = append(mistakes, "the needs of the features form a cycle: "+strings.Join(cycle, " needs "))
+	}
+	return mistakes
+}
+
+func (s Starter) pathOfNeeds(from, to string, visited map[string]bool) []string {
+	visited[from] = true
+	for _, need := range s.features[from].needs {
+		if need == to {
+			return []string{from, to}
+		}
+		if visited[need] {
+			continue
+		}
+		if rest := s.pathOfNeeds(need, to, visited); rest != nil {
+			return append([]string{from}, rest...)
+		}
+	}
+	return nil
 }
 
 func (s Starter) extensionPointsDeclaredFor(f feature) map[string]extensionPoint {

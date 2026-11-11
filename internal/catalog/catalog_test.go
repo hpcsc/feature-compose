@@ -700,6 +700,93 @@ files:
 			require.Equal(t, []string{"the starter service: the feature cli needs vault, which is not a feature of the catalog"}, mistakes)
 		})
 
+		t.Run("features whose needs form a cycle are one mistake after the mistakes of the features, and the message names the starter and each feature of the cycle in the order of the needs", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"app":  "targets: [service]\nneeds: [base]\nadd_to:\n  cli.commands:\n    - code: newAppCommand()\n",
+				"base": "targets: [service]\nneeds: [app]\n",
+			})
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the starter service: the feature app adds to the extension point "cli.commands", which the starter, the feature and its needs do not declare`,
+				"the starter service: the needs of the features form a cycle: app needs base needs app",
+			}, mistakes)
+		})
+
+		t.Run("a feature that needs itself is a cycle", func(t *testing.T) {
+			files := withFeatures(map[string]string{"app": "targets: [service]\nneeds: [app]\n"})
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"the starter service: the needs of the features form a cycle: app needs app"}, mistakes)
+		})
+
+		t.Run("a cycle of three features that another feature needs names the three features and not the feature that needs them", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"api": "targets: [service]\nneeds: [cli]\n",
+				"cli": "targets: [service]\nneeds: [db]\n",
+				"db":  "targets: [service]\nneeds: [env]\n",
+				"env": "targets: [service]\nneeds: [cli]\n",
+			})
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"the starter service: the needs of the features form a cycle: cli needs db needs env needs cli"}, mistakes)
+		})
+
+		t.Run("two cycles with no feature in common are two mistakes, and a cycle gives one mistake for each starter whose features hold it", func(t *testing.T) {
+			files := withWorker(withFeatures(map[string]string{
+				"a": "targets: [service, worker]\nneeds: [b]\n",
+				"b": "targets: [service, worker]\nneeds: [a]\n",
+				"c": "targets: [service]\nneeds: [d]\n",
+				"d": "targets: [service]\nneeds: [c]\n",
+			}))
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				"the starter service: the needs of the features form a cycle: a needs b needs a",
+				"the starter service: the needs of the features form a cycle: c needs d needs c",
+				"the starter worker: the needs of the features form a cycle: a needs b needs a",
+			}, mistakes)
+		})
+
+		t.Run("each feature of two cycles that share a feature is named in a cycle mistake", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"a": "targets: [service]\nneeds: [b]\n",
+				"b": "targets: [service]\nneeds: [a, c]\n",
+				"c": "targets: [service]\nneeds: [b]\n",
+			})
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				"the starter service: the needs of the features form a cycle: a needs b needs a",
+				"the starter service: the needs of the features form a cycle: c needs b needs c",
+			}, mistakes)
+		})
+
+		t.Run("needs that form a cycle only through a feature that does not target the starter are not a cycle of that starter", func(t *testing.T) {
+			files := withWorker(withFeatures(map[string]string{
+				"a": "targets: [service, worker]\nneeds: [x]\n",
+				"x": "targets: [service]\nneeds: [a]\n",
+			}))
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				"the starter service: the needs of the features form a cycle: a needs x needs a",
+				"the starter worker: the feature a needs x, which does not target the starter",
+			}, mistakes)
+		})
+
 		t.Run("the catalog of this repo has no mistake", func(t *testing.T) {
 			mistakes, err := repoCatalog().Check()
 

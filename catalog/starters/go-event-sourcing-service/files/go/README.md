@@ -191,7 +191,7 @@ with `dispatch.CommandFor`.
 - **A reaction:** implement `reaction.Interface`, or use `external.NewHttpReaction`. Make the effect
   safe to repeat. A message to another service is a contract, not an event, as
   [docs/event-subscription.md](docs/event-subscription.md) tells. A reaction that sends a command builds
-  it with `dispatch.CommandFor`, as `welcomebonus.Reaction` does: the command gets a fixed ID, and the
+  it with `dispatch.CommandFor`, as `welcome_bonus.Reaction` does: the command gets a fixed ID, and the
   correlation ID of the event. Add `reaction.NewReactor(...)` to the workers in `cmd/catchup/main.go`.
 - **A scheduler:** implement `scheduler.Interface`. Its `Tick` reads a todo list, a projection, and
   sends a command with a fixed ID for each item that is due. Add `scheduler.New(...)` to the workers in

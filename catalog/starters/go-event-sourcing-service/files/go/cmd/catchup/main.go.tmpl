@@ -21,7 +21,7 @@ import (
 	"{{ option "starter.module" }}/internal/domain/reaction"
 	"{{ option "starter.module" }}/internal/use_cases"
 	"{{ option "starter.module" }}/internal/use_cases/account/balance"
-	"{{ option "starter.module" }}/internal/use_cases/account/welcomebonus"
+	"{{ option "starter.module" }}/internal/use_cases/account/welcome_bonus"
 {{- range unique "import" "catchup.config" }}
 	"{{ option "starter.module" }}/{{ . }}"
 {{- end }}
@@ -82,7 +82,7 @@ func workers(pool *pgxpool.Pool, cfg *Config, logger *slog.Logger) []worker {
 
 	all := []worker{
 		projection.NewProjector(balance.NewProjection(), pool, checkpointStore, eventSubscription, logger),
-		reaction.NewReactor(reaction.NewConflictRetry(welcomebonus.NewReaction(bus), 3), checkpointStore, eventSubscription, logger),
+		reaction.NewReactor(reaction.NewConflictRetry(welcome_bonus.NewReaction(bus), 3), checkpointStore, eventSubscription, logger),
 	}
 {{- range items "catchup.consumers" }}
 	all = append(all, {{ .code }}...)

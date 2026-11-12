@@ -1027,9 +1027,9 @@ files:
 		t.Run("with no item, catchup has only the config and the workers of the starter", func(t *testing.T) {
 			_, files := writtenStarter(t, nil)
 
-			require.Contains(t, files["cmd/catchup/main.go"], "\t\"github.com/hpcsc/my-service/internal/use_cases/account/welcomebonus\"\n\t\"github.com/jackc/pgx/v5/pgxpool\"\n)")
+			require.Contains(t, files["cmd/catchup/main.go"], "\t\"github.com/hpcsc/my-service/internal/use_cases/account/welcome_bonus\"\n\t\"github.com/jackc/pgx/v5/pgxpool\"\n)")
 			require.Contains(t, files["cmd/catchup/main.go"], "type Config struct {\n\tDB config.DB\n}")
-			require.Contains(t, files["cmd/catchup/main.go"], "\tall := []worker{\n\t\tprojection.NewProjector(balance.NewProjection(), pool, checkpointStore, eventSubscription, logger),\n\t\treaction.NewReactor(reaction.NewConflictRetry(welcomebonus.NewReaction(bus), 3), checkpointStore, eventSubscription, logger),\n\t}\n\treturn all\n}")
+			require.Contains(t, files["cmd/catchup/main.go"], "\tall := []worker{\n\t\tprojection.NewProjector(balance.NewProjection(), pool, checkpointStore, eventSubscription, logger),\n\t\treaction.NewReactor(reaction.NewConflictRetry(welcome_bonus.NewReaction(bus), 3), checkpointStore, eventSubscription, logger),\n\t}\n\treturn all\n}")
 		})
 
 		t.Run("with no item, the server gives no middleware to the protected routes, and the config has only its own fields", func(t *testing.T) {
@@ -1115,7 +1115,7 @@ files:
 			require.Contains(t, files["internal/use_cases/account/balance/projection.go"], "\t\tevent.AccountClosed{}.EventType(),\n\t\tevent.HoldCaptured{}.EventType(),\n\t}")
 			require.Contains(t, files["internal/use_cases/account/balance/projection.go"], "\t\treturn err\n\tcase *event.HoldCaptured:\n\t\treturn p.change(ctx, tx, payload.AccountID, -payload.Amount, evt)\n\tdefault:")
 			require.Contains(t, files["internal/use_cases/register.go"], "\taccount.RegisterEvents(reg)\n\tregisterPaymentEvents(reg)\n}")
-			require.Contains(t, files["internal/use_cases/register.go"], "\tcloseaccount.Register(bus, accounts)\n\tregisterPaymentHandlers(bus, stream, accounts)\n}")
+			require.Contains(t, files["internal/use_cases/register.go"], "\tclose_account.Register(bus, accounts)\n\tregisterPaymentHandlers(bus, stream, accounts)\n}")
 		})
 
 		t.Run("with process-manager, catchup reads the config of the outside systems and runs the workers of the payment", func(t *testing.T) {
@@ -1332,7 +1332,7 @@ files:
 			require.Contains(t, files["internal/use_cases/account/balance/projection.go"], "\t\tevent.AccountClosed{}.EventType(),\n\t}")
 			require.Contains(t, files["internal/use_cases/account/balance/projection.go"], "\t\treturn err\n\tdefault:")
 			require.Contains(t, files["internal/use_cases/register.go"], "\taccount.RegisterEvents(reg)\n}")
-			require.Contains(t, files["internal/use_cases/register.go"], "\tcloseaccount.Register(bus, accounts)\n}")
+			require.Contains(t, files["internal/use_cases/register.go"], "\tclose_account.Register(bus, accounts)\n}")
 		})
 
 		writtenWithAPIAuth := func(t *testing.T, given map[string]string, apiAuthValues map[string]string) map[string]string {

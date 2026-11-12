@@ -5,10 +5,10 @@ import (
 	"{{ option "starter.module" }}/internal/domain/event"
 	"{{ option "starter.module" }}/internal/domain/event/registry"
 	"{{ option "starter.module" }}/internal/use_cases/account"
-	"{{ option "starter.module" }}/internal/use_cases/account/closeaccount"
+	"{{ option "starter.module" }}/internal/use_cases/account/close_account"
 	"{{ option "starter.module" }}/internal/use_cases/account/deposit"
 	"{{ option "starter.module" }}/internal/use_cases/account/open"
-	"{{ option "starter.module" }}/internal/use_cases/account/welcomebonus"
+	"{{ option "starter.module" }}/internal/use_cases/account/welcome_bonus"
 	"{{ option "starter.module" }}/internal/use_cases/account/withdraw"
 )
 
@@ -25,8 +25,8 @@ func RegisterHandlers(bus *command.Bus, stream event.Stream) {
 	open.Register(bus, accounts)
 	deposit.Register(bus, accounts)
 	withdraw.Register(bus, accounts)
-	welcomebonus.Register(bus, accounts)
-	closeaccount.Register(bus, accounts)
+	welcome_bonus.Register(bus, accounts)
+	close_account.Register(bus, accounts)
 {{- range items "use_cases.handlers" }}
 	{{ .code }}
 {{- end }}

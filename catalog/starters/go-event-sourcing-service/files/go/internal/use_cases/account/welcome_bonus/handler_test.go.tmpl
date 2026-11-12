@@ -1,6 +1,6 @@
 //go:build unit
 
-package closeaccount_test
+package welcome_bonus_test
 
 import (
 	"context"
@@ -12,36 +12,26 @@ import (
 	"{{ option "starter.module" }}/internal/domain/event"
 	"{{ option "starter.module" }}/internal/domain/event/stream"
 	"{{ option "starter.module" }}/internal/use_cases/account"
-	"{{ option "starter.module" }}/internal/use_cases/account/closeaccount"
 	accountCommand "{{ option "starter.module" }}/internal/use_cases/account/command"
 	accountEvent "{{ option "starter.module" }}/internal/use_cases/account/event"
+	"{{ option "starter.module" }}/internal/use_cases/account/welcome_bonus"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHandler(t *testing.T) {
 	t.Run("handle", func(t *testing.T) {
-		t.Run("saves the close after the events that the account already has", func(t *testing.T) {
+		t.Run("saves one welcome bonus when the command arrives twice", func(t *testing.T) {
 			bus, s := newBus()
 			id := uuid.New()
 			given(t, s, id, opened(id))
+			grant := domain.NewCommand(accountCommand.GrantWelcomeBonus{AccountID: id, Amount: welcome_bonus.Amount})
 
-			err := bus.Dispatch(context.Background(), domain.NewCommand(accountCommand.Close{AccountID: id}))
+			require.NoError(t, bus.Dispatch(context.Background(), grant))
+			require.NoError(t, bus.Dispatch(context.Background(), grant))
 
-			require.NoError(t, err)
 			events := eventsOf(t, s, id)
 			require.Len(t, events, 2)
-			require.Equal(t, &accountEvent.AccountClosed{AccountID: id}, events[1].Payload)
-		})
-
-		t.Run("rejects a second close and saves nothing more", func(t *testing.T) {
-			bus, s := newBus()
-			id := uuid.New()
-			given(t, s, id, opened(id), domain.NewEvent(&accountEvent.AccountClosed{AccountID: id}))
-
-			err := bus.Dispatch(context.Background(), domain.NewCommand(accountCommand.Close{AccountID: id}))
-
-			require.ErrorIs(t, err, account.ErrClosed)
-			require.Len(t, eventsOf(t, s, id), 2)
+			require.Equal(t, &accountEvent.WelcomeBonusGranted{AccountID: id, Amount: welcome_bonus.Amount}, events[1].Payload)
 		})
 	})
 }
@@ -49,7 +39,7 @@ func TestHandler(t *testing.T) {
 func newBus() (*command.Bus, event.Stream) {
 	s := stream.NewMemory()
 	bus := command.NewBus()
-	closeaccount.Register(bus, account.NewRepository(s))
+	welcome_bonus.Register(bus, account.NewRepository(s))
 	return bus, s
 }
 

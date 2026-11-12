@@ -81,7 +81,7 @@ The store records the time of each event in the `created_at` column, so no paylo
 | Command | Actor | Produces | Refused when | Required data |
 | --- | --- | --- | --- | --- |
 | `OpenAccount` | Client | `AccountOpened` | `OpenedOnce`, `HasOwner` | `accountId`: made by the API. `owner`: the body |
-| `GrantWelcomeBonus` | `WelcomeBonusReaction` | `WelcomeBonusGranted` | `AccountExists`, `PositiveAmount` | `accountId`: from `AccountOpened`. `amount`: `welcomebonus.Amount`, 1000 |
+| `GrantWelcomeBonus` | `WelcomeBonusReaction` | `WelcomeBonusGranted` | `AccountExists`, `PositiveAmount` | `accountId`: from `AccountOpened`. `amount`: `welcome_bonus.Amount`, 1000 |
 | `Deposit` | Client | `MoneyDeposited` | `AccountExists`, `NotClosed`, `PositiveAmount` | `accountId`: the path. `amount`: the body |
 | `Withdraw` | Client | `MoneyWithdrawn` | `AccountExists`, `NotClosed`, `PositiveAmount`, `EnoughFunds` | `accountId`: the path. `amount`: the body |
 | `CloseAccount` | Client | `AccountClosed` | `AccountExists`, `ClosedOnce` | `accountId`: the path |
@@ -123,14 +123,14 @@ A rule refuses the command, and the API answers `400 Bad Request`.
 | --- | --- | --- | --- | --- |
 | 1 | `POST /api/accounts` | `OpenAccount` | UI trigger | `internal/api/use_cases/account` |
 | 2 | `OpenAccount` | `AccountOpened` | Aggregate | `internal/use_cases/account/open` |
-| 3 | `AccountOpened` | `GrantWelcomeBonus` | Reactor | `welcomebonus.Reaction`, consumer `welcome-bonus` |
-| 4 | `GrantWelcomeBonus` | `WelcomeBonusGranted` | Aggregate | `internal/use_cases/account/welcomebonus` |
+| 3 | `AccountOpened` | `GrantWelcomeBonus` | Reactor | `welcome_bonus.Reaction`, consumer `welcome-bonus` |
+| 4 | `GrantWelcomeBonus` | `WelcomeBonusGranted` | Aggregate | `internal/use_cases/account/welcome_bonus` |
 | 5 | `POST .../deposits` | `Deposit` | UI trigger | `internal/api/use_cases/account` |
 | 6 | `Deposit` | `MoneyDeposited` | Aggregate | `internal/use_cases/account/deposit` |
 | 7 | `POST .../withdrawals` | `Withdraw` | UI trigger | `internal/api/use_cases/account` |
 | 8 | `Withdraw` | `MoneyWithdrawn` | Aggregate | `internal/use_cases/account/withdraw` |
 | 9 | `POST .../close` | `CloseAccount` | UI trigger | `internal/api/use_cases/account` |
-| 10 | `CloseAccount` | `AccountClosed` | Aggregate | `internal/use_cases/account/closeaccount` |
+| 10 | `CloseAccount` | `AccountClosed` | Aggregate | `internal/use_cases/account/close_account` |
 | 11 | The five events | `AccountBalanceView` | Projection | `balance.Projection`, consumer `account-balances` |
 
 The aggregate is `account.Account` in `internal/use_cases/account/account.go`. The `catchup` process runs
@@ -147,10 +147,10 @@ the reaction and the projection.
 | # | Slice | Events | Commands | Views | Package |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Open Account | `AccountOpened` | `OpenAccount` | | `internal/use_cases/account/open` |
-| 2 | Grant Welcome Bonus | `WelcomeBonusGranted` | `GrantWelcomeBonus` | | `internal/use_cases/account/welcomebonus` |
+| 2 | Grant Welcome Bonus | `WelcomeBonusGranted` | `GrantWelcomeBonus` | | `internal/use_cases/account/welcome_bonus` |
 | 3 | Deposit | `MoneyDeposited` | `Deposit` | | `internal/use_cases/account/deposit` |
 | 4 | Withdraw | `MoneyWithdrawn` | `Withdraw` | | `internal/use_cases/account/withdraw` |
-| 5 | Close Account | `AccountClosed` | `CloseAccount` | | `internal/use_cases/account/closeaccount` |
+| 5 | Close Account | `AccountClosed` | `CloseAccount` | | `internal/use_cases/account/close_account` |
 | 6 | View Account Balance | | | `AccountBalanceView` | `internal/use_cases/account/balance` |
 
 ## Lint Warnings

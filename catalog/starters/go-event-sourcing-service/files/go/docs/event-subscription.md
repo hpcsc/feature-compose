@@ -349,7 +349,7 @@ subscription. `pg_stat_activity` shows the lock connection with the application 
 | Checkpoints | `internal/domain/checkpoint/store` |
 | A named lock that one process at a time can hold. `catchup` holds one for each consumer | `internal/common/lock` |
 | The account example: the aggregate, its events, its commands and its repository | `internal/use_cases/account` |
-| One package for each account use case: its command handler, and its projection or reaction | `internal/use_cases/account/open`, `deposit`, `withdraw`, `welcomebonus`, `balance` |
+| One package for each account use case: its command handler, and its projection or reaction | `internal/use_cases/account/open`, `deposit`, `withdraw`, `welcome_bonus`, `balance` |
 | The registration of every event type and every command handler | `internal/use_cases/register.go` |
 
 This application has no retry or dead letter in the reactor. Each consumer stops on a handler error, and

@@ -1,6 +1,6 @@
 //go:build unit
 
-package welcomebonus_test
+package welcome_bonus_test
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"{{ option "starter.module" }}/internal/domain/command/fake"
 	accountCommand "{{ option "starter.module" }}/internal/use_cases/account/command"
 	"{{ option "starter.module" }}/internal/use_cases/account/event"
-	"{{ option "starter.module" }}/internal/use_cases/account/welcomebonus"
+	"{{ option "starter.module" }}/internal/use_cases/account/welcome_bonus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +25,7 @@ func TestReaction(t *testing.T) {
 			err := r.Handle(context.Background(), openedEvent("event-1", accountID))
 
 			require.NoError(t, err)
-			require.Equal(t, accountCommand.GrantWelcomeBonus{AccountID: accountID, Amount: welcomebonus.Amount}, handler.TriggeredWithCommand().Payload)
+			require.Equal(t, accountCommand.GrantWelcomeBonus{AccountID: accountID, Amount: welcome_bonus.Amount}, handler.TriggeredWithCommand().Payload)
 		})
 
 		t.Run("sends the same command ID when the same event arrives again", func(t *testing.T) {
@@ -41,11 +41,11 @@ func TestReaction(t *testing.T) {
 	})
 }
 
-func newReaction() (*fake.Handler[accountCommand.GrantWelcomeBonus], *welcomebonus.Reaction) {
+func newReaction() (*fake.Handler[accountCommand.GrantWelcomeBonus], *welcome_bonus.Reaction) {
 	handler := fake.NewHandler[accountCommand.GrantWelcomeBonus]()
 	bus := command.NewBus()
 	bus.Register[accountCommand.GrantWelcomeBonus](handler)
-	return handler, welcomebonus.NewReaction(bus)
+	return handler, welcome_bonus.NewReaction(bus)
 }
 
 func openedEvent(id string, accountID uuid.UUID) *domain.Event {

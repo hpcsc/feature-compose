@@ -29,9 +29,9 @@
 
 ## The audit raises the old defects of ported template code
 - Type: recurring-finding
-- Recorded: 2026-11-08
-- Observed: task 6 — us-001-new-from-starter
-- Learning: An audit round reads a ported starter as new code and raises defects of the generated service that the scaffold template already had; in US-001 eight of 29 findings were such defects, and the run declined them as out of scope. Say in the brief which files are ported unchanged, so the lenses spend the round on the tool.
+- Recorded: 2026-11-12
+- Observed: this run
+- Learning: An audit round reads a ported starter or feature as new code and raises defects that the scaffold template already had: in US-001 eight of 29 findings, in US-017 two of seven, also with a brief that named the ported files. In US-017 the two (webhooks that check no signature, a gateway that blocks past its deadline) were runtime findings with executed evidence, so they earned another round by the severity rule. Decline them with the reason that the code is the template's, put any limit in the docs of the feature, and end the audit with clerk audit accept --early.
 - Apply when: auditing a branch that ports a starter or a feature from repo-templates
 
 ## MISE_TRUSTED_CONFIG_PATHS needs the real path on macOS
@@ -57,10 +57,10 @@
 
 ## The e2e tests run on the host when Docker does not answer
 - Type: constraint
-- Recorded: 2026-11-09
+- Recorded: 2026-11-12
 - Observed: this run
-- Learning: task test:e2e runs vitest in Docker, and Docker does not answer on this machine. The e2e tests also run on the host: CGO_ENABLED=0 go build -ldflags '-X github.com/hpcsc/feature-compose/internal/version.releaseTag=v0.1.0' -o bin/feature-compose-e2e ./cmd/feature-compose, then EXECUTABLE=../bin/feature-compose-e2e BUILD_TAG=v0.1.0 CATALOG_DIR=../catalog npx vitest run <test file> in e2e/ (task test:e2e:local does the same). The update tests need the tag v0.1.0, and new needs CATALOG_DIR, because runCli writes a config file that names it. A run that skips them leaves the e2e criteria of the story unrun.
-- Apply when: a criterion of a story has an e2e test, or task test:e2e fails because Docker does not answer
+- Learning: task test:e2e runs vitest in Docker, and Docker did not always answer on this machine (it answered on 2026-11-12); check with timeout 20 docker info before a breakdown plans a criterion as a manual check. The e2e tests also run on the host: CGO_ENABLED=0 go build -ldflags '-X github.com/hpcsc/feature-compose/internal/version.releaseTag=v0.1.0' -o bin/feature-compose-e2e ./cmd/feature-compose, then EXECUTABLE=../bin/feature-compose-e2e BUILD_TAG=v0.1.0 CATALOG_DIR=../catalog npx vitest run <test file> in e2e/ (task test:e2e:local does the same). The update tests need the tag v0.1.0, and new needs CATALOG_DIR, because runCli writes a config file that names it. A run that skips them leaves the e2e criteria of the story unrun.
+- Apply when: a criterion of a story has an e2e test or needs Docker, or task test:e2e fails because Docker does not answer
 
 ## Fold the fixes of an audit round hunk by hunk
 - Type: pattern
@@ -351,3 +351,31 @@
 - Observed: task 2 — US-016 go starter
 - Learning: TestScheduler/tick 'ticks at each interval with a later time each time' in the starter go-event-sourcing-service runs the scheduler at 1 ms and failed one time in a full e2e run of new, with two ticks out of time order; the same test passed when it ran again, and US-016 changed no file of the starter. A failure there in an e2e or combinations run is not evidence against the change under test: run the test again before you look for a cause in the branch.
 - Apply when: an e2e run of new or task test:combinations fails in internal/domain/scheduler of a repo from go-event-sourcing-service
+
+## Prove task run of a written service repo with Docker and a tmux server of its own
+- Type: pattern
+- Recorded: 2026-11-12
+- Observed: US-017 process-manager
+- Learning: Write the repo under .scratches/ of this repo (git ignores it, and Docker shares the home folder; a bind mount from /private/tmp arrives in the container as an empty folder). Run task run-dependencies, list the tables with docker compose exec db psql, start the panes with tmuxp load -d -L <socket> .tmuxp.yaml so that your tmux sessions stay apart, and call the API through the tasks of Taskfile.api.yml. tmux kill-server leaves the binaries of go run alive: stop them by their ports, and run docker compose down -v. In US-017 this proved the criterion of task run that the breakdown had left to a manual check.
+- Apply when: decomposing or checking a criterion of a story that names task run, the migrations against Postgres, or the services of Docker Compose of a written go-event-sourcing-service repo
+
+## A break by hand counts only when the broken code still builds
+- Type: constraint
+- Recorded: 2026-11-12
+- Observed: US-017 process-manager
+- Learning: A go test that fails to build exits non-zero like a test that catches the break, so a break that leaves an import or a variable unused reads as caught. In US-017 three breaks of a script read as caught until the script looked for [build failed]. Write a break as a condition (if false { ... }, && false) or a slice ([:7]), and read the name of the failed test in the output.
+- Apply when: proving a test of a template or of the tool with a break by hand that a script applies
+
+## A port of a template feature with connector files is routine after its first task
+- Type: pattern
+- Recorded: 2026-11-12
+- Observed: US-017 process-manager
+- Learning: In US-017 the breakdown called five of eight tasks medium certainty: new extension points, items in Go and in YAML, connector files and their tests. Each went green on the first try with a clean lint, because task 2 set the pattern that the later tasks repeated. The cost was the proof, not the code: breaks by hand found two gaps in the ported tests.
+- Apply when: decomposing a story that ports a template feature into the catalog with connector files and items of extension points, for example push in US-021
+
+## A package of more than one word is snake case, and a fake lives beside the code that it fakes
+- Type: convention
+- Recorded: 2026-11-12
+- Observed: US-017 process-manager
+- Learning: In the Go code of the catalog, a package folder of more than one word is snake case (use_cases, close_account, welcome_bonus, cmd/fake_services), and a fake has no package of its own: a test double goes into the package of what it fakes (domain.FakeAggregate, command.FakeHandler), and a fake of an outside system goes beside the gateway that calls the system (checks.FakeServices, submission.FakeNetwork). The template of repo-templates broke both rules (fakeservices, closeaccount, welcomebonus, domain/fake), the port of US-017 copied them, and neither the breakdown nor the audit caught them; the user did.
+- Apply when: porting a template of repo-templates into the catalog, or adding a Go package, a command or a fake to a starter or a feature

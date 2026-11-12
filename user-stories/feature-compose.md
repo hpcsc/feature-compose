@@ -52,6 +52,7 @@ flowchart LR
     S["US-019<br/>API under /api"]
     T["US-020<br/>Publish images"]
     U["US-021<br/>push"]
+    V["US-022<br/>CLI tasks and CI"]
 
     A --> B
     A --> C
@@ -83,6 +84,7 @@ flowchart LR
     S --> Q
     Q --> U
     S --> U
+    P --> V
 
     classDef critical fill:#fde68a,stroke:#b45309,stroke-width:2px,color:#1f2937
     class A,B,C,E,J,L,R,G,S,Q,U critical
@@ -729,6 +731,44 @@ The starter has no extension point yet for the routes of the API or for the Dock
 
 **Depends on:** US-017, US-019
 
+### US-022: Build, test and release the CLI with the tasks and the CI of the repo
+
+**Goals:** G3, G4
+
+**Description:** As a developer, I want a repo with `cli` to have the tasks, the tools and the CI jobs of its
+CLI, so that I build, test and release the CLI with the same commands in a CLI repo and in a service repo.
+
+**Acceptance Criteria:**
+
+- [ ] In a repo with `cli`, `task build` builds the CLI into `bin/<name>`, `task run -- <arguments>` runs the
+  CLI from the source, and `task release:local` makes a GoReleaser snapshot in `dist/`. A repo without `cli`
+  has none of these tasks.
+- [ ] `task test:e2e` runs the end-to-end tests of the CLI in Docker, and `task test:e2e:local` runs them on
+  the machine with Node. The docs of `cli` name these tasks.
+- [ ] `mise install` in a repo with `cli` installs GoReleaser and Node. After `task release:local` and an
+  `npm install` in `e2e/`, `git status` shows no file under `dist/` or `e2e/node_modules/`.
+- [ ] The `go.mod` of a repo with `cli` gives a fixed version of each module that the CLI imports, for
+  example `github.com/urfave/cli/v3`. So a new release of such a module does not change the repo that `new`
+  makes.
+- [ ] The CI workflow of a repo with `cli` also runs the end-to-end tests of the CLI. A tag
+  `v<major>.<minor>.<patch>` publishes a GitHub release with the archives and `checksums.txt` that `update`
+  and the installer download, and each push to `main` publishes a prerelease. A release starts only after
+  the tests pass.
+- [ ] Each change that `cli` makes to a file of the starter is an item of an extension point of the starter,
+  in each starter that `cli` targets: the Taskfiles, `mise.toml`, `.gitignore`, `go.mod`, and the CI
+  workflow when `cli` adds a job to it. No step other than the folder commands changes a file after the
+  render. `check` passes, and in the CI of feature-compose a repo of each target with `cli` passes its tests.
+
+**Context:** US-002 and US-016 left these parts of the template `go-cli` out, because each one changes a file
+that the starter owns (rule 7), and no extension point took them. Until this story, `docs/cli.md` gives the
+commands that build the CLI, make a snapshot, and run the end-to-end tests. The release workflows of `go-cli`
+call its `ci.yml` as a reusable workflow. Open question 3 of the proposal asks how a feature adds a job to a
+CI workflow: an item that holds YAML needs a function that sets its indent, and the other choice is one
+workflow file for each feature. This story answers the question for `cli`. `cli` has one set of files
+(US-016), so a release workflow of `cli` also goes into each service repo with `cli`.
+
+**Depends on:** US-016
+
 ## Non-Goals
 
 - The command `add`, and an update of a repo to a new version of the catalog. Both need a three-way merge,
@@ -753,5 +793,5 @@ The starter has no extension point yet for the routes of the API or for the Dock
 2. **Must `cli-auth` work without `api-auth`?** (Open question 2 of the proposal.) The stories assume that
    `cli-auth` always needs `api-auth`. So feature-compose gives no `cli-auth` to a CLI that calls the API of
    another company. `global/go-cli-auth` in `repo-templates` stays for that case.
-3. **How does a feature add a job to a CI workflow?** (Open question 3 of the proposal.) No story adds a job
-   to the CI workflow of a generated repo.
+3. **How does a feature add a job to a CI workflow?** (Open question 3 of the proposal.) US-022 answers it for
+   the jobs of `cli`. No other story adds a job to the CI workflow of a generated repo.

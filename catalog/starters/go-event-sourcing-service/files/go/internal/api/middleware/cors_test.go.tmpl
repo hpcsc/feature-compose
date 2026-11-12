@@ -1,0 +1,163 @@
+//go:build unit
+
+package middleware_test
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"{{ option "starter.module" }}/internal/api/middleware"
+	"github.com/stretchr/testify/require"
+)
+
+type corsAnswer struct {
+	status  int
+	body    string
+	headers map[string]string
+	vary    []string
+}
+
+func TestCORS(t *testing.T) {
+	answerOf := func(t *testing.T, allowedOrigins []string, request *http.Request) corsAnswer {
+		t.Helper()
+		recorder := httptest.NewRecorder()
+		handler := middleware.CORS(allowedOrigins)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte("the answer of the handler"))
+		}))
+
+		handler.ServeHTTP(recorder, request)
+
+		written := recorder.Result().Header
+		headers := map[string]string{}
+		for name := range written {
+			if strings.HasPrefix(name, "Access-Control-") {
+				headers[name] = written.Get(name)
+			}
+		}
+		return corsAnswer{status: recorder.Code, body: recorder.Body.String(), headers: headers, vary: written.Values("Vary")}
+	}
+	requestFrom := func(method, origin string) *http.Request {
+		request := httptest.NewRequest(method, "/api/accounts", nil)
+		if origin != "" {
+			request.Header.Set("Origin", origin)
+		}
+		return request
+	}
+	preflightFrom := func(origin string) *http.Request {
+		request := requestFrom(http.MethodOptions, origin)
+		request.Header.Set("Access-Control-Request-Method", "PUT")
+		request.Header.Set("Access-Control-Request-Headers", "content-type, idempotency-key")
+		return request
+	}
+
+	t.Run("request", func(t *testing.T) {
+		t.Run("a request from an allowed origin gets that origin in Access-Control-Allow-Origin, and the answer of the handler", func(t *testing.T) {
+			answer := answerOf(t, []string{"http://localhost:8080"}, requestFrom(http.MethodPost, "http://localhost:8080"))
+
+			require.Equal(t, corsAnswer{
+				status:  http.StatusAccepted,
+				body:    "the answer of the handler",
+				headers: map[string]string{"Access-Control-Allow-Origin": "http://localhost:8080"},
+				vary:    []string{"Origin"},
+			}, answer)
+		})
+
+		for name, origin := range map[string]string{"from another origin": "https://another.example.com", "with no Origin": ""} {
+			t.Run("a request "+name+" gets no CORS header, and the answer of the handler", func(t *testing.T) {
+				answer := answerOf(t, []string{"http://localhost:8080"}, requestFrom(http.MethodPost, origin))
+
+				require.Equal(t, corsAnswer{
+					status:  http.StatusAccepted,
+					body:    "the answer of the handler",
+					headers: map[string]string{},
+					vary:    []string{"Origin"},
+				}, answer)
+			})
+		}
+
+		t.Run("with two allowed origins, each of them gets its origin, and an origin that differs from one of them only in its scheme, its host or its port gets none", func(t *testing.T) {
+			allowed := []string{"http://localhost:8080", "https://app.example.com"}
+			allowOrigins := map[string]string{}
+
+			for _, origin := range []string{"http://localhost:8080", "https://app.example.com", "https://localhost:8080", "http://127.0.0.1:8080", "http://localhost:8081", "https://app.example.com:8443"} {
+				allowOrigins[origin] = answerOf(t, allowed, requestFrom(http.MethodGet, origin)).headers["Access-Control-Allow-Origin"]
+			}
+
+			require.Equal(t, map[string]string{
+				"http://localhost:8080":        "http://localhost:8080",
+				"https://app.example.com":      "https://app.example.com",
+				"https://localhost:8080":       "",
+				"http://127.0.0.1:8080":        "",
+				"http://localhost:8081":        "",
+				"https://app.example.com:8443": "",
+			}, allowOrigins)
+		})
+
+		t.Run("the spaces around an allowed origin do not count, an empty entry allows no request with no Origin, and a default origin that the list does not name gets no CORS header", func(t *testing.T) {
+			allowed := []string{" https://app.example.com ", ""}
+
+			fromTheOrigin := answerOf(t, allowed, requestFrom(http.MethodGet, "https://app.example.com"))
+			withNoOrigin := answerOf(t, allowed, requestFrom(http.MethodGet, ""))
+			fromADefaultOrigin := answerOf(t, allowed, requestFrom(http.MethodGet, "http://localhost:8080"))
+
+			require.Equal(t, []map[string]string{
+				{"Access-Control-Allow-Origin": "https://app.example.com"},
+				{},
+				{},
+			}, []map[string]string{fromTheOrigin.headers, withNoOrigin.headers, fromADefaultOrigin.headers})
+		})
+
+		for name, allowed := range map[string][]string{
+			"no allowed origin":          nil,
+			"only blank allowed origins": {" ", ""},
+		} {
+			t.Run("with "+name+", the default origins get their origin, and another origin gets none", func(t *testing.T) {
+				allowOrigins := map[string]string{}
+
+				for _, origin := range []string{"http://localhost:8080", "http://127.0.0.1:8080", "https://app.example.com"} {
+					allowOrigins[origin] = answerOf(t, allowed, requestFrom(http.MethodGet, origin)).headers["Access-Control-Allow-Origin"]
+				}
+
+				require.Equal(t, map[string]string{
+					"http://localhost:8080":   "http://localhost:8080",
+					"http://127.0.0.1:8080":   "http://127.0.0.1:8080",
+					"https://app.example.com": "",
+				}, allowOrigins)
+			})
+		}
+	})
+
+	t.Run("preflight", func(t *testing.T) {
+		t.Run("a preflight from an allowed origin gets 204 with the origin, the asked method, the asked headers and a max age of one day, and the handler does not run", func(t *testing.T) {
+			answer := answerOf(t, []string{"http://localhost:8080"}, preflightFrom("http://localhost:8080"))
+
+			require.Equal(t, corsAnswer{
+				status: http.StatusNoContent,
+				body:   "",
+				headers: map[string]string{
+					"Access-Control-Allow-Origin":  "http://localhost:8080",
+					"Access-Control-Allow-Methods": "PUT",
+					"Access-Control-Allow-Headers": "content-type, idempotency-key",
+					"Access-Control-Max-Age":       "86400",
+				},
+				vary: []string{"Origin"},
+			}, answer)
+		})
+
+		for name, origin := range map[string]string{"from another origin": "https://another.example.com", "with no Origin": ""} {
+			t.Run("a preflight "+name+" gets 204 with no CORS header, and the handler does not run", func(t *testing.T) {
+				answer := answerOf(t, []string{"http://localhost:8080"}, preflightFrom(origin))
+
+				require.Equal(t, corsAnswer{
+					status:  http.StatusNoContent,
+					body:    "",
+					headers: map[string]string{},
+					vary:    []string{"Origin"},
+				}, answer)
+			})
+		}
+	})
+}

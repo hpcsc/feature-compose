@@ -90,6 +90,11 @@ makes the repo from the starter alone:
 4. The test starts the API of the repo. `GET /api/` gets 200, and `POST /api/accounts` with no `Authorization`
    header gets the answer 400 of the handler. The API of a repo without `api-auth` accepts each request. Each
    route of the API is under `/api`, so `POST /accounts` gets 404.
+5. With no `ALLOWED_ORIGINS`, and with `ALLOWED_ORIGINS` set to the empty text, a request from
+   `http://localhost:8080` and from `http://127.0.0.1:8080` gets its origin in
+   `Access-Control-Allow-Origin`, and a request from another origin gets none. With
+   `ALLOWED_ORIGINS=https://app.example.com, http://localhost:3000`, each of the two origins gets it, and
+   `http://localhost:8080` gets none.
 
 The second adds `--feature api-auth`, and checks the API key:
 
@@ -98,6 +103,10 @@ The second adds `--feature api-auth`, and checks the API key:
 2. The test starts the API with `API_KEY_HASHES` set to the SHA-256 hash of a key of the test. `GET /api/`
    gets 200 with no key. `POST /api/accounts` gets 401 with `WWW-Authenticate: Bearer` with no `Authorization`
    header and with an unknown key, and it gets the answer 400 of the handler with the key of the test.
+   From `http://localhost:8080`, the preflight of `POST /api/accounts` that asks for the headers
+   `authorization` and `content-type` gets 204 with the origin and the two headers allowed, and the `POST`
+   with no key gets 401 with the origin in `Access-Control-Allow-Origin`. The same requests from another
+   origin get no `Access-Control-Allow-Origin`.
 3. The test makes a second repo from the starter alone. The `go.mod` of the two repos is the same, so the
    method `api-key` adds no module, and no JWT library.
 

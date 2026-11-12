@@ -38,6 +38,8 @@ func newHandler(name string, cfg *api.Config, pool *pgxpool.Pool, logger *slog.L
 
 	r.Use(middleware.Recoverer)
 
+	r.Use(apiMiddleware.CORS(cfg.AllowedOrigins))
+
 	use_cases.Register(r, protectedMiddleware(cfg), pool, logger)
 
 	return r

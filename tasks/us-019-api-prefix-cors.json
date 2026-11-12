@@ -42,7 +42,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Answer the web apps of the allowed origins with the CORS headers",
       "language": "Go",
       "testable": true,

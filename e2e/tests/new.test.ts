@@ -65,6 +65,16 @@ describe('feature-compose new', () => {
       expect((await openAccount(api)).status).toBe(400)
       const atRootPath = await fetch(`${new URL(api).origin}/accounts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
       expect(atRootPath.status).toBe(404)
+      const defaultOrigins = { 'http://localhost:8080': 'http://localhost:8080', 'http://127.0.0.1:8080': 'http://127.0.0.1:8080', 'https://app.example.com': null }
+      expect(await allowedOriginsOf(api, Object.keys(defaultOrigins)), 'no ALLOWED_ORIGINS').toEqual(defaultOrigins)
+      const withEmptyOrigins = await startedApi(repo, { ...env, ALLOWED_ORIGINS: '' })
+      expect(await allowedOriginsOf(withEmptyOrigins, Object.keys(defaultOrigins)), 'an empty ALLOWED_ORIGINS').toEqual(defaultOrigins)
+      const withTwoOrigins = await startedApi(repo, { ...env, ALLOWED_ORIGINS: 'https://app.example.com, http://localhost:3000' })
+      expect(await allowedOriginsOf(withTwoOrigins, ['https://app.example.com', 'http://localhost:3000', 'http://localhost:8080'])).toEqual({
+        'https://app.example.com': 'https://app.example.com',
+        'http://localhost:3000': 'http://localhost:3000',
+        'http://localhost:8080': null,
+      })
     },
     15 * 60 * 1000,
   )
@@ -98,6 +108,14 @@ describe('feature-compose new', () => {
         expect(refused.headers.get('www-authenticate'), label).toBe('Bearer')
       }
       expect((await openAccount(api, `Bearer ${key}`)).status).toBe(400)
+      expect(await corsAnswersFrom(api, 'http://localhost:8080'), 'an allowed origin').toEqual({
+        preflight: { status: 204, allowOrigin: 'http://localhost:8080', allowHeaders: 'authorization, content-type' },
+        refused: { status: 401, allowOrigin: 'http://localhost:8080' },
+      })
+      expect(await corsAnswersFrom(api, 'https://another.example.com'), 'another origin').toEqual({
+        preflight: { status: 204, allowOrigin: null, allowHeaders: null },
+        refused: { status: 401, allowOrigin: null },
+      })
       const withoutApiAuth = scratchDir()
       const plain = await runCli(withoutApiAuth, ['new', 'go-event-sourcing-service', 'my-service', '--no-prompt'], {
         MISE_TRUSTED_CONFIG_PATHS: realpathSync(withoutApiAuth),
@@ -562,10 +580,12 @@ async function startedApi(repo: string, env: Record<string, string>): Promise<st
   const build = await runProgram(repo, 'go', ['build', '-o', join(repo, 'api-of-the-test'), './cmd/api'], env)
   expect(build.status, build.stdout + build.stderr).toBe(0)
   const port = await freePort()
+  const inherited = { ...process.env }
+  delete inherited.ALLOWED_ORIGINS
   const api = spawn(join(repo, 'api-of-the-test'), [], {
     cwd: repo,
     env: {
-      ...process.env,
+      ...inherited,
       ...env,
       PORT: String(port),
       DB_USERNAME: 'nobody',
@@ -669,12 +689,36 @@ func main() {
   return join(repo, 'call-of-the-test')
 }
 
-function openAccount(api: string, authorization?: string): Promise<Response> {
+function openAccount(api: string, authorization?: string, origin?: string): Promise<Response> {
   return fetch(`${api}/accounts`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}) },
+    headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}), ...(origin ? { Origin: origin } : {}) },
     body: '{}',
   })
+}
+
+async function allowedOriginsOf(api: string, origins: string[]): Promise<Record<string, string | null>> {
+  const allowed: Record<string, string | null> = {}
+  for (const origin of origins) {
+    allowed[origin] = (await openAccount(api, undefined, origin)).headers.get('access-control-allow-origin')
+  }
+  return allowed
+}
+
+async function corsAnswersFrom(api: string, origin: string) {
+  const preflight = await fetch(`${api}/accounts`, {
+    method: 'OPTIONS',
+    headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization, content-type' },
+  })
+  const refused = await openAccount(api, undefined, origin)
+  return {
+    preflight: {
+      status: preflight.status,
+      allowOrigin: preflight.headers.get('access-control-allow-origin'),
+      allowHeaders: preflight.headers.get('access-control-allow-headers'),
+    },
+    refused: { status: refused.status, allowOrigin: refused.headers.get('access-control-allow-origin') },
+  }
 }
 
 // gotestsum starts the line of a package with ✓ when its tests pass, and with ∅ when the package has no test

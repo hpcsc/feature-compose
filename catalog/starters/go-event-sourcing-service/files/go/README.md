@@ -67,6 +67,26 @@ Other tasks:
 | `task remove-dependencies` | Stops the local database and deletes its container. |
 | `task migrate:create -- <name>` | Creates a new migration in `migrations/`. |
 
+## Call the API From a Web App
+
+Each route of the API is under `/api`, for example `POST /api/accounts`, so one host can serve a web app at
+the other paths. A web app on another origin can call the API when its origin is in `ALLOWED_ORIGINS`.
+
+`ALLOWED_ORIGINS` is a list of origins with commas, for example
+`https://app.example.com,http://localhost:3000`. An origin has the form `<scheme>://<host>[:<port>]`, with no
+path and no `/` at the end, as the browser sends it. The spaces around an origin do not count. With no value,
+or with only blank entries, the API allows `http://localhost:8080` and `http://127.0.0.1:8080`.
+
+To give the local API a value, stop the pane of `task api:run` and run it with the variable:
+
+```sh
+ALLOWED_ORIGINS=https://app.example.com task api:run
+```
+
+The API answers a request from an allowed origin with `Access-Control-Allow-Origin`. To the preflight of an
+allowed origin, it allows the method and the headers that the preflight asks for. A request from another
+origin gets no CORS header, so the browser does not give the answer to the web app.
+
 ## Test
 
 ```sh

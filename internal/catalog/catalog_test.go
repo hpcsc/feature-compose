@@ -909,6 +909,17 @@ files:
 			require.Contains(t, files[".github/workflows/ci.yml"], "${{ secrets.GITHUB_TOKEN }}")
 		})
 
+		t.Run("the README of the repo tells how a web app on another origin calls the API: the routes under /api, ALLOWED_ORIGINS, the form of an origin, the default origins, and the local API with the setting", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			for _, part := range []string{
+				"## Call the API From a Web App", "`POST /api/accounts`", "`ALLOWED_ORIGINS`", "`<scheme>://<host>[:<port>]`",
+				"`http://localhost:8080` and `http://127.0.0.1:8080`", "ALLOWED_ORIGINS=https://app.example.com task api:run",
+			} {
+				require.Contains(t, files["README.md"], part)
+			}
+		})
+
 		t.Run("no written file holds a value of scaffold", func(t *testing.T) {
 			_, files := writtenStarter(t, nil)
 
@@ -989,7 +1000,7 @@ add_to:
 			require.Contains(t, files["internal/api/server/server.go"], "return []func(http.Handler) http.Handler{\n\t}")
 			require.Contains(t, files["internal/api/server/server.go"], "\t\"github.com/hpcsc/my-service/internal/api/use_cases\"\n\t\"github.com/jackc/pgx/v5/pgxpool\"\n)")
 			require.Contains(t, files["internal/api/config.go"], "import (\n\t\"github.com/hpcsc/my-service/internal/common/config\"\n)\n")
-			require.Contains(t, files["internal/api/config.go"], "\tDB   config.DB\n}")
+			require.Contains(t, files["internal/api/config.go"], "type Config struct {\n\tPort           string   `env:\"PORT\" envDefault:\"3333\"`\n\tAllowedOrigins []string `env:\"ALLOWED_ORIGINS\" envSeparator:\",\"`\n\tDB             config.DB\n}")
 		})
 
 		t.Run("no written file holds the name of an extension point, with or without items", func(t *testing.T) {

@@ -237,7 +237,7 @@ the default `http://localhost:8080` and `http://127.0.0.1:8080` (decision 5). Th
 setting.
 
 **Acceptance Criteria:**
-- [ ] The unit tests of `middleware.CORS` in the written repo (`internal/api/middleware/cors_test.go`, build tag
+- [x] The unit tests of `middleware.CORS` in the written repo (`internal/api/middleware/cors_test.go`, build tag
   `unit`) show:
   - a request with the `Origin` of an allowed origin gets `Access-Control-Allow-Origin` with that origin, and the
     status and the body of the handler;
@@ -251,9 +251,9 @@ setting.
   - each of these answers has `Vary: Origin`;
   - with two allowed origins, each of them gets the headers, and an origin that differs from one of them only in its
     scheme, its host or its port gets none.
-- [ ] `api.Config` reads `AllowedOrigins` from `ALLOWED_ORIGINS`, separated by commas; the spaces around an entry do not
+- [x] `api.Config` reads `AllowedOrigins` from `ALLOWED_ORIGINS`, separated by commas; the spaces around an entry do not
   count.
-- [ ] The started API, in `e2e/tests/new.test.ts`:
+- [x] The started API, in `e2e/tests/new.test.ts`:
   - in the repo with `api-auth` (`api-key`), an `OPTIONS` to `/api/accounts` from `http://localhost:8080` that asks for
     `POST` and the headers `authorization` and `content-type` gets 204 with `Access-Control-Allow-Origin:
     http://localhost:8080` and both headers allowed; `POST /api/accounts` from that origin with no key gets 401 with
@@ -263,19 +263,19 @@ setting.
     `http://127.0.0.1:8080` get `Access-Control-Allow-Origin`;
   - with `ALLOWED_ORIGINS` set to two origins with a space after the comma, each of the two gets
     `Access-Control-Allow-Origin`, and `http://localhost:8080` gets none.
-- [ ] The README of the written repo names `ALLOWED_ORIGINS`, the form of an origin (`<scheme>://<host>[:<port>]`,
+- [x] The README of the written repo names `ALLOWED_ORIGINS`, the form of an origin (`<scheme>://<host>[:<port>]`,
   with no path), the default origins, and how to set it for the local API, for example
   `ALLOWED_ORIGINS=<origins> task api:run`. It names only files that the repo has.
-- [ ] The test of the starter alone that finds no `token`, `bearer` or `authorization` in a written file
+- [x] The test of the starter alone that finds no `token`, `bearer` or `authorization` in a written file
   (`internal/catalog/catalog_test.go:933-946`) passes with its words unchanged.
-- [ ] The test of the fields of `api.Config` with no item of `api.config` (`internal/catalog/catalog_test.go:986-991`)
+- [x] The test of the fields of `api.Config` with no item of `api.config` (`internal/catalog/catalog_test.go:986-991`)
   expects `AllowedOrigins` among the fields of the starter. With `api-auth` with each value of `method`, the files of
   the starter that change are still only the server and the config of the API
   (`internal/catalog/catalog_test.go:1029-1049` passes unchanged).
-- [ ] `docs/e2e-tests.md` tells the CORS checks of the started API.
-- [ ] With each combination, the written repo builds, `gofmt -l .` lists no file, and its unit tests pass
+- [x] `docs/e2e-tests.md` tells the CORS checks of the started API.
+- [x] With each combination, the written repo builds, `gofmt -l .` lists no file, and its unit tests pass
   (`task test:combinations`).
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` pass on the host.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` pass on the host.
 
 **Affected Files/Modules:**
 - `catalog/starters/go-event-sourcing-service/files/go/internal/api/middleware/cors.go.tmpl` — new: `CORS`

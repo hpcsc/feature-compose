@@ -8,8 +8,9 @@ import (
 )
 
 type Config struct {
-	Port string `env:"PORT" envDefault:"3333"`
-	DB   config.DB
+	Port           string   `env:"PORT" envDefault:"3333"`
+	AllowedOrigins []string `env:"ALLOWED_ORIGINS" envSeparator:","`
+	DB             config.DB
 {{- range items "api.config" }}
 	{{ .name }} {{ .type }}
 {{- end }}

@@ -25,7 +25,12 @@ describe('feature-compose show', () => {
     const result = await runCli(dir, ['show', 'go-event-sourcing-service', '--output', 'json'])
 
     expect(result.status, result.stderr).toBe(0)
-    expect(JSON.parse(result.stdout)).toEqual(all)
+    expect(JSON.parse(result.stdout)).toEqual({
+      starters: { 'go-event-sourcing-service': all.starters['go-event-sourcing-service'] },
+      features: Object.fromEntries(
+        Object.entries(all.features).filter(([, feature]) => (feature as { targets: string[] }).targets.includes('go-event-sourcing-service')),
+      ),
+    })
   })
 
   it('an unknown starter stops show, and the message lists the starters', async () => {
@@ -35,25 +40,35 @@ describe('feature-compose show', () => {
 
     expect(result.status).not.toBe(0)
     expect(result.stdout).toBe('')
-    expect(result.stderr).toContain('unknown starter "no-such-starter": the catalog has go-event-sourcing-service')
+    expect(result.stderr).toContain('unknown starter "no-such-starter": the catalog has go, go-event-sourcing-service')
     expect(readdirSync(dir)).toEqual([])
   })
 })
 
 describe('feature-compose show in a terminal', () => {
-  it('opens the tree with each starter open and the details of the first starter, filters it with /, closes the starter with h, and opens it with l', async () => {
+  it('opens the tree with each starter open and the details of the first starter, go, and filters it with /', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show'])
 
-    await session.waitForText('A Go service with an event store, an HTTP API, and a catchup process.')
+    await session.waitForText('A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow.')
     const screen = await session.text()
-    for (const part of ['╭─ Catalog ', '▾ go-event-sourcing-service', '├─ ▾ features', '│  ├─ api-auth', '│  └─ cli-auth', '└─ ▾ extension points', '├─ api.middleware', '└─ cli.commands', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
+    for (const part of ['╭─ Catalog ', '╭─ go ─', '▾ go-event-sourcing-service', '├─ ▾ features', '│  ├─ api-auth', '│  └─ cli-auth', '└─ ▾ extension points', '├─ api.middleware', '└─ cli.commands', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
       expect(screen).toContain(part)
     }
     await session.press('/')
     await session.type('zzz')
     await session.waitForText('No name matches the filter.')
     await session.press('escape')
+    await session.waitForText('▾ go-event-sourcing-service')
+    await session.press('q')
+    await session.waitForText('EXIT:0')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  it('closes the selected starter with h, and opens it with l', async () => {
+    const dir = scratchDir()
+    const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
+
     await session.waitForText('▾ go-event-sourcing-service')
     await session.press('h')
     await session.waitForText('▸ go-event-sourcing-service')
@@ -134,7 +149,7 @@ describe('feature-compose show in a terminal', () => {
 
     await session.waitForText(/EXIT:[1-9]/)
     const screen = await session.text()
-    expect(screen).toContain('unknown starter "no-such-starter": the catalog has go-event-sourcing-service')
+    expect(screen).toContain('unknown starter "no-such-starter": the catalog has go, go-event-sourcing-service')
     expect(screen).not.toContain('╭─ Catalog')
   })
 })

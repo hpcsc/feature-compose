@@ -31,7 +31,9 @@ available in the channel, the installer lists them for you to pick.
 catalog: ~/code/feature-compose/catalog
 ```
 
-The folder holds `starters/` and `features/`. The catalog of this repo is in `catalog/`. A path that starts
+The folder holds `starters/` and `features/`. The catalog of this repo is in `catalog/`. It has two starters:
+`go`, a Go module with an example package, and `go-event-sourcing-service`, a Go service with an event store, an
+HTTP API and a catchup process. `feature-compose show` lists them with their features. A path that starts
 with `~/` is in your home folder, and another relative path is relative to the folder of the config file.
 Without the config file, `new`, `show` and `check` stop and name the path of the file. `version` and `update` do
 not read it.

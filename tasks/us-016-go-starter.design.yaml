@@ -1,0 +1,37 @@
+design: planned
+types:
+  - name: Catalog
+    package: internal/catalog
+    change: changed
+    does: finds a starter by name with the features that target it and the names of the other features of the catalog, lists the combinations that CI makes a repo from, reads the definitions, and checks the links of each feature
+    owns:
+      - one read of each feature.yml gives the features that target the starter and the names of the features that do not; a feature that does not target the starter is not built, so its templates are not read
+    fields: [fsys]
+    methods: [Starter, Combinations, Definitions, Check]
+  - name: Starter
+    package: internal/catalog
+    change: changed
+    does: one starter of the catalog with the features that target it and the names of the other features of the catalog, which each selection of a repo starts from
+    owns:
+      - a requested feature, from a flag or from an answer, whose targets do not name the starter stops the selection before the first file; the message names the feature and the starter, says that the feature does not target the starter, and lists the features that target the starter, or says that no feature targets it
+      - a requested name that no feature.yml of the catalog has stops the selection with the message of an unknown feature, which lists the features that target the starter
+    fields: [name, options, folders, templates, features, otherFeatures, extensionPoints]
+    methods: [Select, FeatureNames]
+functions: []
+words:
+  - concept: a feature of the catalog whose targets do not name the starter of the selection
+    word: feature that does not target the starter
+    not: [unsupported feature, incompatible feature, unavailable feature, foreign feature]
+  - concept: the names of the features of the catalog that do not target a starter, which the Starter keeps for its message
+    word: other features
+    not: [excluded features, rejected features, skipped features, untargeted features]
+  - concept: a requested name that no feature.yml of the catalog has
+    word: unknown feature
+    not: [missing feature, invalid feature, nonexistent feature]
+  - concept: the starter of the catalog for a Go module, which cli turns into a CLI repo
+    word: go
+    not: [go-cli, go-module, go-lib, plain, base]
+  - concept: the text that the example package internal/greeting of the starter go gives for a name
+    word: greeting
+    not: [hello, salutation, welcome, message]
+dependencies: []

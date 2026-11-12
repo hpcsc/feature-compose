@@ -21,6 +21,7 @@ import (
 
 	"github.com/hpcsc/feature-compose/internal/catalog"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 )
 
 type failingFS struct {
@@ -1590,6 +1591,91 @@ add_to:
 				require.Equal(t, 0o755&^umask(), modeOf(t, filepath.Join(output, path)), path)
 			}
 		})
+
+		writtenGo := func(t *testing.T, given map[string]string) (string, map[string]string) {
+			t.Helper()
+			starter, err := repoCatalog().Starter("go")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-tool", given, nil, catalog.Answers{})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-tool")
+			require.NoError(t, selection.Write(output))
+			return output, filesIn(t, output)
+		}
+
+		t.Run("the starter go writes a Go module with an example package, the tasks, the tools, the CI workflow and the pre-push hook, and no other file", func(t *testing.T) {
+			_, files := writtenGo(t, nil)
+
+			require.ElementsMatch(t, []string{
+				"go.mod", ".gitignore", "mise.toml", "Taskfile.yml", "Taskfile.test.yml", ".github/workflows/ci.yml", "hooks/pre-push",
+				"scripts/libs/git-hook-prepush.sh", "README.md", "internal/greeting/greeting.go", "internal/greeting/greeting_test.go",
+			}, slices.Collect(maps.Keys(files)))
+			require.Contains(t, files["go.mod"], "module github.com/hpcsc/my-tool\n")
+			require.Contains(t, files["go.mod"], "go 1.27.1\n")
+			require.Contains(t, files["mise.toml"], `go = "1.27.1"`)
+			require.Contains(t, files["internal/greeting/greeting_test.go"], `"github.com/hpcsc/my-tool/internal/greeting"`)
+		})
+
+		t.Run("given values for the module and the Go version replace the defaults in each file of go", func(t *testing.T) {
+			_, files := writtenGo(t, map[string]string{"module": "github.com/acme/ledger", "go-version": "1.28.0"})
+
+			require.Contains(t, files["go.mod"], "module github.com/acme/ledger\n")
+			require.Contains(t, files["go.mod"], "go 1.28.0\n")
+			require.Contains(t, files["mise.toml"], `go = "1.28.0"`)
+			require.Contains(t, files["internal/greeting/greeting_test.go"], `"github.com/acme/ledger/internal/greeting"`)
+			require.Contains(t, files["README.md"], "`github.com/acme/ledger`")
+			for path, contents := range files {
+				require.NotContains(t, contents, "github.com/hpcsc/my-tool", path)
+				require.NotContains(t, contents, "1.27.1", path)
+			}
+		})
+
+		t.Run("the Taskfiles and the workflow of go keep the template syntax of Task and of GitHub Actions", func(t *testing.T) {
+			_, files := writtenGo(t, nil)
+
+			require.Contains(t, files["Taskfile.test.yml"], "{{.CLI_ARGS}}")
+			require.Contains(t, files[".github/workflows/ci.yml"], "${{ secrets.GITHUB_TOKEN }}")
+		})
+
+		t.Run("no file of go holds a value of scaffold", func(t *testing.T) {
+			_, files := writtenGo(t, nil)
+
+			for path, contents := range files {
+				for _, value := range []string{".Scaffold.", ".ProjectKebab", "<no value>", "zzsentinel"} {
+					require.NotContains(t, contents, value, path)
+				}
+			}
+		})
+
+		t.Run("hooks/pre-push and the script of the hook of go can be run", func(t *testing.T) {
+			output, _ := writtenGo(t, nil)
+
+			for _, path := range []string{"hooks/pre-push", "scripts/libs/git-hook-prepush.sh"} {
+				require.Equal(t, 0o755&^umask(), modeOf(t, filepath.Join(output, path)), path)
+			}
+		})
+
+		t.Run("the README of go names the module, the install of the tools, the unit tests and the hook, and only paths and tasks that the repo has", func(t *testing.T) {
+			_, files := writtenGo(t, nil)
+			readme := files["README.md"]
+
+			require.True(t, strings.HasPrefix(readme, "# my-tool\n"))
+			for _, part := range []string{"`github.com/hpcsc/my-tool`", "mise install", "task test:unit", "task hook:setup"} {
+				require.Contains(t, readme, part)
+			}
+			for _, path := range regexp.MustCompile("`([A-Za-z0-9_-]*[./][A-Za-z0-9_./-]*)`").FindAllStringSubmatch(readme, -1) {
+				if path[1] == "github.com/hpcsc/my-tool" {
+					continue
+				}
+				require.True(t, slices.ContainsFunc(slices.Collect(maps.Keys(files)), func(file string) bool {
+					return file == path[1] || strings.HasPrefix(file, path[1]+"/")
+				}), path[1])
+			}
+			tasks := tasksOf(t, files)
+			for _, task := range regexp.MustCompile(`task ([a-z0-9:-]+)`).FindAllStringSubmatch(readme, -1) {
+				require.Contains(t, tasks, task[1])
+			}
+		})
 	})
 
 	t.Run("combinations", func(t *testing.T) {
@@ -1769,6 +1855,27 @@ add_to:
 			})
 		}
 	})
+}
+
+func tasksOf(t *testing.T, files map[string]string) []string {
+	t.Helper()
+	type taskfile struct {
+		Includes map[string]string    `yaml:"includes"`
+		Tasks    map[string]yaml.Node `yaml:"tasks"`
+	}
+	read := func(path string) taskfile {
+		var parsed taskfile
+		require.NoError(t, yaml.Unmarshal([]byte(files[path]), &parsed), path)
+		return parsed
+	}
+	root := read("Taskfile.yml")
+	tasks := slices.Collect(maps.Keys(root.Tasks))
+	for namespace, path := range root.Includes {
+		for name := range read(path).Tasks {
+			tasks = append(tasks, namespace+":"+name)
+		}
+	}
+	return tasks
 }
 
 func catalogOnDisk(t *testing.T) fstest.MapFS {

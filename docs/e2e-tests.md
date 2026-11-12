@@ -79,8 +79,17 @@ tests keep the original binary.
 
 ## The full run of `new`
 
-Five tests in `e2e/tests/new.test.ts` make a repo from `go-event-sourcing-service` and check it. The first
-makes the repo from the starter alone:
+Six tests in `e2e/tests/new.test.ts` make a repo and check it. One makes a repo from the starter `go`:
+
+1. `feature-compose new go my-tool --no-prompt` makes the repo. Its `after_render` commands run `go mod tidy`,
+   which downloads the modules of the repo.
+2. `gofmt -l .` lists no file, and `go build ./...` builds.
+3. `task test:unit` stops with the exit status 0, and the output of gotestsum shows that the tests of the example
+   package `internal/greeting` ran and passed.
+4. `task --list-all` names each task that `.github/workflows/ci.yml` and `scripts/libs/git-hook-prepush.sh` of the
+   repo call. The test takes the names from the two files.
+
+The other five make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
 
 1. `feature-compose new go-event-sourcing-service my-service --no-prompt` makes the repo. Its `after_render`
    commands run `go mod tidy`, which downloads the modules of the repo.

@@ -80,6 +80,35 @@ describe('feature-compose new', () => {
   )
 
   it(
+    'makes a repo from go that is formatted, builds, passes the unit tests of its example package, and has each task that its CI workflow and its hook call',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'go', 'my-tool', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      const repo = join(dir, 'my-tool')
+      expect(readFileSync(join(repo, 'go.mod'), 'utf8')).toContain('module github.com/hpcsc/my-tool\n')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      const build = await runProgram(repo, 'go', ['build', './...'], env)
+      expect(build.status, build.stdout + build.stderr).toBe(0)
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      expect(passedPackages(unit.stdout)).toEqual(['internal/greeting'])
+      const list = await runProgram(repo, 'task', ['--list-all'], env)
+      expect(list.status, list.stdout + list.stderr).toBe(0)
+      const called = ['.github/workflows/ci.yml', 'scripts/libs/git-hook-prepush.sh'].flatMap((path) =>
+        [...readFileSync(join(repo, path), 'utf8').matchAll(/^\s*(?:run: )?task ([a-z0-9:-]+)/gm)].map((match) => match[1]),
+      )
+      expect(called).toContain('test:unit')
+      expect(tasksIn(list.stdout)).toEqual(expect.arrayContaining(called))
+    },
+    15 * 60 * 1000,
+  )
+
+  it(
     'makes a repo with api-auth that passes its unit tests, and whose API answers 401 to a request without a known key',
     async () => {
       const dir = scratchDir()
@@ -494,6 +523,8 @@ describe('feature-compose new in a terminal', () => {
       await session.press('enter')
       await session.waitForText('name     my-service')
       await pressed(session, ['j', 'enter'])
+      await session.waitForText('A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow.')
+      await session.press('j')
       await session.waitForText('A Go service with an event store, an HTTP API, and a catchup process.')
       await session.press('enter')
       await session.waitForText('go-version  1.27.1')
@@ -744,6 +775,13 @@ function passedPackages(output: string): string[] {
     .split('\n')
     .filter((line) => line.startsWith('✓'))
     .map((line) => line.split(/\s+/)[1])
+}
+
+function tasksIn(list: string): string[] {
+  return list
+    .split('\n')
+    .map((line) => /^\* (\S+?):(\s|$)/.exec(line)?.[1])
+    .filter((name): name is string => name !== undefined)
 }
 
 function detailsPaneOf(screen: string): string {

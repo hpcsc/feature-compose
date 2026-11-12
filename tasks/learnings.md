@@ -84,10 +84,10 @@
 
 ## clerk mutants does not change the templates of the catalog
 - Type: constraint
-- Recorded: 2026-11-09
-- Observed: task 6 — us-003-api-keys
-- Learning: clerk mutants changes only the Go code of the tool, so a task whose code is a .go.tmpl of a starter or a feature gets 'not checked'. Prove its tests on a written repo: write the repo with the real binary, apply a list of breaks to the written files one at a time, run go test after each, and copy the file back. A break that leaves a variable unused does not build; write it as a condition with && false or || true.
-- Apply when: a task changes the Go templates of a starter or a feature, or adds a feature with its own Go package
+- Recorded: 2026-11-12
+- Observed: us-019-api-prefix-cors
+- Learning: clerk mutants changes only the Go code of the tool, so a task whose code is a .go.tmpl of a starter or a feature gets 'not checked'. Prove its tests on a written repo: write the repo with the real binary, apply a list of breaks to the written files one at a time, run go test after each, and copy the file back. A break that leaves a variable unused does not build; write it as a condition with && false or || true. The audit also skips such a diff: in US-019 its mutants and design lenses did not run, because their selectors count no .go.tmpl as Go, so the breaks by hand are the only mutation proof of template code.
+- Apply when: a task changes the Go templates of a starter or a feature, or adds a feature with its own Go package, or an audit reads a branch whose Go code is only .go.tmpl
 
 ## New Go code of a feature costs proof, not construction
 - Type: pattern
@@ -316,3 +316,24 @@
 - Observed: us-006-check-links
 - Learning: Catalog.Check in US-006 first read every feature and then called Catalog.Starter, which read the same files again; a mutant that removed an error check of the first read lived, because the second read failed on the same file with the same error (7 mutants). Building each starter from the one read of the features (readStarter with the features that target it) gave each error one path, and every mutant died.
 - Apply when: writing code in internal/catalog that reads the starters or the features of the catalog more than one time in one operation, or reading live mutants on the error checks of a read
+
+## A test of an HTTP answer reads the headers from recorder.Result()
+- Type: recurring-finding
+- Recorded: 2026-11-12
+- Observed: us-019-api-prefix-cors
+- Learning: httptest.ResponseRecorder.Header() is the live map, so a test that reads it still sees a header that the code sets after WriteHeader, which a real server never sends. The audit of US-019 raised this two times, in the CORS test of the starter and in the refusal tests of both methods of api-auth. Read the written headers from recorder.Result().Header; then a break that moves a Set after the write fails the test.
+- Apply when: writing a Go test, in the tool or in a template, that checks the headers of an answer with httptest.NewRecorder
+
+## env v6 gives a list of only blanks as blank entries
+- Type: constraint
+- Recorded: 2026-11-12
+- Observed: us-019-api-prefix-cors
+- Learning: With envSeparator, caarlos0/env v6 gives ALLOWED_ORIGINS=" " as [" "] and "," as ["", ""], and only an unset or empty variable as an empty list. In US-019 the server chose the default origins on an empty list while CORS dropped the blank entries, so a blank value allowed no origin at all (a medium runtime finding of the audit). Decide no value after the trim and the drop of blank entries, in the one place that owns the rule.
+- Apply when: adding a list setting with a default to api.Config or to the config of a feature, or any setting that a feature trims before use
+
+## emod validate fails on the account event model of the starter
+- Type: constraint
+- Recorded: 2026-11-12
+- Observed: us-019-api-prefix-cors
+- Learning: emod validate docs/event-model-account.emod of go-event-sourcing-service exits 1 with three lints of the model itself: missing-todo-list (WelcomeBonusReaction reads no view), clickbait-event (AccountClosed has one ID field) and god-view (AccountBalanceView reads five events). The breakdown of US-019 asked that it passes, and that criterion stayed open, because no route change can fix these lints.
+- Apply when: decomposing a story that changes the event model files of the starter go-event-sourcing-service

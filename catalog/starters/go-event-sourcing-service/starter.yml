@@ -23,6 +23,14 @@ extension_points:
     summary: A field of api.Config, whose type the config loader reads with its env tags. import is the path of the package of its type under the module.
     file: go/internal/api/config.go
     item: [name, type, import]
+  catchup.config:
+    summary: A field of the Config of catchup, whose type the config loader reads with its env tags. import is the path of the package of its type under the module.
+    file: go/cmd/catchup/main.go
+    item: [name, type, import]
+  catchup.consumers:
+    summary: An expression of type []worker, the consumers and the schedulers that catchup runs, each under the lock of its name. It can use pool, cfg, logger, reg, bus, eventStream, checkpointStore and eventSubscription, and the functions that a feature declares in a file of its own in the package main of cmd/catchup. A worker that cannot start returns an error from Start, and catchup then stops each worker, logs the name of the worker with the error, and exits with 1.
+    file: go/cmd/catchup/main.go
+    item: [code]
 
 delimiters:
   - glob: "go/**/Taskfile*.yml"

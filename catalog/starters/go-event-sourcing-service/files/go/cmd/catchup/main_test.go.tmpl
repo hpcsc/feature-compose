@@ -1,0 +1,103 @@
+//go:build unit
+
+package main
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"log/slog"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestCatchup(t *testing.T) {
+	t.Run("run", func(t *testing.T) {
+		t.Run("stops the other workers, logs the worker and its error, and reports a failure when a worker cannot start", func(t *testing.T) {
+			var logs bytes.Buffer
+			other := &waitingWorker{name: "balance-projection"}
+			failing := &failingWorker{name: "fraud-check-gateway", err: errors.New("the fraud service does not answer")}
+
+			failed := runWithin(t, context.Background(), []worker{other, failing}, slog.New(slog.NewTextHandler(&logs, nil)))
+
+			require.True(t, failed)
+			require.True(t, other.stopped())
+			require.Contains(t, logs.String(), "fraud-check-gateway failed: the fraud service does not answer")
+		})
+
+		t.Run("reports no failure when each worker stops with no error after the context ends", func(t *testing.T) {
+			first := &waitingWorker{name: "balance-projection"}
+			second := &waitingWorker{name: "welcome-bonus-reaction"}
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			failed := runWithin(t, ctx, []worker{first, second}, slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil)))
+
+			require.False(t, failed)
+			require.True(t, first.stopped())
+			require.True(t, second.stopped())
+		})
+	})
+}
+
+func runWithin(t *testing.T, ctx context.Context, workers []worker, logger *slog.Logger) bool {
+	t.Helper()
+	result := make(chan bool, 1)
+	go func() {
+		result <- run(ctx, workers, heldLocks{}, logger)
+	}()
+	select {
+	case failed := <-result:
+		return failed
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "run did not return within 5 seconds")
+		return false
+	}
+}
+
+type heldLocks struct{}
+
+func (heldLocks) Hold(ctx context.Context, _ string, start func(context.Context) error) error {
+	return start(ctx)
+}
+
+type failingWorker struct {
+	name string
+	err  error
+}
+
+func (w *failingWorker) Name() string {
+	return w.name
+}
+
+func (w *failingWorker) Start(context.Context) error {
+	return w.err
+}
+
+type waitingWorker struct {
+	name string
+
+	mutex sync.Mutex
+	ended bool
+}
+
+func (w *waitingWorker) Name() string {
+	return w.name
+}
+
+func (w *waitingWorker) Start(ctx context.Context) error {
+	<-ctx.Done()
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+	w.ended = true
+	return nil
+}
+
+func (w *waitingWorker) stopped() bool {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+	return w.ended
+}

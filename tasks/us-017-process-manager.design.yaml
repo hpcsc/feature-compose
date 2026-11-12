@@ -1,0 +1,41 @@
+design: planned
+types:
+  - name: Selection
+    package: internal/catalog
+    change: changed
+    does: makes one repo from a starter, the selected features with the values of their options, a name and the values of the starter options
+    owns:
+      - indent puts the given number of spaces before each line of a text that is not empty, and leaves an empty line empty, so an item of several lines goes into a YAML file at the depth of its place
+      - each template function that a template can call is in the FuncMap of render, with the delimiters of the template
+    fields: [folders, name, starter, features, templates, extensionPoints]
+    methods: [Write, RunAfterRender, indent]
+functions: []
+words:
+  - concept: a consumer or a scheduler that catchup runs under the lock of its name; the items of catchup.consumers give them
+    word: worker
+    not: [job, runner, process, daemon]
+  - concept: an amount that an account keeps for one payment until the payment ends
+    word: hold
+    not: [reservation, block, freeze, lock]
+  - concept: the fraud service, the sanctions service and the payment network that the example calls
+    word: outside system
+    not: [external service, third party, provider, partner]
+  - concept: the program of the repo that stands in for the outside systems on the machine of a developer
+    word: fakes
+    not: [mocks, stubs, simulators, emulators]
+  - concept: a file that a feature adds to a package of the starter, whose function an item of an extension point calls
+    word: connector file
+    not: [wiring file, glue, hook, adapter, bridge]
+  - concept: the field of an item that holds a block of YAML or Markdown with several lines
+    word: text
+    not: [block, body, content, snippet, yaml]
+  - concept: the spaces that a template puts before each line of the text of an item
+    word: indent
+    not: [pad, nindent, tab, offset]
+  - concept: the digits at the start of the name of a migration, which set the order in which golang-migrate applies it
+    word: version
+    not: [timestamp, sequence, number, id]
+  - concept: a route of the API that a request reaches only through the items of api.middleware
+    word: protected route
+    not: [private route, secured route, authenticated route]
+dependencies: []

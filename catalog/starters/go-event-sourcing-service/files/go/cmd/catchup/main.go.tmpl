@@ -22,11 +22,17 @@ import (
 	"{{ option "starter.module" }}/internal/use_cases"
 	"{{ option "starter.module" }}/internal/use_cases/account/balance"
 	"{{ option "starter.module" }}/internal/use_cases/account/welcomebonus"
+{{- range unique "import" "catchup.config" }}
+	"{{ option "starter.module" }}/{{ . }}"
+{{- end }}
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Config struct {
 	DB config.DB
+{{- range items "catchup.config" }}
+	{{ .name }} {{ .type }}
+{{- end }}
 }
 
 func main() {
@@ -59,6 +65,10 @@ type worker interface {
 	Start(ctx context.Context) error
 }
 
+type lockHolder interface {
+	Hold(ctx context.Context, name string, start func(context.Context) error) error
+}
+
 func workers(pool *pgxpool.Pool, cfg *Config, logger *slog.Logger) []worker {
 	reg := registry.New()
 	use_cases.RegisterEvents(reg)
@@ -70,13 +80,17 @@ func workers(pool *pgxpool.Pool, cfg *Config, logger *slog.Logger) []worker {
 	checkpointStore := store.NewPostgres(pool)
 	eventSubscription := subscription.NewPostgres(pool, reg, logger)
 
-	return []worker{
+	all := []worker{
 		projection.NewProjector(balance.NewProjection(), pool, checkpointStore, eventSubscription, logger),
 		reaction.NewReactor(reaction.NewConflictRetry(welcomebonus.NewReaction(bus), 3), checkpointStore, eventSubscription, logger),
 	}
+{{- range items "catchup.consumers" }}
+	all = append(all, {{ .code }}...)
+{{- end }}
+	return all
 }
 
-func run(parentCtx context.Context, workers []worker, locks *lock.Postgres, logger *slog.Logger) bool {
+func run(parentCtx context.Context, workers []worker, locks lockHolder, logger *slog.Logger) bool {
 	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
 

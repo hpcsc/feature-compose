@@ -973,7 +973,19 @@ add_to:
     - name: Guard
       type: guard.Config
       import: internal/guard
+  catchup.config:
+    - name: Guard
+      type: guard.Config
+      import: internal/guard
+    - name: GuardAudit
+      type: guard.AuditConfig
+      import: internal/guard
+  catchup.consumers:
+    - code: guardWorkers(cfg.Guard, logger)
+files:
+  - path: files/
 `)}
+			files["features/guard/files/go/cmd/catchup/guard.go.tmpl"] = &fstest.MapFile{Data: []byte("package main\n")}
 			starter, err := catalog.New(files).Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 			selection, err := starter.Select("my-service", nil, withoutValues("guard"), catalog.Answers{})
@@ -997,6 +1009,29 @@ add_to:
 			require.Equal(t, 1, strings.Count(files["internal/api/config.go"], `"github.com/hpcsc/my-service/internal/guard"`))
 		})
 
+		t.Run("the config of catchup has a field for each item of catchup.config, and imports their package one time", func(t *testing.T) {
+			files := writtenWithGuard(t)
+
+			require.Contains(t, files["cmd/catchup/main.go"], "type Config struct {\n\tDB config.DB\n\tGuard guard.Config\n\tGuardAudit guard.AuditConfig\n}")
+			require.Equal(t, 1, strings.Count(files["cmd/catchup/main.go"], `"github.com/hpcsc/my-service/internal/guard"`))
+		})
+
+		t.Run("catchup appends the workers of each item of catchup.consumers to the workers of the starter, and runs them all", func(t *testing.T) {
+			files := writtenWithGuard(t)
+
+			require.Contains(t, files["cmd/catchup/guard.go"], "package main")
+			require.Contains(t, files["cmd/catchup/main.go"], "\t}\n\tall = append(all, guardWorkers(cfg.Guard, logger)...)\n\treturn all\n}")
+			require.Contains(t, files["cmd/catchup/main.go"], "run(ctx, workers(pool, cfg, logger), lock.NewPostgres(pool), logger)")
+		})
+
+		t.Run("with no item, catchup has only the config and the workers of the starter", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			require.Contains(t, files["cmd/catchup/main.go"], "\t\"github.com/hpcsc/my-service/internal/use_cases/account/welcomebonus\"\n\t\"github.com/jackc/pgx/v5/pgxpool\"\n)")
+			require.Contains(t, files["cmd/catchup/main.go"], "type Config struct {\n\tDB config.DB\n}")
+			require.Contains(t, files["cmd/catchup/main.go"], "\tall := []worker{\n\t\tprojection.NewProjector(balance.NewProjection(), pool, checkpointStore, eventSubscription, logger),\n\t\treaction.NewReactor(reaction.NewConflictRetry(welcomebonus.NewReaction(bus), 3), checkpointStore, eventSubscription, logger),\n\t}\n\treturn all\n}")
+		})
+
 		t.Run("with no item, the server gives no middleware to the protected routes, and the config has only its own fields", func(t *testing.T) {
 			_, files := writtenStarter(t, nil)
 
@@ -1011,7 +1046,7 @@ add_to:
 
 			for _, files := range []map[string]string{withoutItems, writtenWithGuard(t)} {
 				for path, contents := range files {
-					for _, extensionPoint := range []string{"api.middleware", "api.config"} {
+					for _, extensionPoint := range []string{"api.middleware", "api.config", "catchup.config", "catchup.consumers"} {
 						require.NotContains(t, contents, extensionPoint, path)
 					}
 				}

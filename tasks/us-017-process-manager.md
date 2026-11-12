@@ -723,25 +723,25 @@ and that the fakes send no credential (decision 10). The repo has `docs/process-
 event model.
 
 **Acceptance Criteria:**
-- [ ] `starter.yml` declares `api.tasks` and `readme.sections` of decision 3, and `process-manager` adds the tasks
+- [x] `starter.yml` declares `api.tasks` and `readme.sections` of decision 3, and `process-manager` adds the tasks
   `pay` and `get-payment` and the README section to them.
-- [ ] A catalog test parses the written `Taskfile.api.yml` and finds the tasks of the starter and the tasks `pay` and
+- [x] A catalog test parses the written `Taskfile.api.yml` and finds the tasks of the starter and the tasks `pay` and
   `get-payment`, whose commands call `{{.API}}/payments` and `{{.API}}/payments/${PAYMENT}` with no `AUTH` header.
-- [ ] The README of the repo with `process-manager` ends with the section `## Process Manager Example`. It names
+- [x] The README of the repo with `process-manager` ends with the section `## Process Manager Example`. It names
   `task api:pay`, `task api:get-payment`, the table of the amount and of the last digits of the IBAN, the three connector
   files, and that the fakes send no credential, so `api-auth` refuses their webhooks. It names only files that the
   repo has.
-- [ ] Written with `process-manager`, the repo has `docs/process-manager-example.md`, `docs/event-model-payment.emod`,
+- [x] Written with `process-manager`, the repo has `docs/process-manager-example.md`, `docs/event-model-payment.emod`,
   `.md` and `.svg`. `docs/process-manager-example.md` does not say that an outside system sends the bearer token of the
   API, names the connector files, and names only files that the repo has.
-- [ ] The test at `catalog_test.go:1441-1487` also reads the repo with `process-manager`, and finds each route of its
+- [x] The test at `catalog_test.go:1441-1487` also reads the repo with `process-manager`, and finds each route of its
   API under `/api` in its docs, its README and its Taskfiles.
-- [ ] Written from the starter alone, `Taskfile.api.yml` and `README.md` hold no line and no blank line from an item.
-- [ ] No written file holds the name `api.tasks` or `readme.sections`, and `feature-compose check --catalog catalog`
+- [x] Written from the starter alone, `Taskfile.api.yml` and `README.md` hold no line and no blank line from an item.
+- [x] No written file holds the name `api.tasks` or `readme.sections`, and `feature-compose check --catalog catalog`
   finds no mistake.
-- [ ] With each combination, the written repo builds, `gofmt -l .` lists no file, and its unit tests pass
+- [x] With each combination, the written repo builds, `gofmt -l .` lists no file, and its unit tests pass
   (`task test:combinations`).
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the host.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the host.
 
 **Affected Files/Modules:**
 - `catalog/starters/go-event-sourcing-service/starter.yml` — two extension points

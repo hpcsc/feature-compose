@@ -205,3 +205,7 @@ The name is also the key of a lock. Each consumer and each scheduler runs in one
 time. A second
 process, for example during a rolling deploy, waits until the first process stops.
 [docs/event-subscription.md](docs/event-subscription.md#one-process-for-each-consumer) tells how.
+{{- range items "readme.sections" }}
+
+{{ .text }}
+{{- end }}

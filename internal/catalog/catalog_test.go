@@ -1239,6 +1239,68 @@ files:
 			require.True(t, strings.HasSuffix(files["docker-compose.local.yml"], "    environment:\n      <<: *x-db-config\n"))
 		})
 
+		namedPathsAreIn := func(t *testing.T, text string, files map[string]string) {
+			t.Helper()
+			for _, path := range regexp.MustCompile("`([A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+)`").FindAllStringSubmatch(text, -1) {
+				require.True(t, slices.ContainsFunc(slices.Collect(maps.Keys(files)), func(written string) bool {
+					return written == path[1] || strings.HasPrefix(written, path[1]+"/")
+				}), path[1])
+			}
+		}
+
+		t.Run("with process-manager, the tasks pay and get-payment of the API call the payment routes with no credential, beside the tasks of the starter", func(t *testing.T) {
+			files := writtenWithProcessManager(t)
+			_, starterAlone := writtenStarter(t, nil)
+
+			tasks := parsedYAML(t, files["Taskfile.api.yml"])["tasks"].(map[string]any)
+
+			require.Subset(t, slices.Collect(maps.Keys(tasks)), slices.Collect(maps.Keys(parsedYAML(t, starterAlone["Taskfile.api.yml"])["tasks"].(map[string]any))))
+			pay := tasks["pay"].(map[string]any)["cmds"].([]any)[0].(string)
+			require.Contains(t, pay, `curl -s -X POST "{{.API}}/payments"`)
+			require.Contains(t, pay, `{{default "300" .CLI_ARGS}}`)
+			require.Equal(t, []any{`curl -s "{{.API}}/payments/${PAYMENT}" | jq`}, tasks["get-payment"].(map[string]any)["cmds"])
+			require.NotContains(t, files["Taskfile.api.yml"], "AUTH")
+		})
+
+		t.Run("with process-manager, the README ends with the section of the example, which tells how to run a payment, the paths of the fakes, that the fakes send no credential, and only files that the repo has", func(t *testing.T) {
+			files := writtenWithProcessManager(t)
+			readme := files["README.md"]
+			section := readme[strings.Index(readme, "\n## Process Manager Example\n"):]
+
+			require.NotContains(t, section[1:], "\n## ")
+			for _, part := range []string{
+				"task api:pay -- 300", "task api:get-payment", "| IBAN that ends in `4444` |", "| Amount above 10000 |",
+				"`internal/use_cases/payment.go`, `cmd/catchup/payment.go` and `internal/api/use_cases/payment.go`",
+				"The fakes send no credential", "`api-auth`", "The webhook routes check no signature of an outside system",
+			} {
+				require.Contains(t, section, part)
+			}
+			namedPathsAreIn(t, section, files)
+		})
+
+		t.Run("with process-manager, the docs of the example name the connector files and only files that the repo has, and do not say that an outside system sends a token", func(t *testing.T) {
+			files := writtenWithProcessManager(t)
+			docs := files["docs/process-manager-example.md"]
+
+			for _, path := range []string{"docs/event-model-payment.emod", "docs/event-model-payment.md", "docs/event-model-payment.svg"} {
+				require.Contains(t, files, path)
+			}
+			for _, part := range []string{"`internal/use_cases/payment.go`", "`cmd/catchup/payment.go`", "`internal/api/use_cases/payment.go`", "The fakes send no credential", "No webhook route checks that a result comes from the outside system"} {
+				require.Contains(t, docs, part)
+			}
+			for _, path := range []string{"docs/process-manager-example.md", "docs/event-model-payment.md", "docs/event-model-payment.emod", "docs/event-model-payment.svg"} {
+				require.NotContains(t, strings.ToLower(files[path]), "token", path)
+			}
+			namedPathsAreIn(t, docs, files)
+		})
+
+		t.Run("with no item, the Taskfile of the API and the README have only the lines of the starter", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			require.True(t, strings.HasSuffix(files["Taskfile.api.yml"], "          --build-arg=VERSION=$(git rev-parse HEAD 2>/dev/null || echo main) \\\n          .\n"))
+			require.True(t, strings.HasSuffix(files["README.md"], "[docs/event-subscription.md](docs/event-subscription.md#one-process-for-each-consumer) tells how.\n"))
+		})
+
 		t.Run("with no item, the account, its events, the balance projection and the registration of the handlers have only the lines of the starter", func(t *testing.T) {
 			_, files := writtenStarter(t, nil)
 
@@ -1682,6 +1744,7 @@ files:
 				"api-auth with the method api-key": writtenWithAPIAuth(t, nil, map[string]string{"method": "api-key"}),
 				"api-auth with the method oauth":   writtenWithAPIAuth(t, nil, map[string]string{"method": "oauth"}),
 				"cli-auth":                         writtenWithFeatures(t, withoutValues("cli-auth")),
+				"process-manager":                  writtenWithProcessManager(t),
 			} {
 				var routes []string
 				for path, contents := range files {
@@ -1702,9 +1765,10 @@ files:
 						contents = strings.ReplaceAll(contents, "{{.API}}", api[1])
 					}
 					for _, route := range routes {
-						for _, match := range regexp.MustCompile("(\"?)([^\\s\"'`(|]*)"+regexp.QuoteMeta(route)).FindAllStringSubmatch(contents, -1) {
+						for _, match := range regexp.MustCompile("(\"?)([^\\s\"'`(|]*)"+regexp.QuoteMeta(route)+`(\S* of the (?:payment )?network)?`).FindAllStringSubmatch(contents, -1) {
 							pathAfterBaseURL := match[1] == `"` && match[2] == ""
-							if !pathAfterBaseURL && !strings.HasSuffix(match[2], "/api") {
+							pathOfAnotherSystem := match[3] != ""
+							if !pathAfterBaseURL && !pathOfAnotherSystem && !strings.HasSuffix(match[2], "/api") {
 								withoutPrefix = append(withoutPrefix, path+": "+match[0])
 							}
 						}

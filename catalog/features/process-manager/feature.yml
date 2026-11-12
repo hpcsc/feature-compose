@@ -19,6 +19,69 @@ add_to:
       amount: -payload.Amount
   api.routes:
     - code: paymentRoutables(bus, pool)
+  api.tasks:
+    - text: |-
+        pay:
+          desc: "usage: ID=<account-id> [IBAN=<creditor IBAN>] task api:pay -- 300"
+          cmds:
+            - |
+              curl -s -X POST "{{.API}}/payments" \
+                -d "{\"accountId\": \"${ID}\", \"creditorIban\": \"${IBAN:-DE89370400440532013000}\", \"amount\": {{default "300" .CLI_ARGS}}}" | jq
+
+        get-payment:
+          desc: "usage: PAYMENT=<payment-id> task api:get-payment"
+          cmds:
+            - curl -s "{{.API}}/payments/${PAYMENT}" | jq
+  readme.sections:
+    - text: |-
+        ## Process Manager Example
+
+        A payment to another bank runs as a process manager. The payment aggregate holds the state of each
+        payment and decides each step. Reactions and gateways carry the messages between the payment, the
+        account, and three outside systems: a fraud service, a sanctions service and a payment network.
+        [docs/process-manager-example.md](docs/process-manager-example.md) explains the design, and
+        [docs/event-model-payment.md](docs/event-model-payment.md) gives the event model.
+
+        `task run` also starts `cmd/fake_services`, which fakes the three outside systems.
+
+        ```sh
+        export ID=<an account ID with money>
+        task api:pay -- 300                     # returns the new payment ID
+        export PAYMENT=<the payment ID>
+        task api:get-payment                    # settled after about a second
+        ```
+
+        The amount and the end of the creditor IBAN select the path that the fakes take:
+
+        | Input | Path |
+        | --- | --- |
+        | Amount above 10000 | The fraud check fails, and the account releases the hold |
+        | IBAN that ends in `0000` | The sanctions screening fails, and the account releases the hold |
+        | IBAN that ends in `1111` | The sanctions service never answers, and the payment fails after its third deadline |
+        | IBAN that ends in `2222` | The other bank returns the payment, and the account releases the hold |
+        | IBAN that ends in `3333` | No settlement webhook arrives, and the status request finds the payment settled |
+        | IBAN that ends in `4444` | The network never settles the payment. After about 30 seconds, the payment escalates to a person and keeps its hold |
+        | Any other input | The payment settles, and the account captures the hold |
+
+        For example: `IBAN=DE89370400440532014444 task api:pay -- 300`.
+
+        The webhook routes check no signature of an outside system, so each caller that the API accepts can
+        post a fraud, sanctions or network result. The fakes send no credential to the webhook routes. In a
+        repo with `api-auth`, the API refuses their webhooks, and each payment ends at its deadlines.
+
+        To replace it with your own process, change these:
+
+        - `internal/use_cases/payment`: the aggregate, its events and commands, the command handlers, the
+          reactions, the gateways, the todo list with its scheduler, and the read model
+        - `internal/use_cases/account/holds`, and the `hold` files in `internal/use_cases/account`: the account
+          side of a payment
+        - `internal/api/use_cases/payment` and `internal/api/use_cases/webhook`: the HTTP handlers
+        - `internal/use_cases/payment.go`, `cmd/catchup/payment.go` and `internal/api/use_cases/payment.go`: the
+          functions that register the example in the service, and the lines that call them
+        - `cmd/fake_services`, and the `fake_` files in `internal/use_cases/payment/checks`,
+          `internal/use_cases/payment/submission` and `internal/use_cases/payment/outside`: the fake outside
+          systems
+        - the migrations of the `payments` and `payment_deadlines` tables
   catchup.config:
     - name: Outside
       type: outside.Config

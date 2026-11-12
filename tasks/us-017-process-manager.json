@@ -208,7 +208,7 @@
     },
     {
       "n": 7,
-      "done": false,
+      "done": true,
       "title": "Tell how to run a payment: the tasks `api:pay` and `api:get-payment`, the README section and the docs",
       "language": "Go",
       "testable": true,

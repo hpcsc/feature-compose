@@ -56,6 +56,14 @@ extension_points:
     file: go/cmd/catchup/main.go
     item: [code]
 
+  api.tasks:
+    summary: Tasks of Taskfile.api.yml, as YAML with each task name at the left edge. A task can use the var API, the base URL of the local API with /api.
+    file: go/Taskfile.api.yml
+    item: [text]
+  readme.sections:
+    summary: A section of the README after the sections of the starter, as Markdown that starts with a heading of level 2.
+    file: go/README.md
+    item: [text]
   taskfile.includes:
     summary: A Taskfile that Taskfile.yml includes. name is the namespace of its tasks, and taskfile is its path in the repo.
     file: go/Taskfile.yml

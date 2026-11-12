@@ -27,17 +27,19 @@ func Register(router chi.Router, protectedMiddleware []func(http.Handler) http.H
 		}
 	}
 
-	for _, r := range publicRoutes {
-		router.MethodFunc(r.Method, r.Pattern, r.Handler)
-		logger.Info(fmt.Sprintf("registered public route %s %s", r.Method, r.Pattern))
-	}
-
-	router.Group(func(protected chi.Router) {
-		protected.Use(protectedMiddleware...)
-		for _, r := range protectedRoutes {
-			protected.MethodFunc(r.Method, r.Pattern, r.Handler)
-			logger.Info(fmt.Sprintf("registered protected route %s %s", r.Method, r.Pattern))
+	router.Route("/api", func(api chi.Router) {
+		for _, r := range publicRoutes {
+			api.MethodFunc(r.Method, r.Pattern, r.Handler)
+			logger.Info(fmt.Sprintf("registered public route %s /api%s", r.Method, r.Pattern))
 		}
+
+		api.Group(func(protected chi.Router) {
+			protected.Use(protectedMiddleware...)
+			for _, r := range protectedRoutes {
+				protected.MethodFunc(r.Method, r.Pattern, r.Handler)
+				logger.Info(fmt.Sprintf("registered protected route %s /api%s", r.Method, r.Pattern))
+			}
+		})
 	})
 }
 

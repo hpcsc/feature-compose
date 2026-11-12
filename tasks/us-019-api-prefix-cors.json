@@ -1,0 +1,167 @@
+{
+  "story": "Call the API of a service from a web app",
+  "story_id": "feature-compose/US-019",
+  "tasks_file": "tasks/us-019-api-prefix-cors.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Serve the routes of the API under `/api`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/use_cases/register.go.tmpl:20-42",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/use_cases/register_test.go.tmpl:19-76",
+        "catalog/starters/go-event-sourcing-service/files/go/Taskfile.api.yml:3-36",
+        "e2e/tests/new.test.ts:43-67",
+        "e2e/tests/new.test.ts:69-106",
+        "e2e/tests/new.test.ts:169-218",
+        "e2e/tests/new.test.ts:555-588",
+        "e2e/tests/new.test.ts:616-622",
+        "e2e/tests/new.test.ts:637-675",
+        "docs/e2e-tests.md:80-142",
+        "tasks/learnings.md:30-36",
+        "tasks/learnings.md:85-91",
+        "tasks/learnings.md:127-133",
+        "tasks/learnings.md:106-112",
+        "tasks/learnings.md:51-57",
+        "tasks/learnings.md:58-64",
+        "tasks/learnings.md:155-161",
+        "tasks/learnings.md:285-291"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/use_cases/register.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/use_cases/register_test.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/Taskfile.api.yml",
+        "e2e/tests/new.test.ts",
+        "docs/e2e-tests.md"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Answer the web apps of the allowed origins with the CORS headers",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "task:1",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/middleware/request_logger.go.tmpl:14-34",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/middleware/request_logger_test.go.tmpl:25-60",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/server/server.go.tmpl:34-44",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/config.go.tmpl:10-16",
+        "catalog/features/api-auth/files/api-key/go/internal/auth/key_hashes.go.tmpl:13-24",
+        "catalog/starters/go-event-sourcing-service/files/go/README.md:31-59",
+        "internal/catalog/catalog_test.go:933-946",
+        "internal/catalog/catalog_test.go:986-991",
+        "internal/catalog/catalog_test.go:1029-1049",
+        "e2e/tests/new.test.ts:69-106",
+        "e2e/tests/new.test.ts:555-588",
+        "docs/e2e-tests.md:80-142",
+        "tasks/learnings.md:30-36",
+        "tasks/learnings.md:85-91",
+        "tasks/learnings.md:92-98",
+        "tasks/learnings.md:127-133",
+        "tasks/learnings.md:99-105",
+        "tasks/learnings.md:106-112",
+        "tasks/learnings.md:113-119",
+        "tasks/learnings.md:120-126",
+        "tasks/learnings.md:155-161",
+        "tasks/learnings.md:285-291"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/middleware/cors.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/middleware/cors_test.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/config.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/server/server.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/README.md",
+        "internal/catalog/catalog_test.go",
+        "e2e/tests/new.test.ts",
+        "docs/e2e-tests.md"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Answer a request that `api-auth` refuses with the JSON error shape of the API",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "task:1",
+        "catalog/features/api-auth/files/common/go/internal/auth/refuse.go.tmpl:7-10",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/response/response.go.tmpl:9-13",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/response/response.go.tmpl:37-42",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/test/common.go.tmpl:22-28",
+        "catalog/features/api-auth/files/api-key/go/internal/auth/middleware_test.go.tmpl:27-87",
+        "catalog/features/api-auth/files/oauth/go/internal/auth/middleware_test.go.tmpl:115-135",
+        "catalog/features/api-auth/files/api-key/go/docs/api-auth.md:62-71",
+        "catalog/features/api-auth/files/oauth/go/docs/api-auth.md:87-96",
+        "internal/catalog/catalog_test.go:1123-1176",
+        "e2e/tests/new.test.ts:69-145",
+        "tasks/learnings.md:30-36",
+        "tasks/learnings.md:85-91",
+        "tasks/learnings.md:127-133",
+        "tasks/learnings.md:155-161",
+        "tasks/learnings.md:197-203",
+        "tasks/learnings.md:285-291"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/features/api-auth/files/common/go/internal/auth/refuse.go.tmpl",
+        "catalog/features/api-auth/files/api-key/go/internal/auth/middleware_test.go.tmpl",
+        "catalog/features/api-auth/files/oauth/go/internal/auth/middleware_test.go.tmpl",
+        "catalog/features/api-auth/files/api-key/go/docs/api-auth.md",
+        "catalog/features/api-auth/files/oauth/go/docs/api-auth.md",
+        "internal/catalog/catalog_test.go",
+        "e2e/tests/new.test.ts",
+        "docs/e2e-tests.md"
+      ]
+    },
+    {
+      "n": 4,
+      "done": false,
+      "title": "Name each route with `/api` in the docs of the repo, of `api-auth` and of `cli-auth`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1",
+        "catalog/starters/go-event-sourcing-service/files/go/docs/event-model-account.md:32-64",
+        "catalog/features/api-auth/files/api-key/go/docs/api-auth.md:3-4",
+        "catalog/features/api-auth/files/api-key/go/docs/api-auth.md:51-60",
+        "catalog/features/api-auth/files/oauth/go/docs/api-auth.md:3-4",
+        "catalog/features/api-auth/files/oauth/go/docs/api-auth.md:50-60",
+        "catalog/features/cli-auth/files/common/go/docs/cli-auth.md:37-56",
+        "internal/catalog/catalog_test.go:1143-1176",
+        "internal/catalog/catalog_test.go:1366-1381",
+        "internal/catalog/catalog_test.go:933-946",
+        "tasks/learnings.md:30-36"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/starters/go-event-sourcing-service/files/go/docs/event-model-account.emod",
+        "catalog/starters/go-event-sourcing-service/files/go/docs/event-model-account.md",
+        "catalog/starters/go-event-sourcing-service/files/go/docs/event-model-account.svg",
+        "catalog/features/api-auth/files/api-key/go/docs/api-auth.md",
+        "catalog/features/api-auth/files/oauth/go/docs/api-auth.md",
+        "catalog/features/cli-auth/files/common/go/docs/cli-auth.md",
+        "internal/catalog/catalog_test.go"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-019-api-prefix-cors.design.yaml"
+}

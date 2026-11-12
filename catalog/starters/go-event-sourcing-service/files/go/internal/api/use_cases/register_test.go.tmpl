@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 
@@ -17,7 +16,6 @@ import (
 )
 
 func TestRegister(t *testing.T) {
-	publicRoutes := []string{"GET /"}
 	refusingRouter := func(t *testing.T) chi.Router {
 		t.Helper()
 		refuse := func(http.Handler) http.Handler {
@@ -35,26 +33,52 @@ func TestRegister(t *testing.T) {
 		router.ServeHTTP(recorder, httptest.NewRequest(method, regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(pattern, "x"), nil))
 		return recorder.Code
 	}
+	servedRoutes := func(t *testing.T, router chi.Router) [][2]string {
+		t.Helper()
+		var routes [][2]string
+		require.NoError(t, chi.Walk(router, func(method, pattern string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+			routes = append(routes, [2]string{method, pattern})
+			return nil
+		}))
+		return routes
+	}
 
 	t.Run("routes", func(t *testing.T) {
-		t.Run("a request to each protected route goes through the middleware of the protected routes", func(t *testing.T) {
+		t.Run("each route is under /api, a request to each protected route goes through the middleware of the protected routes, and a request to the public route does not", func(t *testing.T) {
 			router := refusingRouter(t)
-			protected := map[string]int{}
+			statuses := map[string]int{}
 
-			require.NoError(t, chi.Walk(router, func(method, pattern string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-				if !slices.Contains(publicRoutes, method+" "+pattern) {
-					protected[method+" "+pattern] = statusOf(t, router, method, pattern)
-				}
-				return nil
-			}))
+			for _, served := range servedRoutes(t, router) {
+				statuses[served[0]+" "+served[1]] = statusOf(t, router, served[0], served[1])
+			}
 
 			require.Equal(t, map[string]int{
-				"POST /accounts":                 http.StatusTeapot,
-				"POST /accounts/{id}/deposits":    http.StatusTeapot,
-				"POST /accounts/{id}/withdrawals": http.StatusTeapot,
-				"POST /accounts/{id}/close":       http.StatusTeapot,
-				"GET /accounts/{id}":              http.StatusTeapot,
-			}, protected)
+				"GET /api/":                          http.StatusOK,
+				"POST /api/accounts":                 http.StatusTeapot,
+				"POST /api/accounts/{id}/deposits":    http.StatusTeapot,
+				"POST /api/accounts/{id}/withdrawals": http.StatusTeapot,
+				"POST /api/accounts/{id}/close":       http.StatusTeapot,
+				"GET /api/accounts/{id}":              http.StatusTeapot,
+			}, statuses)
+		})
+
+		t.Run("a request to the path of each route without /api gets 404 and does not reach the middleware of the protected routes", func(t *testing.T) {
+			router := refusingRouter(t)
+			statuses := map[string]int{}
+
+			for _, served := range servedRoutes(t, router) {
+				withoutPrefix := strings.TrimPrefix(served[1], "/api")
+				statuses[served[0]+" "+withoutPrefix] = statusOf(t, router, served[0], withoutPrefix)
+			}
+
+			require.Equal(t, map[string]int{
+				"GET /":                          http.StatusNotFound,
+				"POST /accounts":                 http.StatusNotFound,
+				"POST /accounts/{id}/deposits":    http.StatusNotFound,
+				"POST /accounts/{id}/withdrawals": http.StatusNotFound,
+				"POST /accounts/{id}/close":       http.StatusNotFound,
+				"GET /accounts/{id}":              http.StatusNotFound,
+			}, statuses)
 		})
 
 		t.Run("with no middleware for the protected routes, a request to a protected route gets to its handler", func(t *testing.T) {
@@ -62,15 +86,9 @@ func TestRegister(t *testing.T) {
 			use_cases.Register(router, nil, nil, slog.New(slog.DiscardHandler))
 			recorder := httptest.NewRecorder()
 
-			router.ServeHTTP(recorder, httptest.NewRequest("POST", "/accounts", strings.NewReader("{}")))
+			router.ServeHTTP(recorder, httptest.NewRequest("POST", "/api/accounts", strings.NewReader("{}")))
 
 			require.Equal(t, http.StatusBadRequest, recorder.Code)
-		})
-
-		t.Run("a request to a public route does not go through the middleware of the protected routes", func(t *testing.T) {
-			router := refusingRouter(t)
-
-			require.Equal(t, http.StatusOK, statusOf(t, router, "GET", "/"))
 		})
 	})
 }

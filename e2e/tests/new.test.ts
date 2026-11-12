@@ -61,7 +61,10 @@ describe('feature-compose new', () => {
       const unit = await runProgram(repo, 'task', ['test:unit'], env)
       expect(unit.status, unit.stdout + unit.stderr).toBe(0)
       const api = await startedApi(repo, env)
+      expect((await fetch(`${api}/`)).status).toBe(200)
       expect((await openAccount(api)).status).toBe(400)
+      const atRootPath = await fetch(`${new URL(api).origin}/accounts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      expect(atRootPath.status).toBe(404)
     },
     15 * 60 * 1000,
   )
@@ -206,7 +209,7 @@ describe('feature-compose new', () => {
       const api = await startedApi(repo, { ...env, API_KEY_HASHES: createHash('sha256').update(key).digest('hex') })
       const call = await builtCall(repo, env)
       const withKey = await runProgram(repo, call, [api], { ...env, XDG_CONFIG_HOME: scratchDir(), MY_SERVICE_API_KEY: key })
-      expect(withKey, 'POST /accounts with {} gets the answer 400 of the handler').toMatchObject({ status: 0, stdout: '400\n' })
+      expect(withKey, 'POST /api/accounts with {} gets the answer 400 of the handler').toMatchObject({ status: 0, stdout: '400\n' })
       const wrongKey = await runProgram(repo, call, [api], { ...env, XDG_CONFIG_HOME: scratchDir(), MY_SERVICE_API_KEY: 'an-unknown-key' })
       expect(wrongKey.status).not.toBe(0)
       expect(wrongKey.stdout).toContain('the API refused the API key from MY_SERVICE_API_KEY: set MY_SERVICE_API_KEY, or set credentialCommand in')
@@ -552,9 +555,9 @@ async function until(condition: () => boolean): Promise<void> {
   }
 }
 
-// startedApi builds the API of a written repo and starts it on a free port. The database settings point to no
-// database: the pool of the API opens no connection before the first query, and the requests of the tests
-// stop before a query.
+// startedApi builds the API of a written repo, starts it on a free port, and gives its base URL, which ends with
+// /api. The database settings point to no database: the pool of the API opens no connection before the first
+// query, and the requests of the tests stop before a query.
 async function startedApi(repo: string, env: Record<string, string>): Promise<string> {
   const build = await runProgram(repo, 'go', ['build', '-o', join(repo, 'api-of-the-test'), './cmd/api'], env)
   expect(build.status, build.stdout + build.stderr).toBe(0)
@@ -578,7 +581,7 @@ async function startedApi(repo: string, env: Record<string, string>): Promise<st
   onTestFinished(() => {
     api.kill('SIGKILL')
   })
-  const url = `http://127.0.0.1:${port}`
+  const url = `http://127.0.0.1:${port}/api`
   for (let waited = 0; ; waited += 100) {
     if (api.exitCode !== null) throw new Error(`the API stopped with the exit status ${api.exitCode}: ${printed}`)
     if (await answers(url)) return url
@@ -632,7 +635,7 @@ function freePort(): Promise<number> {
   })
 }
 
-// POST /accounts with the body {} gets the answer 400 of the handler, because the owner is missing, before any
+// POST /api/accounts with the body {} gets the answer 400 of the handler, because the owner is missing, before any
 // query to the database.
 async function builtCall(repo: string, env: Record<string, string>): Promise<string> {
   mkdirSync(join(repo, 'cmd', 'call-of-the-test'))

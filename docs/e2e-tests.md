@@ -87,16 +87,17 @@ makes the repo from the starter alone:
 2. `gofmt -l .` lists no file.
 3. `task --list` and `task test:unit` stop with the exit status 0. `task test:unit` runs gotestsum, and
    gotestsum runs `go test -race`, which needs a C compiler.
-4. The test starts the API of the repo, and `POST /accounts` with no `Authorization` header gets the answer
-   400 of the handler. The API of a repo without `api-auth` accepts each request.
+4. The test starts the API of the repo. `GET /api/` gets 200, and `POST /api/accounts` with no `Authorization`
+   header gets the answer 400 of the handler. The API of a repo without `api-auth` accepts each request. Each
+   route of the API is under `/api`, so `POST /accounts` gets 404.
 
 The second adds `--feature api-auth`, and checks the API key:
 
 1. `gofmt -l .` lists no file, `go build ./...` builds, and `task test:unit` stops with the exit status 0.
    The output of gotestsum shows that the tests of `internal/auth` and of the service ran and passed.
-2. The test starts the API with `API_KEY_HASHES` set to the SHA-256 hash of a key of the test. `GET /` gets
-   200 with no key. `POST /accounts` gets 401 with `WWW-Authenticate: Bearer` with no `Authorization` header
-   and with an unknown key, and it gets the answer 400 of the handler with the key of the test.
+2. The test starts the API with `API_KEY_HASHES` set to the SHA-256 hash of a key of the test. `GET /api/`
+   gets 200 with no key. `POST /api/accounts` gets 401 with `WWW-Authenticate: Bearer` with no `Authorization`
+   header and with an unknown key, and it gets the answer 400 of the handler with the key of the test.
 3. The test makes a second repo from the starter alone. The `go.mod` of the two repos is the same, so the
    method `api-key` adds no module, and no JWT library.
 
@@ -108,9 +109,9 @@ The next adds `--feature api-auth:method=oauth`, and checks the access tokens:
 2. The test starts a test issuer on `127.0.0.1`. It serves OpenID Connect discovery and one signing key, and
    it signs access tokens with RS256 and that key.
 3. The test starts the API with `OAUTH_ISSUER_URL` set to the test issuer and `OAUTH_AUDIENCE` set to
-   `my-api`. `GET /` gets 200 with no token. `POST /accounts` gets 401 with `WWW-Authenticate: Bearer` with no
-   `Authorization` header, with a token for another audience, and with a token whose `exp` is before now. It
-   gets the answer 400 of the handler with a token for `my-api`.
+   `my-api`. `GET /api/` gets 200 with no token. `POST /api/accounts` gets 401 with
+   `WWW-Authenticate: Bearer` with no `Authorization` header, with a token for another audience, and with a
+   token whose `exp` is before now. It gets the answer 400 of the handler with a token for `my-api`.
 4. The test starts the API again with `OAUTH_AUDIENCE` set to `another-api`, with no new render. The token for
    `my-api` now gets 401, and a token for `another-api` gets 400.
 
@@ -134,11 +135,16 @@ The last adds only `--feature cli-auth`, which needs `cli` and `api-auth`:
    `auth status` names the variable and does not print the key. With no variable and an empty config folder,
    it stops with an exit status other than 0, and its message names `MY_SERVICE_API_KEY` and
    `credentialCommand`.
+4. The test starts the API with the hash of a key of the test, and builds a program that calls
+   `apiclient.New` with the base URL of the API, which ends with `/api`, and `Do` with `POST /accounts`. With
+   the key of the test, the program prints the answer 400 of the handler. With an unknown key and with no key,
+   it stops with the messages of the CLI.
 
-To start an API, a test builds `./cmd/api` of the repo and runs it on a free port of `127.0.0.1`. Its
-database settings point to no database. The pool of the API opens no connection before the first query, and
-`POST /accounts` with the body `{}` stops in the handler, because the owner is missing, before any query. So
-the test needs no Postgres. The API stops when the test ends.
+To start an API, a test builds `./cmd/api` of the repo and runs it on a free port of `127.0.0.1`. The test
+calls the API at its base URL, which ends with `/api`. Its database settings point to no database. The pool of
+the API opens no connection before the first query, and `POST /api/accounts` with the body `{}` stops in the
+handler, because the owner is missing, before any query. So the test needs no Postgres. The API stops when the
+test ends.
 
 So these tests need Go, Task, gotestsum, a C compiler and the network. Each takes about a minute when the Go
 module cache has the modules of the new repo, and some minutes when it does not, for example in Docker.

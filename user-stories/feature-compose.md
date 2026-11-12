@@ -14,7 +14,7 @@ These stories cover phases 1 and 2 of the proposal:
 - The commands `new`, `show`, and `check`, the TUIs of `new` and `show`, and the CI job that tests each
   starter with each feature
 - The starters `go-event-sourcing-service`, `chi-api`, and `go`
-- The features `cli`, `api-auth`, `cli-auth`, and `process-manager`
+- The features `cli`, `api-auth`, `cli-auth`, `process-manager`, and `push`
 
 The stories have two kinds of user:
 
@@ -49,6 +49,9 @@ flowchart LR
     P["US-016<br/>go starter"]
     Q["US-017<br/>process-manager"]
     R["US-018<br/>One form"]
+    S["US-019<br/>API under /api"]
+    T["US-020<br/>Publish images"]
+    U["US-021<br/>push"]
 
     A --> B
     A --> C
@@ -74,19 +77,26 @@ flowchart LR
     L --> R
     N --> R
     R --> G
+    G --> S
+    A --> T
+    S --> O
+    S --> Q
+    Q --> U
+    S --> U
 
     classDef critical fill:#fde68a,stroke:#b45309,stroke-width:2px,color:#1f2937
-    class A,B,C,E,J,L,R,G,H,I,M critical
+    class A,B,C,E,J,L,R,G,S,Q,U critical
 ```
 
 All stories start from US-001. US-005 is the bottleneck: six stories wait for it, because it is the first
 story with a need, and those stories show, check, record, or ask about needs.
 
-The critical path is eight stories deep: US-001, then US-002 or US-003, then US-005, US-010, US-012, US-018,
-and US-007, and then US-008, US-009, or US-013. Build US-002 and US-003 at the same time, and start the TUI
-(US-010, then US-012) soon after US-005. US-018 also waits for `show` (US-014), because the form of `new` has
-the look and the keys of `show`. US-007 and US-013 wait for the form, because each one changes what its tree
-shows.
+The critical path is ten stories deep: US-001, then US-002 or US-003, then US-005, US-010, US-012, US-018,
+US-007, US-019, US-017, and US-021. Build US-002 and US-003 at the same time, and start the TUI (US-010, then
+US-012) soon after US-005. US-018 also waits for `show` (US-014), because the form of `new` has the look and
+the keys of `show`. US-007 and US-013 wait for the form, because each one changes what its tree shows.
+US-019 is the next bottleneck: US-015, US-017, and US-021 wait for it, because each of them names a route of
+the API, and US-019 puts the routes under `/api`.
 
 ## User Stories
 
@@ -509,13 +519,16 @@ and `cli-auth` to it, so that a plain HTTP API gets the same features as an even
   new target.
 - [ ] `chi-api` declares `api.middleware` and `api.config` with the same item fields as
   `go-event-sourcing-service`, and `check` passes.
+- [ ] A `chi-api` repo serves the routes of its API under `/api`, as a `go-event-sourcing-service` repo does
+  (US-019). So the docs of `api-auth` and `cli-auth` name one path for both starters.
 
 **Context:** Today `chi-api` compares the header with one shared token from a file, as
 `go-event-sourcing-service` does. The starter drops that check for the same reason as US-001. When a
 feature does not build with `chi-api` because it uses a package of `go-event-sourcing-service`, the fix goes
-into the feature (rule 6), not into a copy of the feature.
+into the feature (rule 6), not into a copy of the feature. The template `chi-api` in `repo-templates` serves
+its routes at the root. The starter serves them under `/api`, so that each feature has one set of docs.
 
-**Depends on:** US-004, US-005
+**Depends on:** US-004, US-005, US-019
 
 ### US-016: Make a CLI in its own repo
 
@@ -527,8 +540,9 @@ own repo and a CLI in a service repo come from the same files.
 **Acceptance Criteria:**
 
 - [ ] `feature-compose new go my-tool --no-prompt` makes a Go module that builds and passes its tests.
-- [ ] `feature-compose new go my-tool --feature cli --no-prompt` makes a CLI repo with releases, as the
-  template `go-cli` of `repo-templates` does. Its tests pass.
+- [ ] `feature-compose new go my-tool --feature cli --no-prompt` makes a CLI repo whose releases come from
+  GoReleaser. The CLI has the commands `version` and `update`, and the repo has a script that installs the
+  latest release. Its tests pass.
 - [ ] `cli` uses one set of files for the starter `go` and for the service starters.
 - [ ] `feature-compose new go my-tool --feature api-auth` stops before it writes a file. The message names
   the feature and the starter, and says that the feature does not target the starter.
@@ -555,6 +569,8 @@ render.
 - [ ] The catchup process starts the consumers of the process manager through `catchup.consumers`. Each
   other change to a file of the starter that the example needs is an item of an extension point of the
   starter. No step other than the folder commands changes a file after the render.
+- [ ] An item of `catchup.consumers` can fail when it starts, for example when an outside service does not
+  answer. The catchup process then stops, and the message says why.
 - [ ] The catalog has one copy of the files of the process manager.
 - [ ] `process-manager` targets only `go-event-sourcing-service`. `feature-compose new go my-tool --feature
   process-manager` stops, and the message names the feature and the starter.
@@ -563,9 +579,11 @@ render.
 The hook uses ast-grep, perl, and jq to change shared files, for example to add the hold events to the
 account aggregate and to the registry of events. The files of the process manager are also copies in two
 templates. The process manager uses the event store, so it cannot follow rule 6 in full. Rule 2 keeps it
-in the starters that declare its extension points.
+in the starters that declare its extension points. The webhook of the process manager is a route of the
+API, so the fake outside systems call it under `/api` (US-019). The first consumer that can fail when it
+starts comes with `push` (US-021): its consumer connects to NATS.
 
-**Depends on:** US-016
+**Depends on:** US-016, US-019
 
 ### US-018: Answer the questions in one form
 
@@ -617,6 +635,100 @@ comes before the TUI in the sources of section 8 of the proposal.
 
 **Depends on:** US-012, US-014
 
+### US-019: Call the API of a service from a web app
+
+**Description:** As a developer, I want the API of a `go-event-sourcing-service` repo to serve its routes
+under `/api` and to answer the web apps of the origins that I allow, so that a web app on another origin can
+call the API, and one host can serve the web app and the API.
+
+**Acceptance Criteria:**
+
+- [ ] A repo from `go-event-sourcing-service` serves each route of its API under `/api`, for example
+  `POST /api/accounts`, and the public root route at `GET /api/`. A request to a route at the root path,
+  for example `POST /accounts`, gets 404.
+- [ ] The requests in `Taskfile.api.yml`, the docs of the repo, and its event model name each route with
+  `/api`.
+- [ ] The API answers a request from an allowed origin with the CORS headers. It answers a preflight
+  `OPTIONS` with 204, also on a route that `api-auth` protects. A request from another origin gets no CORS
+  headers.
+- [ ] `ALLOWED_ORIGINS` gives the allowed origins as a list with commas. With no value, the API allows
+  `http://localhost:8080` and `http://127.0.0.1:8080`.
+- [ ] With `api-auth`, each method answers a refused request with 401, `WWW-Authenticate: Bearer`, and a
+  JSON body in the error shape of the other answers of the API. The message of the body tells the client to
+  sign in.
+- [ ] The docs of `api-auth` and `cli-auth` name the routes and the base URL of the API under `/api`.
+
+**Context:** The template `go-event-sourcing-service` in `repo-templates` has these changes (its commits
+`fa6d77d`, `43427b6`, `5744ef1`, `b692c2e`, and `d75aba1`). The catalog does not follow `repo-templates`: the
+changes are in this story because a service that a web app calls needs them. The starter has no shared-token
+check (US-001), so the JSON answer of 401 belongs to `api-auth`.
+
+**Depends on:** US-007
+
+### US-020: Publish the images of a service repo from CI
+
+**Description:** As a developer, I want the CI of a `go-event-sourcing-service` repo to publish the images of
+the API and of the catchup process, so that I can deploy the service from its registry, with no build on my
+machine.
+
+**Acceptance Criteria:**
+
+- [ ] On a push to `main` and on a tag, the CI of the repo builds the images of the API and of the catchup
+  process and pushes them to the GitHub container registry of the repo, after the tests pass. A push to
+  another branch runs only the tests.
+- [ ] Each image has the short SHA of its commit and the name of its branch as tags. An image from a version
+  tag also has the version, and an image from `main` also has `latest`.
+- [ ] Each job of the workflow gets only the permissions that it needs: it reads the contents, and only the
+  job that publishes writes the packages.
+- [ ] The images hold no `.env.*` file, no `.git` folder, and no build output of the machine.
+- [ ] The migrations run against a database that needs SSL when `DB_SSLMODE` names the mode. With no value,
+  the mode is `disable`.
+- [ ] The shell check of the repo also checks the scripts in the root folder of the repo.
+
+**Context:** The template `go-event-sourcing-service` in `repo-templates` has these changes (its commits
+`321d3dd` and `5c8d77f`). The template also takes newer `golang.org/x` modules. The CI of a repo from the
+starter builds the images, but does not push them.
+
+**Depends on:** US-001
+
+### US-021: Push the events of a service to WebSocket clients
+
+**Goals:** G4
+
+**Description:** As a developer, I want `--feature push` on a `go-event-sourcing-service` repo, so that the
+web clients of my service see each new event with no poll.
+
+**Acceptance Criteria:**
+
+- [ ] `feature-compose new go-event-sourcing-service my-service --feature push --no-prompt` makes a repo,
+  and its unit tests pass. A client that opens the WebSocket route under `/api` gets each event that the
+  service stores after the client connects.
+- [ ] `push` has the option `delivery`, with the values `pg-notify` and `nats`. The default is `pg-notify`.
+- [ ] With `pg-notify`, the API reads the new events from the notifications of Postgres. After a restart,
+  the API goes on from the last event that it sent, and does not send an old event again. The repo has no
+  NATS: no service, no setting, and no module.
+- [ ] With `nats`, the catchup process sends each event to NATS, and each instance of the API sends it to
+  its clients. A client of any instance gets each event at least one time. `task run` and the integration
+  tests start NATS.
+- [ ] When the API stops, it closes its WebSocket connections, and with `nats` its connection to NATS.
+- [ ] Each change that `push` makes to a shared file of the starter is an item of an extension point of the
+  starter: the routes of the API, the work of the API when it stops, the consumers of catchup, the services
+  and the settings of the Docker Compose files, the settings of the Taskfiles and of the `.env` files, and
+  the dependencies of the integration tests. No step other than the folder commands changes a file after
+  the render.
+- [ ] `push` targets only `go-event-sourcing-service`, and `check` passes. In the CI of feature-compose, a
+  repo with each value of `delivery` builds and passes its tests.
+
+**Context:** The template `go-event-sourcing-service` in `repo-templates` has two questions for this (its
+commits `13b501b`, `017999a`, `4eded84`, and `06052b3`). `PushSubscriber` sends the events through the
+notifications of Postgres. `PushNATS` sends them through NATS JetStream, which also serves many instances of
+the API. `PushNATS` replaces the notifications and does not need `PushSubscriber`, so one feature with one
+option fits them. The event store of the template also sends each event on a second notification channel,
+which only the push subscriber reads. That change belongs to this story. US-017 adds `catchup.consumers`.
+The starter has no extension point yet for the routes of the API or for the Docker Compose files.
+
+**Depends on:** US-017, US-019
+
 ## Non-Goals
 
 - The command `add`, and an update of a repo to a new version of the catalog. Both need a three-way merge,
@@ -630,6 +742,9 @@ comes before the TUI in the sources of section 8 of the proposal.
 - The templates that the proposal has not yet decided: `asdf-plugin`, `go-event-sourcing-cli`, `go-worker`,
   `global/git-hook`, and `global/kustomize`.
 - The removal of `repo-templates`.
+- A sync with `repo-templates`. The tool reads any catalog, and the catalog of this repo is one of them. A
+  change in `repo-templates` comes into the catalog only through a story that gives the change its own
+  value.
 
 ## Open Questions
 

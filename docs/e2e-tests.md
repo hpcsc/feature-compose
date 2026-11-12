@@ -79,7 +79,7 @@ tests keep the original binary.
 
 ## The full run of `new`
 
-Seven tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
+Eight tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
 first makes the repo from the starter alone:
 
 1. `feature-compose new go my-tool --no-prompt` makes the repo. Its `after_render` commands run `go mod tidy`,
@@ -104,7 +104,7 @@ The second adds `--feature cli`, and makes a CLI in its own repo:
 5. The binary in the archive for the platform of the test prints the tag of the snapshot for `version`. So the
    ldflag of `.goreleaser.yaml` sets the version.
 
-The other five make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
+The other six make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
 
 1. `feature-compose new go-event-sourcing-service my-service --no-prompt` makes the repo. Its `after_render`
    commands run `go mod tidy`, which downloads the modules of the repo.
@@ -161,7 +161,7 @@ The next adds `--feature cli`, and checks that the feature fits the starter:
 3. `go run ./cmd/my-service` with no command prints the commands of the CLI, which are only `version`,
    `update` and `help`, and reads no input.
 
-The last adds only `--feature cli-auth`, which needs `cli` and `api-auth`:
+The next adds only `--feature cli-auth`, which needs `cli` and `api-auth`:
 
 1. `new` prints `api-auth: needed by cli-auth` and `cli: needed by cli-auth` before the line that names the
    output folder.
@@ -177,11 +177,30 @@ The last adds only `--feature cli-auth`, which needs `cli` and `api-auth`:
    the key of the test, the program prints the answer 400 of the handler. With an unknown key and with no key,
    it stops with the messages of the CLI.
 
+The last adds `--feature process-manager`, the example of a payment to another bank:
+
+1. `gofmt -l .` lists no file, `go build ./...` builds, and `go vet -tags integration ./...` compiles the
+   integration tests, `process_test.go` among them. The test does not run them: they need Postgres.
+2. `task test:unit` stops with the exit status 0. The output of gotestsum shows that the tests of each package
+   with unit tests under `internal/use_cases`, `internal/api/use_cases` and `cmd/catchup` ran and passed.
+   These packages include the files that connect the example to the service, and the fakes of the outside
+   systems in `checks`, `submission` and `outside`.
+3. `task --list-all` names `run`, `fake_services:run`, `api:pay` and `api:get-payment`.
+4. The test starts the API. `POST /api/payments` and `POST /api/webhooks/fraud-checks` with the body `{}` get
+   the answer 400 of their handlers, and `POST /payments` gets 404.
+5. The test starts a webhook server of its own, and builds and starts `./cmd/fake_services` of the repo on a
+   free port with `WEBHOOK_DELAY=0s`. `POST /fraud/checks` with an `Idempotency-Key`, an amount under the
+   limit and the URL of the webhook server gets 202. The webhook server then gets one webhook with the
+   payment ID, `passed` true and the same key.
+
+The test does not run `task run`, the migrations or the integration tests. They need Docker and Postgres.
+The CI of the written repo runs the integration tests.
+
 To start an API, a test builds `./cmd/api` of the repo and runs it on a free port of `127.0.0.1`. The test
 calls the API at its base URL, which ends with `/api`. Its database settings point to no database. The pool of
 the API opens no connection before the first query, and `POST /api/accounts` with the body `{}` stops in the
-handler, because the owner is missing, before any query. So the test needs no Postgres. The API stops when the
-test ends.
+handler, because the owner is missing, before any query. So the test needs no Postgres. The API, the fakes
+and the webhook server stop when the test ends.
 
 So these tests need Go, Task, gotestsum, a C compiler and the network. The test of `go` with `cli` also needs
 GoReleaser and git: GoReleaser stops when no `git` is on the `PATH`, also outside a git repository. Each takes about a minute when the Go

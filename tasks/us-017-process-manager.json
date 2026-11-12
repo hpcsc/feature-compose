@@ -237,7 +237,7 @@
     },
     {
       "n": 8,
-      "done": false,
+      "done": true,
       "title": "Check end to end that a repo with `process-manager` builds, passes its tests and runs its fakes, and that the catalog has one copy of its files",
       "language": "TypeScript",
       "testable": true,

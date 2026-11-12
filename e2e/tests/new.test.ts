@@ -245,6 +245,48 @@ describe('feature-compose new', () => {
     15 * 60 * 1000,
   )
 
+  it(
+    'makes a repo with process-manager that builds, passes its unit tests, has the tasks of task run, serves the payment and webhook routes, and whose fakes call the webhook of a request',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'process-manager', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      const repo = join(dir, 'my-service')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      for (const args of [['build', './...'], ['vet', '-tags', 'integration', './...']]) {
+        const result = await runProgram(repo, 'go', args, env)
+        expect(result.status, `go ${args.join(' ')}: ${result.stdout}${result.stderr}`).toBe(0)
+      }
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      const withUnitTests = ['internal/use_cases', 'internal/api/use_cases', 'cmd/catchup'].flatMap((folder) => foldersWithUnitTests(repo, folder))
+      expect(withUnitTests).toEqual(expect.arrayContaining(['internal/use_cases', 'internal/api/use_cases', 'cmd/catchup', 'internal/use_cases/payment/checks', 'internal/use_cases/payment/submission', 'internal/use_cases/payment/outside']))
+      expect(passedPackages(unit.stdout)).toEqual(expect.arrayContaining(withUnitTests))
+      const tasks = await runProgram(repo, 'task', ['--list-all'], env)
+      expect(tasksIn(tasks.stdout)).toEqual(expect.arrayContaining(['run', 'fake_services:run', 'api:pay', 'api:get-payment']))
+      const api = await startedApi(repo, env)
+      for (const route of ['/payments', '/webhooks/fraud-checks']) {
+        expect((await fetch(`${api}${route}`, { method: 'POST', body: '{}' })).status, route).toBe(400)
+      }
+      expect((await fetch(`${api.replace(/\/api$/, '')}/payments`, { method: 'POST', body: '{}' })).status).toBe(404)
+      const webhooks = await startedWebhookServer()
+      const fakes = await startedFakes(repo, env)
+      const answer = await fetch(`${fakes}/fraud/checks`, {
+        method: 'POST',
+        headers: { 'Idempotency-Key': 'key-of-the-e2e-test' },
+        body: JSON.stringify({ paymentId: 'payment-1', amount: 300, creditorIban: 'DE89370400440532013000', webhookUrl: `${webhooks.url}/fraud-checks` }),
+      })
+      expect(answer.status).toBe(202)
+      await until(() => webhooks.received.length > 0)
+      expect(webhooks.received).toEqual([{ path: '/fraud-checks', key: 'key-of-the-e2e-test', body: { paymentId: 'payment-1', passed: true } }])
+    },
+    15 * 60 * 1000,
+  )
+
   it('a value that the option method of api-auth does not have stops new, names method and its values, and makes no folder', async () => {
     const dir = scratchDir()
 
@@ -712,6 +754,51 @@ async function startedApi(repo: string, env: Record<string, string>): Promise<st
   }
 }
 
+// startedFakes builds the fakes of the outside systems of a written repo, and starts them on a free port with no
+// delay before a webhook. The fakes have no route at the root path, so the wait takes any answer as the start.
+async function startedFakes(repo: string, env: Record<string, string>): Promise<string> {
+  const build = await runProgram(repo, 'go', ['build', '-o', join(repo, 'fakes-of-the-test'), './cmd/fake_services'], env)
+  expect(build.status, build.stdout + build.stderr).toBe(0)
+  const port = await freePort()
+  const fakes = spawn(join(repo, 'fakes-of-the-test'), [], { cwd: repo, env: { ...process.env, ...env, PORT: String(port), WEBHOOK_DELAY: '0s' } })
+  let printed = ''
+  fakes.stdout?.on('data', (chunk) => (printed += chunk))
+  fakes.stderr?.on('data', (chunk) => (printed += chunk))
+  onTestFinished(() => {
+    fakes.kill('SIGKILL')
+  })
+  const url = `http://127.0.0.1:${port}`
+  for (let waited = 0; ; waited += 100) {
+    if (fakes.exitCode !== null) throw new Error(`the fakes stopped with the exit status ${fakes.exitCode}: ${printed}`)
+    try {
+      await fetch(`${url}/network/payments/none`)
+      return url
+    } catch {
+      if (waited > 20000) throw new Error(`the fakes did not answer within 20 seconds: ${printed}`)
+      await new Promise((done) => setTimeout(done, 100))
+    }
+  }
+}
+
+async function startedWebhookServer(): Promise<{ url: string; received: { path: string; key: string; body: unknown }[] }> {
+  const received: { path: string; key: string; body: unknown }[] = []
+  const server = createServer((request, response) => {
+    let body = ''
+    request.on('data', (chunk) => (body += chunk))
+    request.on('end', () => {
+      received.push({ path: request.url ?? '', key: String(request.headers['idempotency-key']), body: JSON.parse(body) })
+      response.writeHead(200)
+      response.end()
+    })
+  })
+  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done))
+  onTestFinished(() => {
+    server.closeAllConnections()
+    server.close()
+  })
+  return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, received }
+}
+
 async function startedTestIssuer(): Promise<{ url: string; token: (claims: Record<string, unknown>) => string }> {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
   let url = ''
@@ -843,6 +930,12 @@ function passedPackages(output: string): string[] {
 function foldersWithTests(repo: string, folder: string): string[] {
   const testFiles = (readdirSync(join(repo, folder), { recursive: true }) as string[]).filter((path) => path.endsWith('_test.go'))
   return [...new Set(testFiles.map((path) => (dirname(path) === '.' ? folder : `${folder}/${dirname(path)}`)))]
+}
+
+function foldersWithUnitTests(repo: string, folder: string): string[] {
+  return foldersWithTests(repo, folder).filter((withTests) =>
+    readdirSync(join(repo, withTests)).some((file) => file.endsWith('_test.go') && readFileSync(join(repo, withTests, file), 'utf8').startsWith('//go:build unit')),
+  )
 }
 
 function listIn(yaml: string, key: string): string[] {

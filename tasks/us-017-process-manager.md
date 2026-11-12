@@ -784,25 +784,25 @@ webhook of a request. A catalog test shows that the catalog has one copy of each
 (decision 9).
 
 **Acceptance Criteria:**
-- [ ] The e2e test makes the repo, and the run exits with 0. In the repo, `gofmt -l .` lists no file,
+- [x] The e2e test makes the repo, and the run exits with 0. In the repo, `gofmt -l .` lists no file,
   `go build ./...` and `go vet -tags integration ./...` exit with 0, and `task test:unit` exits with 0. The packages
   that pass include each folder with unit tests under `internal/use_cases`, `internal/api/use_cases`,
   `internal/fakeservices` and `cmd/catchup`, with the connector files of `internal/use_cases`, `internal/api/use_cases` and
   `cmd/catchup` among them.
-- [ ] `task --list-all` in the repo names `run`, `fakeservices:run`, `api:pay` and `api:get-payment`.
-- [ ] The test starts the API of the repo with DB settings that point to no database. `POST /api/payments` and
+- [x] `task --list-all` in the repo names `run`, `fakeservices:run`, `api:pay` and `api:get-payment`.
+- [x] The test starts the API of the repo with DB settings that point to no database. `POST /api/payments` and
   `POST /api/webhooks/fraud-checks` with the body `{}` get the answer 400 of their handlers, and `POST /payments` gets
   404.
-- [ ] The test starts the fakes of the repo on a free port with no webhook delay, and sends `POST /fraud/checks` with a
+- [x] The test starts the fakes of the repo on a free port with no webhook delay, and sends `POST /fraud/checks` with a
   key of the request and an amount under the limit, whose webhook URL is a server of the test. The fakes answer 202,
   and the server gets a webhook with the payment ID, the result `passed` true, and the same key. The test stops the
   API, the fakes and the server when it ends.
-- [ ] A catalog test walks the catalog folder: each file whose path in the repo is a path of the process manager is
+- [x] A catalog test walks the catalog folder: each file whose path in the repo is a path of the process manager is
   under `catalog/features/process-manager/files/go/`, and no two files of the catalog give the same path in the repo.
-- [ ] Only the full runs have a timeout longer than the 30 seconds of `e2e/vitest.config.ts`.
-- [ ] `docs/e2e-tests.md` describes the full run with `process-manager`: what it checks, what it starts, what it
+- [x] Only the full runs have a timeout longer than the 30 seconds of `e2e/vitest.config.ts`.
+- [x] `docs/e2e-tests.md` describes the full run with `process-manager`: what it checks, what it starts, what it
   needs, and that it does not run `task run`, the migrations or the integration tests.
-- [ ] `task test:unit` passes, and the e2e tests of `new` pass on the host.
+- [x] `task test:unit` passes, and the e2e tests of `new` pass on the host.
 
 **Affected Files/Modules:**
 - `e2e/tests/new.test.ts` — the full run with `process-manager`

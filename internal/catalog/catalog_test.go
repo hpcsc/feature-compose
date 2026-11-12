@@ -1301,6 +1301,28 @@ files:
 			require.True(t, strings.HasSuffix(files["README.md"], "[docs/event-subscription.md](docs/event-subscription.md#one-process-for-each-consumer) tells how.\n"))
 		})
 
+		t.Run("the catalog has one copy of each file of the process manager, in the folder of the feature process-manager", func(t *testing.T) {
+			processManager := regexp.MustCompile(`^(internal/use_cases/payment(/|(_test)?\.go$)|internal/api/use_cases/(payment/|webhook/|payment(_test)?\.go$)|cmd/catchup/payment(_test)?\.go$|internal/use_cases/account/(holds/|hold(_test)?\.go$|event/hold_|command/[^/]*_hold\.go$)|cmd/fake_services/|Taskfile\.fake_services\.yml$|Dockerfile\.fake_services$|migrations/[^/]*_create-payment(s|-deadlines)-table\.|docs/process-manager-example\.md$|docs/event-model-payment\.)`)
+			pathInRepo := regexp.MustCompile(`^(?:starters|features)/[^/]+/files/(?:[^/]+/)*?go/(.+?)(?:\.tmpl)?$`)
+			copies := map[string][]string{}
+
+			require.NoError(t, fs.WalkDir(os.DirFS(repoCatalogDir), ".", func(path string, entry fs.DirEntry, err error) error {
+				if err != nil || entry.IsDir() {
+					return err
+				}
+				if match := pathInRepo.FindStringSubmatch(path); match != nil && processManager.MatchString(match[1]) {
+					copies[match[1]] = append(copies[match[1]], path)
+				}
+				return nil
+			}))
+
+			require.Subset(t, slices.Collect(maps.Keys(copies)), []string{"internal/use_cases/account/hold.go", "cmd/catchup/payment.go", "internal/api/use_cases/payment.go", "internal/use_cases/payment.go", "internal/use_cases/payment/checks/fake_services.go", "Taskfile.fake_services.yml"})
+			for path, catalogFiles := range copies {
+				require.Len(t, catalogFiles, 1, path)
+				require.True(t, strings.HasPrefix(catalogFiles[0], "features/process-manager/files/go/"), catalogFiles[0])
+			}
+		})
+
 		t.Run("with no item, the account, its events, the balance projection and the registration of the handlers have only the lines of the starter", func(t *testing.T) {
 			_, files := writtenStarter(t, nil)
 

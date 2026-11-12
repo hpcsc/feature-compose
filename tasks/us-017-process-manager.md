@@ -506,26 +506,26 @@ with the outside client, the projections of the summary and of the deadlines, an
 the tables `payments` and `payment_deadlines` after the migrations of the starter (decision 7).
 
 **Acceptance Criteria:**
-- [ ] `process-manager` adds `Outside outside.Config` with the import `internal/use_cases/payment/outside` to
+- [x] `process-manager` adds `Outside outside.Config` with the import `internal/use_cases/payment/outside` to
   `catchup.config`, and one call of `paymentWorkers` to `catchup.consumers`. The connector file `cmd/catchup/payment.go`
   gives the eight workers of the template block, in its order, with `NewConflictRetry` and `StartAtBeginning` as there.
-- [ ] Written with `process-manager`, the repo has the packages `funding`, `holds`, `checks`, `submission`, `status`,
+- [x] Written with `process-manager`, the repo has the packages `funding`, `holds`, `checks`, `submission`, `status`,
   `outside`, `summary` and `deadlines` of the template under `internal/use_cases/payment/`, and the two migrations of
   decision 7 with their `up` and `down` files.
-- [ ] The `up` migration `20261005124000_create-payments-table` creates the table `payments`, and
+- [x] The `up` migration `20261005124000_create-payments-table` creates the table `payments`, and
   `20261005124100_create-payment-deadlines-table` creates `payment_deadlines`; each `down` migration drops its table.
-- [ ] For each feature of the catalog that targets `go-event-sourcing-service`, each migration that it adds has a
+- [x] For each feature of the catalog that targets `go-event-sourcing-service`, each migration that it adds has a
   version after each migration of the starter (a catalog test).
-- [ ] In the written repo, the unit tests of `funding`, `holds`, `checks`, `submission`, `status` and `outside` run in
+- [x] In the written repo, the unit tests of `funding`, `holds`, `checks`, `submission`, `status` and `outside` run in
   `task test:unit` and pass.
-- [ ] A unit test of the connector file in the written repo (`cmd/catchup/payment_test.go`, tag `unit`) shows that the
+- [x] A unit test of the connector file in the written repo (`cmd/catchup/payment_test.go`, tag `unit`) shows that the
   workers of catchup, with a pool that points to no database, have the two names of the workers of the starter and the
   eight names of the workers of the payment of the template, each one time. A name is the key of the checkpoint and of
   the lock of a worker, so two workers with one name is a mistake.
-- [ ] `feature-compose check --catalog catalog` finds no mistake.
-- [ ] With each combination, the written repo builds, `gofmt -l .` lists no file, and its unit tests pass
+- [x] `feature-compose check --catalog catalog` finds no mistake.
+- [x] With each combination, the written repo builds, `gofmt -l .` lists no file, and its unit tests pass
   (`task test:combinations`).
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the host.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the host.
 
 **Affected Files/Modules:**
 - `catalog/features/process-manager/files/go/internal/use_cases/payment/` — new: `funding/`, `holds/`, `checks/`,

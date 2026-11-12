@@ -17,6 +17,12 @@ add_to:
   balance.changes:
     - event: HoldCaptured
       amount: -payload.Amount
+  catchup.config:
+    - name: Outside
+      type: outside.Config
+      import: internal/use_cases/payment/outside
+  catchup.consumers:
+    - code: paymentWorkers(pool, cfg, logger, bus, eventStream, checkpointStore, eventSubscription)
   use_cases.events:
     - code: registerPaymentEvents(reg)
   use_cases.handlers:

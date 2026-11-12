@@ -1118,6 +1118,64 @@ files:
 			require.Contains(t, files["internal/use_cases/register.go"], "\tcloseaccount.Register(bus, accounts)\n\tregisterPaymentHandlers(bus, stream, accounts)\n}")
 		})
 
+		t.Run("with process-manager, catchup reads the config of the outside systems and runs the workers of the payment", func(t *testing.T) {
+			files := writtenWithProcessManager(t)
+
+			require.Contains(t, files["cmd/catchup/main.go"], "\tDB config.DB\n\tOutside outside.Config\n}")
+			require.Equal(t, 1, strings.Count(files["cmd/catchup/main.go"], `"github.com/hpcsc/my-service/internal/use_cases/payment/outside"`))
+			require.Contains(t, files["cmd/catchup/main.go"], "\tall = append(all, paymentWorkers(pool, cfg, logger, bus, eventStream, checkpointStore, eventSubscription)...)\n")
+			var reactors []string
+			for _, line := range strings.Split(files["cmd/catchup/payment.go"], "\n") {
+				if strings.Contains(line, "reaction.NewReactor(") {
+					reactors = append(reactors, line)
+				}
+			}
+			require.Len(t, reactors, 5)
+			for _, reactor := range reactors {
+				require.Contains(t, reactor, "reaction.NewReactor(reaction.NewConflictRetry(")
+				require.True(t, strings.HasSuffix(reactor, ", 3), checkpointStore, eventSubscription, logger, reaction.StartAtBeginning()),"), reactor)
+			}
+		})
+
+		t.Run("with process-manager, the migrations create the tables payments and payment_deadlines, and drop them again", func(t *testing.T) {
+			files := writtenWithProcessManager(t)
+
+			require.Contains(t, files["migrations/20261005124000_create-payments-table.up.sql"], "CREATE TABLE IF NOT EXISTS payments (")
+			require.Contains(t, files["migrations/20261005124000_create-payments-table.down.sql"], "DROP TABLE IF EXISTS payments;")
+			require.Contains(t, files["migrations/20261005124100_create-payment-deadlines-table.up.sql"], "CREATE TABLE IF NOT EXISTS payment_deadlines (")
+			require.Contains(t, files["migrations/20261005124100_create-payment-deadlines-table.down.sql"], "DROP TABLE IF EXISTS payment_deadlines;")
+		})
+
+		t.Run("each migration of a feature that targets the starter has a version after each migration of the starter", func(t *testing.T) {
+			definitions, err := repoCatalog().Definitions()
+			require.NoError(t, err)
+			versionsUnder := func(t *testing.T, folder string) []string {
+				t.Helper()
+				var versions []string
+				require.NoError(t, fs.WalkDir(os.DirFS(repoCatalogDir), folder, func(path string, entry fs.DirEntry, err error) error {
+					if err == nil && !entry.IsDir() && strings.Contains(path, "/migrations/") {
+						versions = append(versions, strings.SplitN(entry.Name(), "_", 2)[0])
+					}
+					return err
+				}))
+				return versions
+			}
+			latestOfStarter := slices.Max(versionsUnder(t, "starters/go-event-sourcing-service"))
+			featureVersions := map[string][]string{}
+			for featureName, feature := range definitions.Features {
+				if slices.Contains(feature.Targets, "go-event-sourcing-service") {
+					featureVersions[featureName] = versionsUnder(t, "features/"+featureName)
+				}
+			}
+
+			require.NotEmpty(t, featureVersions["process-manager"])
+			for featureName, versions := range featureVersions {
+				for _, version := range versions {
+					require.Greater(t, version, latestOfStarter, featureName)
+				}
+			}
+		})
+
 		t.Run("with no item, the account, its events, the balance projection and the registration of the handlers have only the lines of the starter", func(t *testing.T) {
 			_, files := writtenStarter(t, nil)
 

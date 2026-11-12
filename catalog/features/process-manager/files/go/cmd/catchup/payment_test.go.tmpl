@@ -1,0 +1,33 @@
+//go:build unit
+
+package main
+
+import (
+	"context"
+	"log/slog"
+	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/require"
+)
+
+func TestPaymentWorkers(t *testing.T) {
+	t.Run("workers", func(t *testing.T) {
+		t.Run("catchup runs the workers of the starter and each worker of the payment, each under a name of its own", func(t *testing.T) {
+			pool, err := pgxpool.New(context.Background(), "postgres://nobody@127.0.0.1:1/none")
+			require.NoError(t, err)
+			defer pool.Close()
+
+			var names []string
+			for _, w := range workers(pool, &Config{}, slog.New(slog.DiscardHandler)) {
+				names = append(names, w.Name())
+			}
+
+			require.ElementsMatch(t, []string{
+				"account-balances", "welcome-bonus",
+				"payment-funding", "payment-holds", "payment-checks", "payment-submission", "payment-status",
+				"payments", "payment-deadlines", "payment-timeouts",
+			}, names)
+		})
+	})
+}

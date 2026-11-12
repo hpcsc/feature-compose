@@ -1,0 +1,26 @@
+package domain
+
+var _ Aggregate = (*FakeAggregate)(nil)
+
+type FakeAggregate struct {
+	AggregateBase
+
+	Value string
+}
+
+func (a *FakeAggregate) DoSomething(id string, values ...string) {
+	for _, value := range values {
+		a.record(NewFakeSomethingHappenedEvent(id, value))
+	}
+}
+
+func (a *FakeAggregate) Apply(e Event) {
+	if payload, ok := e.Payload.(*FakeSomethingHappened); ok {
+		a.Value = payload.Value
+	}
+}
+
+func (a *FakeAggregate) record(e Event) {
+	a.Apply(e)
+	a.Record(e)
+}

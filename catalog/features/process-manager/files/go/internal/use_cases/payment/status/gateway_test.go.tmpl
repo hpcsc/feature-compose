@@ -14,7 +14,6 @@ import (
 	"{{ option "starter.module" }}/internal/common/test"
 	"{{ option "starter.module" }}/internal/domain"
 	"{{ option "starter.module" }}/internal/domain/command"
-	"{{ option "starter.module" }}/internal/domain/command/fake"
 	"{{ option "starter.module" }}/internal/domain/event/stream"
 	"{{ option "starter.module" }}/internal/use_cases/payment"
 	paymentCommand "{{ option "starter.module" }}/internal/use_cases/payment/command"
@@ -96,8 +95,8 @@ func TestGateway(t *testing.T) {
 
 type system struct {
 	gateway     *status.Gateway
-	settlements *fake.Handler[paymentCommand.RecordSettlement]
-	returns     *fake.Handler[paymentCommand.RecordReturn]
+	settlements *command.FakeHandler[paymentCommand.RecordSettlement]
+	returns     *command.FakeHandler[paymentCommand.RecordReturn]
 }
 
 func newSystem(t *testing.T, networkURL string, paymentID uuid.UUID, logger *slog.Logger) system {
@@ -106,8 +105,8 @@ func newSystem(t *testing.T, networkURL string, paymentID uuid.UUID, logger *slo
 		domain.NewEvent(&paymentEvent.PaymentRequested{PaymentID: paymentID, AccountID: uuid.New(), CreditorIBAN: "DE89370400440532013000", Amount: 300}),
 		domain.NewEvent(&paymentEvent.PaymentSubmitted{PaymentID: paymentID, NetworkReference: "N-8812", SettlementDeadline: time.Now()}),
 	}, 0))
-	settlements := fake.NewHandler[paymentCommand.RecordSettlement]()
-	returns := fake.NewHandler[paymentCommand.RecordReturn]()
+	settlements := command.NewFakeHandler[paymentCommand.RecordSettlement]()
+	returns := command.NewFakeHandler[paymentCommand.RecordReturn]()
 	bus := command.NewBus()
 	bus.Register[paymentCommand.RecordSettlement](settlements)
 	bus.Register[paymentCommand.RecordReturn](returns)

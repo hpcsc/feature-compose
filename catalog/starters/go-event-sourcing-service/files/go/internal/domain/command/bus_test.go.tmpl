@@ -11,10 +11,8 @@ import (
 	"github.com/google/uuid"
 	"{{ option "starter.module" }}/internal/domain"
 	"{{ option "starter.module" }}/internal/domain/command"
-	"{{ option "starter.module" }}/internal/domain/command/fake"
 	"{{ option "starter.module" }}/internal/domain/event"
 	"{{ option "starter.module" }}/internal/domain/event/stream"
-	domainFake "{{ option "starter.module" }}/internal/domain/fake"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,9 +20,9 @@ func TestBus(t *testing.T) {
 	t.Run("dispatch", func(t *testing.T) {
 		t.Run("gives the command to the handler of its payload type", func(t *testing.T) {
 			b := command.NewBus()
-			handler := fake.NewHandler[fake.Payload]()
-			b.Register[fake.Payload](handler)
-			cmd := domain.NewCommand(fake.Payload{Value: "value"})
+			handler := command.NewFakeHandler[command.FakePayload]()
+			b.Register[command.FakePayload](handler)
+			cmd := domain.NewCommand(command.FakePayload{Value: "value"})
 
 			err := b.Dispatch(context.Background(), cmd)
 
@@ -35,16 +33,16 @@ func TestBus(t *testing.T) {
 		t.Run("returns an error when no handler has the payload type", func(t *testing.T) {
 			b := command.NewBus()
 
-			err := b.Dispatch(context.Background(), domain.NewCommand(fake.Payload{}))
+			err := b.Dispatch(context.Background(), domain.NewCommand(command.FakePayload{}))
 
-			require.ErrorContains(t, err, "no command handler registered for command fake.Payload")
+			require.ErrorContains(t, err, "no command handler registered for command command.FakePayload")
 		})
 
 		t.Run("returns the error of the handler", func(t *testing.T) {
 			b := command.NewBus()
-			b.Register[fake.Payload](fake.NewHandler[fake.Payload]().WithError(errors.New("some error")))
+			b.Register[command.FakePayload](command.NewFakeHandler[command.FakePayload]().WithError(errors.New("some error")))
 
-			err := b.Dispatch(context.Background(), domain.NewCommand(fake.Payload{}))
+			err := b.Dispatch(context.Background(), domain.NewCommand(command.FakePayload{}))
 
 			require.ErrorContains(t, err, "some error")
 		})
@@ -52,10 +50,10 @@ func TestBus(t *testing.T) {
 		t.Run("calls the handler again when another change saved first", func(t *testing.T) {
 			b := command.NewBus()
 			conflict := fmt.Errorf("%w: stream moved", event.ErrConcurrencyConflict)
-			handler := fake.NewHandler[fake.Payload]().WithErrors(conflict, nil)
-			b.Register[fake.Payload](handler)
+			handler := command.NewFakeHandler[command.FakePayload]().WithErrors(conflict, nil)
+			b.Register[command.FakePayload](handler)
 
-			err := b.Dispatch(context.Background(), domain.NewCommand(fake.Payload{}))
+			err := b.Dispatch(context.Background(), domain.NewCommand(command.FakePayload{}))
 
 			require.NoError(t, err)
 			require.Equal(t, 2, handler.Calls())
@@ -64,10 +62,10 @@ func TestBus(t *testing.T) {
 		t.Run("returns the conflict after the last attempt", func(t *testing.T) {
 			b := command.NewBus()
 			conflict := fmt.Errorf("%w: stream moved", event.ErrConcurrencyConflict)
-			handler := fake.NewHandler[fake.Payload]().WithError(conflict)
-			b.Register[fake.Payload](handler)
+			handler := command.NewFakeHandler[command.FakePayload]().WithError(conflict)
+			b.Register[command.FakePayload](handler)
 
-			err := b.Dispatch(context.Background(), domain.NewCommand(fake.Payload{}))
+			err := b.Dispatch(context.Background(), domain.NewCommand(command.FakePayload{}))
 
 			require.ErrorIs(t, err, event.ErrConcurrencyConflict)
 			require.Equal(t, 3, handler.Calls())
@@ -75,12 +73,12 @@ func TestBus(t *testing.T) {
 
 		t.Run("does not call the handler when the context ended", func(t *testing.T) {
 			b := command.NewBus()
-			handler := fake.NewHandler[fake.Payload]()
-			b.Register[fake.Payload](handler)
+			handler := command.NewFakeHandler[command.FakePayload]()
+			b.Register[command.FakePayload](handler)
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 
-			err := b.Dispatch(ctx, domain.NewCommand(fake.Payload{}))
+			err := b.Dispatch(ctx, domain.NewCommand(command.FakePayload{}))
 
 			require.ErrorIs(t, err, context.Canceled)
 			require.Equal(t, 0, handler.Calls())
@@ -90,13 +88,13 @@ func TestBus(t *testing.T) {
 	t.Run("repeated command", func(t *testing.T) {
 		t.Run("does not call the handler for a command that the store has", func(t *testing.T) {
 			history := stream.NewMemory()
-			cmd := domain.NewCommand(fake.Payload{})
-			saved := domainFake.NewSomethingHappenedEvent("1", "first")
+			cmd := domain.NewCommand(command.FakePayload{})
+			saved := domain.NewFakeSomethingHappenedEvent("1", "first")
 			saved.CommandID = cmd.ID
 			require.NoError(t, history.Save(context.Background(), "stream-1", []domain.Event{saved}, 0))
 			b := command.NewBus(command.WithHistory(history))
-			handler := fake.NewHandler[fake.Payload]()
-			b.Register[fake.Payload](handler)
+			handler := command.NewFakeHandler[command.FakePayload]()
+			b.Register[command.FakePayload](handler)
 
 			err := b.Dispatch(context.Background(), cmd)
 
@@ -106,10 +104,10 @@ func TestBus(t *testing.T) {
 
 		t.Run("calls the handler for a command that the store does not have", func(t *testing.T) {
 			b := command.NewBus(command.WithHistory(stream.NewMemory()))
-			handler := fake.NewHandler[fake.Payload]()
-			b.Register[fake.Payload](handler)
+			handler := command.NewFakeHandler[command.FakePayload]()
+			b.Register[command.FakePayload](handler)
 
-			err := b.Dispatch(context.Background(), domain.NewCommand(fake.Payload{}))
+			err := b.Dispatch(context.Background(), domain.NewCommand(command.FakePayload{}))
 
 			require.NoError(t, err)
 			require.Equal(t, 1, handler.Calls())
@@ -118,10 +116,10 @@ func TestBus(t *testing.T) {
 		t.Run("returns no error when another process saves the same command first", func(t *testing.T) {
 			b := command.NewBus(command.WithHistory(stream.NewMemory()))
 			duplicate := fmt.Errorf("%w: command saved", event.ErrDuplicateCommand)
-			handler := fake.NewHandler[fake.Payload]().WithError(duplicate)
-			b.Register[fake.Payload](handler)
+			handler := command.NewFakeHandler[command.FakePayload]().WithError(duplicate)
+			b.Register[command.FakePayload](handler)
 
-			err := b.Dispatch(context.Background(), domain.NewCommand(fake.Payload{}))
+			err := b.Dispatch(context.Background(), domain.NewCommand(command.FakePayload{}))
 
 			require.NoError(t, err)
 			require.Equal(t, 1, handler.Calls())
@@ -130,10 +128,10 @@ func TestBus(t *testing.T) {
 		t.Run("returns the error when the store cannot be read", func(t *testing.T) {
 			expectedErr := errors.New("read failed")
 			b := command.NewBus(command.WithHistory(brokenHistory{err: expectedErr}))
-			handler := fake.NewHandler[fake.Payload]()
-			b.Register[fake.Payload](handler)
+			handler := command.NewFakeHandler[command.FakePayload]()
+			b.Register[command.FakePayload](handler)
 
-			err := b.Dispatch(context.Background(), domain.NewCommand(fake.Payload{}))
+			err := b.Dispatch(context.Background(), domain.NewCommand(command.FakePayload{}))
 
 			require.ErrorIs(t, err, expectedErr)
 			require.Equal(t, 0, handler.Calls())

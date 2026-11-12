@@ -1,0 +1,17 @@
+package domain
+
+type FakeSomethingHappened struct {
+	ID    string
+	Value string
+}
+
+func NewFakeSomethingHappenedEvent(id string, value string) Event {
+	return NewEvent(&FakeSomethingHappened{
+		ID:    id,
+		Value: value,
+	})
+}
+
+func (FakeSomethingHappened) EventType() string {
+	return "fake.something-happened"
+}

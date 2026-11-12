@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"{{ option "starter.module" }}/internal/domain"
 	"{{ option "starter.module" }}/internal/domain/command"
-	"{{ option "starter.module" }}/internal/domain/command/fake"
 	accountCommand "{{ option "starter.module" }}/internal/use_cases/account/command"
 	paymentEvent "{{ option "starter.module" }}/internal/use_cases/payment/event"
 	"{{ option "starter.module" }}/internal/use_cases/payment/holds"
@@ -52,9 +51,9 @@ func TestReaction(t *testing.T) {
 	})
 }
 
-func newReaction() (*holds.Reaction, *fake.Handler[accountCommand.CaptureHold], *fake.Handler[accountCommand.ReleaseHold]) {
-	captures := fake.NewHandler[accountCommand.CaptureHold]()
-	releases := fake.NewHandler[accountCommand.ReleaseHold]()
+func newReaction() (*holds.Reaction, *command.FakeHandler[accountCommand.CaptureHold], *command.FakeHandler[accountCommand.ReleaseHold]) {
+	captures := command.NewFakeHandler[accountCommand.CaptureHold]()
+	releases := command.NewFakeHandler[accountCommand.ReleaseHold]()
 	bus := command.NewBus()
 	bus.Register[accountCommand.CaptureHold](captures)
 	bus.Register[accountCommand.ReleaseHold](releases)

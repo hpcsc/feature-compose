@@ -16,7 +16,6 @@ import (
 	"{{ option "starter.module" }}/internal/api/use_cases/payment"
 	commonTest "{{ option "starter.module" }}/internal/common/test"
 	"{{ option "starter.module" }}/internal/domain/command"
-	"{{ option "starter.module" }}/internal/domain/command/fake"
 	paymentCommand "{{ option "starter.module" }}/internal/use_cases/payment/command"
 	"{{ option "starter.module" }}/internal/use_cases/payment/summary"
 	"github.com/stretchr/testify/require"
@@ -25,7 +24,7 @@ import (
 func TestHandler(t *testing.T) {
 	t.Run("request", func(t *testing.T) {
 		t.Run("requests the payment and returns the new payment ID", func(t *testing.T) {
-			handler := fake.NewHandler[paymentCommand.Request]()
+			handler := command.NewFakeHandler[paymentCommand.Request]()
 			bus := command.NewBus()
 			bus.Register[paymentCommand.Request](handler)
 			accountID := uuid.New()
@@ -41,7 +40,7 @@ func TestHandler(t *testing.T) {
 
 		t.Run("rejects an account ID that is not a UUID", func(t *testing.T) {
 			bus := command.NewBus()
-			bus.Register[paymentCommand.Request](fake.NewHandler[paymentCommand.Request]())
+			bus.Register[paymentCommand.Request](command.NewFakeHandler[paymentCommand.Request]())
 
 			w := send(newRouter(bus, nil), "POST", "/payments", `{"accountId": "not-a-uuid", "creditorIban": "DE89370400440532013000", "amount": 300}`)
 
@@ -51,7 +50,7 @@ func TestHandler(t *testing.T) {
 
 		t.Run("returns the refusal of the payment", func(t *testing.T) {
 			bus := command.NewBus()
-			bus.Register[paymentCommand.Request](fake.NewHandler[paymentCommand.Request]().WithError(fmt.Errorf("account does not exist")))
+			bus.Register[paymentCommand.Request](command.NewFakeHandler[paymentCommand.Request]().WithError(fmt.Errorf("account does not exist")))
 
 			w := send(newRouter(bus, nil), "POST", "/payments", fmt.Sprintf(`{"accountId": %q, "creditorIban": "DE89370400440532013000", "amount": 300}`, uuid.New()))
 

@@ -15,7 +15,6 @@ import (
 	"{{ option "starter.module" }}/internal/domain/event/registry"
 	"{{ option "starter.module" }}/internal/domain/event/stream"
 	"{{ option "starter.module" }}/internal/domain/event/subscription"
-	"{{ option "starter.module" }}/internal/domain/fake"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
@@ -46,7 +45,7 @@ func (newerThingHappened) EventType() string {
 }
 
 func TestPostgresSubscription(t *testing.T) {
-	somethingHappened := fake.SomethingHappened{}.EventType()
+	somethingHappened := domain.FakeSomethingHappened{}.EventType()
 
 	t.Run("subscribe", func(t *testing.T) {
 		t.Run("receives events written after the subscription starts", func(t *testing.T) {
@@ -345,12 +344,12 @@ func newStreamID(t *testing.T) string {
 
 func newRegistry() *registry.OfEvents {
 	reg := registry.New()
-	reg.Register[fake.SomethingHappened]()
+	reg.Register[domain.FakeSomethingHappened]()
 	return reg
 }
 
 func newEvent(t *testing.T, value string) domain.Event {
-	return fake.NewSomethingHappenedEvent(test.NewStringID(t), value)
+	return domain.NewFakeSomethingHappenedEvent(test.NewStringID(t), value)
 }
 
 func eventData(value string) string {
@@ -400,5 +399,5 @@ func requireNothingFrom(t *testing.T, events <-chan domain.Event, wait time.Dura
 }
 
 func value(evt domain.Event) string {
-	return evt.Payload.(*fake.SomethingHappened).Value
+	return evt.Payload.(*domain.FakeSomethingHappened).Value
 }

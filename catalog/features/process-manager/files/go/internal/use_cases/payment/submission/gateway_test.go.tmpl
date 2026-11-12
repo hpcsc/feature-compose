@@ -15,7 +15,6 @@ import (
 	"{{ option "starter.module" }}/internal/common/test"
 	"{{ option "starter.module" }}/internal/domain"
 	"{{ option "starter.module" }}/internal/domain/command"
-	"{{ option "starter.module" }}/internal/domain/command/fake"
 	"{{ option "starter.module" }}/internal/domain/event/stream"
 	"{{ option "starter.module" }}/internal/use_cases/payment"
 	paymentCommand "{{ option "starter.module" }}/internal/use_cases/payment/command"
@@ -96,12 +95,12 @@ func TestGateway(t *testing.T) {
 	})
 }
 
-func newGateway(t *testing.T, networkURL string, paymentID uuid.UUID, logger *slog.Logger) (*submission.Gateway, *fake.Handler[paymentCommand.RecordSubmission]) {
+func newGateway(t *testing.T, networkURL string, paymentID uuid.UUID, logger *slog.Logger) (*submission.Gateway, *command.FakeHandler[paymentCommand.RecordSubmission]) {
 	s := stream.NewMemory()
 	require.NoError(t, s.Save(context.Background(), payment.StreamID(paymentID), []domain.Event{
 		domain.NewEvent(&paymentEvent.PaymentRequested{PaymentID: paymentID, AccountID: uuid.New(), CreditorIBAN: "DE89370400440532013000", Amount: 300}),
 	}, 0))
-	submissions := fake.NewHandler[paymentCommand.RecordSubmission]()
+	submissions := command.NewFakeHandler[paymentCommand.RecordSubmission]()
 	bus := command.NewBus()
 	bus.Register[paymentCommand.RecordSubmission](submissions)
 	cfg := outside.Config{PaymentNetworkURL: networkURL, WebhookURL: "http://api/webhooks"}

@@ -11,7 +11,6 @@ import (
 	"{{ option "starter.module" }}/internal/domain/event"
 	"{{ option "starter.module" }}/internal/domain/event/store"
 	"{{ option "starter.module" }}/internal/domain/event/stream"
-	"{{ option "starter.module" }}/internal/domain/fake"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +19,7 @@ func TestOfEvents(t *testing.T) {
 		t.Run("returns a new aggregate at version 0 for a stream that does not exist", func(t *testing.T) {
 			s := store.New(stream.NewMemory())
 
-			aggregate, err := s.Load[fake.Aggregate](context.Background(), "unknown")
+			aggregate, err := s.Load[domain.FakeAggregate](context.Background(), "unknown")
 
 			require.NoError(t, err)
 			require.Equal(t, uint64(0), aggregate.Version())
@@ -29,11 +28,11 @@ func TestOfEvents(t *testing.T) {
 
 		t.Run("applies the saved events and sets the version to their count", func(t *testing.T) {
 			s := store.New(stream.NewMemory())
-			saved := &fake.Aggregate{}
+			saved := &domain.FakeAggregate{}
 			saved.DoSomething("1", "first", "second")
 			require.NoError(t, s.Save(context.Background(), "stream-1", saved, domain.Cause{CommandID: uuid.New()}))
 
-			loaded, err := s.Load[fake.Aggregate](context.Background(), "stream-1")
+			loaded, err := s.Load[domain.FakeAggregate](context.Background(), "stream-1")
 
 			require.NoError(t, err)
 			require.Equal(t, uint64(2), loaded.Version())
@@ -44,7 +43,7 @@ func TestOfEvents(t *testing.T) {
 	t.Run("save", func(t *testing.T) {
 		t.Run("clears the recorded events and moves the version past them", func(t *testing.T) {
 			s := store.New(stream.NewMemory())
-			aggregate := &fake.Aggregate{}
+			aggregate := &domain.FakeAggregate{}
 			aggregate.DoSomething("1", "first", "second")
 
 			require.NoError(t, s.Save(context.Background(), "stream-1", aggregate, domain.Cause{CommandID: uuid.New()}))
@@ -57,7 +56,7 @@ func TestOfEvents(t *testing.T) {
 			memory := stream.NewMemory()
 			s := store.New(memory)
 			cause := domain.Cause{CommandID: uuid.New(), CorrelationID: uuid.New(), CausationID: uuid.New()}
-			aggregate := &fake.Aggregate{}
+			aggregate := &domain.FakeAggregate{}
 			aggregate.DoSomething("1", "first", "second")
 
 			require.NoError(t, s.Save(context.Background(), "stream-1", aggregate, cause))
@@ -73,9 +72,9 @@ func TestOfEvents(t *testing.T) {
 
 		t.Run("returns a concurrency conflict when the stream changed after the load", func(t *testing.T) {
 			s := store.New(stream.NewMemory())
-			first, err := s.Load[fake.Aggregate](context.Background(), "stream-1")
+			first, err := s.Load[domain.FakeAggregate](context.Background(), "stream-1")
 			require.NoError(t, err)
-			second, err := s.Load[fake.Aggregate](context.Background(), "stream-1")
+			second, err := s.Load[domain.FakeAggregate](context.Background(), "stream-1")
 			require.NoError(t, err)
 			first.DoSomething("1", "first")
 			second.DoSomething("1", "second")

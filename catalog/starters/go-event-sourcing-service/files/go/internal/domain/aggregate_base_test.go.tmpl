@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"{{ option "starter.module" }}/internal/domain"
-	"{{ option "starter.module" }}/internal/domain/fake"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,17 +14,17 @@ func TestAggregateBase(t *testing.T) {
 		t.Run("keeps the recorded events in order", func(t *testing.T) {
 			var b domain.AggregateBase
 
-			b.Record(fake.NewSomethingHappenedEvent("1", "first"))
-			b.Record(fake.NewSomethingHappenedEvent("1", "second"))
+			b.Record(domain.NewFakeSomethingHappenedEvent("1", "first"))
+			b.Record(domain.NewFakeSomethingHappenedEvent("1", "second"))
 
-			require.Equal(t, []domain.Event{fake.NewSomethingHappenedEvent("1", "first"), fake.NewSomethingHappenedEvent("1", "second")}, b.Recorded())
+			require.Equal(t, []domain.Event{domain.NewFakeSomethingHappenedEvent("1", "first"), domain.NewFakeSomethingHappenedEvent("1", "second")}, b.Recorded())
 		})
 	})
 
 	t.Run("mark committed", func(t *testing.T) {
 		t.Run("moves to the given version and clears the recorded events", func(t *testing.T) {
 			var b domain.AggregateBase
-			b.Record(fake.NewSomethingHappenedEvent("1", "first"))
+			b.Record(domain.NewFakeSomethingHappenedEvent("1", "first"))
 
 			b.MarkCommitted(3)
 

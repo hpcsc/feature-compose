@@ -14,7 +14,6 @@ import (
 	"{{ option "starter.module" }}/internal/domain/event"
 	"{{ option "starter.module" }}/internal/domain/event/registry"
 	"{{ option "starter.module" }}/internal/domain/event/stream"
-	"{{ option "starter.module" }}/internal/domain/fake"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 )
@@ -34,22 +33,22 @@ func TestPostgresStream(t *testing.T) {
 			streamID := newStreamID(t)
 			ctx := context.Background()
 
-			require.NoError(t, s.Save(ctx, streamID, []domain.Event{fake.NewSomethingHappenedEvent("1", "first")}, 0))
-			require.NoError(t, s.Save(ctx, streamID, []domain.Event{fake.NewSomethingHappenedEvent("1", "second")}, 1))
+			require.NoError(t, s.Save(ctx, streamID, []domain.Event{domain.NewFakeSomethingHappenedEvent("1", "first")}, 0))
+			require.NoError(t, s.Save(ctx, streamID, []domain.Event{domain.NewFakeSomethingHappenedEvent("1", "second")}, 1))
 
 			events, err := s.EventsForStream(ctx, streamID)
 			require.NoError(t, err)
 			require.Len(t, events, 2)
 			require.Equal(t, uint64(1), events[0].Version)
 			require.Equal(t, uint64(2), events[1].Version)
-			require.Equal(t, "second", events[1].Payload.(*fake.SomethingHappened).Value)
+			require.Equal(t, "second", events[1].Payload.(*domain.FakeSomethingHappened).Value)
 			require.NotEmpty(t, events[0].ID)
 		})
 
 		t.Run("keeps the ID that the event already has", func(t *testing.T) {
 			s := newStream(t)
 			streamID := newStreamID(t)
-			evt := fake.NewSomethingHappenedEvent("1", "with-id")
+			evt := domain.NewFakeSomethingHappenedEvent("1", "with-id")
 			evt.ID = test.NewStringID(t)
 
 			require.NoError(t, s.Save(context.Background(), streamID, []domain.Event{evt}, 0))
@@ -63,9 +62,9 @@ func TestPostgresStream(t *testing.T) {
 			s := newStream(t)
 			streamID := newStreamID(t)
 			ctx := context.Background()
-			require.NoError(t, s.Save(ctx, streamID, []domain.Event{fake.NewSomethingHappenedEvent("1", "first")}, 0))
+			require.NoError(t, s.Save(ctx, streamID, []domain.Event{domain.NewFakeSomethingHappenedEvent("1", "first")}, 0))
 
-			err := s.Save(ctx, streamID, []domain.Event{fake.NewSomethingHappenedEvent("1", "stale")}, 0)
+			err := s.Save(ctx, streamID, []domain.Event{domain.NewFakeSomethingHappenedEvent("1", "stale")}, 0)
 
 			require.ErrorIs(t, err, event.ErrConcurrencyConflict)
 		})
@@ -73,7 +72,7 @@ func TestPostgresStream(t *testing.T) {
 		t.Run("returns a concurrency conflict when the expected version is past the stream", func(t *testing.T) {
 			s := newStream(t)
 
-			err := s.Save(context.Background(), newStreamID(t), []domain.Event{fake.NewSomethingHappenedEvent("1", "ahead")}, 3)
+			err := s.Save(context.Background(), newStreamID(t), []domain.Event{domain.NewFakeSomethingHappenedEvent("1", "ahead")}, 3)
 
 			require.ErrorIs(t, err, event.ErrConcurrencyConflict)
 		})
@@ -97,7 +96,7 @@ func TestPostgresStream(t *testing.T) {
 			streamID := newStreamID(t)
 			ctx := context.Background()
 
-			err := stream.NewPostgres(pool, registry.New()).Save(ctx, streamID, []domain.Event{fake.NewSomethingHappenedEvent("1", "unknown")}, 0)
+			err := stream.NewPostgres(pool, registry.New()).Save(ctx, streamID, []domain.Event{domain.NewFakeSomethingHappenedEvent("1", "unknown")}, 0)
 
 			require.ErrorIs(t, err, registry.ErrUnknownEventType)
 			events, err := newStreamOn(pool).EventsForStream(ctx, streamID)
@@ -108,7 +107,7 @@ func TestPostgresStream(t *testing.T) {
 		t.Run("keeps the command ID of each event", func(t *testing.T) {
 			s := newStream(t)
 			streamID := newStreamID(t)
-			evt := fake.NewSomethingHappenedEvent("1", "first")
+			evt := domain.NewFakeSomethingHappenedEvent("1", "first")
 			evt.CommandID = uuid.New()
 
 			require.NoError(t, s.Save(context.Background(), streamID, []domain.Event{evt}, 0))
@@ -123,9 +122,9 @@ func TestPostgresStream(t *testing.T) {
 			streamID := newStreamID(t)
 			ctx := context.Background()
 			commandID := uuid.New()
-			first := fake.NewSomethingHappenedEvent("1", "first")
+			first := domain.NewFakeSomethingHappenedEvent("1", "first")
 			first.CommandID = commandID
-			repeat := fake.NewSomethingHappenedEvent("1", "repeat")
+			repeat := domain.NewFakeSomethingHappenedEvent("1", "repeat")
 			repeat.CommandID = commandID
 			require.NoError(t, s.Save(ctx, streamID, []domain.Event{first}, 0))
 
@@ -141,7 +140,7 @@ func TestPostgresStream(t *testing.T) {
 	t.Run("has command", func(t *testing.T) {
 		t.Run("finds a command after its events are saved", func(t *testing.T) {
 			s := newStream(t)
-			evt := fake.NewSomethingHappenedEvent("1", "first")
+			evt := domain.NewFakeSomethingHappenedEvent("1", "first")
 			evt.CommandID = uuid.New()
 			require.NoError(t, s.Save(context.Background(), newStreamID(t), []domain.Event{evt}, 0))
 
@@ -169,12 +168,12 @@ func TestPostgresStream(t *testing.T) {
 
 			rolledBack, err := pool.Begin(ctx)
 			require.NoError(t, err)
-			require.NoError(t, s.SaveInTx(ctx, rolledBack, rolledBackID, []domain.Event{fake.NewSomethingHappenedEvent("1", "rolled-back")}, 0))
+			require.NoError(t, s.SaveInTx(ctx, rolledBack, rolledBackID, []domain.Event{domain.NewFakeSomethingHappenedEvent("1", "rolled-back")}, 0))
 			require.NoError(t, rolledBack.Rollback(ctx))
 
 			committed, err := pool.Begin(ctx)
 			require.NoError(t, err)
-			require.NoError(t, s.SaveInTx(ctx, committed, committedID, []domain.Event{fake.NewSomethingHappenedEvent("1", "committed")}, 0))
+			require.NoError(t, s.SaveInTx(ctx, committed, committedID, []domain.Event{domain.NewFakeSomethingHappenedEvent("1", "committed")}, 0))
 			require.NoError(t, committed.Commit(ctx))
 
 			rolledBackEvents, err := s.EventsForStream(ctx, rolledBackID)
@@ -191,7 +190,7 @@ func TestPostgresStream(t *testing.T) {
 			pool := test.NewDBPool(t)
 			streamID := newStreamID(t)
 			ctx := context.Background()
-			require.NoError(t, newStreamOn(pool).Save(ctx, streamID, []domain.Event{fake.NewSomethingHappenedEvent("1", "saved")}, 0))
+			require.NoError(t, newStreamOn(pool).Save(ctx, streamID, []domain.Event{domain.NewFakeSomethingHappenedEvent("1", "saved")}, 0))
 
 			_, err := pool.Exec(ctx, "UPDATE events SET data = '{}' WHERE stream_id = $1", streamID)
 
@@ -202,7 +201,7 @@ func TestPostgresStream(t *testing.T) {
 			pool := test.NewDBPool(t)
 			streamID := newStreamID(t)
 			ctx := context.Background()
-			require.NoError(t, newStreamOn(pool).Save(ctx, streamID, []domain.Event{fake.NewSomethingHappenedEvent("1", "saved")}, 0))
+			require.NoError(t, newStreamOn(pool).Save(ctx, streamID, []domain.Event{domain.NewFakeSomethingHappenedEvent("1", "saved")}, 0))
 
 			_, err := pool.Exec(ctx, "DELETE FROM events WHERE stream_id = $1", streamID)
 
@@ -228,15 +227,15 @@ func TestPostgresStream(t *testing.T) {
 			streamID := newStreamID(t)
 			ctx := context.Background()
 			require.NoError(t, s.Save(ctx, streamID, []domain.Event{
-				fake.NewSomethingHappenedEvent("1", "first"),
-				fake.NewSomethingHappenedEvent("1", "second"),
+				domain.NewFakeSomethingHappenedEvent("1", "first"),
+				domain.NewFakeSomethingHappenedEvent("1", "second"),
 			}, 0))
 
 			events, err := s.EventsForStream(ctx, streamID)
 
 			require.NoError(t, err)
-			require.Equal(t, "first", events[0].Payload.(*fake.SomethingHappened).Value)
-			require.Equal(t, "second", events[1].Payload.(*fake.SomethingHappened).Value)
+			require.Equal(t, "first", events[0].Payload.(*domain.FakeSomethingHappened).Value)
+			require.Equal(t, "second", events[1].Payload.(*domain.FakeSomethingHappened).Value)
 			require.NotZero(t, events[0].Position.TransactionID)
 			require.Less(t, events[0].Position.Sequence, events[1].Position.Sequence)
 		})
@@ -245,7 +244,7 @@ func TestPostgresStream(t *testing.T) {
 			s := newStream(t)
 			streamID := newStreamID(t)
 			ctx := context.Background()
-			require.NoError(t, s.Save(ctx, streamID, []domain.Event{fake.NewSomethingHappenedEvent("1", "first")}, 0))
+			require.NoError(t, s.Save(ctx, streamID, []domain.Event{domain.NewFakeSomethingHappenedEvent("1", "first")}, 0))
 
 			events, err := s.EventsForStream(ctx, streamID)
 
@@ -292,7 +291,7 @@ func newStream(t *testing.T) event.Stream {
 
 func newStreamOn(pool *pgxpool.Pool) event.Stream {
 	reg := registry.New()
-	reg.Register[fake.SomethingHappened]()
+	reg.Register[domain.FakeSomethingHappened]()
 	return stream.NewPostgres(pool, reg)
 }
 

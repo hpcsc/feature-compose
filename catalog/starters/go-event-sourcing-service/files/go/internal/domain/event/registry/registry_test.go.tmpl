@@ -11,17 +11,16 @@ import (
 	"{{ option "starter.module" }}/internal/common/test"
 	"{{ option "starter.module" }}/internal/domain"
 	"{{ option "starter.module" }}/internal/domain/event/registry"
-	"{{ option "starter.module" }}/internal/domain/fake"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRegistry(t *testing.T) {
-	somethingHappened := fake.SomethingHappened{}.EventType()
+	somethingHappened := domain.FakeSomethingHappened{}.EventType()
 
 	t.Run("schema version", func(t *testing.T) {
 		t.Run("is 1 for a type that is registered with no schema version", func(t *testing.T) {
 			r := registry.New()
-			r.Register[fake.SomethingHappened]()
+			r.Register[domain.FakeSomethingHappened]()
 
 			schemaVersion, err := r.SchemaVersionOf(somethingHappened)
 
@@ -31,7 +30,7 @@ func TestRegistry(t *testing.T) {
 
 		t.Run("is the schema version that the registration gives", func(t *testing.T) {
 			r := registry.New()
-			r.Register[fake.SomethingHappened](registry.WithSchemaVersion(3, nil))
+			r.Register[domain.FakeSomethingHappened](registry.WithSchemaVersion(3, nil))
 
 			schemaVersion, err := r.SchemaVersionOf(somethingHappened)
 
@@ -58,7 +57,7 @@ func TestRegistry(t *testing.T) {
 
 		t.Run("returns a parse error, not an unknown type error, for data that does not fit the payload", func(t *testing.T) {
 			r := registry.New()
-			r.Register[fake.SomethingHappened]()
+			r.Register[domain.FakeSomethingHappened]()
 
 			_, _, err := r.ParseRawData(somethingHappened, 1, []byte("invalid-data"), nil)
 
@@ -68,18 +67,18 @@ func TestRegistry(t *testing.T) {
 
 		t.Run("returns a new payload of the struct that names the event type", func(t *testing.T) {
 			r := registry.New()
-			r.Register[fake.SomethingHappened]()
+			r.Register[domain.FakeSomethingHappened]()
 
 			payload, metadata, err := r.ParseRawData(somethingHappened, 1, []byte(`{"id": "1", "value": "value-1"}`), nil)
 
 			require.NoError(t, err)
-			require.Equal(t, &fake.SomethingHappened{ID: "1", Value: "value-1"}, payload)
+			require.Equal(t, &domain.FakeSomethingHappened{ID: "1", Value: "value-1"}, payload)
 			require.Nil(t, metadata)
 		})
 
 		t.Run("returns the metadata when the event has it", func(t *testing.T) {
 			r := registry.New()
-			r.Register[fake.SomethingHappened]()
+			r.Register[domain.FakeSomethingHappened]()
 
 			correlationID := test.NewID(t)
 			causationID := test.NewID(t)
@@ -91,7 +90,7 @@ func TestRegistry(t *testing.T) {
 			)
 
 			require.NoError(t, err)
-			require.Equal(t, &fake.SomethingHappened{ID: "1", Value: "value-1"}, payload)
+			require.Equal(t, &domain.FakeSomethingHappened{ID: "1", Value: "value-1"}, payload)
 			require.Equal(t, &domain.EventMetadata{
 				CorrelationID: correlationID,
 				CausationID:   causationID,
@@ -100,7 +99,7 @@ func TestRegistry(t *testing.T) {
 
 		t.Run("returns a newer schema version error for an event that a newer build saved", func(t *testing.T) {
 			r := registry.New()
-			r.Register[fake.SomethingHappened](registry.WithSchemaVersion(2, nil))
+			r.Register[domain.FakeSomethingHappened](registry.WithSchemaVersion(2, nil))
 
 			_, _, err := r.ParseRawData(somethingHappened, 3, []byte(`{"id": "1", "value": "value-1"}`), nil)
 
@@ -111,48 +110,48 @@ func TestRegistry(t *testing.T) {
 		t.Run("upcasts the data of an older schema version before it parses the data", func(t *testing.T) {
 			r := registry.New()
 			var upcastFrom int
-			r.Register[fake.SomethingHappened](registry.WithSchemaVersion(2, func(schemaVersion int, rawPayload []byte) ([]byte, error) {
+			r.Register[domain.FakeSomethingHappened](registry.WithSchemaVersion(2, func(schemaVersion int, rawPayload []byte) ([]byte, error) {
 				upcastFrom = schemaVersion
 				var old struct{ ID, Text string }
 				if err := json.Unmarshal(rawPayload, &old); err != nil {
 					return nil, err
 				}
-				return json.Marshal(fake.SomethingHappened{ID: old.ID, Value: old.Text})
+				return json.Marshal(domain.FakeSomethingHappened{ID: old.ID, Value: old.Text})
 			}))
 
 			payload, _, err := r.ParseRawData(somethingHappened, 1, []byte(`{"id": "1", "text": "value-1"}`), nil)
 
 			require.NoError(t, err)
 			require.Equal(t, 1, upcastFrom)
-			require.Equal(t, &fake.SomethingHappened{ID: "1", Value: "value-1"}, payload)
+			require.Equal(t, &domain.FakeSomethingHappened{ID: "1", Value: "value-1"}, payload)
 		})
 
 		t.Run("does not upcast the data of the current schema version", func(t *testing.T) {
 			r := registry.New()
-			r.Register[fake.SomethingHappened](registry.WithSchemaVersion(2, func(int, []byte) ([]byte, error) {
+			r.Register[domain.FakeSomethingHappened](registry.WithSchemaVersion(2, func(int, []byte) ([]byte, error) {
 				return nil, errors.New("upcast of current data")
 			}))
 
 			payload, _, err := r.ParseRawData(somethingHappened, 2, []byte(`{"id": "1", "value": "value-1"}`), nil)
 
 			require.NoError(t, err)
-			require.Equal(t, &fake.SomethingHappened{ID: "1", Value: "value-1"}, payload)
+			require.Equal(t, &domain.FakeSomethingHappened{ID: "1", Value: "value-1"}, payload)
 		})
 
 		t.Run("parses the data of an older schema version as it is when the registration has no upcast", func(t *testing.T) {
 			r := registry.New()
-			r.Register[fake.SomethingHappened](registry.WithSchemaVersion(2, nil))
+			r.Register[domain.FakeSomethingHappened](registry.WithSchemaVersion(2, nil))
 
 			payload, _, err := r.ParseRawData(somethingHappened, 1, []byte(`{"id": "1", "value": "value-1"}`), nil)
 
 			require.NoError(t, err)
-			require.Equal(t, &fake.SomethingHappened{ID: "1", Value: "value-1"}, payload)
+			require.Equal(t, &domain.FakeSomethingHappened{ID: "1", Value: "value-1"}, payload)
 		})
 
 		t.Run("returns the upcast error with the schema version that failed", func(t *testing.T) {
 			r := registry.New()
 			upcastErr := errors.New("field missing")
-			r.Register[fake.SomethingHappened](registry.WithSchemaVersion(2, func(int, []byte) ([]byte, error) {
+			r.Register[domain.FakeSomethingHappened](registry.WithSchemaVersion(2, func(int, []byte) ([]byte, error) {
 				return nil, upcastErr
 			}))
 

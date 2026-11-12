@@ -13,7 +13,6 @@ import (
 	apiTest "{{ option "starter.module" }}/internal/api/test"
 	"{{ option "starter.module" }}/internal/api/use_cases/webhook"
 	"{{ option "starter.module" }}/internal/domain/command"
-	"{{ option "starter.module" }}/internal/domain/command/fake"
 	"{{ option "starter.module" }}/internal/use_cases/payment"
 	paymentCommand "{{ option "starter.module" }}/internal/use_cases/payment/command"
 	"github.com/stretchr/testify/require"
@@ -22,7 +21,7 @@ import (
 func TestHandler(t *testing.T) {
 	t.Run("fraud checks", func(t *testing.T) {
 		t.Run("records the result of the fraud check", func(t *testing.T) {
-			handler := fake.NewHandler[paymentCommand.RecordFraudResult]()
+			handler := command.NewFakeHandler[paymentCommand.RecordFraudResult]()
 			bus := command.NewBus()
 			bus.Register[paymentCommand.RecordFraudResult](handler)
 			paymentID := uuid.New()
@@ -34,7 +33,7 @@ func TestHandler(t *testing.T) {
 		})
 
 		t.Run("gives a repeated webhook the same command ID", func(t *testing.T) {
-			handler := fake.NewHandler[paymentCommand.RecordFraudResult]()
+			handler := command.NewFakeHandler[paymentCommand.RecordFraudResult]()
 			bus := command.NewBus()
 			bus.Register[paymentCommand.RecordFraudResult](handler)
 			body := fmt.Sprintf(`{"paymentId": %q, "passed": true}`, uuid.New())
@@ -48,7 +47,7 @@ func TestHandler(t *testing.T) {
 
 		t.Run("returns not found for a payment that is not requested", func(t *testing.T) {
 			bus := command.NewBus()
-			bus.Register[paymentCommand.RecordFraudResult](fake.NewHandler[paymentCommand.RecordFraudResult]().WithError(payment.ErrNotRequested))
+			bus.Register[paymentCommand.RecordFraudResult](command.NewFakeHandler[paymentCommand.RecordFraudResult]().WithError(payment.ErrNotRequested))
 
 			w := send(bus, "/webhooks/fraud-checks", fmt.Sprintf(`{"paymentId": %q, "passed": true}`, uuid.New()), "")
 
@@ -58,7 +57,7 @@ func TestHandler(t *testing.T) {
 
 		t.Run("rejects a payment ID that is not a UUID", func(t *testing.T) {
 			bus := command.NewBus()
-			bus.Register[paymentCommand.RecordFraudResult](fake.NewHandler[paymentCommand.RecordFraudResult]())
+			bus.Register[paymentCommand.RecordFraudResult](command.NewFakeHandler[paymentCommand.RecordFraudResult]())
 
 			w := send(bus, "/webhooks/fraud-checks", `{"paymentId": "not-a-uuid", "passed": true}`, "")
 
@@ -69,7 +68,7 @@ func TestHandler(t *testing.T) {
 
 	t.Run("sanctions screenings", func(t *testing.T) {
 		t.Run("records the result of the screening", func(t *testing.T) {
-			handler := fake.NewHandler[paymentCommand.RecordScreeningResult]()
+			handler := command.NewFakeHandler[paymentCommand.RecordScreeningResult]()
 			bus := command.NewBus()
 			bus.Register[paymentCommand.RecordScreeningResult](handler)
 			paymentID := uuid.New()
@@ -83,7 +82,7 @@ func TestHandler(t *testing.T) {
 
 	t.Run("payment network", func(t *testing.T) {
 		t.Run("records the settlement of a settled payment", func(t *testing.T) {
-			handler := fake.NewHandler[paymentCommand.RecordSettlement]()
+			handler := command.NewFakeHandler[paymentCommand.RecordSettlement]()
 			bus := command.NewBus()
 			bus.Register[paymentCommand.RecordSettlement](handler)
 			paymentID := uuid.New()
@@ -95,7 +94,7 @@ func TestHandler(t *testing.T) {
 		})
 
 		t.Run("records the return with the reason of the other bank", func(t *testing.T) {
-			handler := fake.NewHandler[paymentCommand.RecordReturn]()
+			handler := command.NewFakeHandler[paymentCommand.RecordReturn]()
 			bus := command.NewBus()
 			bus.Register[paymentCommand.RecordReturn](handler)
 			paymentID := uuid.New()

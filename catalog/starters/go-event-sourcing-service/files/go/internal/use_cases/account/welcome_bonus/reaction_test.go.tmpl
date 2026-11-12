@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"{{ option "starter.module" }}/internal/domain"
 	"{{ option "starter.module" }}/internal/domain/command"
-	"{{ option "starter.module" }}/internal/domain/command/fake"
 	accountCommand "{{ option "starter.module" }}/internal/use_cases/account/command"
 	"{{ option "starter.module" }}/internal/use_cases/account/event"
 	"{{ option "starter.module" }}/internal/use_cases/account/welcome_bonus"
@@ -41,8 +40,8 @@ func TestReaction(t *testing.T) {
 	})
 }
 
-func newReaction() (*fake.Handler[accountCommand.GrantWelcomeBonus], *welcome_bonus.Reaction) {
-	handler := fake.NewHandler[accountCommand.GrantWelcomeBonus]()
+func newReaction() (*command.FakeHandler[accountCommand.GrantWelcomeBonus], *welcome_bonus.Reaction) {
+	handler := command.NewFakeHandler[accountCommand.GrantWelcomeBonus]()
 	bus := command.NewBus()
 	bus.Register[accountCommand.GrantWelcomeBonus](handler)
 	return handler, welcome_bonus.NewReaction(bus)

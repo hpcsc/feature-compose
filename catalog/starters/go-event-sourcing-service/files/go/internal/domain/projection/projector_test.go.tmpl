@@ -12,7 +12,6 @@ import (
 	"{{ option "starter.module" }}/internal/domain/checkpoint/store"
 	"{{ option "starter.module" }}/internal/domain/event"
 	"{{ option "starter.module" }}/internal/domain/event/subscription"
-	"{{ option "starter.module" }}/internal/domain/fake"
 	"{{ option "starter.module" }}/internal/domain/projection"
 	"github.com/stretchr/testify/require"
 )
@@ -80,5 +79,5 @@ func TestProjector(t *testing.T) {
 }
 
 func eventAt(sequence uint64) domain.Event {
-	return domain.Event{Payload: &fake.SomethingHappened{}, Position: domain.Position{TransactionID: 750, Sequence: sequence}}
+	return domain.Event{Payload: &domain.FakeSomethingHappened{}, Position: domain.Position{TransactionID: 750, Sequence: sequence}}
 }

@@ -13,7 +13,6 @@ import (
 	"{{ option "starter.module" }}/internal/domain/consumer"
 	"{{ option "starter.module" }}/internal/domain/event"
 	"{{ option "starter.module" }}/internal/domain/event/subscription"
-	"{{ option "starter.module" }}/internal/domain/fake"
 	"github.com/stretchr/testify/require"
 )
 
@@ -169,7 +168,7 @@ func (h *fakeHandler) HandleBatch(_ context.Context, events []domain.Event) erro
 }
 
 func eventAt(sequence uint64) domain.Event {
-	return domain.Event{Payload: &fake.SomethingHappened{}, Position: domain.Position{TransactionID: 750, Sequence: sequence}}
+	return domain.Event{Payload: &domain.FakeSomethingHappened{}, Position: domain.Position{TransactionID: 750, Sequence: sequence}}
 }
 
 func closedChannel(events ...domain.Event) <-chan domain.Event {

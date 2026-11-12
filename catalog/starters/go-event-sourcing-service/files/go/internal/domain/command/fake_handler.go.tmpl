@@ -1,0 +1,52 @@
+package command
+
+import (
+	"context"
+
+	"{{ option "starter.module" }}/internal/domain"
+)
+
+var _ Handler[FakePayload] = (*FakeHandler[FakePayload])(nil)
+
+type FakeHandler[P any] struct {
+	commands []domain.Command[P]
+	errs     []error
+}
+
+func NewFakeHandler[P any]() *FakeHandler[P] {
+	return &FakeHandler[P]{}
+}
+
+func (h *FakeHandler[P]) WithError(err error) *FakeHandler[P] {
+	h.errs = []error{err}
+	return h
+}
+
+func (h *FakeHandler[P]) WithErrors(errs ...error) *FakeHandler[P] {
+	h.errs = errs
+	return h
+}
+
+func (h *FakeHandler[P]) Handle(_ context.Context, cmd domain.Command[P]) error {
+	h.commands = append(h.commands, cmd)
+	if len(h.errs) == 0 {
+		return nil
+	}
+
+	err := h.errs[0]
+	if len(h.errs) > 1 {
+		h.errs = h.errs[1:]
+	}
+	return err
+}
+
+func (h *FakeHandler[P]) TriggeredWithCommand() *domain.Command[P] {
+	if len(h.commands) == 0 {
+		return nil
+	}
+	return &h.commands[len(h.commands)-1]
+}
+
+func (h *FakeHandler[P]) Calls() int {
+	return len(h.commands)
+}

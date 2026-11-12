@@ -193,14 +193,14 @@ add_to:
 			require.Contains(t, showOutput(t, printed).Starters, "api")
 		})
 
-		t.Run("the README names the path of each field of the JSON, and no other path", func(t *testing.T) {
+		t.Run("the doc of the commands names the path of each field of the JSON, and no other path", func(t *testing.T) {
 			printed, err := runShow(t, withEachField(), "--output", "json")
 			require.NoError(t, err)
 			var document map[string]any
 			require.NoError(t, json.Unmarshal([]byte(printed), &document))
-			readme, err := os.ReadFile("../../README.md")
+			commands, err := os.ReadFile("../../docs/commands.md")
 			require.NoError(t, err)
-			section := string(readme)[strings.Index(string(readme), "## Show the Catalog"):]
+			section := string(commands)[strings.Index(string(commands), "## Show the Catalog"):]
 			section = section[:strings.Index(section[1:], "\n## ")+1]
 
 			var documented []string

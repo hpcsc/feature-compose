@@ -1,421 +1,155 @@
 # feature-compose
 
-## Install
-
-The installer downloads the latest release for your platform, verifies its checksum, and puts the
-binary where you can start using it. It needs `sh`, `curl`, `jq`, `tar`, and `gzip`.
+feature-compose makes a new repo from one **starter** and the **features** that you select. It also selects
+the features that your features need, asks each question one time, and writes all files in one pass.
 
 ```shell
-sh <(curl -fsSL https://raw.githubusercontent.com/hpcsc/feature-compose/main/scripts/install.sh)
+feature-compose new go-event-sourcing-service my-service --feature cli-auth
 ```
 
-It asks for the release channel and the install directory. To skip the questions on the command line:
+This command makes a Go service with an event store, a CLI for the service, and an API key that the API
+checks and the CLI sends. You asked for one feature, `cli-auth`. The tool also selected `cli` and `api-auth`,
+because `cli-auth` needs them.
 
-```shell
-sh <(curl ...) --channel release --dir ~/.local/bin
+## Why feature-compose
+
+A team makes many repos of a few kinds: services, CLIs, libraries. Each repo also needs some optional parts:
+authentication for its API, a CLI, a release workflow, an example. One template for each kind of repo cannot
+hold each combination of these parts:
+
+- **A part in each template:** you copy the part into each template that needs it. The copies change apart.
+- **A part in a template of its own:** the second template must change files of the first, for example
+  `main.go`. So it needs a script that edits the files after the render, and the script breaks when the
+  first template changes.
+- **Parts that depend on each other:** a CLI and its API must use the same method of authentication. Two
+  templates ask the question two times, and nothing stops two different answers.
+
+feature-compose keeps each part as one feature. A feature names the starters that it works with, the
+features that it needs, and the lines that it adds to the files of the starter. The tool joins the starter
+and the features in one render, and no step changes a file after it.
+
+## How It Is Different From a Template Tool
+
+Template tools, for example [cookiecutter](https://github.com/cookiecutter/cookiecutter),
+[copier](https://github.com/copier-org/copier) and [scaffold](https://github.com/hay-kot/scaffold), make a
+repo from one template. feature-compose makes a repo from one starter and many features.
+
+| | A template tool | feature-compose |
+| --- | --- | --- |
+| You start from | One template for each kind of repo | One starter, and the features that you select |
+| An optional part | A condition in the template, or a second template with a hook that edits shared files | A feature with its own files. It adds lines to shared files only through extension points |
+| Parts that depend on each other | You run each template, and you answer its questions again | A feature names its needs. The tool selects them and asks each question one time |
+| One part for many kinds of repo | A copy in each template | One feature names each starter that it works with |
+| Mistakes in the templates | You find them when you make a repo | `feature-compose check` finds them first, and CI can make a repo of each combination |
+
+feature-compose does not change a repo after it makes it. It cannot add a feature to a repo that you
+changed, and it cannot update a repo to a new version of the catalog. Some template tools, for example
+copier, can update a repo.
+
+## Concepts
+
+| Concept | Meaning | Example in this repo |
+| --- | --- | --- |
+| Catalog | A folder that holds the starters and the features. You can keep your own catalog. | `catalog/` |
+| Starter | The files that a new repo of one kind starts from. Each repo has one starter. | `go`, `go-event-sourcing-service` |
+| Feature | A part that you can add to a repo. It adds files, and it adds items to extension points. | `cli`, `api-auth`, `cli-auth`, `process-manager` |
+| Target | A starter that a feature works with. Each feature names its targets. | `cli` targets `go` and `go-event-sourcing-service` |
+| Need | A feature that another feature cannot work without. The tool selects it for you. | `cli-auth` needs `cli` and `api-auth` |
+| Option | A question of a starter or a feature. Its answer selects a variant of the files. | `api-auth` has the option `method`, with the values `api-key` and `oauth` |
+| Extension point | A named list in one file of a starter or a feature. Other features add items to the list, and the file writes each item. | `api.middleware` in the server of the API, `cli.commands` in the root command of `cli` |
+
+This is how the concepts fit together:
+
+```mermaid
+flowchart LR
+    catalog["Catalog"] --> starter["Starter<br/>go-event-sourcing-service"]
+    catalog --> cliAuth["Feature<br/>cli-auth"]
+    catalog --> apiAuth["Feature<br/>api-auth"]
+    catalog --> cli["Feature<br/>cli"]
+    cliAuth -- targets --> starter
+    cliAuth -- needs --> cli
+    cliAuth -- "needs, with method: api-key" --> apiAuth
+    apiAuth -- "adds an item to api.middleware" --> starter
+    starter --> repo["New repo"]
+    cli --> repo
+    apiAuth --> repo
+    cliAuth --> repo
 ```
 
-The channel is `release` (the latest stable release) or `prerelease` (the latest build of `main`).
-Without `--dir`, the binary lands in `~/.local/bin` (or `$INSTALL_DIR`). When more than one version is
-available in the channel, the installer lists them for you to pick.
+- The starter gives the base files of the repo, and it declares its extension points.
+- A feature works only with a starter that its `targets` name.
+- When you select a feature, the tool also selects its needs. A need can set an option of the feature that
+  it selects, so two features cannot disagree on one answer.
+- A feature changes a file of the starter only through an item of an extension point. The file of the
+  starter writes the items. So the feature and the starter can change apart.
 
-`GITHUB_TOKEN` or `GH_TOKEN` gives access to a private repository.
+## Get Started
 
-## Configure the catalog
+1. Install feature-compose. The installer needs `sh`, `curl`, `jq`, `tar` and `gzip`:
 
-`feature-compose new`, `feature-compose show` and `feature-compose check` read the starters and the features from a catalog folder. The config file
-`~/.config/feature-compose/config.yml` names the folder (`$XDG_CONFIG_HOME/feature-compose/config.yml` when
-`XDG_CONFIG_HOME` is set):
+   ```shell
+   sh <(curl -fsSL https://raw.githubusercontent.com/hpcsc/feature-compose/main/scripts/install.sh)
+   ```
 
-```yaml
-catalog: ~/code/feature-compose/catalog
-```
+2. Get a catalog. To start with the catalog of this repo, clone the repo:
 
-The folder holds `starters/` and `features/`. The catalog of this repo is in `catalog/`. It has two starters:
-`go`, a Go module with an example package, and `go-event-sourcing-service`, a Go service with an event store, an
-HTTP API and a catchup process. `feature-compose show` lists them with their features. The feature `cli` targets
-both starters with one set of files, so `feature-compose new go my-tool --feature cli` makes a CLI in its own repo,
-and `--feature cli` with `go-event-sourcing-service` adds the same CLI to a service repo. A path that starts
-with `~/` is in your home folder, and another relative path is relative to the folder of the config file.
-Without the config file, `new`, `show` and `check` stop and name the path of the file. `version` and `update` do
-not read it.
+   ```shell
+   git clone https://github.com/hpcsc/feature-compose.git ~/code/feature-compose
+   ```
 
-`feature-compose update` also installs from a release, and it replaces this very binary, so the
-installer and the update command do the same kind of job; use whichever you find convenient on a fresh
-machine.
+3. Write the folder of the catalog in the config file `~/.config/feature-compose/config.yml`:
 
-## Preview a Repo
+   ```yaml
+   catalog: ~/code/feature-compose/catalog
+   ```
 
-`feature-compose new <starter> <name> --dry-run` prints a preview of the repo that `new` makes. It writes no file
-and runs no command, so the output folder does not exist after the run:
+4. See the starters and the features of the catalog. In a terminal, `show` opens a tree that you can
+   browse:
 
-```shell
-feature-compose new go-event-sourcing-service my-service --option go-version=1.28 --feature cli-auth --dry-run
-```
+   ```shell
+   feature-compose show
+   ```
 
-```text
-Repo: my-service
-Starter: go-event-sourcing-service
+5. Preview a repo. `--dry-run` prints the features, the options and the files of the repo, and writes
+   nothing:
 
-Features:
-  api-auth: needed by cli-auth
-  cli: needed by cli-auth
-  cli-auth: command line
+   ```shell
+   feature-compose new go my-tool --feature cli --dry-run
+   ```
 
-Options:
-  starter.go-version: 1.28 (command line)
-  starter.module: github.com/hpcsc/my-service (default)
-  api-auth.method: api-key (need of cli-auth)
+6. Make the repo. In a terminal, `new` opens a form, where you can select more features and change the
+   answers. `w` shows the preview, and `y` writes the repo:
 
-Files:
-  .dockerignore: the feature cli
-  .env.integration: the starter
-  ...
-  cmd/my-service/main.go: the feature cli
-  ...
-```
+   ```shell
+   feature-compose new go my-tool --feature cli
+   ```
 
-The preview gives the name of the repo and its starter. Then it gives each feature of the repo, after the features
-that it needs, with its source:
+   With `--no-prompt`, `new` opens no form and gives each option its default.
 
-| Source | Meaning |
+`new` writes the repo to `./my-tool`, and then runs the commands of the starter, for example `go mod tidy`.
+After the form, it also prints the command that makes the same repo again.
+
+## The Catalog of This Repo
+
+| Starter | What the repo gets |
 | --- | --- |
-| `command line` | A `--feature` flag selects the feature. When other selected features also need it, the line ends with `, needed by <features>`. |
-| `answered` | You select the feature in the form (see [Answer the Questions in a TUI](#answer-the-questions-in-a-tui)). When other selected features also need it, the line ends with `, needed by <features>`. `--dry-run` opens no form, so it never shows this source. |
-| `needed by <features>` | Only a need selects the feature. The line is the line that `new` prints for it. |
+| `go` | A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow |
+| `go-event-sourcing-service` | A Go service with an event store, an HTTP API, and a catchup process |
 
-Then the preview gives each option by the name with which a template reads it: the options of the starter as
-`starter.<option>`, and then the options of each feature as `<feature>.<option>`, with the features in the order
-above. Each option shows the value that the templates read, and its source:
+| Feature | Targets | What it adds |
+| --- | --- | --- |
+| `cli` | `go`, `go-event-sourcing-service` | A command line program with releases from GoReleaser, and a command that updates it |
+| `api-auth` | `go-event-sourcing-service` | A check of an API key or of an OAuth access token on each protected route of the API |
+| `cli-auth` | `go-event-sourcing-service` | The API key in each request of the CLI. It needs `cli` and `api-auth` |
+| `process-manager` | `go-event-sourcing-service` | The example of a process manager, a payment to another bank, with fakes of its outside systems |
 
-| Source | Meaning |
+## More Documents
+
+| Document | What it tells |
 | --- | --- |
-| `command line` | `--option <name>=<value>` or `--feature <name>:<option>=<value>` gives the value, also when it is the same as the default. When a need also sets the value, the line ends with `, need of <features>`. |
-| `need of <features>` | The `needs` of the features that select this feature set the value, for example the need of `cli-auth` sets the `method` of `api-auth` to `api-key`. A need comes after a flag and before an answer. |
-| `answered` | You keep the value with Enter in the form, also when it is the default. `--dry-run` opens no form, so it never shows this source. |
-| `default` | No flag gives the value, so the option has its default. A default that holds `{{ .Name }}` shows with the name of the repo. |
-
-Last, the preview gives each file of the repo by its path, in the order of the paths, with its owner: the starter,
-or the feature whose template writes the file.
-
-Before it prints, `--dry-run` does the same checks as `new`. A selection that stops `new`, for example an unknown
-feature, a feature that does not target the starter, a value that does not match its pattern, or a flag that gives an
-option another value than a need sets, stops `--dry-run` with the same message, and `--dry-run` then prints nothing.
-The message of a feature that does not target the starter names the feature and the starter, and lists the features
-that target the starter, for example `the feature api-auth does not target the starter go: the features that target
-the starter go are cli`. The message of a flag against a need
-names both sources, for example `"oauth" from the command line and "api-key" from the need of cli-auth`.
-`--dry-run` does not read the output folder, so an output folder that has files stops `new` but not `--dry-run`.
-
-The preview is text for a person, and its layout can change. A script reads the catalog with
-`feature-compose show --output json`.
-
-## Answer the Questions in a TUI
-
-When stdin and stdout are both terminals, `feature-compose new` opens a form. The form has the look and the keys of
-the TUI of `show` (see [Show the Catalog](#show-the-catalog)). The left pane is a tree of the answers, and the right
-pane shows the details of the selected row. You can change any answer in any order. This is
-`feature-compose new go-event-sourcing-service my-service --feature cli-auth`:
-
-```text
-
- feature-compose new                                                                               3 features
-╭─ Repo ───────────────────────────────────╮╭─ name ─────────────────────────────────────────────────────────╮
-│ ▌  name     my-service  fixed            ││ value   my-service                                             │
-│  ▾ starter  go-event-sourcing-service  … ││ source  command line                                           │
-│    ├─   go-version  1.27.1               ││                                                                │
-│    ├─   module      github.com/hpcsc/my… ││                                                                │
-│    ├─ ▾ [x] api-auth  needed by cli-auth ││                                                                │
-│    │  └─   method  api-key  fixed        ││                                                                │
-│    ├─   [x] cli  needed by cli-auth      ││                                                                │
-│    └─   [x] cli-auth  fixed              ││                                                                │
-╰──────────────────────────────────────────╯╰────────────────────────────────────────────────────────────────╯
- j/k move • l open • h close • space select • w write • ctrl+d/u scroll details • q quit
-```
-
-The tree has these rows:
-
-| Row | What it shows |
-| --- | --- |
-| `name` | The name of the repo. |
-| `starter` | The starter. Under it come the options of the starter, in the order of the names, and then each feature that targets the starter, each after the features that it needs. |
-| A feature | `[x]` when the repo gets the feature, and `[ ]` when it does not. Under a selected feature come its options. |
-| An option | The option and its value. |
-
-A mark after a row tells you more about it:
-
-| Mark | Meaning |
-| --- | --- |
-| `fixed` | An argument, a flag or the need of a selected feature gives the value, so the form does not change it. |
-| `needed by <features>` | Selected features need the feature, so it stays selected. |
-| `missing` | The row has no value yet, and `w` stops on it. |
-
-The keys of the form:
-
-| Key | Action |
-| --- | --- |
-| `j`, `k`, or the up and down arrows | Move down and up in the tree. |
-| `l` or the right arrow | Open the selected starter or feature. At an open row, select its first row. |
-| `h`, Esc, or the left arrow | Close an open row. At another row, select the row that it is under. |
-| Space | Select the feature of the row, or clear it. |
-| Enter | Edit the name, the starter or the option of the row. At a feature, do what `l` does. |
-| `w` | Show the preview of the repo, and ask whether to write it. |
-| ctrl+d and ctrl+u, or Page Down and Page Up | Scroll the details down and up by half the pane. |
-| `q` or ctrl+c | Stop the form and write nothing. During an edit of a text, `q` goes to the text, and ctrl+c stops the form. |
-
-**The features and their needs.** Space at a feature selects it, and the form also selects each feature that it
-needs, with the mark `needed by <features>`. Space at a needed feature changes nothing, and the details name the
-features that need it. Space at a feature that you selected clears it, and also clears each feature that only its
-needs selected. A feature that a `--feature` flag gives stays selected, and you can select more features next to it.
-When the selection stops, for example because two features declare one extension point, the feature stays as it was
-and the details show the message. The selection also stops when the need of a feature sets another value than a flag,
-for example a Space at `cli-auth`, whose need sets `api-auth.method` to `api-key`, with
-`--feature api-auth:method=oauth`. The message names both sources.
-
-**The edit.** Enter at the name, or at an option without `values`, starts an edit of the text in the right pane. Each
-key goes to the text. While the text does not pass its check, the details say why, for example that it does not match
-the `pattern` of the option. Enter keeps a text that passes, and Esc drops the change. Enter at an option with
-`values`, or at the starter, lists the values or the starters in the right pane: `j` and `k` move, Enter keeps the
-chosen one, and Esc drops the change. Enter at a value that an argument, a flag or a need gives starts no edit, and
-the details say what gives the value.
-
-A value that you keep has the source `answered`, also when it is the default. Until you keep a value for an option,
-the option has its default, and a default that reads the name, for example `github.com/hpcsc/{{ .Name }}`, follows
-the name. A clear of a feature drops the values that you kept for it. While the need of a selected feature sets an
-option, the option has the value of the need, and a value that you kept for it comes back when no selected need sets
-it.
-
-**The starter.** A change of the starter keeps each feature that you selected and that targets the new starter, with
-the values that you kept for it. It clears the other features, and the values that you kept for the options of the
-old starter. A starter that the flags do not fit, or whose features have needs that form a cycle, is not kept, and
-the details show the message.
-
-**Write the repo.** `w` shows the preview in the right pane, which is the text that `--dry-run` prints, and asks
-`Write the repo?`. `y` writes the repo, and `n` or Esc goes back to the form. While an answer is missing (the name,
-the starter, or the value of an option with no default), `w` selects its row, opens the rows above it, and the details
-say what is missing.
-
-An unknown starter, a flag that the starter does not know, and a flag that gives an option another value than a need,
-stop `new` before the form opens, with the message that `new` gives without the form.
-
-`new` writes nothing until you press `y`. A cancel writes no file, makes no output folder and runs no command. `new`
-then prints `you canceled new, so it wrote no file` and ends with the status 1.
-
-After `new` writes the repo, it prints the command that makes the same repo:
-
-```text
-Made my-service from the starter go-event-sourcing-service.
-To make the same repo again, run:
-  feature-compose new go-event-sourcing-service my-service --feature cli-auth
-```
-
-The command names each value that is not its default, and each feature that you selected. It puts each word that a
-shell splits, expands or matches against files in single quotes. That command with `--no-prompt` makes the same
-files.
-
-`new` opens no form when stdin or stdout is not a terminal, or with `--no-prompt` or `--dry-run`. CI uses this mode.
-`new` then needs both arguments, `<starter>` and `<name>`.
-Each option without a value then gets its default. An option with no default and no value stops `new`, and the
-message names the option and the flag that gives it:
-
-```text
-the option region of the starter service has no default and no value: give it with --option region=<value>
-```
-
-## Show the Catalog
-
-`feature-compose show` shows the starters and the features of the catalog. It has two forms:
-
-- **A TUI, for a person.** When stdin and stdout are both terminals, `show` opens a TUI with two panes. The left
-  pane is a tree of the starters. Under each starter, the tree has two groups: its features and its extension
-  points. Each starter and each group starts open. The right pane shows the details of the selected row.
-  `feature-compose show <starter>` opens the TUI with that starter selected.
-- **JSON, for a script.** `--output json` prints the catalog as JSON. When stdin or stdout is not a terminal,
-  for example in a pipe, `show` prints JSON with no flag. `feature-compose show <starter>` prints only that
-  starter and the features whose `targets` name it.
-
-An unknown starter stops the command before the TUI starts, and the message lists the starters.
-
-```shell
-feature-compose show
-feature-compose show --output json
-feature-compose show go-event-sourcing-service --output json | jq '.features | keys'
-```
-
-The keys of the TUI:
-
-| Key | Action |
-| --- | --- |
-| `j`, `k`, or the up and down arrows | Move down and up in the tree. |
-| `l`, Enter, or the right arrow | Open the selected starter or group. At an open starter or group, select its first row. |
-| `h`, Esc, or the left arrow | At a feature or an extension point, select its group. At an open starter or group, close it. At a closed group, select its starter. |
-| `/` | Start a filter on the names of the starters, the features and the extension points. While you type the filter, each key goes to the filter. Enter keeps the filter, and Esc clears it. |
-| Esc, with a filter | Clear the filter. |
-| ctrl+d and ctrl+u, or Page Down and Page Up | Scroll the details down and up by half the pane. |
-| `q` | Stop the TUI. While you type the filter, `q` goes to the filter, and ctrl+c stops the TUI. |
-
-The filter keeps a starter whose name holds the text, with all its features and extension points. It also keeps
-a feature or an extension point whose name holds the text, and opens its group and its starter. The filter ignores
-case. When the filter clears, the rows that it opened close again.
-
-The right pane shows these details:
-
-| Row | Details |
-| --- | --- |
-| A starter | Its summary, its folders with their commands, and its options with their defaults and their values or patterns. |
-| The group of the features | Each feature that targets the starter, with its summary. |
-| A feature | Its summary, its needs, its options, and the extension points that it declares or adds items to. |
-| The group of the extension points | Each extension point of the starter and of its features, with its item fields and its declarer, for example `cli.commands` of `cli`. |
-| An extension point | Its summary, its file, its item fields, its declarer, and the features that add items to it. |
-
-When the details do not fit the pane, its bottom border shows how far they are scrolled.
-
-The JSON has the keys of `starter.yml` and `feature.yml`. Each object has each of its fields: a list with no entry
-is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each list keeps the order of its file.
-`<name>` is the name of a starter, a feature, a folder, an option or an extension point.
-
-| Field | Meaning |
-| --- | --- |
-| `starters.<name>.summary` | One sentence about what a repo from the starter gets. |
-| `starters.<name>.folders.<name>.path` | The path of the folder in the repo. |
-| `starters.<name>.folders.<name>.after_render` | The commands that run in the folder after the tool writes the files. |
-| `starters.<name>.folders.<name>.test` | The commands that CI runs in the folder to test a repo. |
-| `starters.<name>.options.<name>.default` | The default of the option, as the file writes it, for example `github.com/hpcsc/{{ .Name }}`. |
-| `starters.<name>.options.<name>.pattern` | The regular expression that a value must match, or `""`. |
-| `starters.<name>.options.<name>.values` | The values that the option accepts, or `[]` for any value. |
-| `starters.<name>.extension_points.<name>.summary` | The contract of an item of the extension point. |
-| `starters.<name>.extension_points.<name>.file` | The file that renders the items. |
-| `starters.<name>.extension_points.<name>.item` | The fields of each item. |
-| `features.<name>.summary` | One sentence about what the feature adds. |
-| `features.<name>.targets` | The starters that the feature works with. |
-| `features.<name>.needs.<name>.<name>` | The value that the need sets for an option of the needed feature. Each key of `needs` is a feature that the tool also selects when you select this feature, and a need that sets no value is `{}`. |
-| `features.<name>.options.<name>.default` | The default of the option, as the file writes it. |
-| `features.<name>.options.<name>.pattern` | The regular expression that a value must match, or `""`. |
-| `features.<name>.options.<name>.values` | The values that the option accepts, or `[]` for any value. |
-| `features.<name>.extension_points.<name>.summary` | The contract of an item of an extension point that the feature declares. |
-| `features.<name>.extension_points.<name>.file` | The file of the feature that renders the items. |
-| `features.<name>.extension_points.<name>.item` | The fields of each item. |
-| `features.<name>.add_to.<name>` | The items that the feature adds to the extension point, each with the fields of that extension point. |
-
-## Check the Catalog
-
-`feature-compose check` finds each feature of the catalog that does not fit its targets or its needs, so that a
-mistake in the catalog stops before a developer runs `new`. It reads the catalog folder that the config file
-names, and checks each feature against each starter that its `targets` name. `--catalog <folder>` checks the
-catalog in that folder, and `check` then does not read the config file. A `--catalog` path that is not a folder
-stops `check`, and the message names the path.
-
-```shell
-feature-compose check
-feature-compose check --catalog ./catalog
-```
-
-`task test:catalog` runs `check --catalog catalog` on the catalog of this repo. CI runs it on each push, in the job
-`build`, so a change that puts a mistake in `catalog/` fails CI.
-
-`check` finds these mistakes:
-
-| Mistake | Example of the message |
-| --- | --- |
-| An `add_to` names an extension point that the starter, the feature and its needs do not declare. A need of a need counts as a need. Another feature of the starter does not count, also when `new` selects it. | `the starter service: the feature tools adds to the extension point "cli.commands", which the starter, the feature and its needs do not declare` |
-| An item does not have the item fields of its extension point. The order of the fields does not matter. | `the starter service: the item 2 that the feature auth adds to the extension point "api.middleware" has the fields [code], but the extension point declares the fields [code, import]` |
-| A feature adds files to a folder that the starter does not have. `check` reads the files of each files entry, also of an entry whose `when` is false. A folder with many files gives one mistake. | `the starter service: the feature web adds files to the folder web, which the starter does not have` |
-| A file is directly in a files entry, so it is in no folder. | `the starter service: the template README.md of the files entry files/ of the feature cli is not in a folder` |
-| Two targets of a feature declare an extension point of its `add_to` with different item fields. In a target where a need of the feature declares the extension point, the item fields of the need count. A target that does not declare the extension point is not in this message. | `the feature auth adds to the extension point "api.middleware", which its targets declare with different item fields: [code, import] in the starter service, [code] in the starter worker` |
-| A need is not a feature of the catalog. | `the starter service: the feature auth needs vault, which is not a feature of the catalog` |
-| A need does not target each target of the feature. | `the starter worker: the feature auth needs cli, which does not target the starter` |
-| A need sets a value that its option does not have: a value that is not one of the values of the option or does not match its pattern, or an option that the needed feature does not declare. Each wrong value is one mistake, also in a target that the need does not target. | `the starter service: the need of the feature cli-auth: the feature api-auth: the value "basic" of the option method is not one of its values: api-key, oauth` |
-| The needs of the features of a starter form a cycle. The message names each feature of the cycle in the order of the needs, and no feature that only needs a feature of the cycle. Each feature that is in a cycle is in at least one message, also when two cycles share it. A cycle gives one mistake for each starter whose features hold it. | `the starter service: the needs of the features form a cycle: app needs base needs app` |
-
-Each message names the feature, the starter, and the extension point, the folder or the need that is wrong. A
-feature with two targets gives one mistake for each target that it does not fit. A wrong need of a need is a
-mistake of the feature that has the need, not of the features that need that feature.
-
-`check` prints each mistake on its own line to stdout. The mistakes of each starter come first, in the order of the
-starters, the features, the extension points and the items, and the cycles of each starter come after its
-features. The mistakes of targets with different item fields come last. Then `check` writes the number of the
-mistakes to stderr, for example
-`the catalog has 2 mistakes`, and exits with the status 1. With no mistake, it prints
-`The catalog has no mistakes.` and exits with the status 0. A catalog that `check` cannot read, for example a
-`starter.yml` that is not valid YAML, stops `check` with the message that `new` and `show` give, and the exit
-status is 1.
-
-## Build
-
-```shell
-task build            # build ./bin/feature-compose
-task run -- --help    # run the CLI from the source
-```
-
-## Version and update
-
-```shell
-feature-compose version                # the tag of a release or a prerelease, or the commit of any other build
-feature-compose update                 # install the latest release
-feature-compose update --prerelease    # install the latest prerelease, a build of main
-feature-compose update --check         # only tell you whether this build is the latest
-```
-
-`internal/version` reports the version. A release build gets its tag from goreleaser, through
-`-ldflags -X .../internal/version.releaseTag`. Any other build reports the short commit sha that Go
-keeps in the build information, with `-dirty` after it when the working tree had changes.
-
-`feature-compose update` downloads the archive for your platform from a GitHub release, checks it
-against the `checksums.txt` of that release, and then replaces the binary. It names each step on
-stderr, and in a terminal it shows how much of the download has arrived. `GITHUB_TOKEN` or `GH_TOKEN`
-gives access to a private repository.
-
-Releases and prereleases are two channels. Each command installs the latest build of its channel when
-this build is a different one, so `feature-compose update` on a prerelease goes back to the latest
-release. A build from a commit is not a release or a prerelease, so `feature-compose update` does not
-replace it unless you add `--force`.
-
-## Goreleaser
-
-- Run goreleaser in local: `task release:local`. This will generate a snapshot build under `./dist`
-- Create a release:
-
-```shell
-git tag vX.X.X
-git push origin vX.X.X
-```
-
-This will trigger the release workflow, which runs the CI checks and then creates a Github Release with
-binaries for MacOS and Linux.
-
-Each push to `main` starts the prerelease workflow. It tags the commit with the next patch after the
-latest release, the run number and the commit, for example `v0.2.1-42.g4829f92`, publishes that tag as a
-prerelease, and then keeps only the 5 newest prereleases.
-
-`On Demand Build` builds a snapshot of any ref from Github Actions and uploads the archives as artifacts.
-
-## Test the Combinations of the Catalog
-
-`task test:combinations` makes one repo for each combination of the catalog in `catalog/`. In each repo, it
-runs the `after_render` commands and then the `test` commands of each folder. These are the combinations:
-
-- Each starter alone
-- Each starter with each feature that targets it, and the needs of the feature
-- One for each value of an option that has `values`, with the other options at their defaults
-- Each pair of features that add items to one extension point, except a pair in which one feature needs the
-  other: the repo of that feature already holds both
-
-Run it after you change a starter or a feature. CI runs it on each push, in the job `combinations`. The
-catalog gives the list, so a new starter, feature or value needs no change to the task or to CI.
-
-The output names each combination that fails as the arguments of `new` that make the same repo, for
-example `go-event-sourcing-service --feature api-auth:method=api-key`, and shows the output of the command
-that failed.
-
-The task needs Go, Task, gotestsum, a C compiler and the network. Each repo takes some seconds when the Go
-module cache has its modules, and some minutes when it does not.
-
-## E2E Test
-
-The end-to-end tests run the built binary in a terminal, send keys to it, and read the screen. They are
-in `e2e/`, and [docs/e2e-tests.md](docs/e2e-tests.md) tells how they work.
-
-```shell
-task test:e2e          # in Docker, as CI does
-task test:e2e:local    # on this machine, needs node
-```
+| [Install feature-compose and Point It at a Catalog](docs/install-and-configure.md) | The options of the installer, the config file, and the update of the tool |
+| [What Each Command of feature-compose Does](docs/commands.md) | `new`, its preview and its form, `show`, `check`, `version` and `update` |
+| [Write the Starters and the Features of a Catalog](docs/catalog.md) | The folders of a catalog, `starter.yml`, `feature.yml`, options, needs, extension points and templates |
+| [Build, Test and Release feature-compose](docs/development.md) | The tasks of this repo, the test of the combinations of the catalog, and the releases |
+| [How the end-to-end tests work](docs/e2e-tests.md) | The tests that run the binary in a terminal |
+| [PROPOSAL.md](PROPOSAL.md) | The design of the tool, its goals and its decisions |

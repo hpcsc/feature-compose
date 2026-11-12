@@ -140,6 +140,57 @@ func TestSelection(t *testing.T) {
 			require.Equal(t, map[string]string{"names": "x-ray-scan"}, filesIn(t, output))
 		})
 
+		for name, call := range map[string]struct {
+			template string
+			expected string
+		}{
+			"puts the spaces before a text of one line":                    {`{{ indent 2 "a: 1" }}`, "  a: 1"},
+			"puts the spaces before each line of a text of several lines":  {`{{ indent 4 "a:\n  b: 1\nc: 2" }}`, "    a:\n      b: 1\n    c: 2"},
+			"leaves an empty line empty, and the end of the text as it is": {`{{ indent 2 "a:\n\nb:\n" }}`, "  a:\n\n  b:\n"},
+			"gives no text for no text":                                    {`{{ indent 2 "" }}`, ""},
+			"gives the text as it is for 0 spaces":                         {`{{ indent 0 "a:\n  b: 1" }}`, "a:\n  b: 1"},
+		} {
+			t.Run("indent "+name, func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":   oneFolder,
+					"starters/service/files/go/text": &fstest.MapFile{Data: []byte(call.template)},
+				}
+				output := filepath.Join(t.TempDir(), "repo")
+
+				err := selectionOf(t, files, "my-service").Write(output)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"text": call.expected}, filesIn(t, output))
+			})
+		}
+
+		t.Run("indent works in a file with the delimiters [[ and ]]", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":           &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\ndelimiters:\n  - glob: \"go/*.yml\"\n    left: \"[[\"\n    right: \"]]\"\n")},
+				"starters/service/files/go/Taskfile.yml": &fstest.MapFile{Data: []byte("tasks:\n[[ indent 2 \"run:\\n  cmds: [\\\"{{.CLI_ARGS}}\\\"]\" ]]\n")},
+			}
+			output := filepath.Join(t.TempDir(), "repo")
+
+			err := selectionOf(t, files, "my-service").Write(output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"Taskfile.yml": "tasks:\n  run:\n    cmds: [\"{{.CLI_ARGS}}\"]\n"}, filesIn(t, output))
+		})
+
+		t.Run("indent with fewer than 0 spaces stops the write, and the message names the template and the spaces", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":   oneFolder,
+				"starters/service/files/go/text": &fstest.MapFile{Data: []byte(`{{ indent -1 "a" }}`)},
+			}
+			output := filepath.Join(t.TempDir(), "repo")
+
+			err := selectionOf(t, files, "my-service").Write(output)
+
+			require.ErrorContains(t, err, "go/text of the starter")
+			require.ErrorContains(t, err, "indent -1")
+			require.NoDirExists(t, output)
+		})
+
 		t.Run("a written file can be read by everyone and cannot be run", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":      oneFolder,

@@ -5,6 +5,9 @@ includes:
   test: Taskfile.test.yml
   api: Taskfile.api.yml
   catchup: Taskfile.catchup.yml
+[[- range items "taskfile.includes" ]]
+  [[ .name ]]: [[ .taskfile ]]
+[[- end ]]
 
 tasks:
   test:shellcheck:

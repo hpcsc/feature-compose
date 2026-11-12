@@ -1,0 +1,114 @@
+//go:build unit
+
+package checks_test
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"{{ option "starter.module" }}/internal/common/test"
+	"{{ option "starter.module" }}/internal/use_cases/payment/checks"
+	"github.com/stretchr/testify/require"
+)
+
+func TestFakeServices(t *testing.T) {
+	t.Run("fraud check", func(t *testing.T) {
+		t.Run("passes an amount up to 10000", func(t *testing.T) {
+			webhooks := newWebhookReceiver()
+			defer webhooks.Close()
+
+			w := askFakeServices("/fraud/checks", fakeRequestBody(webhooks.URL, 10000, "DE89370400440532013000"))
+
+			require.Equal(t, http.StatusAccepted, w.Code)
+			require.Equal(t, `{"paymentId":"payment-1","passed":true}`, webhooks.waitForOne(t))
+		})
+
+		t.Run("fails an amount above 10000", func(t *testing.T) {
+			webhooks := newWebhookReceiver()
+			defer webhooks.Close()
+
+			askFakeServices("/fraud/checks", fakeRequestBody(webhooks.URL, 10001, "DE89370400440532013000"))
+
+			require.Equal(t, `{"paymentId":"payment-1","passed":false,"reason":"amount above the limit of the fraud check"}`, webhooks.waitForOne(t))
+		})
+	})
+
+	t.Run("sanctions screening", func(t *testing.T) {
+		t.Run("passes a creditor IBAN with other last digits", func(t *testing.T) {
+			webhooks := newWebhookReceiver()
+			defer webhooks.Close()
+
+			askFakeServices("/sanctions/screenings", fakeRequestBody(webhooks.URL, 300, "DE89370400440532013000"))
+
+			require.Equal(t, `{"paymentId":"payment-1","passed":true}`, webhooks.waitForOne(t))
+		})
+
+		t.Run("fails a creditor IBAN that ends in 0000", func(t *testing.T) {
+			webhooks := newWebhookReceiver()
+			defer webhooks.Close()
+
+			askFakeServices("/sanctions/screenings", fakeRequestBody(webhooks.URL, 300, "DE89370400440532010000"))
+
+			require.Equal(t, `{"paymentId":"payment-1","passed":false,"reason":"creditor on the sanctions list"}`, webhooks.waitForOne(t))
+		})
+
+		t.Run("never answers for a creditor IBAN that ends in 1111", func(t *testing.T) {
+			webhooks := newWebhookReceiver()
+			defer webhooks.Close()
+
+			w := askFakeServices("/sanctions/screenings", fakeRequestBody(webhooks.URL, 300, "DE89370400440532011111"))
+
+			require.Equal(t, http.StatusAccepted, w.Code)
+			require.Never(t, func() bool { return len(webhooks.bodies()) > 0 }, 200*time.Millisecond, 10*time.Millisecond)
+		})
+	})
+}
+
+func fakeRequestBody(webhookURL string, amount int64, creditorIBAN string) string {
+	return fmt.Sprintf(`{"paymentId": "payment-1", "amount": %d, "creditorIban": %q, "webhookUrl": %q}`, amount, creditorIBAN, webhookURL)
+}
+
+func askFakeServices(path string, body string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", path, strings.NewReader(body))
+	req.Header.Set("Idempotency-Key", "key-1")
+	checks.NewFakeServices(0, test.DiscardLogger()).ServeHTTP(w, req)
+	return w
+}
+
+type webhookReceiver struct {
+	*httptest.Server
+	mutex    sync.Mutex
+	received []string
+}
+
+func newWebhookReceiver() *webhookReceiver {
+	h := &webhookReceiver{}
+	h.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body json.RawMessage
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		h.mutex.Lock()
+		h.received = append(h.received, string(body))
+		h.mutex.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	return h
+}
+
+func (h *webhookReceiver) bodies() []string {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+	return append([]string(nil), h.received...)
+}
+
+func (h *webhookReceiver) waitForOne(t *testing.T) string {
+	t.Helper()
+	require.Eventually(t, func() bool { return len(h.bodies()) > 0 }, 5*time.Second, 10*time.Millisecond, "no webhook arrived")
+	return h.bodies()[0]
+}

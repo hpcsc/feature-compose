@@ -1,0 +1,113 @@
+package outside
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"sync"
+	"time"
+)
+
+const (
+	fakeWebhookAttempts    = 3
+	fakeWebhookAttemptWait = 500 * time.Millisecond
+)
+
+type FakeRequest struct {
+	PaymentID    string `json:"paymentId"`
+	Amount       int64  `json:"amount"`
+	CreditorIBAN string `json:"creditorIban"`
+	WebhookURL   string `json:"webhookUrl"`
+}
+
+type FakeSystem struct {
+	delay  time.Duration
+	client *http.Client
+	logger *slog.Logger
+
+	mutex   sync.Mutex
+	answers map[string]any
+}
+
+func NewFakeSystem(delay time.Duration, logger *slog.Logger) *FakeSystem {
+	return &FakeSystem{
+		delay:   delay,
+		client:  &http.Client{Timeout: 5 * time.Second},
+		logger:  logger,
+		answers: make(map[string]any),
+	}
+}
+
+// AnswerOnce runs decide under the mutex of the system, so decide must not call AnswerOnce.
+func (f *FakeSystem) AnswerOnce(w http.ResponseWriter, r *http.Request, decide func(p FakeRequest, key string) any) {
+	key := r.Header.Get("Idempotency-Key")
+	if key == "" {
+		http.Error(w, "the Idempotency-Key header is required", http.StatusBadRequest)
+		return
+	}
+
+	var p FakeRequest
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		http.Error(w, "received invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	f.mutex.Lock()
+	answer, ok := f.answers[r.URL.Path+" "+key]
+	if !ok {
+		answer = decide(p, key)
+		f.answers[r.URL.Path+" "+key] = answer
+	}
+	f.mutex.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(answer)
+}
+
+func (f *FakeSystem) CallLater(url string, key string, body any) {
+	time.AfterFunc(f.delay, func() {
+		if err := f.call(url, key, body); err != nil {
+			f.logger.Error(fmt.Sprintf("failed to call the webhook %s: %v", url, err))
+		}
+	})
+}
+
+func (f *FakeSystem) call(url string, key string, body any) error {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= fakeWebhookAttempts; attempt++ {
+		if attempt > 1 {
+			time.Sleep(fakeWebhookAttemptWait)
+		}
+		if lastErr = f.post(url, key, payload); lastErr == nil {
+			return nil
+		}
+	}
+	return lastErr
+}
+
+func (f *FakeSystem) post(url string, key string, payload []byte) error {
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", key)
+
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return err
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("the webhook answered %d", resp.StatusCode)
+	}
+	return nil
+}

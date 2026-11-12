@@ -1,0 +1,82 @@
+package submission
+
+import (
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"{{ option "starter.module" }}/internal/use_cases/payment/outside"
+)
+
+const (
+	returnedSuffix   = "2222"
+	unsettledSuffix  = "3333"
+	unansweredSuffix = "4444"
+)
+
+type networkStatus struct {
+	PaymentID string `json:"paymentId"`
+	Status    string `json:"status"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+type FakeNetwork struct {
+	system *outside.FakeSystem
+	router chi.Router
+
+	mutex    sync.Mutex
+	statuses map[string]networkStatus
+}
+
+func NewFakeNetwork(delay time.Duration, logger *slog.Logger) *FakeNetwork {
+	f := &FakeNetwork{system: outside.NewFakeSystem(delay, logger), router: chi.NewRouter(), statuses: make(map[string]networkStatus)}
+	f.router.Post("/network/payments", f.payment)
+	f.router.Get("/network/payments/{reference}", f.status)
+	return f
+}
+
+func (f *FakeNetwork) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	f.router.ServeHTTP(w, r)
+}
+
+func (f *FakeNetwork) payment(w http.ResponseWriter, r *http.Request) {
+	f.system.AnswerOnce(w, r, func(p outside.FakeRequest, key string) any {
+		reference := "N-" + strings.ToUpper(uuid.NewSHA1(uuid.NameSpaceOID, []byte(key)).String()[:8])
+		status := networkStatus{PaymentID: p.PaymentID, Status: "settled"}
+		sendsWebhook := true
+		switch {
+		case strings.HasSuffix(p.CreditorIBAN, unsettledSuffix):
+			sendsWebhook = false
+		case strings.HasSuffix(p.CreditorIBAN, unansweredSuffix):
+			status.Status, sendsWebhook = "pending", false
+		case strings.HasSuffix(p.CreditorIBAN, returnedSuffix):
+			status.Status, status.Reason = "returned", "account closed at the other bank"
+		}
+
+		f.mutex.Lock()
+		f.statuses[reference] = status
+		f.mutex.Unlock()
+		if sendsWebhook {
+			f.system.CallLater(p.WebhookURL, key, status)
+		}
+		return SubmitAnswer{Reference: reference}
+	})
+}
+
+func (f *FakeNetwork) status(w http.ResponseWriter, r *http.Request) {
+	f.mutex.Lock()
+	status, ok := f.statuses[chi.URLParam(r, "reference")]
+	f.mutex.Unlock()
+	if !ok {
+		http.Error(w, "no payment has the reference", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(status)
+}

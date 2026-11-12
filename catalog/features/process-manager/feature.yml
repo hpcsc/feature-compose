@@ -25,6 +25,25 @@ add_to:
       import: internal/use_cases/payment/outside
   catchup.consumers:
     - code: paymentWorkers(pool, cfg, logger, bus, eventStream, checkpointStore, eventSubscription)
+  taskfile.includes:
+    - name: fake_services
+      taskfile: Taskfile.fake_services.yml
+  tmux.panes:
+    - command: task fake_services:run
+  compose.catchup.environment:
+    - name: FRAUD_SERVICE_URL
+      value: http://fake_services:4444/fraud
+    - name: SANCTIONS_SERVICE_URL
+      value: http://fake_services:4444/sanctions
+    - name: PAYMENT_NETWORK_URL
+      value: http://fake_services:4444/network
+    - name: WEBHOOK_URL
+      value: http://api:3333/api/webhooks
+  compose.services:
+    - text: |-
+        fake_services:
+          build:
+            dockerfile: Dockerfile.fake_services
   use_cases.events:
     - code: registerPaymentEvents(reg)
   use_cases.handlers:

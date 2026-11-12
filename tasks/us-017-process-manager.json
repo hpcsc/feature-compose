@@ -165,7 +165,7 @@
     },
     {
       "n": 6,
-      "done": false,
+      "done": true,
       "title": "Start the fake outside systems with `task run` and with Docker Compose",
       "language": "Go",
       "testable": true,

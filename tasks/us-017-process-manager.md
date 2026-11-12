@@ -643,30 +643,30 @@ the template function `indent` (decision 6). The integration test of the templat
 and compiles.
 
 **Acceptance Criteria:**
-- [ ] The template function `indent <spaces> <text>` puts the spaces before each line of the text that is not empty,
+- [x] The template function `indent <spaces> <text>` puts the spaces before each line of the text that is not empty,
   and leaves an empty line empty. Unit tests of the render show it with a text of one line, of several lines, with an
   empty line, and with no text, also with the delimiters `[[` and `]]`.
-- [ ] `starter.yml` declares `taskfile.includes`, `tmux.panes`, `compose.catchup.environment` and `compose.services` of
+- [x] `starter.yml` declares `taskfile.includes`, `tmux.panes`, `compose.catchup.environment` and `compose.services` of
   decision 3, and `process-manager` adds the items of decision 3 to them.
-- [ ] Written with `process-manager`, the repo has `cmd/fakeservices/main.go`, `internal/fakeservices/handler.go` and
+- [x] Written with `process-manager`, the repo has `cmd/fakeservices/main.go`, `internal/fakeservices/handler.go` and
   its test, `Taskfile.fakeservices.yml` and `Dockerfile.fakeservices`. No file of the fakes reads, holds or sends a
   token, and the fakes send each webhook with the key of its request.
-- [ ] A catalog test parses the written `Taskfile.yml`, `Taskfile.fakeservices.yml`, `.tmuxp.yaml` and
+- [x] A catalog test parses the written `Taskfile.yml`, `Taskfile.fakeservices.yml`, `.tmuxp.yaml` and
   `docker-compose.local.yml` as YAML, and finds: the include `fakeservices: Taskfile.fakeservices.yml` after the
   includes of the starter; a task `run` of `Taskfile.fakeservices.yml` that runs `go run ./cmd/fakeservices`; the panes
   `task api:run`, `task catchup:run` and `task fakeservices:run`; the four variables of `catchup` with the values of
   the template, `WEBHOOK_URL` under `/api`, beside `<<: *x-db-config`; and a service `fakeservices` whose build uses
   `Dockerfile.fakeservices`.
-- [ ] Written from the starter alone, the four files hold no line and no blank line from an item, and they parse with
+- [x] Written from the starter alone, the four files hold no line and no blank line from an item, and they parse with
   the values of the starter.
-- [ ] Written with `process-manager`, the repo has `internal/use_cases/payment/process_test.go`, which calls the
+- [x] Written with `process-manager`, the repo has `internal/use_cases/payment/process_test.go`, which calls the
   `Register` of the starter, and `go vet -tags integration ./...` passes in the repo.
-- [ ] In the written repo, the unit tests of `internal/fakeservices` run in `task test:unit` and pass.
-- [ ] No written file holds the name of one of the four extension points, and `feature-compose check --catalog catalog`
+- [x] In the written repo, the unit tests of `internal/fakeservices` run in `task test:unit` and pass.
+- [x] No written file holds the name of one of the four extension points, and `feature-compose check --catalog catalog`
   finds no mistake.
-- [ ] With each combination, the written repo builds, `gofmt -l .` lists no file, and its unit tests pass
+- [x] With each combination, the written repo builds, `gofmt -l .` lists no file, and its unit tests pass
   (`task test:combinations`).
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the host.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the host.
 
 **Affected Files/Modules:**
 - `internal/catalog/selection.go` — `indent` in the FuncMap of `render`

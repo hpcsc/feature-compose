@@ -56,6 +56,23 @@ extension_points:
     file: go/cmd/catchup/main.go
     item: [code]
 
+  taskfile.includes:
+    summary: A Taskfile that Taskfile.yml includes. name is the namespace of its tasks, and taskfile is its path in the repo.
+    file: go/Taskfile.yml
+    item: [name, taskfile]
+  tmux.panes:
+    summary: A command that task run runs in a pane of its tmux window, beside the API and catchup.
+    file: go/.tmuxp.yaml
+    item: [command]
+  compose.catchup.environment:
+    summary: A variable of the environment of the catchup service of docker-compose.local.yml.
+    file: go/docker-compose.local.yml
+    item: [name, value]
+  compose.services:
+    summary: A service of docker-compose.local.yml, as YAML with the service name at the left edge.
+    file: go/docker-compose.local.yml
+    item: [text]
+
 delimiters:
   - glob: "go/**/Taskfile*.yml"
     left: "[["

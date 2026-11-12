@@ -1,0 +1,64 @@
+package checks
+
+import (
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"{{ option "starter.module" }}/internal/use_cases/payment/outside"
+)
+
+const (
+	fraudLimit       = 10000
+	sanctionedSuffix = "0000"
+	unscreenedSuffix = "1111"
+)
+
+type checkResult struct {
+	PaymentID string `json:"paymentId"`
+	Passed    bool   `json:"passed"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+type FakeServices struct {
+	system *outside.FakeSystem
+	router chi.Router
+}
+
+func NewFakeServices(delay time.Duration, logger *slog.Logger) *FakeServices {
+	f := &FakeServices{system: outside.NewFakeSystem(delay, logger), router: chi.NewRouter()}
+	f.router.Post("/fraud/checks", f.fraudCheck)
+	f.router.Post("/sanctions/screenings", f.sanctionsScreening)
+	return f
+}
+
+func (f *FakeServices) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	f.router.ServeHTTP(w, r)
+}
+
+func (f *FakeServices) fraudCheck(w http.ResponseWriter, r *http.Request) {
+	f.system.AnswerOnce(w, r, func(p outside.FakeRequest, key string) any {
+		result := checkResult{PaymentID: p.PaymentID, Passed: true}
+		if p.Amount > fraudLimit {
+			result = checkResult{PaymentID: p.PaymentID, Passed: false, Reason: "amount above the limit of the fraud check"}
+		}
+		f.system.CallLater(p.WebhookURL, key, result)
+		return struct{}{}
+	})
+}
+
+func (f *FakeServices) sanctionsScreening(w http.ResponseWriter, r *http.Request) {
+	f.system.AnswerOnce(w, r, func(p outside.FakeRequest, key string) any {
+		switch {
+		case strings.HasSuffix(p.CreditorIBAN, unscreenedSuffix):
+			// The screening never answers, so the checks of the payment wait.
+		case strings.HasSuffix(p.CreditorIBAN, sanctionedSuffix):
+			f.system.CallLater(p.WebhookURL, key, checkResult{PaymentID: p.PaymentID, Passed: false, Reason: "creditor on the sanctions list"})
+		default:
+			f.system.CallLater(p.WebhookURL, key, checkResult{PaymentID: p.PaymentID, Passed: true})
+		}
+		return struct{}{}
+	})
+}

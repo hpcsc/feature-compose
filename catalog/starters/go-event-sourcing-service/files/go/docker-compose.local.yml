@@ -27,3 +27,10 @@ services:
       dockerfile: Dockerfile.catchup
     environment:
       <<: *x-db-config
+{{- range items "compose.catchup.environment" }}
+      {{ .name }}: {{ .value }}
+{{- end }}
+{{- range items "compose.services" }}
+
+{{ indent 2 .text }}
+{{- end }}

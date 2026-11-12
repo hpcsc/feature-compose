@@ -1,0 +1,126 @@
+//go:build unit
+
+package submission_test
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"{{ option "starter.module" }}/internal/common/test"
+	"{{ option "starter.module" }}/internal/use_cases/payment/submission"
+	"github.com/stretchr/testify/require"
+)
+
+func TestFakeNetwork(t *testing.T) {
+	t.Run("payment", func(t *testing.T) {
+		t.Run("gives a reference and settles the payment", func(t *testing.T) {
+			webhooks := newWebhookReceiver()
+			defer webhooks.Close()
+
+			w := submitTo(submission.NewFakeNetwork(0, test.DiscardLogger()), fakeRequestBody(webhooks.URL, 300, "DE89370400440532013000"))
+
+			require.Equal(t, http.StatusAccepted, w.Code)
+			require.Regexp(t, `^\{"reference":"N-[0-9A-F]{8}"\}\n$`, w.Body.String())
+			require.Equal(t, `{"paymentId":"payment-1","status":"settled"}`, webhooks.waitForOne(t))
+		})
+
+		t.Run("returns the payment for a creditor IBAN that ends in 2222", func(t *testing.T) {
+			webhooks := newWebhookReceiver()
+			defer webhooks.Close()
+
+			submitTo(submission.NewFakeNetwork(0, test.DiscardLogger()), fakeRequestBody(webhooks.URL, 300, "DE89370400440532012222"))
+
+			require.Equal(t, `{"paymentId":"payment-1","status":"returned","reason":"account closed at the other bank"}`, webhooks.waitForOne(t))
+		})
+
+		for iban, name := range map[string]string{"DE89370400440532013333": "settles", "DE89370400440532014444": "keeps pending"} {
+			t.Run("sends no webhook for a creditor IBAN that ends in "+iban[len(iban)-4:]+", and "+name+" the payment", func(t *testing.T) {
+				webhooks := newWebhookReceiver()
+				defer webhooks.Close()
+
+				submitTo(submission.NewFakeNetwork(0, test.DiscardLogger()), fakeRequestBody(webhooks.URL, 300, iban))
+
+				require.Never(t, func() bool { return len(webhooks.bodies()) > 0 }, 200*time.Millisecond, 10*time.Millisecond)
+			})
+		}
+	})
+
+	t.Run("payment status", func(t *testing.T) {
+		for iban, expected := range map[string]string{
+			"DE89370400440532013000": `{"paymentId":"payment-1","status":"settled"}`,
+			"DE89370400440532012222": `{"paymentId":"payment-1","status":"returned","reason":"account closed at the other bank"}`,
+			"DE89370400440532013333": `{"paymentId":"payment-1","status":"settled"}`,
+			"DE89370400440532014444": `{"paymentId":"payment-1","status":"pending"}`,
+		} {
+			t.Run("answers the status by the reference for a creditor IBAN that ends in "+iban[len(iban)-4:], func(t *testing.T) {
+				network := submission.NewFakeNetwork(time.Hour, test.DiscardLogger())
+				submitted := submitTo(network, fakeRequestBody("http://unused", 300, iban))
+				var answer submission.SubmitAnswer
+				require.NoError(t, json.Unmarshal(submitted.Body.Bytes(), &answer))
+
+				w := httptest.NewRecorder()
+				network.ServeHTTP(w, httptest.NewRequest("GET", "/network/payments/"+answer.Reference, nil))
+
+				require.Equal(t, http.StatusOK, w.Code)
+				require.JSONEq(t, expected, w.Body.String())
+			})
+		}
+
+		t.Run("answers not found for an unknown reference", func(t *testing.T) {
+			w := httptest.NewRecorder()
+
+			submission.NewFakeNetwork(0, test.DiscardLogger()).ServeHTTP(w, httptest.NewRequest("GET", "/network/payments/N-UNKNOWN", nil))
+
+			require.Equal(t, http.StatusNotFound, w.Code)
+		})
+	})
+}
+
+func fakeRequestBody(webhookURL string, amount int64, creditorIBAN string) string {
+	return fmt.Sprintf(`{"paymentId": "payment-1", "amount": %d, "creditorIban": %q, "webhookUrl": %q}`, amount, creditorIBAN, webhookURL)
+}
+
+func submitTo(network *submission.FakeNetwork, body string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/network/payments", strings.NewReader(body))
+	req.Header.Set("Idempotency-Key", "key-1")
+	network.ServeHTTP(w, req)
+	return w
+}
+
+type webhookReceiver struct {
+	*httptest.Server
+	mutex    sync.Mutex
+	received []string
+}
+
+func newWebhookReceiver() *webhookReceiver {
+	h := &webhookReceiver{}
+	h.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body json.RawMessage
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		h.mutex.Lock()
+		h.received = append(h.received, string(body))
+		h.mutex.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	return h
+}
+
+func (h *webhookReceiver) bodies() []string {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+	return append([]string(nil), h.received...)
+}
+
+func (h *webhookReceiver) waitForOne(t *testing.T) string {
+	t.Helper()
+	require.Eventually(t, func() bool { return len(h.bodies()) > 0 }, 5*time.Second, 10*time.Millisecond, "no webhook arrived")
+	return h.bodies()[0]
+}

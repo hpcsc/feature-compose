@@ -936,10 +936,10 @@ files:
 		t.Run("the repo has no file and no edit of the process manager example", func(t *testing.T) {
 			_, files := writtenStarter(t, nil)
 
-			processManager := regexp.MustCompile(`^(internal/use_cases/payment/|internal/api/use_cases/(payment|webhook)/|internal/use_cases/account/(holds/|hold(_test)?\.go$|event/hold_|command/[^/]*_hold\.go$)|internal/fakeservices/|cmd/fakeservices/|Taskfile\.fakeservices\.yml$|Dockerfile\.fakeservices$|migrations/[^/]*_create-payment(s|-deadlines)-table\.|docs/process-manager-example\.md$|docs/event-model-payment\.)`)
+			processManager := regexp.MustCompile(`^(internal/use_cases/payment/|internal/api/use_cases/(payment|webhook)/|internal/use_cases/account/(holds/|hold(_test)?\.go$|event/hold_|command/[^/]*_hold\.go$)|cmd/fake_services/|Taskfile\.fake_services\.yml$|Dockerfile\.fake_services$|migrations/[^/]*_create-payment(s|-deadlines)-table\.|docs/process-manager-example\.md$|docs/event-model-payment\.)`)
 			for path, contents := range files {
 				require.False(t, processManager.MatchString(path), path)
-				require.NotContains(t, contents, "fakeservices", path)
+				require.NotContains(t, contents, "fake_services", path)
 				require.NotContains(t, contents, "HoldPlaced", path)
 			}
 		})
@@ -1186,6 +1186,57 @@ files:
 			_, files := writtenStarter(t, nil)
 
 			require.Contains(t, files["internal/api/use_cases/register.go"], "\t\tapiAccount.NewHandler(bus, balance.NewQuery(pool)),\n\t}\n\n\tvar routes []*route.Route\n")
+		})
+
+		parsedYAML := func(t *testing.T, contents string) map[string]any {
+			t.Helper()
+			var parsed map[string]any
+			require.NoError(t, yaml.Unmarshal([]byte(contents), &parsed))
+			return parsed
+		}
+
+		t.Run("with process-manager, task run starts the fakes beside the API and catchup, and Docker Compose builds the fakes and gives catchup their URLs", func(t *testing.T) {
+			files := writtenWithProcessManager(t)
+
+			require.Contains(t, files["Taskfile.yml"], "  catchup: Taskfile.catchup.yml\n  fake_services: Taskfile.fake_services.yml\n")
+			require.Equal(t, "Taskfile.fake_services.yml", parsedYAML(t, files["Taskfile.yml"])["includes"].(map[string]any)["fake_services"])
+			require.Equal(t, []any{"go run ./cmd/fake_services"}, parsedYAML(t, files["Taskfile.fake_services.yml"])["tasks"].(map[string]any)["run"].(map[string]any)["cmds"])
+			require.Equal(t, []any{"task api:run", "task catchup:run", "task fake_services:run"}, parsedYAML(t, files[".tmuxp.yaml"])["windows"].([]any)[0].(map[string]any)["panes"])
+			services := parsedYAML(t, files["docker-compose.local.yml"])["services"].(map[string]any)
+			require.Equal(t, map[string]any{
+				"DB_NAME": "${DB_NAME}", "DB_USERNAME": "${DB_USERNAME}", "DB_PASSWORD": "${DB_PASSWORD}", "DB_HOST_PORT": 5432, "DB_HOST": "db",
+				"FRAUD_SERVICE_URL":     "http://fake_services:4444/fraud",
+				"SANCTIONS_SERVICE_URL": "http://fake_services:4444/sanctions",
+				"PAYMENT_NETWORK_URL":   "http://fake_services:4444/network",
+				"WEBHOOK_URL":           "http://api:3333/api/webhooks",
+			}, services["catchup"].(map[string]any)["environment"])
+			require.Equal(t, map[string]any{"build": map[string]any{"dockerfile": "Dockerfile.fake_services"}}, services["fake_services"])
+			require.Contains(t, files["Dockerfile.fake_services"], "FROM golang:1.27.1 AS build-env")
+		})
+
+		t.Run("with process-manager, no file of the fakes reads, holds or sends a token", func(t *testing.T) {
+			files := writtenWithProcessManager(t)
+
+			fakes := []string{"cmd/fake_services/main.go", "internal/use_cases/payment/outside/fake_system.go", "internal/use_cases/payment/checks/fake_services.go", "internal/use_cases/payment/submission/fake_network.go", "Taskfile.fake_services.yml", "Dockerfile.fake_services"}
+			for _, path := range fakes {
+				require.Contains(t, files, path)
+				for _, word := range []string{"token", "bearer", "authorization"} {
+					require.NotContains(t, strings.ToLower(files[path]), word, path)
+				}
+			}
+		})
+
+		t.Run("with no item, the Taskfile, the tmux window and Docker Compose have only the values of the starter", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			require.Equal(t, map[string]any{"migrate": "Taskfile.migrate.yml", "test": "Taskfile.test.yml", "api": "Taskfile.api.yml", "catchup": "Taskfile.catchup.yml"}, parsedYAML(t, files["Taskfile.yml"])["includes"])
+			require.Contains(t, files["Taskfile.yml"], "  catchup: Taskfile.catchup.yml\n\ntasks:\n")
+			require.Equal(t, []any{"task api:run", "task catchup:run"}, parsedYAML(t, files[".tmuxp.yaml"])["windows"].([]any)[0].(map[string]any)["panes"])
+			require.True(t, strings.HasSuffix(files[".tmuxp.yaml"], "      - task catchup:run\n"))
+			services := parsedYAML(t, files["docker-compose.local.yml"])["services"].(map[string]any)
+			require.ElementsMatch(t, []string{"api", "catchup"}, slices.Collect(maps.Keys(services)))
+			require.Len(t, services["catchup"].(map[string]any)["environment"], 5)
+			require.True(t, strings.HasSuffix(files["docker-compose.local.yml"], "    environment:\n      <<: *x-db-config\n"))
 		})
 
 		t.Run("with no item, the account, its events, the balance projection and the registration of the handlers have only the lines of the starter", func(t *testing.T) {

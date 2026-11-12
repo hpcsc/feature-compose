@@ -1,0 +1,7 @@
+version: '3'
+
+tasks:
+  run:
+    desc: run the fake fraud service, sanctions service and payment network
+    cmds:
+      - go run ./cmd/fake_services

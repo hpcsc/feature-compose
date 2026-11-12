@@ -1,0 +1,120 @@
+//go:build unit
+
+package outside_test
+
+import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"{{ option "starter.module" }}/internal/common/test"
+	"{{ option "starter.module" }}/internal/use_cases/payment/outside"
+	"github.com/stretchr/testify/require"
+)
+
+func TestFakeSystem(t *testing.T) {
+	t.Run("answer once", func(t *testing.T) {
+		t.Run("gives a repeated request the same answer and calls the webhook once", func(t *testing.T) {
+			webhooks := newWebhookReceiver()
+			defer webhooks.Close()
+			system := countingSystem(outside.NewFakeSystem(0, test.DiscardLogger()))
+
+			first := askWith(system, "key-1", webhooks.URL)
+			second := askWith(system, "key-1", webhooks.URL)
+
+			require.Equal(t, "1\n", first.Body.String())
+			require.Equal(t, first.Body.String(), second.Body.String())
+			webhooks.waitForOne(t)
+			require.Never(t, func() bool { return len(webhooks.receivedKeys()) > 1 }, 200*time.Millisecond, 10*time.Millisecond)
+		})
+
+		t.Run("decides again for another Idempotency-Key", func(t *testing.T) {
+			system := countingSystem(outside.NewFakeSystem(time.Hour, test.DiscardLogger()))
+
+			askWith(system, "key-1", "http://unused")
+			second := askWith(system, "key-2", "http://unused")
+
+			require.Equal(t, "2\n", second.Body.String())
+		})
+
+		t.Run("refuses a request with no Idempotency-Key", func(t *testing.T) {
+			w := askWith(countingSystem(outside.NewFakeSystem(0, test.DiscardLogger())), "", "http://unused")
+
+			require.Equal(t, http.StatusBadRequest, w.Code)
+		})
+	})
+
+	t.Run("webhook", func(t *testing.T) {
+		t.Run("sends the key of the request, and no credential", func(t *testing.T) {
+			webhooks := newWebhookReceiver()
+			defer webhooks.Close()
+
+			askWith(countingSystem(outside.NewFakeSystem(0, test.DiscardLogger())), "key-1", webhooks.URL)
+
+			webhooks.waitForOne(t)
+			require.Equal(t, []string{"key-1"}, webhooks.receivedKeys())
+			require.Equal(t, []string{""}, webhooks.receivedCredentials())
+		})
+	})
+}
+
+func countingSystem(system *outside.FakeSystem) http.Handler {
+	decided := 0
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		system.AnswerOnce(w, r, func(p outside.FakeRequest, key string) any {
+			decided++
+			system.CallLater(p.WebhookURL, key, map[string]string{"paymentId": p.PaymentID})
+			return decided
+		})
+	})
+}
+
+func askWith(handler http.Handler, key string, webhookURL string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "/checks", strings.NewReader(fmt.Sprintf(`{"paymentId": "payment-1", "amount": 300, "webhookUrl": %q}`, webhookURL)))
+	if key != "" {
+		req.Header.Set("Idempotency-Key", key)
+	}
+	handler.ServeHTTP(w, req)
+	return w
+}
+
+type webhookReceiver struct {
+	*httptest.Server
+	mutex       sync.Mutex
+	keys        []string
+	credentials []string
+}
+
+func newWebhookReceiver() *webhookReceiver {
+	h := &webhookReceiver{}
+	h.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.mutex.Lock()
+		h.keys = append(h.keys, r.Header.Get("Idempotency-Key"))
+		h.credentials = append(h.credentials, r.Header.Get("Authorization"))
+		h.mutex.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	return h
+}
+
+func (h *webhookReceiver) receivedKeys() []string {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+	return append([]string(nil), h.keys...)
+}
+
+func (h *webhookReceiver) receivedCredentials() []string {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+	return append([]string(nil), h.credentials...)
+}
+
+func (h *webhookReceiver) waitForOne(t *testing.T) {
+	t.Helper()
+	require.Eventually(t, func() bool { return len(h.receivedKeys()) > 0 }, 5*time.Second, 10*time.Millisecond, "no webhook arrived")
+}

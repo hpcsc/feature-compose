@@ -337,3 +337,17 @@
 - Observed: us-019-api-prefix-cors
 - Learning: emod validate docs/event-model-account.emod of go-event-sourcing-service exits 1 with three lints of the model itself: missing-todo-list (WelcomeBonusReaction reads no view), clickbait-event (AccountClosed has one ID field) and god-view (AccountBalanceView reads five events). The breakdown of US-019 asked that it passes, and that criterion stayed open, because no route change can fix these lints.
 - Apply when: decomposing a story that changes the event model files of the starter go-event-sourcing-service
+
+## The e2e tests of show and of the form pick a starter by its place in the order of the names
+- Type: constraint
+- Recorded: 2026-11-12
+- Observed: task 1 — US-016 go starter
+- Learning: The TUI of show opens on the first starter in the order of the names, and the form of new lists the starters in that order, so its test presses j to reach a starter. A new starter that sorts first changes both: US-016 added go before go-event-sourcing-service and had to change the first test of show in a terminal, the test of show <starter> --output json, the unknown-starter messages, and the j presses of the form test with no argument (e2e/tests/show.test.ts, e2e/tests/new.test.ts). chi-api sorts before go.
+- Apply when: decomposing or building a story that adds a starter to catalog/, for example chi-api in US-015
+
+## The scheduler test of go-event-sourcing-service can fail under load
+- Type: constraint
+- Recorded: 2026-11-12
+- Observed: task 2 — US-016 go starter
+- Learning: TestScheduler/tick 'ticks at each interval with a later time each time' in the starter go-event-sourcing-service runs the scheduler at 1 ms and failed one time in a full e2e run of new, with two ticks out of time order; the same test passed when it ran again, and US-016 changed no file of the starter. A failure there in an e2e or combinations run is not evidence against the change under test: run the test again before you look for a cause in the branch.
+- Apply when: an e2e run of new or task test:combinations fails in internal/domain/scheduler of a repo from go-event-sourcing-service

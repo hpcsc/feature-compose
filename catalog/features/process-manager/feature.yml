@@ -17,6 +17,8 @@ add_to:
   balance.changes:
     - event: HoldCaptured
       amount: -payload.Amount
+  api.routes:
+    - code: paymentRoutables(bus, pool)
   catchup.config:
     - name: Outside
       type: outside.Config

@@ -44,12 +44,19 @@ func TestRegister(t *testing.T) {
 	}
 
 	t.Run("routes", func(t *testing.T) {
-		t.Run("each route is under /api, a request to each protected route goes through the middleware of the protected routes, and a request to the public route does not", func(t *testing.T) {
+		t.Run("a request to the public route reaches its handler, and a request to each account route goes through the middleware of the protected routes", func(t *testing.T) {
 			router := refusingRouter(t)
 			statuses := map[string]int{}
 
-			for _, served := range servedRoutes(t, router) {
-				statuses[served[0]+" "+served[1]] = statusOf(t, router, served[0], served[1])
+			for _, r := range [][2]string{
+				{"GET", "/api/"},
+				{"POST", "/api/accounts"},
+				{"POST", "/api/accounts/{id}/deposits"},
+				{"POST", "/api/accounts/{id}/withdrawals"},
+				{"POST", "/api/accounts/{id}/close"},
+				{"GET", "/api/accounts/{id}"},
+			} {
+				statuses[r[0]+" "+r[1]] = statusOf(t, router, r[0], r[1])
 			}
 
 			require.Equal(t, map[string]int{
@@ -62,23 +69,30 @@ func TestRegister(t *testing.T) {
 			}, statuses)
 		})
 
+		t.Run("each route that Register serves, of the starter or of a feature, is under /api", func(t *testing.T) {
+			served := servedRoutes(t, refusingRouter(t))
+
+			require.Subset(t, served, [][2]string{
+				{"GET", "/api/"},
+				{"POST", "/api/accounts"},
+				{"GET", "/api/accounts/{id}"},
+			})
+			for _, r := range served {
+				require.True(t, strings.HasPrefix(r[1], "/api/"), r[1])
+			}
+		})
+
 		t.Run("a request to the path of each route without /api gets 404 and does not reach the middleware of the protected routes", func(t *testing.T) {
 			router := refusingRouter(t)
-			statuses := map[string]int{}
+			served := servedRoutes(t, router)
 
-			for _, served := range servedRoutes(t, router) {
-				withoutPrefix := strings.TrimPrefix(served[1], "/api")
-				statuses[served[0]+" "+withoutPrefix] = statusOf(t, router, served[0], withoutPrefix)
+			require.Subset(t, served, [][2]string{
+				{"POST", "/api/accounts"},
+			})
+			for _, r := range served {
+				withoutPrefix := strings.TrimPrefix(r[1], "/api")
+				require.Equal(t, http.StatusNotFound, statusOf(t, router, r[0], withoutPrefix), r[0]+" "+withoutPrefix)
 			}
-
-			require.Equal(t, map[string]int{
-				"GET /":                          http.StatusNotFound,
-				"POST /accounts":                 http.StatusNotFound,
-				"POST /accounts/{id}/deposits":    http.StatusNotFound,
-				"POST /accounts/{id}/withdrawals": http.StatusNotFound,
-				"POST /accounts/{id}/close":       http.StatusNotFound,
-				"GET /accounts/{id}":              http.StatusNotFound,
-			}, statuses)
 		})
 
 		t.Run("with no middleware for the protected routes, a request to a protected route gets to its handler", func(t *testing.T) {

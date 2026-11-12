@@ -574,25 +574,25 @@ the connector file `internal/api/use_cases/payment.go` gives the payment handler
 the routes of a feature (decision 11).
 
 **Acceptance Criteria:**
-- [ ] `starter.yml` declares `api.routes` of decision 3, and `process-manager` adds `paymentRoutables(bus, pool)` to it.
+- [x] `starter.yml` declares `api.routes` of decision 3, and `process-manager` adds `paymentRoutables(bus, pool)` to it.
   `allRoutes` appends the routables of each item to the routables of the starter.
-- [ ] Written with `process-manager`, the repo has the packages `payment` and `webhook` of the template under
+- [x] Written with `process-manager`, the repo has the packages `payment` and `webhook` of the template under
   `internal/api/use_cases/`, and the connector file `internal/api/use_cases/payment.go`.
-- [ ] The test of `Register` in the written repo (`register_test.go`) shows, for the starter alone and with the routes
+- [x] The test of `Register` in the written repo (`register_test.go`) shows, for the starter alone and with the routes
   of a feature: a request to `GET /api/` reaches its handler, and a request to each of the five account routes goes
   through the middleware of the protected routes; each route that `Register`
   serves has a path under `/api/`; and a request to the path of each route without `/api` gets 404.
-- [ ] A unit test of the connector file in the written repo (`internal/api/use_cases/payment_test.go`, tag `unit`) shows
+- [x] A unit test of the connector file in the written repo (`internal/api/use_cases/payment_test.go`, tag `unit`) shows
   that `Register` serves the five routes of the process manager under `/api`, and that a request to each goes through
   the middleware of the protected routes.
-- [ ] In the written repo, the unit tests of `internal/api/use_cases/payment` and `internal/api/use_cases/webhook` run
+- [x] In the written repo, the unit tests of `internal/api/use_cases/payment` and `internal/api/use_cases/webhook` run
   in `task test:unit` and pass.
-- [ ] Written from the starter alone, `internal/api/use_cases/register.go` holds no line, no blank line and no import
+- [x] Written from the starter alone, `internal/api/use_cases/register.go` holds no line, no blank line and no import
   from an item, and no written file holds the name `api.routes`.
-- [ ] `feature-compose check --catalog catalog` finds no mistake.
-- [ ] With each combination, the written repo builds, `gofmt -l .` lists no file, and its unit tests pass
+- [x] `feature-compose check --catalog catalog` finds no mistake.
+- [x] With each combination, the written repo builds, `gofmt -l .` lists no file, and its unit tests pass
   (`task test:combinations`).
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the host.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the host.
 
 **Affected Files/Modules:**
 - `catalog/starters/go-event-sourcing-service/starter.yml` — `api.routes`

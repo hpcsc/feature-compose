@@ -1,0 +1,17 @@
+package use_cases
+
+import (
+	"{{ option "starter.module" }}/internal/api/route"
+	apiPayment "{{ option "starter.module" }}/internal/api/use_cases/payment"
+	"{{ option "starter.module" }}/internal/api/use_cases/webhook"
+	"{{ option "starter.module" }}/internal/domain/command"
+	"{{ option "starter.module" }}/internal/use_cases/payment/summary"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func paymentRoutables(bus *command.Bus, pool *pgxpool.Pool) []route.Routable {
+	return []route.Routable{
+		apiPayment.NewHandler(bus, summary.NewQuery(pool)),
+		webhook.NewHandler(bus),
+	}
+}

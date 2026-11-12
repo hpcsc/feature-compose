@@ -55,6 +55,9 @@ func allRoutes(pool *pgxpool.Pool) []*route.Route {
 		root.NewHandler(),
 		apiAccount.NewHandler(bus, balance.NewQuery(pool)),
 	}
+{{- range items "api.routes" }}
+	routables = append(routables, {{ .code }}...)
+{{- end }}
 
 	var routes []*route.Route
 	for _, r := range routables {

@@ -1,0 +1,51 @@
+//go:build unit
+
+package use_cases_test
+
+import (
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"{{ option "starter.module" }}/internal/api/use_cases"
+	"github.com/stretchr/testify/require"
+)
+
+func TestPaymentRoutes(t *testing.T) {
+	t.Run("routes", func(t *testing.T) {
+		t.Run("Register serves the payment routes and the webhook routes under /api, and a request to each goes through the middleware of the protected routes", func(t *testing.T) {
+			refuse := func(http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusTeapot)
+				})
+			}
+			router := chi.NewRouter()
+			use_cases.Register(router, []func(http.Handler) http.Handler{refuse}, nil, slog.New(slog.DiscardHandler))
+			statuses := map[string]int{}
+
+			for _, r := range []string{
+				"POST /api/payments",
+				"GET /api/payments/x",
+				"POST /api/webhooks/fraud-checks",
+				"POST /api/webhooks/sanctions-screenings",
+				"POST /api/webhooks/payment-network",
+			} {
+				method, path, _ := strings.Cut(r, " ")
+				recorder := httptest.NewRecorder()
+				router.ServeHTTP(recorder, httptest.NewRequest(method, path, nil))
+				statuses[r] = recorder.Code
+			}
+
+			require.Equal(t, map[string]int{
+				"POST /api/payments":                      http.StatusTeapot,
+				"GET /api/payments/x":                     http.StatusTeapot,
+				"POST /api/webhooks/fraud-checks":         http.StatusTeapot,
+				"POST /api/webhooks/sanctions-screenings": http.StatusTeapot,
+				"POST /api/webhooks/payment-network":      http.StatusTeapot,
+			}, statuses)
+		})
+	})
+}

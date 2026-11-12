@@ -1,0 +1,11 @@
+package webhook
+
+type CheckResult struct {
+	PaymentID string `json:"paymentId" validate:"required"`
+	Passed    bool   `json:"passed"`
+	Reason    string `json:"reason"`
+}
+
+func (r CheckResult) paymentID() string {
+	return r.PaymentID
+}

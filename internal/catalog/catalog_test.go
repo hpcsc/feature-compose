@@ -1176,6 +1176,18 @@ files:
 			}
 		})
 
+		t.Run("with process-manager, the API serves the routes of the payment and of the webhooks after the routes of the starter", func(t *testing.T) {
+			files := writtenWithProcessManager(t)
+
+			require.Contains(t, files["internal/api/use_cases/register.go"], "\t\tapiAccount.NewHandler(bus, balance.NewQuery(pool)),\n\t}\n\troutables = append(routables, paymentRoutables(bus, pool)...)\n")
+		})
+
+		t.Run("with no item, the API serves only the routes of the starter", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			require.Contains(t, files["internal/api/use_cases/register.go"], "\t\tapiAccount.NewHandler(bus, balance.NewQuery(pool)),\n\t}\n\n\tvar routes []*route.Route\n")
+		})
+
 		t.Run("with no item, the account, its events, the balance projection and the registration of the handlers have only the lines of the starter", func(t *testing.T) {
 			_, files := writtenStarter(t, nil)
 

@@ -89,7 +89,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Answer a request that `api-auth` refuses with the JSON error shape of the API",
       "language": "Go",
       "testable": true,

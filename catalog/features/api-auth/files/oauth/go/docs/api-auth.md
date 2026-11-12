@@ -92,5 +92,12 @@ call to the issuer stops after 10 seconds.
 | A token that fails a check above, or a token when the API cannot read the issuer | 401 with `WWW-Authenticate: Bearer` |
 | `Authorization: Bearer <token>` for a token that passes each check | The answer of the route |
 
+Each answer 401 has the JSON body of the other errors of the API, with a message that tells the client to
+sign in:
+
+```json
+{"successful": false, "messages": ["sign in to continue"]}
+```
+
 The scheme `Bearer` matches in any case. With the method `{{ option "method" }}`, each access token that the
 API accepts has every permission, so the API never answers 403.

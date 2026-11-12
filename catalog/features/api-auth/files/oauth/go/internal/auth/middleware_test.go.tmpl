@@ -7,8 +7,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,6 +21,27 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 )
+
+type refusal struct {
+	status          int
+	wwwAuthenticate string
+	contentType     string
+	bodyKeys        []string
+	successful      any
+	asksToSignIn    bool
+}
+
+var refused = refusal{http.StatusUnauthorized, "Bearer", "application/json", []string{"messages", "successful"}, false, true}
+
+func refusalOf(t *testing.T, recorder *httptest.ResponseRecorder) refusal {
+	t.Helper()
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+	messages, _ := body["messages"].([]any)
+	asksToSignIn := len(messages) == 1 && strings.Contains(fmt.Sprint(messages[0]), "sign in")
+	written := recorder.Result().Header
+	return refusal{recorder.Code, written.Get("WWW-Authenticate"), written.Get("Content-Type"), slices.Sorted(maps.Keys(body)), body["successful"], asksToSignIn}
+}
 
 type protectedRoute struct {
 	handler http.Handler
@@ -121,13 +145,13 @@ func TestMiddleware(t *testing.T) {
 			"an exp before now":           withClaims(func(claims jwt.MapClaims) { claims["exp"] = time.Now().Add(-time.Minute).Unix() }),
 			"no exp":                      withClaims(func(claims jwt.MapClaims) { delete(claims, "exp") }),
 		} {
-			t.Run("a request with "+name+" gets 401 with WWW-Authenticate: Bearer, and the handler does not run", func(t *testing.T) {
+			t.Run("a request with "+name+" gets 401 with WWW-Authenticate: Bearer and the JSON error that asks to sign in, and the handler does not run", func(t *testing.T) {
 				issuer := newTestIssuer(t)
 				route := protectedBy(issuer.config())
 
 				recorder := route.serve(authorization(t, issuer))
 
-				require.Equal(t, []any{http.StatusUnauthorized, "Bearer", 0}, []any{recorder.Code, recorder.Header().Get("WWW-Authenticate"), route.handledCount()})
+				require.Equal(t, []any{refused, 0}, []any{refusalOf(t, recorder), route.handledCount()})
 			})
 		}
 
@@ -141,7 +165,7 @@ func TestMiddleware(t *testing.T) {
 
 				recorder := route.serve("Bearer " + issuer.validToken())
 
-				require.Equal(t, []int{http.StatusUnauthorized, 0, 0, 0}, []int{recorder.Code, route.handledCount(), issuer.discoveryReadCount(), issuer.keyReadCount()})
+				require.Equal(t, []any{refused, 0, 0, 0}, []any{refusalOf(t, recorder), route.handledCount(), issuer.discoveryReadCount(), issuer.keyReadCount()})
 			})
 		}
 	})

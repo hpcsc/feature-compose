@@ -102,7 +102,9 @@ The second adds `--feature api-auth`, and checks the API key:
    The output of gotestsum shows that the tests of `internal/auth` and of the service ran and passed.
 2. The test starts the API with `API_KEY_HASHES` set to the SHA-256 hash of a key of the test. `GET /api/`
    gets 200 with no key. `POST /api/accounts` gets 401 with `WWW-Authenticate: Bearer` with no `Authorization`
-   header and with an unknown key, and it gets the answer 400 of the handler with the key of the test.
+   header and with an unknown key, and it gets the answer 400 of the handler with the key of the test. The
+   body of the 401 is JSON with the keys of the error of the handler, `successful` false, and a message that
+   tells the client to sign in.
    From `http://localhost:8080`, the preflight of `POST /api/accounts` that asks for the headers
    `authorization` and `content-type` gets 204 with the origin and the two headers allowed, and the `POST`
    with no key gets 401 with the origin in `Access-Control-Allow-Origin`. The same requests from another
@@ -120,7 +122,9 @@ The next adds `--feature api-auth:method=oauth`, and checks the access tokens:
 3. The test starts the API with `OAUTH_ISSUER_URL` set to the test issuer and `OAUTH_AUDIENCE` set to
    `my-api`. `GET /api/` gets 200 with no token. `POST /api/accounts` gets 401 with
    `WWW-Authenticate: Bearer` with no `Authorization` header, with a token for another audience, and with a
-   token whose `exp` is before now. It gets the answer 400 of the handler with a token for `my-api`.
+   token whose `exp` is before now. It gets the answer 400 of the handler with a token for `my-api`. The body
+   of the 401 is JSON with the keys of the error of the handler, `successful` false, and a message that tells
+   the client to sign in.
 4. The test starts the API again with `OAUTH_AUDIENCE` set to `another-api`, with no new render. The token for
    `my-api` now gets 401, and a token for `another-api` gets 400.
 

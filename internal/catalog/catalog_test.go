@@ -1157,6 +1157,7 @@ add_to:
 
 			for _, part := range []string{
 				"API_KEY_HASHES", "Authorization: Bearer", "401", "WWW-Authenticate: Bearer", "403",
+				`{"successful": false, "messages": ["sign in to continue"]}`,
 				"With the method `api-key`", "API_KEY_HASHES=<hash of your key> task api:run",
 				"`Taskfile.api.yml`", "`README.md`", "`docker-compose.local.yml`",
 			} {
@@ -1175,6 +1176,7 @@ add_to:
 				"JWT access tokens", "/.well-known/openid-configuration", "Google gives no JWT access token for your own API",
 				"OAUTH_ISSUER_URL", "OAUTH_AUDIENCE", "OAUTH_ISSUER_URL=<url> OAUTH_AUDIENCE=<audience> task api:run", "the repo needs no new render",
 				"`RS256`", "`iss`", "`aud`", "`exp`", "Authorization: Bearer", "401", "WWW-Authenticate: Bearer", "403", "With the method `oauth`",
+				`{"successful": false, "messages": ["sign in to continue"]}`,
 			} {
 				require.Contains(t, docs, part)
 			}

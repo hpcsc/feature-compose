@@ -67,5 +67,12 @@ curl -X POST http://localhost:3333/accounts \
 | A key whose hash is not in `API_KEY_HASHES` | 401 with `WWW-Authenticate: Bearer` |
 | `Authorization: Bearer <key>` for a key whose hash is in `API_KEY_HASHES` | The answer of the route |
 
+Each answer 401 has the JSON body of the other errors of the API, with a message that tells the client to
+sign in:
+
+```json
+{"successful": false, "messages": ["sign in to continue"]}
+```
+
 The scheme `Bearer` matches in any case. With the method `{{ option "method" }}`, each key that the API
 knows has every permission, so the API never answers 403.

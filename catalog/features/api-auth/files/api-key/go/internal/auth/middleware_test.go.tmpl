@@ -3,8 +3,12 @@
 package auth_test
 
 import (
+	"encoding/json"
+	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -12,6 +16,27 @@ import (
 	"{{ option "starter.module" }}/internal/auth"
 	"github.com/stretchr/testify/require"
 )
+
+type refusal struct {
+	status          int
+	wwwAuthenticate string
+	contentType     string
+	bodyKeys        []string
+	successful      any
+	asksToSignIn    bool
+}
+
+var refused = refusal{http.StatusUnauthorized, "Bearer", "application/json", []string{"messages", "successful"}, false, true}
+
+func refusalOf(t *testing.T, recorder *httptest.ResponseRecorder) refusal {
+	t.Helper()
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+	messages, _ := body["messages"].([]any)
+	asksToSignIn := len(messages) == 1 && strings.Contains(fmt.Sprint(messages[0]), "sign in")
+	written := recorder.Result().Header
+	return refusal{recorder.Code, written.Get("WWW-Authenticate"), written.Get("Content-Type"), slices.Sorted(maps.Keys(body)), body["successful"], asksToSignIn}
+}
 
 func configWith(t *testing.T, keys ...string) auth.Config {
 	t.Helper()
@@ -60,12 +85,10 @@ func TestMiddleware(t *testing.T) {
 			"a known key with more text":    "Bearer " + knownKey + "x",
 			"a known key as the scheme":     knownKey,
 		} {
-			t.Run("a request with "+name+" gets 401 with WWW-Authenticate: Bearer, and the handler does not run", func(t *testing.T) {
+			t.Run("a request with "+name+" gets 401 with WWW-Authenticate: Bearer and the JSON error that asks to sign in, and the handler does not run", func(t *testing.T) {
 				recorder, handled := serve(t, configWith(t, knownKey, otherKnownKey), authorization)
 
-				require.Equal(t, http.StatusUnauthorized, recorder.Code)
-				require.Equal(t, "Bearer", recorder.Header().Get("WWW-Authenticate"))
-				require.False(t, handled)
+				require.Equal(t, []any{refused, false}, []any{refusalOf(t, recorder), handled})
 			})
 		}
 
@@ -73,16 +96,14 @@ func TestMiddleware(t *testing.T) {
 			t.Run("a request with "+strconv.Quote(authorization)+" gets 401, also when the hash of the empty key is in the config", func(t *testing.T) {
 				recorder, handled := serve(t, configWith(t, knownKey, ""), authorization)
 
-				require.Equal(t, http.StatusUnauthorized, recorder.Code)
-				require.False(t, handled)
+				require.Equal(t, []any{refused, false}, []any{refusalOf(t, recorder), handled})
 			})
 		}
 
 		t.Run("with no key hash in the config, a request with a key gets 401, and the handler does not run", func(t *testing.T) {
 			recorder, handled := serve(t, auth.Config{}, "Bearer "+knownKey)
 
-			require.Equal(t, http.StatusUnauthorized, recorder.Code)
-			require.False(t, handled)
+			require.Equal(t, []any{refused, false}, []any{refusalOf(t, recorder), handled})
 		})
 	})
 

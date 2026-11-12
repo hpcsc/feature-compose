@@ -108,6 +108,10 @@ describe('feature-compose new', () => {
         expect(refused.headers.get('www-authenticate'), label).toBe('Bearer')
       }
       expect((await openAccount(api, `Bearer ${key}`)).status).toBe(400)
+      expect(await errorAnswersOf(api, `Bearer ${key}`)).toMatchObject({
+        refused: { status: 401, contentType: 'application/json', keys: ['messages', 'successful'], successful: false, messages: [expect.stringContaining('sign in')] },
+        rejectedByTheHandler: { status: 400, keys: ['messages', 'successful'], successful: false },
+      })
       expect(await corsAnswersFrom(api, 'http://localhost:8080'), 'an allowed origin').toEqual({
         preflight: { status: 204, allowOrigin: 'http://localhost:8080', allowHeaders: 'authorization, content-type' },
         refused: { status: 401, allowOrigin: 'http://localhost:8080' },
@@ -158,6 +162,10 @@ describe('feature-compose new', () => {
       }
       const token = issuer.token({ aud: 'my-api' })
       expect((await openAccount(api, `Bearer ${token}`)).status).toBe(400)
+      expect(await errorAnswersOf(api, `Bearer ${token}`)).toMatchObject({
+        refused: { status: 401, contentType: 'application/json', keys: ['messages', 'successful'], successful: false, messages: [expect.stringContaining('sign in')] },
+        rejectedByTheHandler: { status: 400, keys: ['messages', 'successful'], successful: false },
+      })
       const restarted = await startedApi(repo, { ...env, OAUTH_ISSUER_URL: issuer.url, OAUTH_AUDIENCE: 'another-api' })
       expect((await openAccount(restarted, `Bearer ${token}`)).status).toBe(401)
       expect((await openAccount(restarted, `Bearer ${issuer.token({ aud: 'another-api' })}`)).status).toBe(400)
@@ -695,6 +703,14 @@ function openAccount(api: string, authorization?: string, origin?: string): Prom
     headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}), ...(origin ? { Origin: origin } : {}) },
     body: '{}',
   })
+}
+
+async function errorAnswersOf(api: string, acceptedAuthorization: string) {
+  const answerOf = async (response: Response) => {
+    const body = (await response.json()) as Record<string, unknown>
+    return { status: response.status, contentType: response.headers.get('content-type'), keys: Object.keys(body).sort(), successful: body.successful, messages: body.messages }
+  }
+  return { refused: await answerOf(await openAccount(api)), rejectedByTheHandler: await answerOf(await openAccount(api, acceptedAuthorization)) }
 }
 
 async function allowedOriginsOf(api: string, origins: string[]): Promise<Record<string, string | null>> {

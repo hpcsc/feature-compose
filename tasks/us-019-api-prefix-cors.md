@@ -346,25 +346,25 @@ tells the client to sign in (decision 7). `api-auth` writes the body itself, and
 The docs of `api-auth` tell the body.
 
 **Acceptance Criteria:**
-- [ ] For each value of `method` in `catalog/features/api-auth/feature.yml`, the unit tests of `internal/auth` in the
+- [x] For each value of `method` in `catalog/features/api-auth/feature.yml`, the unit tests of `internal/auth` in the
   written repo show that each request that the middleware refuses gets 401, `WWW-Authenticate: Bearer`, a
   `Content-Type` of `application/json`, and a body that is a JSON object with exactly the keys `successful`, with the
   value false, and `messages`, with one text that tells the client to sign in; and that the handler does not run.
-- [ ] Each accepted request gets the answer of the handler, as before, in the tests of each method.
-- [ ] With each value of `method`, no Go file of `api-auth` imports a package of the module other than the packages
+- [x] Each accepted request gets the answer of the handler, as before, in the tests of each method.
+- [x] With each value of `method`, no Go file of `api-auth` imports a package of the module other than the packages
   under `internal/auth` (`internal/catalog/catalog_test.go:1123-1141` passes unchanged).
-- [ ] The docs of `api-auth` with each value of `method` tell, in the answers of the API, that a refused request gets
+- [x] The docs of `api-auth` with each value of `method` tell, in the answers of the API, that a refused request gets
   401 with `WWW-Authenticate: Bearer` and the JSON body with its message, and the tests of the docs
   (`internal/catalog/catalog_test.go:1143-1176`) check it.
-- [ ] `e2e/tests/new.test.ts`: in the repo with `api-auth` with each value of `method`, the 401 of `POST /api/accounts`
+- [x] `e2e/tests/new.test.ts`: in the repo with `api-auth` with each value of `method`, the 401 of `POST /api/accounts`
   has a JSON `Content-Type` and a body with the same keys as the body of the answer 400 of the handler, with
   `successful` false in both, and a message that tells the client to sign in. The cli-auth test still shows its
   message for a refused key.
-- [ ] The tests of `internal/apiclient` of `cli-auth` pass unchanged: `Do` still turns 401 into
+- [x] The tests of `internal/apiclient` of `cli-auth` pass unchanged: `Do` still turns 401 into
   `credential.ErrRefused`.
-- [ ] `docs/e2e-tests.md` tells the body of 401 that the tests check.
-- [ ] With each combination, the written repo builds and its unit tests pass (`task test:combinations`).
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` pass on the host.
+- [x] `docs/e2e-tests.md` tells the body of 401 that the tests check.
+- [x] With each combination, the written repo builds and its unit tests pass (`task test:combinations`).
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` pass on the host.
 
 **Affected Files/Modules:**
 - `catalog/features/api-auth/files/common/go/internal/auth/refuse.go.tmpl` — the JSON body

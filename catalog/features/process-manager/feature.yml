@@ -17,5 +17,7 @@ add_to:
   balance.changes:
     - event: HoldCaptured
       amount: -payload.Amount
+  use_cases.events:
+    - code: registerPaymentEvents(reg)
   use_cases.handlers:
-    - code: registerPaymentHandlers(bus, accounts)
+    - code: registerPaymentHandlers(bus, stream, accounts)

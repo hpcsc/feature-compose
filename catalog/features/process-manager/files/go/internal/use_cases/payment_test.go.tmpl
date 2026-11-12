@@ -5,7 +5,9 @@ package use_cases_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"{{ option "starter.module" }}/internal/domain"
@@ -17,12 +19,15 @@ import (
 	"{{ option "starter.module" }}/internal/use_cases/account"
 	accountCommand "{{ option "starter.module" }}/internal/use_cases/account/command"
 	accountEvent "{{ option "starter.module" }}/internal/use_cases/account/event"
+	"{{ option "starter.module" }}/internal/use_cases/payment"
+	paymentCommand "{{ option "starter.module" }}/internal/use_cases/payment/command"
+	paymentEvent "{{ option "starter.module" }}/internal/use_cases/payment/event"
 	"github.com/stretchr/testify/require"
 )
 
 func TestPayment(t *testing.T) {
 	t.Run("register events", func(t *testing.T) {
-		t.Run("the registry reads back each hold event of an account", func(t *testing.T) {
+		t.Run("the registry reads back each hold event of an account and each event of a payment", func(t *testing.T) {
 			reg := registry.New()
 			use_cases.RegisterEvents(reg)
 			id, paymentID := uuid.New(), uuid.New()
@@ -32,6 +37,9 @@ func TestPayment(t *testing.T) {
 				&accountEvent.HoldRejected{AccountID: id, PaymentID: paymentID, Amount: 300, Reason: "balance is less than the amount"},
 				&accountEvent.HoldReleased{AccountID: id, PaymentID: paymentID, Amount: 300},
 				&accountEvent.HoldCaptured{AccountID: id, PaymentID: paymentID, Amount: 300},
+				&paymentEvent.PaymentRequested{PaymentID: paymentID, AccountID: id, CreditorIBAN: "DE89370400440532013000", Amount: 300},
+				&paymentEvent.PaymentSettled{PaymentID: paymentID, AccountID: id},
+				&paymentEvent.PaymentEscalated{PaymentID: paymentID, Reason: "the payment network did not take the payment"},
 			} {
 				raw, err := json.Marshal(payload)
 				require.NoError(t, err)
@@ -62,6 +70,33 @@ func TestPayment(t *testing.T) {
 				&accountEvent.HoldPlaced{AccountID: id, PaymentID: paymentID, Amount: 300},
 				&accountEvent.HoldCaptured{AccountID: id, PaymentID: paymentID, Amount: 300},
 			}, payloadsOf(t, s, account.StreamID(id))[2:])
+		})
+
+		t.Run("the bus records the request of a payment, its funding, and a timeout of its checks", func(t *testing.T) {
+			s := stream.NewMemory()
+			bus := command.NewBus()
+			use_cases.RegisterHandlers(bus, s)
+			id, paymentID := uuid.New(), uuid.New()
+			require.NoError(t, s.Save(context.Background(), account.StreamID(id), []domain.Event{
+				domain.NewEvent(&accountEvent.AccountOpened{AccountID: id, Owner: "alice"}),
+				domain.NewEvent(&accountEvent.MoneyDeposited{AccountID: id, Amount: 500}),
+			}, 0))
+
+			require.NoError(t, bus.Dispatch(context.Background(), domain.NewCommand(paymentCommand.Request{PaymentID: paymentID, AccountID: id, CreditorIBAN: "DE89370400440532013000", Amount: 300})))
+			beforeFunding := time.Now()
+			require.NoError(t, bus.Dispatch(context.Background(), domain.NewCommand(paymentCommand.RecordFunding{PaymentID: paymentID, Held: true})))
+			afterFunding := time.Now()
+			require.NoError(t, bus.Dispatch(context.Background(), domain.NewCommand(paymentCommand.TimeOutChecks{PaymentID: paymentID, Attempt: 1})))
+
+			payloads := payloadsOf(t, s, payment.StreamID(paymentID))
+			var types []string
+			for _, payload := range payloads {
+				types = append(types, fmt.Sprintf("%T", payload))
+			}
+			require.Equal(t, []string{"*event.PaymentRequested", "*event.PaymentFunded", "*event.PaymentChecksRetried"}, types)
+			checksDeadline := payloads[1].(*paymentEvent.PaymentFunded).ChecksDeadline
+			require.False(t, checksDeadline.Before(beforeFunding.Add(10*time.Second)), "the checks deadline %v is less than 10 seconds after the funding", checksDeadline)
+			require.False(t, checksDeadline.After(afterFunding.Add(10*time.Second)), "the checks deadline %v is more than 10 seconds after the funding", checksDeadline)
 		})
 	})
 }

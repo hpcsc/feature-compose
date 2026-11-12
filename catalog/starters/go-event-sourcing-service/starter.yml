@@ -27,6 +27,10 @@ extension_points:
     summary: An event of the account that changes the balance in account_balances. event is the name of its payload type in the package event of the account, and that type has the field AccountID. amount is an expression of type int64 that the balance changes by, and it can use payload, the *event.<event>.
     file: go/internal/use_cases/account/balance/projection.go
     item: [event, amount]
+  use_cases.events:
+    summary: A statement of RegisterEvents that registers the event types of a domain. It can use reg, the *registry.OfEvents, and the functions that a feature declares in a file of its own in the package use_cases.
+    file: go/internal/use_cases/register.go
+    item: [code]
   use_cases.handlers:
     summary: A statement of RegisterHandlers that registers command handlers. It can use bus, the *command.Bus, stream, the event.Stream, and accounts, the *account.Repository, and the functions that a feature declares in a file of its own in the package use_cases.
     file: go/internal/use_cases/register.go

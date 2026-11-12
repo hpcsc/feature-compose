@@ -1,11 +1,28 @@
 package use_cases
 
 import (
+	"time"
+
 	"{{ option "starter.module" }}/internal/domain/command"
+	"{{ option "starter.module" }}/internal/domain/event"
+	"{{ option "starter.module" }}/internal/domain/event/registry"
 	"{{ option "starter.module" }}/internal/use_cases/account"
 	"{{ option "starter.module" }}/internal/use_cases/account/holds"
+	"{{ option "starter.module" }}/internal/use_cases/payment"
+	"{{ option "starter.module" }}/internal/use_cases/payment/record"
+	"{{ option "starter.module" }}/internal/use_cases/payment/request"
+	"{{ option "starter.module" }}/internal/use_cases/payment/timeout"
 )
 
-func registerPaymentHandlers(bus *command.Bus, accounts *account.Repository) {
+func registerPaymentEvents(reg *registry.OfEvents) {
+	payment.RegisterEvents(reg)
+}
+
+func registerPaymentHandlers(bus *command.Bus, stream event.Stream, accounts *account.Repository) {
 	holds.Register(bus, accounts)
+
+	payments := payment.NewRepository(stream)
+	request.Register(bus, payments, accounts)
+	record.Register(bus, payments, payment.DefaultTimeouts, time.Now)
+	timeout.Register(bus, payments, payment.DefaultTimeouts, time.Now)
 }

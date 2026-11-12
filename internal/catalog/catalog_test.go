@@ -1106,7 +1106,7 @@ files:
 			require.Len(t, withFeature, len(withoutFeature)+len(added))
 		})
 
-		t.Run("with process-manager, the account keeps a hold for each payment, registers the hold events, takes a captured hold off the balance, and the bus takes the hold commands", func(t *testing.T) {
+		t.Run("with process-manager, the account keeps a hold for each payment, registers the hold events, takes a captured hold off the balance, the registry knows the payment events, and the bus takes the hold commands and the payment commands", func(t *testing.T) {
 			files := writtenWithProcessManager(t)
 
 			require.Contains(t, files["internal/use_cases/account/account.go"], "\tclosed              bool\n\tholds map[uuid.UUID]hold\n}")
@@ -1114,7 +1114,8 @@ files:
 			require.Contains(t, files["internal/use_cases/account/events.go"], "\treg.Register[event.AccountClosed]()\n\treg.Register[event.HoldPlaced]()\n\treg.Register[event.HoldRejected]()\n\treg.Register[event.HoldReleased]()\n\treg.Register[event.HoldCaptured]()\n}")
 			require.Contains(t, files["internal/use_cases/account/balance/projection.go"], "\t\tevent.AccountClosed{}.EventType(),\n\t\tevent.HoldCaptured{}.EventType(),\n\t}")
 			require.Contains(t, files["internal/use_cases/account/balance/projection.go"], "\t\treturn err\n\tcase *event.HoldCaptured:\n\t\treturn p.change(ctx, tx, payload.AccountID, -payload.Amount, evt)\n\tdefault:")
-			require.Contains(t, files["internal/use_cases/register.go"], "\tcloseaccount.Register(bus, accounts)\n\tregisterPaymentHandlers(bus, accounts)\n}")
+			require.Contains(t, files["internal/use_cases/register.go"], "\taccount.RegisterEvents(reg)\n\tregisterPaymentEvents(reg)\n}")
+			require.Contains(t, files["internal/use_cases/register.go"], "\tcloseaccount.Register(bus, accounts)\n\tregisterPaymentHandlers(bus, stream, accounts)\n}")
 		})
 
 		t.Run("with no item, the account, its events, the balance projection and the registration of the handlers have only the lines of the starter", func(t *testing.T) {
@@ -1125,6 +1126,7 @@ files:
 			require.Contains(t, files["internal/use_cases/account/events.go"], "\treg.Register[event.AccountClosed]()\n}")
 			require.Contains(t, files["internal/use_cases/account/balance/projection.go"], "\t\tevent.AccountClosed{}.EventType(),\n\t}")
 			require.Contains(t, files["internal/use_cases/account/balance/projection.go"], "\t\treturn err\n\tdefault:")
+			require.Contains(t, files["internal/use_cases/register.go"], "\taccount.RegisterEvents(reg)\n}")
 			require.Contains(t, files["internal/use_cases/register.go"], "\tcloseaccount.Register(bus, accounts)\n}")
 		})
 

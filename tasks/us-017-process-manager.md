@@ -439,25 +439,25 @@ return, and the timeouts, and the payment aggregate decides each step. The regis
 starter declares `use_cases.events`, and the connector file registers the payment events and the three payment handlers.
 
 **Acceptance Criteria:**
-- [ ] `starter.yml` declares `use_cases.events` of decision 3, and `process-manager` adds `registerPaymentEvents(reg)`
+- [x] `starter.yml` declares `use_cases.events` of decision 3, and `process-manager` adds `registerPaymentEvents(reg)`
   to it.
-- [ ] Written with `process-manager`, the repo has the payment aggregate, its events, its commands, its repository, and
+- [x] Written with `process-manager`, the repo has the payment aggregate, its events, its commands, its repository, and
   the handlers `request`, `record` and `timeout` of the template under `internal/use_cases/payment/`, except the
   packages of Task 4 and `process_test.go`. `internal/use_cases/payment.go` registers the payment events and the
   three handlers with the default timeouts and `time.Now`, as the template block does.
-- [ ] Written from the starter alone, `internal/use_cases/register.go` holds no line, no blank line and no import from
+- [x] Written from the starter alone, `internal/use_cases/register.go` holds no line, no blank line and no import from
   an item.
-- [ ] In the written repo, the unit tests of `internal/use_cases/payment` and of its packages `request`, `record` and
+- [x] In the written repo, the unit tests of `internal/use_cases/payment` and of its packages `request`, `record` and
   `timeout` run in `task test:unit` and pass.
-- [ ] The test of the connector file (`internal/use_cases/payment_test.go`) also shows, with the memory stream and the
+- [x] The test of the connector file (`internal/use_cases/payment_test.go`) also shows, with the memory stream and the
   registry that `use_cases.RegisterEvents` fills, that the bus takes the commands of the three payment handlers: a
   request for an open account with money records `PaymentRequested`, the record of its funding records
   `PaymentFunded`, and a timeout of its checks reaches the handler of the timeouts.
-- [ ] No written file holds the name `use_cases.events`, and `feature-compose check --catalog catalog` finds no
+- [x] No written file holds the name `use_cases.events`, and `feature-compose check --catalog catalog` finds no
   mistake.
-- [ ] With each combination, the written repo builds, `gofmt -l .` lists no file, and its unit tests pass
+- [x] With each combination, the written repo builds, `gofmt -l .` lists no file, and its unit tests pass
   (`task test:combinations`).
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the host.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the host.
 
 **Affected Files/Modules:**
 - `catalog/features/process-manager/files/go/internal/use_cases/payment/` — new: the aggregate, the events, the

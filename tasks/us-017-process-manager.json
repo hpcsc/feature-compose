@@ -76,7 +76,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Record the steps of a payment with the payment aggregate and its command handlers",
       "language": "Go",
       "testable": true,

@@ -99,8 +99,11 @@ Last, the preview gives each file of the repo by its path, in the order of the p
 or the feature whose template writes the file.
 
 Before it prints, `--dry-run` does the same checks as `new`. A selection that stops `new`, for example an unknown
-feature, a value that does not match its pattern, or a flag that gives an option another value than a need sets,
-stops `--dry-run` with the same message, and `--dry-run` then prints nothing. The message of a flag against a need
+feature, a feature that does not target the starter, a value that does not match its pattern, or a flag that gives an
+option another value than a need sets, stops `--dry-run` with the same message, and `--dry-run` then prints nothing.
+The message of a feature that does not target the starter names the feature and the starter, and lists the features
+that target the starter, for example `the feature api-auth does not target the starter go: the features that target
+the starter go are cli`. The message of a flag against a need
 names both sources, for example `"oauth" from the command line and "api-key" from the need of cli-auth`.
 `--dry-run` does not read the output folder, so an output folder that has files stops `new` but not `--dry-run`.
 

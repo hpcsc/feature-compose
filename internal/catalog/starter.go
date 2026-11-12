@@ -14,15 +14,16 @@ import (
 var repoName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
 type Starter struct {
-	name            string
-	options         options
-	folders         map[string]folder
-	templates       []template
-	features        map[string]feature
-	extensionPoints map[string]extensionPoint
+	name              string
+	options           options
+	folders           map[string]folder
+	templates         []template
+	features          map[string]feature
+	otherFeatureNames []string
+	extensionPoints   map[string]extensionPoint
 }
 
-func readStarter(fsys fs.FS, starterName string, features map[string]feature) (Starter, error) {
+func readStarter(fsys fs.FS, starterName string, features map[string]feature, otherFeatureNames []string) (Starter, error) {
 	root := path.Join("starters", starterName)
 	ymlPath := starterYMLPath(starterName)
 	parsed, err := readStarterYML(fsys, starterName)
@@ -67,7 +68,10 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature) (S
 	for name, declared := range parsed.ExtensionPoints {
 		extensionPoints[name] = extensionPoint{name: name, declarer: "the starter " + starterName, itemFields: declared.Item}
 	}
-	return Starter{name: starterName, options: declaredOptions, folders: folders, templates: templates, features: features, extensionPoints: extensionPoints}, nil
+	return Starter{
+		name: starterName, options: declaredOptions, folders: folders, templates: templates, features: features,
+		otherFeatureNames: otherFeatureNames, extensionPoints: extensionPoints,
+	}, nil
 }
 
 func (s Starter) Select(name string, given map[string]string, givenByFeature map[string]map[string]string, answers Answers) (Selection, error) {
@@ -294,7 +298,7 @@ func (s Starter) featuresWithNeeds(givenByFeature map[string]map[string]string, 
 	requested = slices.Compact(requested)
 	for _, featureName := range requested {
 		if _, ok := s.features[featureName]; !ok {
-			return nil, s.unknownFeature(featureName)
+			return nil, s.unselectableFeature(featureName)
 		}
 	}
 	selected := map[string]feature{}
@@ -441,12 +445,15 @@ func (s Starter) extensionPointsOf(selected []feature) (map[string]extensionPoin
 	return extensionPoints, nil
 }
 
-func (s Starter) unknownFeature(featureName string) error {
-	if len(s.features) == 0 {
-		return fmt.Errorf("unknown feature %q: no feature targets the starter %s", featureName, s.name)
+func (s Starter) unselectableFeature(featureName string) error {
+	reason := fmt.Sprintf("unknown feature %q", featureName)
+	if slices.Contains(s.otherFeatureNames, featureName) {
+		reason = fmt.Sprintf("the feature %s does not target the starter %s", featureName, s.name)
 	}
-	return fmt.Errorf("unknown feature %q: the features that target the starter %s are %s",
-		featureName, s.name, strings.Join(slices.Sorted(maps.Keys(s.features)), ", "))
+	if len(s.features) == 0 {
+		return fmt.Errorf("%s: no feature targets the starter %s", reason, s.name)
+	}
+	return fmt.Errorf("%s: the features that target the starter %s are %s", reason, s.name, strings.Join(slices.Sorted(maps.Keys(s.features)), ", "))
 }
 
 func CheckRepoName(name string) error {

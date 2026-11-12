@@ -24,11 +24,11 @@ func (c Catalog) Starter(starterName string) (Starter, error) {
 	if !slices.Contains(names, starterName) {
 		return Starter{}, unknownStarter(starterName, names)
 	}
-	features, err := c.featuresTargeting(starterName)
+	features, otherFeatureNames, err := c.featuresFor(starterName)
 	if err != nil {
 		return Starter{}, err
 	}
-	return readStarter(c.fsys, starterName, features)
+	return readStarter(c.fsys, starterName, features, otherFeatureNames)
 }
 
 func (c Catalog) Combinations() ([]Combination, error) {
@@ -87,8 +87,15 @@ func (c Catalog) Check() ([]string, error) {
 	var starters []Starter
 	for _, starterName := range names {
 		targeting := maps.Clone(catalogFeatures)
-		maps.DeleteFunc(targeting, func(_ string, f feature) bool { return !f.targetsStarter(starterName) })
-		starter, err := readStarter(c.fsys, starterName, targeting)
+		var otherFeatureNames []string
+		maps.DeleteFunc(targeting, func(featureName string, f feature) bool {
+			if f.targetsStarter(starterName) {
+				return false
+			}
+			otherFeatureNames = append(otherFeatureNames, featureName)
+			return true
+		})
+		starter, err := readStarter(c.fsys, starterName, targeting, otherFeatureNames)
 		if err != nil {
 			return nil, err
 		}
@@ -117,22 +124,25 @@ func (c Catalog) features() (map[string]feature, error) {
 	return features, nil
 }
 
-func (c Catalog) featuresTargeting(starterName string) (map[string]feature, error) {
+func (c Catalog) featuresFor(starterName string) (map[string]feature, []string, error) {
 	featureNames, err := c.featureNames()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	features := map[string]feature{}
+	var otherFeatureNames []string
 	for _, featureName := range featureNames {
 		f, targets, err := readFeatureFor(c.fsys, featureName, starterName)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if targets {
 			features[f.name] = f
+		} else {
+			otherFeatureNames = append(otherFeatureNames, featureName)
 		}
 	}
-	return features, nil
+	return features, otherFeatureNames, nil
 }
 
 func (c Catalog) starterNames() ([]string, error) {

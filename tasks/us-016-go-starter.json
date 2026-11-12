@@ -107,7 +107,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Stop `new` for a feature that does not target the starter, with a message that says so",
       "language": "Go",
       "testable": true,

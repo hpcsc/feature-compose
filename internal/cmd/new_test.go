@@ -99,6 +99,7 @@ folders:
 		files["features/a,b/files/go/comma.md"] = &fstest.MapFile{Data: []byte("comma\n")}
 		files["features/auth/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [service]\nfiles:\n  - path: files/\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n  realm:\n    default: api\n")}
 		files["features/auth/files/go/auth.txt"] = &fstest.MapFile{Data: []byte(`{{ option "method" }} {{ option "realm" }}`)}
+		files["features/elsewhere/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Elsewhere.\ntargets: [worker]\n")}
 		return files
 	}
 
@@ -543,6 +544,7 @@ folders:
 			"an unknown option":                              {starterFiles(""), []string{"service", "my-service", "--option", "modul=x"}},
 			"a value that does not match its pattern":        {starterFiles(""), []string{"service", "my-service", "--option", "go-version=1.20"}},
 			"an unknown feature":                             {withFeatures(), []string{"service", "my-service", "--feature", "no-such-feature"}},
+			"a feature that does not target the starter":     {withFeatures(), []string{"service", "my-service", "--feature", "elsewhere"}},
 			"a --feature value that is not <option>=<value>": {withFeatures(), []string{"service", "my-service", "--feature", "auth:method"}},
 			"one option of a feature with two values":        {withFeatures(), []string{"service", "my-service", "--feature", "auth:method=oauth,method=api-key"}},
 			"a value that is not one of its values":          {withFeatures(), []string{"service", "my-service", "--feature", "auth:method=basic"}},
@@ -727,6 +729,13 @@ folders:
 			require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
 		})
 
+		t.Run("in a terminal, a feature that does not target the starter stops new before the TUI starts", func(t *testing.T) {
+			screen, err := runInTerminal(t, withFeatures(), "", "", "service", "my-service", "--feature", "elsewhere")
+
+			require.EqualError(t, err, "the feature elsewhere does not target the starter service: the features that target the starter service are a,b, auth, cli, docs")
+			require.NotContains(t, screen, "feature-compose new")
+		})
+
 		t.Run("in a terminal, an unknown starter stops new before the TUI starts", func(t *testing.T) {
 			screen, err := runInTerminal(t, withFeatures(), "", "", "nope", "my-service")
 
@@ -808,6 +817,16 @@ folders:
 				require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
 			})
 		}
+
+		t.Run("a feature of the catalog that does not target the starter stops new, the message says so and lists the features that target the starter, and new makes no output folder", func(t *testing.T) {
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+
+			_, err := runNew(t, withFeatures(), "service", "my-service", "--feature", "elsewhere", "--no-prompt")
+
+			require.EqualError(t, err, "the feature elsewhere does not target the starter service: the features that target the starter service are a,b, auth, cli, docs")
+			require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
+		})
 
 		t.Run("an unknown feature stops new, also next to a known one, lists the features that target the starter, and makes no output folder", func(t *testing.T) {
 			workingFolder := t.TempDir()

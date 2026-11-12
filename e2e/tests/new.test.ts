@@ -378,6 +378,26 @@ describe('feature-compose new', () => {
     expect(readdirSync(dir)).toEqual([])
   })
 
+  it('each feature of the catalog that does not target go stops new go, the message says so, and new makes no folder, and an unknown feature keeps its own message', async () => {
+    const dir = scratchDir()
+    const catalog = JSON.parse((await runCli(dir, ['show'])).stdout)
+    const notTargetingGo = Object.entries(catalog.features)
+      .filter(([, feature]) => !(feature as { targets: string[] }).targets.includes('go'))
+      .map(([name]) => name)
+    expect(notTargetingGo).toContain('api-auth')
+
+    for (const feature of notTargetingGo) {
+      const result = await runCli(dir, ['new', 'go', 'my-tool', '--feature', feature])
+
+      expect(result.status, feature).not.toBe(0)
+      expect(result.stdout + result.stderr, feature).toContain(`the feature ${feature} does not target the starter go: the features that target the starter go are cli\n`)
+    }
+    const unknown = await runCli(dir, ['new', 'go', 'my-tool', '--feature', 'no-such-feature'])
+    expect(unknown.status).not.toBe(0)
+    expect(unknown.stdout + unknown.stderr).toContain('unknown feature "no-such-feature": the features that target the starter go are cli\n')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
   it(
     'makes a repo with cli that builds, passes the unit tests of the service and of the CLI, and runs the CLI',
     async () => {

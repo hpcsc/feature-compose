@@ -417,27 +417,27 @@ files (decision 9). `new` stops with the message with `--no-prompt`, with `--dry
 form shows it when a change of the starter does not fit a `--feature`.
 
 **Acceptance Criteria:**
-- [ ] `TestStarter`, group `select`, with a catalog in memory that has two starters: a feature that targets only the
+- [x] `TestStarter`, group `select`, with a catalog in memory that has two starters: a feature that targets only the
   other starter stops `Select`, from a flag and from an answer, with the same message. The message names the feature
   and the starter, says that the feature does not target the starter, lists the features that target the starter, and
   does not hold `unknown feature`. For a starter that no feature targets, the message says so.
-- [ ] A name that no `feature.yml` of the catalog has still stops with `unknown feature "<name>"` and the list of the
+- [x] A name that no `feature.yml` of the catalog has still stops with `unknown feature "<name>"` and the list of the
   features that target the starter, also next to a known feature. A feature that targets both starters is selected
   with each of them.
-- [ ] A read of a `feature.yml` that fails stops `Catalog.Starter` with its cause, also for a feature that does not
+- [x] A read of a `feature.yml` that fails stops `Catalog.Starter` with its cause, also for a feature that does not
   target the starter (`internal/catalog/catalog_test.go:276-297`).
-- [ ] `TestNewCommand`: `new <starter> <name> --feature <a feature of the other starter>` stops with the message and
+- [x] `TestNewCommand`: `new <starter> <name> --feature <a feature of the other starter>` stops with the message and
   makes no output folder; with `--dry-run` it stops with the same message and prints nothing; in a terminal it stops
   before the form opens.
-- [ ] The form test of a starter that a `--feature` does not target (`internal/form/model_test.go:778-793`) shows the
+- [x] The form test of a starter that a `--feature` does not target (`internal/form/model_test.go:778-793`) shows the
   message that `new` gives, and keeps the tree as it was.
-- [ ] `e2e/tests/new.test.ts`: for each feature of the catalog whose `targets` do not name `go`, taken from the JSON of
+- [x] `e2e/tests/new.test.ts`: for each feature of the catalog whose `targets` do not name `go`, taken from the JSON of
   `show` and not from a list of the test, `feature-compose new go my-tool --feature <feature>` exits with a status
   other than 0. Its output names the feature and `go` and says that the feature does not target the starter, and the
   scratch folder stays empty. `--feature no-such-feature` still gives the message of an unknown feature.
-- [ ] `README.md` of this repo names a feature that does not target the starter among the selections that stop `new`
+- [x] `README.md` of this repo names a feature that does not target the starter among the selections that stop `new`
   and `--dry-run`.
-- [ ] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass, and the
+- [x] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass, and the
   e2e tests of `new` pass on the host.
 
 **Affected Files/Modules:**

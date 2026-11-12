@@ -281,6 +281,7 @@ func TestCatalog(t *testing.T) {
 			"starters/service/files/go/main.go",
 			"features",
 			"features/cli/feature.yml",
+			"features/elsewhere/feature.yml",
 		} {
 			t.Run("a read of "+failing+" that fails stops with its cause", func(t *testing.T) {
 				files := failingFS{failing: failing, files: fstest.MapFS{
@@ -288,6 +289,7 @@ func TestCatalog(t *testing.T) {
 					"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
 					"features/cli/feature.yml":          &fstest.MapFile{Data: []byte("targets: [service]\nfiles:\n  - path: files/\n")},
 					"features/cli/files/go/cli.go":      &fstest.MapFile{Data: []byte("package cli\n")},
+					"features/elsewhere/feature.yml":    &fstest.MapFile{Data: []byte("targets: [other]\n")},
 				}}
 
 				_, err := catalog.New(files).Starter("service")

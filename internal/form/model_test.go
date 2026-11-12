@@ -781,7 +781,7 @@ func TestModel(t *testing.T) {
 			keys           []string
 			message        string
 		}{
-			"a feature of --feature that does not target it": {nil, map[string]map[string]string{"only": {}}, []string{"j", "j"}, `unknown feature "only": the features that target the starter worker are shared`},
+			"a feature of --feature that does not target it": {nil, map[string]map[string]string{"only": {}}, []string{"j", "j"}, `the feature only does not target the starter worker: the features that target the starter worker are shared`},
 			"an option of --option that it does not declare": {map[string]string{"region": "eu"}, nil, []string{"j", "j"}, `unknown option "region": the options of the starter worker are queue`},
 			"features whose needs form a cycle":              {nil, nil, nil, "the needs of the features form a cycle: x needs y needs x"},
 		} {

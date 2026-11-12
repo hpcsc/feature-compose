@@ -214,20 +214,37 @@ folders:
 			"features/elsewhere/files/go/e.go":    &fstest.MapFile{Data: []byte("package e\n")},
 		}
 
-		for name, features := range map[string][]string{
-			"a feature that does not target the starter": {"elsewhere"},
-			"an unknown feature, also with a known one":  {"cli", "no-such-feature"},
-		} {
-			t.Run(name+" stops the selection, and the message lists the features that target the starter", func(t *testing.T) {
-				starter, err := catalog.New(withFeatures).Starter("service")
+		t.Run("a feature of the catalog that does not target the starter stops the selection, and the message says so and lists the features that target the starter", func(t *testing.T) {
+			starter, err := catalog.New(withFeatures).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, withoutValues("elsewhere"), catalog.Answers{})
+
+			require.EqualError(t, err, "the feature elsewhere does not target the starter service: the features that target the starter service are cli, docs, web")
+		})
+
+		t.Run("an unknown feature, also with a known one, stops the selection, and the message lists the features that target the starter", func(t *testing.T) {
+			starter, err := catalog.New(withFeatures).Starter("service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, withoutValues("cli", "no-such-feature"), catalog.Answers{})
+
+			require.EqualError(t, err, `unknown feature "no-such-feature": the features that target the starter service are cli, docs, web`)
+		})
+
+		t.Run("a feature that targets two starters is selected with each of them", func(t *testing.T) {
+			sources := map[string]string{}
+
+			for _, starterName := range []string{"service", "other"} {
+				starter, err := catalog.New(withFeatures).Starter(starterName)
 				require.NoError(t, err)
+				selection, err := starter.Select("my-service", nil, withoutValues("docs"), catalog.Answers{})
+				require.NoError(t, err)
+				sources[starterName] = selection.FeatureSource("docs")
+			}
 
-				_, err = starter.Select("my-service", nil, withoutValues(features...), catalog.Answers{})
-
-				require.ErrorContains(t, err, strconv.Quote(features[len(features)-1]))
-				require.ErrorContains(t, err, "the features that target the starter service are cli, docs, web")
-			})
-		}
+			require.Equal(t, map[string]string{"service": "command line", "other": "command line"}, sources)
+		})
 
 		withOptions := fstest.MapFS{
 			"starters/service/starter.yml":    &fstest.MapFile{Data: []byte("options:\n  go-version:\n    default: \"1.27.1\"\n    pattern: '^1\\.(2[7-9]|[3-9][0-9])$'\nfolders:\n  go:\n    path: .\n")},
@@ -292,19 +309,27 @@ folders:
 			require.ErrorContains(t, err, `unknown feature "unknown-a"`)
 		})
 
-		t.Run("a feature for a starter that no feature targets stops, and the message says so", func(t *testing.T) {
-			files := fstest.MapFS{
-				"starters/lonely/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
-				"starters/lonely/files/go/README.md": &fstest.MapFile{Data: []byte("lonely\n")},
-				"features/cli/feature.yml":           &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\n")},
-			}
-			starter, err := catalog.New(files).Starter("lonely")
-			require.NoError(t, err)
+		for name, test := range map[string]struct {
+			feature string
+			message string
+		}{
+			"a feature of the catalog": {"cli", "the feature cli does not target the starter lonely: no feature targets the starter lonely"},
+			"an unknown feature":       {"no-such-feature", `unknown feature "no-such-feature": no feature targets the starter lonely`},
+		} {
+			t.Run(name+" for a starter that no feature targets stops, and the message says so", func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/lonely/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+					"starters/lonely/files/go/README.md": &fstest.MapFile{Data: []byte("lonely\n")},
+					"features/cli/feature.yml":           &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\nfiles:\n  - path: files/\n")},
+				}
+				starter, err := catalog.New(files).Starter("lonely")
+				require.NoError(t, err)
 
-			_, err = starter.Select("my-service", nil, withoutValues("cli"), catalog.Answers{})
+				_, err = starter.Select("my-service", nil, withoutValues(test.feature), catalog.Answers{})
 
-			require.ErrorContains(t, err, "no feature targets the starter lonely")
-		})
+				require.EqualError(t, err, test.message)
+			})
+		}
 
 		t.Run("a selected feature with a template outside the folders of the starter stops, and the message names the feature, the template and the folders", func(t *testing.T) {
 			starter, err := catalog.New(withFeatures).Starter("service")

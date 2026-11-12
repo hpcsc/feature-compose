@@ -1199,32 +1199,71 @@ add_to:
 			return output, filesIn(t, output)
 		}
 
-		t.Run("cli adds each of its files at its path, and the files of the starter stay as without cli", func(t *testing.T) {
-			_, withoutCLI := writtenStarter(t, nil)
+		targetsOfCLI := func(t *testing.T) []string {
+			t.Helper()
+			definitions, err := repoCatalog().Definitions()
+			require.NoError(t, err)
+			return definitions.Features["cli"].Targets
+		}
 
-			_, withCLI := writtenWithCLI(t, "my-service", nil)
-
+		addedByCLI := func(t *testing.T, starterName string, given map[string]string) map[string]string {
+			t.Helper()
+			written := func(features map[string]map[string]string) map[string]string {
+				starter, err := repoCatalog().Starter(starterName)
+				require.NoError(t, err)
+				selection, err := starter.Select("my-tool", given, features, catalog.Answers{})
+				require.NoError(t, err)
+				output := filepath.Join(t.TempDir(), "my-tool")
+				require.NoError(t, selection.Write(output))
+				return filesIn(t, output)
+			}
+			withoutCLI := written(nil)
+			withCLI := written(withoutValues("cli"))
 			added := map[string]string{}
 			for path, contents := range withCLI {
 				if before, ok := withoutCLI[path]; ok {
-					require.Equal(t, before, contents, path)
+					require.Equal(t, before, contents, starterName+": "+path)
 				} else {
 					added[path] = contents
 				}
 			}
-			require.ElementsMatch(t, []string{
-				".dockerignore", ".goreleaser.yaml", "scripts/install.sh",
-				"cmd/my-service/main.go",
-				"internal/cli/adapter.go", "internal/cli/adapter_test.go", "internal/cli/root.go", "internal/cli/update.go",
-				"internal/cli/progress/line.go", "internal/cli/progress/line_test.go",
-				"internal/cli/release/client.go", "internal/cli/release/updater.go", "internal/cli/release/updater_test.go",
-				"internal/cli/version/version.go", "internal/cli/version/version_test.go",
-				"docs/cli.md", "docs/e2e-tests.md",
-				"e2e/Dockerfile", "e2e/package.json", "e2e/testUtils.ts", "e2e/tsconfig.json", "e2e/vitest.config.ts",
-				"e2e/tests/cli.test.ts", "e2e/tests/update.test.ts",
-			}, slices.Collect(maps.Keys(added)))
-			require.Len(t, withCLI, len(withoutCLI)+len(added))
+			require.Len(t, withCLI, len(withoutCLI)+len(added), starterName)
+			return added
+		}
+
+		t.Run("cli adds each of its files at its path to each of its targets, go among them, and the files of the target stay as without cli", func(t *testing.T) {
+			targets := targetsOfCLI(t)
+
+			require.Contains(t, targets, "go")
+			for _, starterName := range targets {
+				require.ElementsMatch(t, []string{
+					".dockerignore", ".goreleaser.yaml", "scripts/install.sh",
+					"cmd/my-tool/main.go",
+					"internal/cli/adapter.go", "internal/cli/adapter_test.go", "internal/cli/root.go", "internal/cli/update.go",
+					"internal/cli/progress/line.go", "internal/cli/progress/line_test.go",
+					"internal/cli/release/client.go", "internal/cli/release/updater.go", "internal/cli/release/updater_test.go",
+					"internal/cli/version/version.go", "internal/cli/version/version_test.go",
+					"docs/cli.md", "docs/e2e-tests.md",
+					"e2e/Dockerfile", "e2e/package.json", "e2e/testUtils.ts", "e2e/tsconfig.json", "e2e/vitest.config.ts",
+					"e2e/tests/cli.test.ts", "e2e/tests/update.test.ts",
+				}, slices.Collect(maps.Keys(addedByCLI(t, starterName, nil))), starterName)
+			}
 		})
+
+		for name, given := range map[string]map[string]string{
+			"with no given values":                            nil,
+			"with given values for the module and Go version": {"module": "github.com/acme/ledger", "go-version": "1.28.0"},
+		} {
+			t.Run("cli adds the same files with the same contents to each two of its targets, "+name, func(t *testing.T) {
+				targets := targetsOfCLI(t)
+				require.GreaterOrEqual(t, len(targets), 2)
+				first := addedByCLI(t, targets[0], given)
+
+				for _, starterName := range targets[1:] {
+					require.Equal(t, first, addedByCLI(t, starterName, given), targets[0]+" and "+starterName)
+				}
+			})
+		}
 
 		t.Run("the files of cli have the name of the repo in each place where go-cli has the project name", func(t *testing.T) {
 			_, files := writtenWithCLI(t, "my-service", nil)
@@ -1485,12 +1524,15 @@ add_to:
 			}
 		})
 
-		t.Run("the docs of cli name no task or workflow that the repo lacks", func(t *testing.T) {
-			_, files := writtenWithCLI(t, "my-service", nil)
+		t.Run("the docs of cli name no task or workflow that a repo of any target of cli lacks", func(t *testing.T) {
+			for _, starterName := range targetsOfCLI(t) {
+				added := addedByCLI(t, starterName, nil)
 
-			for _, path := range []string{"docs/cli.md", "docs/e2e-tests.md"} {
-				for _, missing := range []string{"task ", "Taskfile", ".github/workflows", "release:local"} {
-					require.NotContains(t, files[path], missing, path)
+				for _, path := range []string{"docs/cli.md", "docs/e2e-tests.md"} {
+					require.Contains(t, added, path, starterName)
+					for _, missing := range []string{"task ", "Taskfile", ".github/workflows", "release:local"} {
+						require.NotContains(t, added[path], missing, starterName+": "+path)
+					}
 				}
 			}
 		})

@@ -33,7 +33,9 @@ catalog: ~/code/feature-compose/catalog
 
 The folder holds `starters/` and `features/`. The catalog of this repo is in `catalog/`. It has two starters:
 `go`, a Go module with an example package, and `go-event-sourcing-service`, a Go service with an event store, an
-HTTP API and a catchup process. `feature-compose show` lists them with their features. A path that starts
+HTTP API and a catchup process. `feature-compose show` lists them with their features. The feature `cli` targets
+both starters with one set of files, so `feature-compose new go my-tool --feature cli` makes a CLI in its own repo,
+and `--feature cli` with `go-event-sourcing-service` adds the same CLI to a service repo. A path that starts
 with `~/` is in your home folder, and another relative path is relative to the folder of the config file.
 Without the config file, `new`, `show` and `check` stop and name the path of the file. `version` and `update` do
 not read it.

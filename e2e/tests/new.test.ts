@@ -3,7 +3,7 @@ import { createHash, generateKeyPairSync, sign } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { type AddressInfo, createServer as createNetServer, type Socket } from 'node:net'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
 import { configHome, getExecutablePath, openCli, runCli, runProgram, scratchDir } from '../testUtils'
 
@@ -104,6 +104,49 @@ describe('feature-compose new', () => {
       )
       expect(called).toContain('test:unit')
       expect(tasksIn(list.stdout)).toEqual(expect.arrayContaining(called))
+    },
+    15 * 60 * 1000,
+  )
+
+  it(
+    'makes a CLI repo from go with cli that builds, passes the unit tests of the starter and of the CLI, runs the CLI, and whose GoReleaser snapshot has the archives and the checksums that update and the installer download',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'go', 'my-tool', '--feature', 'cli', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      const repo = join(dir, 'my-tool')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      const build = await runProgram(repo, 'go', ['build', './...'], env)
+      expect(build.status, build.stdout + build.stderr).toBe(0)
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      const testedCLIPackages = foldersWithTests(repo, 'internal/cli')
+      expect(testedCLIPackages).toContain('internal/cli')
+      expect(passedPackages(unit.stdout)).toEqual(expect.arrayContaining(['internal/greeting', ...testedCLIPackages]))
+      const cli = await runProgram(repo, 'go', ['run', './cmd/my-tool'], env)
+      expect(cli.status, cli.stdout + cli.stderr).toBe(0)
+      expect(commandsIn(cli.stdout)).toEqual(['version', 'update', 'help, h'])
+
+      const snapshot = await runProgram(repo, 'goreleaser', ['release', '--snapshot', '--clean'], env)
+
+      expect(snapshot.status, snapshot.stdout + snapshot.stderr).toBe(0)
+      const config = readFileSync(join(repo, '.goreleaser.yaml'), 'utf8')
+      const archives = listIn(config, 'goos').flatMap((os) => listIn(config, 'goarch').map((arch) => `my-tool-${os}-${arch}.tar.gz`))
+      const hostArchive = `my-tool-${process.platform}-${process.arch === 'x64' ? 'amd64' : process.arch}.tar.gz`
+      expect(archives).toContain(hostArchive)
+      const checksums = checksumsIn(readFileSync(join(repo, 'dist', 'checksums.txt'), 'utf8'))
+      expect(checksums).toMatchObject(Object.fromEntries(archives.map((archive) => [archive, sha256Of(join(repo, 'dist', archive))])))
+      const { tag } = JSON.parse(readFileSync(join(repo, 'dist', 'metadata.json'), 'utf8'))
+      const extracted = join(dir, 'extracted')
+      mkdirSync(extracted)
+      const untar = await runProgram(repo, 'tar', ['-xzf', join('dist', hostArchive), '-C', extracted])
+      expect(untar.status, untar.stderr).toBe(0)
+      const version = await runProgram(extracted, join(extracted, 'my-tool'), ['version'])
+      expect(version).toMatchObject({ status: 0, stdout: `${tag}\n` })
     },
     15 * 60 * 1000,
   )
@@ -775,6 +818,32 @@ function passedPackages(output: string): string[] {
     .split('\n')
     .filter((line) => line.startsWith('✓'))
     .map((line) => line.split(/\s+/)[1])
+}
+
+function foldersWithTests(repo: string, folder: string): string[] {
+  const testFiles = (readdirSync(join(repo, folder), { recursive: true }) as string[]).filter((path) => path.endsWith('_test.go'))
+  return [...new Set(testFiles.map((path) => (dirname(path) === '.' ? folder : `${folder}/${dirname(path)}`)))]
+}
+
+function listIn(yaml: string, key: string): string[] {
+  const block = new RegExp(`^( *)${key}:\\n((?:\\1 +- .+\\n)+)`, 'm').exec(yaml)
+  return (block?.[2] ?? '')
+    .split('\n')
+    .map((line) => line.trim().replace(/^- /, ''))
+    .filter((item) => item !== '')
+}
+
+function checksumsIn(checksums: string): Record<string, string> {
+  return Object.fromEntries(
+    checksums
+      .trim()
+      .split('\n')
+      .map((line) => line.split(/\s+/).reverse()),
+  )
+}
+
+function sha256Of(path: string): string {
+  return createHash('sha256').update(readFileSync(path)).digest('hex')
 }
 
 function tasksIn(list: string): string[] {

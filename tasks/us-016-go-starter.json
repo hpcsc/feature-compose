@@ -70,7 +70,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Make `cli` target `go` with the files that it adds to a service repo",
       "language": "Go",
       "testable": true,

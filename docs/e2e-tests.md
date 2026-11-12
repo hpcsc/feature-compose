@@ -79,7 +79,8 @@ tests keep the original binary.
 
 ## The full run of `new`
 
-Six tests in `e2e/tests/new.test.ts` make a repo and check it. One makes a repo from the starter `go`:
+Seven tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
+first makes the repo from the starter alone:
 
 1. `feature-compose new go my-tool --no-prompt` makes the repo. Its `after_render` commands run `go mod tidy`,
    which downloads the modules of the repo.
@@ -88,6 +89,20 @@ Six tests in `e2e/tests/new.test.ts` make a repo and check it. One makes a repo 
    package `internal/greeting` ran and passed.
 4. `task --list-all` names each task that `.github/workflows/ci.yml` and `scripts/libs/git-hook-prepush.sh` of the
    repo call. The test takes the names from the two files.
+
+The second adds `--feature cli`, and makes a CLI in its own repo:
+
+1. `gofmt -l .` lists no file, and `go build ./...` builds.
+2. `task test:unit` stops with the exit status 0. The output of gotestsum shows that the tests of
+   `internal/greeting` and of each package under `internal/cli` that has a test file ran and passed.
+3. `go run ./cmd/my-tool` with no command prints the commands of the CLI, which are only `version`, `update`
+   and `help`.
+4. `goreleaser release --snapshot --clean` makes a snapshot of the repo. For each `goos` and `goarch` of the
+   `.goreleaser.yaml` of the repo, `dist/` has the archive `my-tool-<goos>-<goarch>.tar.gz`, the name that
+   `update` and `scripts/install.sh` download. `dist/checksums.txt` has the SHA-256 of each archive, which the
+   test calculates from the file.
+5. The binary in the archive for the platform of the test prints the tag of the snapshot for `version`. So the
+   ldflag of `.goreleaser.yaml` sets the version.
 
 The other five make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
 
@@ -168,7 +183,8 @@ the API opens no connection before the first query, and `POST /api/accounts` wit
 handler, because the owner is missing, before any query. So the test needs no Postgres. The API stops when the
 test ends.
 
-So these tests need Go, Task, gotestsum, a C compiler and the network. Each takes about a minute when the Go
+So these tests need Go, Task, gotestsum, a C compiler and the network. The test of `go` with `cli` also needs
+GoReleaser and git: GoReleaser stops when no `git` is on the `PATH`, also outside a git repository. Each takes about a minute when the Go
 module cache has the modules of the new repo, and some minutes when it does not, for example in Docker.
 They are the only tests with a timeout longer than the 30 seconds of `e2e/vitest.config.ts`: their timeout
 is 15 minutes.
@@ -182,7 +198,7 @@ mise trusts the new repo.
 | Command | Where | What it needs |
 | --- | --- | --- |
 | `task test:e2e` | Docker | Docker and the network. CI runs this command. |
-| `task test:e2e:local` | This machine | Node, Go, Task, gotestsum, a C compiler and the network |
+| `task test:e2e:local` | This machine | Node, Go, Task, gotestsum, GoReleaser, git, a C compiler and the network |
 
 Both commands build the CLI with the tag in `E2E_TAG` in `Taskfile.test.yml`, which is `v0.1.0`. They set
 three environment variables for the tests: `EXECUTABLE`, the path of the binary, `BUILD_TAG`, the tag, and
@@ -196,11 +212,11 @@ The Docker image has two stages:
 flowchart LR
     subgraph builder["stage 1: golang:1.27.1"]
         G["go build, with releaseTag set to v0.1.0"] --> BIN[/"feature-compose binary"/]
-        I["go install task and gotestsum"] --> TOOLS[/"task, gotestsum"/]
+        I["go install task, gotestsum and goreleaser"] --> TOOLS[/"task, gotestsum, goreleaser"/]
         GO[/"Go in /usr/local/go"/]
     end
     subgraph runner["stage 2: node:24-trixie-slim"]
-        APT["apt-get install python3 make g++"] --> NPM["npm ci"]
+        APT["apt-get install python3 make g++ git"] --> NPM["npm ci"]
         NPM --> RUN["npx vitest run"]
         CAT[/"catalog/ in /catalog"/] --> RUN
     end
@@ -210,8 +226,8 @@ flowchart LR
 ```
 
 `python3`, `make` and `g++` let npm build node-pty when no prebuilt node-pty fits the platform. `g++` also
-brings `gcc`, the C compiler that `go test -race` needs. The runner stage copies Go, Task and gotestsum from
-stage 1 for [the full run of `new`](#the-full-run-of-new). The image runs `npm ci` when
+brings `gcc`, the C compiler that `go test -race` needs, and GoReleaser needs `git`. The runner stage copies Go,
+Task, gotestsum and GoReleaser from stage 1 for [the full run of `new`](#the-full-run-of-new). The image runs `npm ci` when
 `e2e/package-lock.json` is in the repository, and `npm install` when it is not. Commit the lock file, so
 every run installs the same packages.
 

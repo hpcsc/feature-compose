@@ -336,33 +336,33 @@ builds, and `task test:unit` runs the tests of the starter and of the CLI. A GoR
 archives and `checksums.txt` that `update` and the installer download (open question 1, decision 6).
 
 **Acceptance Criteria:**
-- [ ] The `targets` of `catalog/features/cli/feature.yml` name `go` and `go-event-sourcing-service`, and its `files`
+- [x] The `targets` of `catalog/features/cli/feature.yml` name `go` and `go-event-sourcing-service`, and its `files`
   entry is `files/` with no `when`.
-- [ ] A test of the group `embedded` takes the targets of `cli` from its `feature.yml`, not from a list of the test. For
+- [x] A test of the group `embedded` takes the targets of `cli` from its `feature.yml`, not from a list of the test. For
   each target, it writes the target alone and the target with `cli`, with the name `my-tool`; the files of the target
   stay as without `cli`, and the files that `cli` adds are the rest. For each two targets, the files that `cli` adds
   have the same paths and the same contents: with no given values, and with `module=github.com/acme/ledger` and
   `go-version=1.28.0`.
-- [ ] Written with `go` and `cli`, the repo has each file that `cli` adds to a service repo
+- [x] Written with `go` and `cli`, the repo has each file that `cli` adds to a service repo
   (`internal/catalog/catalog_test.go:1201-1226`), at the same path.
-- [ ] For each target of `cli`, `docs/cli.md` and `docs/e2e-tests.md` of the written repo name no `task `, `Taskfile`,
+- [x] For each target of `cli`, `docs/cli.md` and `docs/e2e-tests.md` of the written repo name no `task `, `Taskfile`,
   `.github/workflows` or `release:local`.
-- [ ] `e2e/tests/new.test.ts`: `feature-compose new go my-tool --feature cli --no-prompt` exits with 0. In `./my-tool`,
+- [x] `e2e/tests/new.test.ts`: `feature-compose new go my-tool --feature cli --no-prompt` exits with 0. In `./my-tool`,
   `gofmt -l .` lists no file, `go build ./...` exits with 0, and `task test:unit` exits with 0 and its lines that start
   with `✓` name `internal/greeting` and each package under `internal/cli` whose folder holds a test file of the repo.
   `go run ./cmd/my-tool` with no command exits with 0, reads no input, and prints the commands `version`, `update` and
   `help`, and no other.
-- [ ] In the same test, `goreleaser release --snapshot --clean` in `./my-tool` exits with 0. For each `goos` and
+- [x] In the same test, `goreleaser release --snapshot --clean` in `./my-tool` exits with 0. For each `goos` and
   `goarch` of the `.goreleaser.yaml` of the repo, `dist/` holds `my-tool-<goos>-<goarch>.tar.gz`, the name that
   `update` and `scripts/install.sh` download. `dist/checksums.txt` gives the SHA-256 of each archive, as the test
   computes it from the file. The binary in the archive of the platform of the test prints the tag of the snapshot for
   `version`, so the ldflag of `.goreleaser.yaml` sets the version.
-- [ ] The runner stage of `e2e/Dockerfile` has `git` and `goreleaser` at the version of `mise.toml` of this repo.
+- [x] The runner stage of `e2e/Dockerfile` has `git` and `goreleaser` at the version of `mise.toml` of this repo.
   `docs/e2e-tests.md` tells the full run of `go` with `cli`, and names GoReleaser and git in what the e2e tests need.
-- [ ] `README.md` of this repo tells that `feature-compose new go my-tool --feature cli` makes a CLI in its own repo.
-- [ ] `task test:combinations` passes, and its output names the combination `go --feature cli`. `TestCatalog` "the
+- [x] `README.md` of this repo tells that `feature-compose new go my-tool --feature cli` makes a CLI in its own repo.
+- [x] `task test:combinations` passes, and its output names the combination `go --feature cli`. `TestCatalog` "the
   catalog of this repo has no mistake" and the e2e test of `check` pass.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new`, `show` and `check` pass on
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new`, `show` and `check` pass on
   the host.
 
 **Affected Files/Modules:**

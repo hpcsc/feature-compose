@@ -15,6 +15,22 @@ folders:
     test: [task test:unit]
 
 extension_points:
+  account.state:
+    summary: A field of the Account aggregate, and a statement that Apply runs for each event after the events of the account. type can use uuid and the types of the package account. apply can use a, the *Account, and e, the domain.Event, and the methods that a file of the feature in the package account declares.
+    file: go/internal/use_cases/account/account.go
+    item: [name, type, apply]
+  account.events:
+    summary: The name of a payload type of the package event of the account, which RegisterEvents registers.
+    file: go/internal/use_cases/account/events.go
+    item: [event]
+  balance.changes:
+    summary: An event of the account that changes the balance in account_balances. event is the name of its payload type in the package event of the account, and that type has the field AccountID. amount is an expression of type int64 that the balance changes by, and it can use payload, the *event.<event>.
+    file: go/internal/use_cases/account/balance/projection.go
+    item: [event, amount]
+  use_cases.handlers:
+    summary: A statement of RegisterHandlers that registers command handlers. It can use bus, the *command.Bus, stream, the event.Stream, and accounts, the *account.Repository, and the functions that a feature declares in a file of its own in the package use_cases.
+    file: go/internal/use_cases/register.go
+    item: [code]
   api.middleware:
     summary: An expression of type func(http.Handler) http.Handler, which each request to a protected route goes through. It can use cfg, the *api.Config of the API. import is the path of its package under the module.
     file: go/internal/api/server/server.go

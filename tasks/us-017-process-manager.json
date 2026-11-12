@@ -34,7 +34,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Add the feature `process-manager` with the holds of the account",
       "language": "Go",
       "testable": true,

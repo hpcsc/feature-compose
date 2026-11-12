@@ -1,0 +1,11 @@
+package use_cases
+
+import (
+	"{{ option "starter.module" }}/internal/domain/command"
+	"{{ option "starter.module" }}/internal/use_cases/account"
+	"{{ option "starter.module" }}/internal/use_cases/account/holds"
+)
+
+func registerPaymentHandlers(bus *command.Bus, accounts *account.Repository) {
+	holds.Register(bus, accounts)
+}

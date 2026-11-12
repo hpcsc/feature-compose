@@ -1,0 +1,21 @@
+summary: The example of a process manager, a payment to another bank, with fakes of its outside systems.
+targets: [go-event-sourcing-service]
+
+files:
+  - path: files/
+
+add_to:
+  account.state:
+    - name: holds
+      type: map[uuid.UUID]hold
+      apply: a.applyHold(e)
+  account.events:
+    - event: HoldPlaced
+    - event: HoldRejected
+    - event: HoldReleased
+    - event: HoldCaptured
+  balance.changes:
+    - event: HoldCaptured
+      amount: -payload.Amount
+  use_cases.handlers:
+    - code: registerPaymentHandlers(bus, accounts)

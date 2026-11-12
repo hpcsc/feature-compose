@@ -52,7 +52,7 @@ describe('feature-compose show in a terminal', () => {
 
     await session.waitForText('A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow.')
     const screen = await session.text()
-    for (const part of ['╭─ Catalog ', '╭─ go ─', '▾ go-event-sourcing-service', '├─ ▾ features', '│  ├─ api-auth', '│  └─ cli-auth', '└─ ▾ extension points', '├─ api.middleware', '└─ cli.commands', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
+    for (const part of ['╭─ Catalog ', '╭─ go ─', '▾ go-event-sourcing-service', '├─ ▾ features', '│  ├─ api-auth', '│  ├─ cli-auth', '│  └─ process-manager', '└─ ▾ extension points', '├─ api.middleware', '├─ cli.commands', '└─ use_cases.handlers', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
       expect(screen).toContain(part)
     }
     await session.press('/')
@@ -100,7 +100,7 @@ describe('feature-compose show in a terminal', () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
 
-    await session.waitForText('└─ cli-auth')
+    await session.waitForText('└─ process-manager')
     for (let i = 0; i < 4; i++) {
       await session.press('j')
     }
@@ -120,8 +120,8 @@ describe('feature-compose show in a terminal', () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
 
-    await session.waitForText('└─ cli.commands')
-    for (let i = 0; i < 7; i++) {
+    await session.waitForText('└─ use_cases.handlers')
+    for (let i = 0; i < 10; i++) {
       await session.press('j')
     }
     await session.waitForText('╭─ api.middleware ')

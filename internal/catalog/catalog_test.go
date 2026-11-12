@@ -1041,16 +1041,91 @@ files:
 			require.Contains(t, files["internal/api/config.go"], "type Config struct {\n\tPort           string   `env:\"PORT\" envDefault:\"3333\"`\n\tAllowedOrigins []string `env:\"ALLOWED_ORIGINS\" envSeparator:\",\"`\n\tDB             config.DB\n}")
 		})
 
-		t.Run("no written file holds the name of an extension point, with or without items", func(t *testing.T) {
+		writtenWithProcessManager := func(t *testing.T) map[string]string {
+			t.Helper()
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, withoutValues("process-manager"), catalog.Answers{})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+			require.NoError(t, selection.Write(output))
+			return filesIn(t, output)
+		}
+
+		t.Run("no written file holds the name of an extension point of the starter, with or without items", func(t *testing.T) {
+			definitions, err := repoCatalog().Definitions()
+			require.NoError(t, err)
+			extensionPoints := slices.Sorted(maps.Keys(definitions.Starters["go-event-sourcing-service"].ExtensionPoints))
+			require.Subset(t, extensionPoints, []string{"api.middleware", "catchup.consumers", "use_cases.handlers"})
 			_, withoutItems := writtenStarter(t, nil)
 
-			for _, files := range []map[string]string{withoutItems, writtenWithGuard(t)} {
+			for _, files := range []map[string]string{withoutItems, writtenWithGuard(t), writtenWithProcessManager(t)} {
 				for path, contents := range files {
-					for _, extensionPoint := range []string{"api.middleware", "api.config", "catchup.config", "catchup.consumers"} {
+					for _, extensionPoint := range extensionPoints {
 						require.NotContains(t, contents, extensionPoint, path)
 					}
 				}
 			}
+		})
+
+		t.Run("process-manager adds the files of its folder, and of the starter it changes only the file of each extension point that it adds items to", func(t *testing.T) {
+			definitions, err := repoCatalog().Definitions()
+			require.NoError(t, err)
+			extensionPoints := definitions.Starters["go-event-sourcing-service"].ExtensionPoints
+			var extended []string
+			for name := range definitions.Features["process-manager"].AddTo {
+				extended = append(extended, strings.TrimPrefix(extensionPoints[name].File, "go/"))
+			}
+			var featureFiles []string
+			featureFolder := filepath.Join(repoCatalogDir, "features", "process-manager", "files", "go")
+			require.NoError(t, filepath.WalkDir(featureFolder, func(path string, entry fs.DirEntry, err error) error {
+				if err != nil || entry.IsDir() {
+					return err
+				}
+				relative, err := filepath.Rel(featureFolder, path)
+				featureFiles = append(featureFiles, strings.TrimSuffix(filepath.ToSlash(relative), ".tmpl"))
+				return err
+			}))
+			_, withoutFeature := writtenStarter(t, nil)
+
+			withFeature := writtenWithProcessManager(t)
+
+			var added, changed []string
+			for path, contents := range withFeature {
+				before, ok := withoutFeature[path]
+				switch {
+				case !ok:
+					added = append(added, path)
+				case before != contents:
+					changed = append(changed, path)
+				}
+			}
+			require.Contains(t, featureFiles, "internal/use_cases/account/hold.go")
+			require.ElementsMatch(t, featureFiles, added)
+			require.ElementsMatch(t, slices.Compact(slices.Sorted(slices.Values(extended))), changed)
+			require.Len(t, withFeature, len(withoutFeature)+len(added))
+		})
+
+		t.Run("with process-manager, the account keeps a hold for each payment, registers the hold events, takes a captured hold off the balance, and the bus takes the hold commands", func(t *testing.T) {
+			files := writtenWithProcessManager(t)
+
+			require.Contains(t, files["internal/use_cases/account/account.go"], "\tclosed              bool\n\tholds map[uuid.UUID]hold\n}")
+			require.Contains(t, files["internal/use_cases/account/account.go"], "\t\ta.closed = true\n\t}\n\ta.applyHold(e)\n}")
+			require.Contains(t, files["internal/use_cases/account/events.go"], "\treg.Register[event.AccountClosed]()\n\treg.Register[event.HoldPlaced]()\n\treg.Register[event.HoldRejected]()\n\treg.Register[event.HoldReleased]()\n\treg.Register[event.HoldCaptured]()\n}")
+			require.Contains(t, files["internal/use_cases/account/balance/projection.go"], "\t\tevent.AccountClosed{}.EventType(),\n\t\tevent.HoldCaptured{}.EventType(),\n\t}")
+			require.Contains(t, files["internal/use_cases/account/balance/projection.go"], "\t\treturn err\n\tcase *event.HoldCaptured:\n\t\treturn p.change(ctx, tx, payload.AccountID, -payload.Amount, evt)\n\tdefault:")
+			require.Contains(t, files["internal/use_cases/register.go"], "\tcloseaccount.Register(bus, accounts)\n\tregisterPaymentHandlers(bus, accounts)\n}")
+		})
+
+		t.Run("with no item, the account, its events, the balance projection and the registration of the handlers have only the lines of the starter", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			require.Contains(t, files["internal/use_cases/account/account.go"], "\tclosed              bool\n}")
+			require.Contains(t, files["internal/use_cases/account/account.go"], "\t\ta.closed = true\n\t}\n}")
+			require.Contains(t, files["internal/use_cases/account/events.go"], "\treg.Register[event.AccountClosed]()\n}")
+			require.Contains(t, files["internal/use_cases/account/balance/projection.go"], "\t\tevent.AccountClosed{}.EventType(),\n\t}")
+			require.Contains(t, files["internal/use_cases/account/balance/projection.go"], "\t\treturn err\n\tdefault:")
+			require.Contains(t, files["internal/use_cases/register.go"], "\tcloseaccount.Register(bus, accounts)\n}")
 		})
 
 		writtenWithAPIAuth := func(t *testing.T, given map[string]string, apiAuthValues map[string]string) map[string]string {

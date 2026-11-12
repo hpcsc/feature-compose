@@ -30,6 +30,9 @@ type Account struct {
 	available           int64
 	welcomeBonusGranted bool
 	closed              bool
+{{- range items "account.state" }}
+	{{ .name }} {{ .type }}
+{{- end }}
 }
 
 func (a *Account) ID() uuid.UUID {
@@ -122,6 +125,9 @@ func (a *Account) Apply(e domain.Event) {
 	case *event.AccountClosed:
 		a.closed = true
 	}
+{{- range items "account.state" }}
+	{{ .apply }}
+{{- end }}
 }
 
 func (a *Account) checkChange(amount int64) error {

@@ -345,37 +345,37 @@ off the balance of the read model. The starter declares `account.state`, `accoun
 the starter.
 
 **Acceptance Criteria:**
-- [ ] `catalog/features/process-manager/feature.yml` has a `summary` that says what the repo gets, `targets` with only
+- [x] `catalog/features/process-manager/feature.yml` has a `summary` that says what the repo gets, `targets` with only
   `go-event-sourcing-service`, the one files entry `files/`, no option and no need, and the items of decision 3 for
   `account.state`, `account.events`, `balance.changes` and `use_cases.handlers`.
-- [ ] `starter.yml` declares the four extension points of decision 3, each with its file, its item fields and its
+- [x] `starter.yml` declares the four extension points of decision 3, each with its file, its item fields and its
   `summary`.
-- [ ] Written with `process-manager`, the repo has the hold files of decision 4, from the template with the module
+- [x] Written with `process-manager`, the repo has the hold files of decision 4, from the template with the module
   and the name of the repo, and the connector file `internal/use_cases/payment.go`. `Account` has the field `holds`,
   `Apply` runs `a.applyHold(e)` after its switch, `account.RegisterEvents` registers the four hold events, the balance
   projection lists `HoldCaptured` in `EventTypes` and changes the balance by `-payload.Amount` for it in `Handle`, and
   `RegisterHandlers` registers the hold handler.
-- [ ] Written from the starter alone, the four files hold no line, no blank line and no import from an item, and the
+- [x] Written from the starter alone, the four files hold no line, no blank line and no import from an item, and the
   test at `catalog_test.go:936-945` passes, with its check of `fakeservices` and `HoldPlaced`.
-- [ ] With `process-manager`, each file of the starter that differs from the repo of the starter alone is the `file` of
+- [x] With `process-manager`, each file of the starter that differs from the repo of the starter alone is the `file` of
   an extension point that `process-manager` adds items to, and each other file that differs is a file of
   `process-manager`. The test takes the files of the extension points from the definitions of the catalog, so it holds
   in each later task.
-- [ ] In the written repo, the unit tests of `internal/use_cases/account` (with `hold_test.go`) and of
+- [x] In the written repo, the unit tests of `internal/use_cases/account` (with `hold_test.go`) and of
   `internal/use_cases/account/holds` run in `task test:unit` and pass.
-- [ ] A unit test of the connector file in the written repo (`internal/use_cases/payment_test.go`, tag `unit`) shows,
+- [x] A unit test of the connector file in the written repo (`internal/use_cases/payment_test.go`, tag `unit`) shows,
   with the memory stream of the starter, that the bus that `use_cases.RegisterHandlers` fills takes the hold commands:
   a hold for an open account with money records `HoldPlaced` on the stream of the account, and its capture records
   `HoldCaptured`.
-- [ ] `feature-compose check --catalog catalog` finds no mistake.
-- [ ] `e2e/tests/new.test.ts:371-379` expects `api-auth, cli, cli-auth, process-manager`, and the test at
+- [x] `feature-compose check --catalog catalog` finds no mistake.
+- [x] `e2e/tests/new.test.ts:371-379` expects `api-auth, cli, cli-auth, process-manager`, and the test at
   `new.test.ts:381-399` expects `process-manager` among the features that do not target `go`. The tests of `show` in a
   terminal (`e2e/tests/show.test.ts:47-66`, `show.test.ts:119-135`) expect the new last feature, the new last extension
   point and the new place of `api.middleware` in the tree.
-- [ ] No written file holds the name of one of the four extension points (`catalog_test.go:1009-1018`).
-- [ ] With each combination, `process-manager` among them, the written repo builds, `gofmt -l .` lists no file, and its
+- [x] No written file holds the name of one of the four extension points (`catalog_test.go:1009-1018`).
+- [x] With each combination, `process-manager` among them, the written repo builds, `gofmt -l .` lists no file, and its
   unit tests pass (`task test:combinations`).
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the host.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `show` pass on the host.
 
 **Affected Files/Modules:**
 - `catalog/features/process-manager/feature.yml` — new

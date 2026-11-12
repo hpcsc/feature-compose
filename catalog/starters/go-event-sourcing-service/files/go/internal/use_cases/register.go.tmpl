@@ -24,4 +24,7 @@ func RegisterHandlers(bus *command.Bus, stream event.Stream) {
 	withdraw.Register(bus, accounts)
 	welcomebonus.Register(bus, accounts)
 	closeaccount.Register(bus, accounts)
+{{- range items "use_cases.handlers" }}
+	{{ .code }}
+{{- end }}
 }

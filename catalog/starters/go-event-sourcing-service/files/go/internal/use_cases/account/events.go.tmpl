@@ -11,4 +11,7 @@ func RegisterEvents(reg *registry.OfEvents) {
 	reg.Register[event.MoneyWithdrawn]()
 	reg.Register[event.WelcomeBonusGranted]()
 	reg.Register[event.AccountClosed]()
+{{- range items "account.events" }}
+	reg.Register[event.{{ .event }}]()
+{{- end }}
 }

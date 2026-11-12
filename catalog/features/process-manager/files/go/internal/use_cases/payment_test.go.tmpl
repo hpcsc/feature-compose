@@ -1,0 +1,78 @@
+//go:build unit
+
+package use_cases_test
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+
+	"github.com/google/uuid"
+	"{{ option "starter.module" }}/internal/domain"
+	"{{ option "starter.module" }}/internal/domain/command"
+	"{{ option "starter.module" }}/internal/domain/event"
+	"{{ option "starter.module" }}/internal/domain/event/registry"
+	"{{ option "starter.module" }}/internal/domain/event/stream"
+	"{{ option "starter.module" }}/internal/use_cases"
+	"{{ option "starter.module" }}/internal/use_cases/account"
+	accountCommand "{{ option "starter.module" }}/internal/use_cases/account/command"
+	accountEvent "{{ option "starter.module" }}/internal/use_cases/account/event"
+	"github.com/stretchr/testify/require"
+)
+
+func TestPayment(t *testing.T) {
+	t.Run("register events", func(t *testing.T) {
+		t.Run("the registry reads back each hold event of an account", func(t *testing.T) {
+			reg := registry.New()
+			use_cases.RegisterEvents(reg)
+			id, paymentID := uuid.New(), uuid.New()
+
+			for _, payload := range []domain.EventPayload{
+				&accountEvent.HoldPlaced{AccountID: id, PaymentID: paymentID, Amount: 300},
+				&accountEvent.HoldRejected{AccountID: id, PaymentID: paymentID, Amount: 300, Reason: "balance is less than the amount"},
+				&accountEvent.HoldReleased{AccountID: id, PaymentID: paymentID, Amount: 300},
+				&accountEvent.HoldCaptured{AccountID: id, PaymentID: paymentID, Amount: 300},
+			} {
+				raw, err := json.Marshal(payload)
+				require.NoError(t, err)
+
+				parsed, _, err := reg.ParseRawData(payload.EventType(), 1, raw, nil)
+
+				require.NoError(t, err, payload.EventType())
+				require.Equal(t, payload, parsed)
+			}
+		})
+	})
+
+	t.Run("register handlers", func(t *testing.T) {
+		t.Run("the bus places a hold for a payment on an account with money, and captures the hold", func(t *testing.T) {
+			s := stream.NewMemory()
+			bus := command.NewBus()
+			use_cases.RegisterHandlers(bus, s)
+			id, paymentID := uuid.New(), uuid.New()
+			require.NoError(t, s.Save(context.Background(), account.StreamID(id), []domain.Event{
+				domain.NewEvent(&accountEvent.AccountOpened{AccountID: id, Owner: "alice"}),
+				domain.NewEvent(&accountEvent.MoneyDeposited{AccountID: id, Amount: 500}),
+			}, 0))
+
+			require.NoError(t, bus.Dispatch(context.Background(), domain.NewCommand(accountCommand.PlaceHold{AccountID: id, PaymentID: paymentID, Amount: 300})))
+			require.NoError(t, bus.Dispatch(context.Background(), domain.NewCommand(accountCommand.CaptureHold{AccountID: id, PaymentID: paymentID})))
+
+			require.Equal(t, []any{
+				&accountEvent.HoldPlaced{AccountID: id, PaymentID: paymentID, Amount: 300},
+				&accountEvent.HoldCaptured{AccountID: id, PaymentID: paymentID, Amount: 300},
+			}, payloadsOf(t, s, account.StreamID(id))[2:])
+		})
+	})
+}
+
+func payloadsOf(t *testing.T, s event.Stream, streamID string) []any {
+	t.Helper()
+	events, err := s.EventsForStream(context.Background(), streamID)
+	require.NoError(t, err)
+	payloads := make([]any, 0, len(events))
+	for _, e := range events {
+		payloads = append(payloads, e.Payload)
+	}
+	return payloads
+}

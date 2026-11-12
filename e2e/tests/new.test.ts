@@ -374,7 +374,7 @@ describe('feature-compose new', () => {
     const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'x', '--feature', 'no-such-feature'])
 
     expect(result.status).not.toBe(0)
-    expect(result.stdout + result.stderr).toContain('the features that target the starter go-event-sourcing-service are api-auth, cli, cli-auth\n')
+    expect(result.stdout + result.stderr).toContain('the features that target the starter go-event-sourcing-service are api-auth, cli, cli-auth, process-manager\n')
     expect(readdirSync(dir)).toEqual([])
   })
 

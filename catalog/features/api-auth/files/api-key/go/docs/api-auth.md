@@ -1,7 +1,7 @@
 # API keys
 
 The API accepts a request to a protected route only when the request carries a key that the API knows.
-`GET /` is public, so a health check needs no key.
+`GET /api/` is public, so a health check needs no key.
 
 ## Make a key and its hash
 
@@ -53,7 +53,7 @@ answers them with 401. Send the key with curl, as the next section shows.
 A client sends the key in the `Authorization` header, with the scheme `Bearer`:
 
 ```shell
-curl -X POST http://localhost:3333/accounts \
+curl -X POST http://localhost:3333/api/accounts \
   -H "Authorization: Bearer $key" \
   -H 'Content-Type: application/json' \
   -d '{"owner": "Jane"}'

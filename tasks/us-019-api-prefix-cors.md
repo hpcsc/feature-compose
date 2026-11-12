@@ -428,17 +428,17 @@ route in the docs and the Taskfiles of a written repo without `/api`.
 - [ ] `docs/event-model-account.emod`, `docs/event-model-account.md` and `docs/event-model-account.svg` of the written
   repo name each route of the API with `/api`, in each trigger, table, timeline and description. `emod validate
   docs/event-model-account.emod` passes.
-- [ ] The docs of `api-auth` with each value of `method` name the public root route `GET /api/`, and their curl
+- [x] The docs of `api-auth` with each value of `method` name the public root route `GET /api/`, and their curl
   example calls `http://localhost:3333/api/accounts`. The tests of the docs of `api-auth`
   (`internal/catalog/catalog_test.go:1143-1176`) check both.
-- [ ] The docs of `cli-auth` call `apiclient.New` with `http://localhost:3333/api` and `Do` with the path `/accounts`,
+- [x] The docs of `cli-auth` call `apiclient.New` with `http://localhost:3333/api` and `Do` with the path `/accounts`,
   and say that the base URL of the API ends with `/api`. The test of the docs of `cli-auth`
   (`internal/catalog/catalog_test.go:1366-1381`) checks it.
-- [ ] A test of the group `embedded` of `TestCatalog` writes a repo from the starter alone, with `api-auth` with each
+- [x] A test of the group `embedded` of `TestCatalog` writes a repo from the starter alone, with `api-auth` with each
   value of `method`, and with `cli-auth`. It takes the routes from the route patterns in the written Go files of
   `internal/api/use_cases`, not from a list of the test, and finds none of them without `/api` before its path in a
   file under `docs/`, in `README.md`, or in a Taskfile of the repo; it also finds no `GET /` alone there.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `catalog/starters/go-event-sourcing-service/files/go/docs/event-model-account.emod`,

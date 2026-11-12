@@ -130,7 +130,7 @@
     },
     {
       "n": 4,
-      "done": false,
+      "done": true,
       "title": "Name each route with `/api` in the docs of the repo, of `api-auth` and of `cli-auth`",
       "language": "Go",
       "testable": true,

@@ -1,7 +1,7 @@
 # OAuth access tokens
 
 The API accepts a request to a protected route only when the request carries an access token that the issuer
-of the API signs. `GET /` is public, so a health check needs no token.
+of the API signs. `GET /api/` is public, so a health check needs no token.
 
 ## The issuer
 
@@ -53,7 +53,7 @@ A client gets an access token from the issuer, for the audience of the API, and 
 `Authorization` header with the scheme `Bearer`:
 
 ```shell
-curl -X POST http://localhost:3333/accounts \
+curl -X POST http://localhost:3333/api/accounts \
   -H "Authorization: Bearer $token" \
   -H 'Content-Type: application/json' \
   -d '{"owner": "Jane"}'

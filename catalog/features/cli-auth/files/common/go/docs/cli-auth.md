@@ -37,10 +37,11 @@ and takes the first that gives a value. The code is in `internal/credential`, th
 ### Call the API from a Command
 
 A command of the CLI calls the API through `apiclient.Client`. Before each request, the client calls
-`credential.Resolve` and sends the key as `Authorization: Bearer <key>`:
+`credential.Resolve` and sends the key as `Authorization: Bearer <key>`. Give the client the base URL of the
+API, which ends with `/api`, and give each call the path of the route after `/api`:
 
 ```go
-client := apiclient.New("http://localhost:3333")
+client := apiclient.New("http://localhost:3333/api")
 response, err := client.Do(ctx, http.MethodPost, "/accounts", body)
 if err != nil {
 	return err

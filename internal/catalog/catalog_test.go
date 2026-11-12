@@ -1157,6 +1157,7 @@ add_to:
 
 			for _, part := range []string{
 				"API_KEY_HASHES", "Authorization: Bearer", "401", "WWW-Authenticate: Bearer", "403",
+				"`GET /api/` is public", "curl -X POST http://localhost:3333/api/accounts",
 				`{"successful": false, "messages": ["sign in to continue"]}`,
 				"With the method `api-key`", "API_KEY_HASHES=<hash of your key> task api:run",
 				"`Taskfile.api.yml`", "`README.md`", "`docker-compose.local.yml`",
@@ -1174,6 +1175,7 @@ add_to:
 
 			for _, part := range []string{
 				"JWT access tokens", "/.well-known/openid-configuration", "Google gives no JWT access token for your own API",
+				"`GET /api/` is public", "curl -X POST http://localhost:3333/api/accounts",
 				"OAUTH_ISSUER_URL", "OAUTH_AUDIENCE", "OAUTH_ISSUER_URL=<url> OAUTH_AUDIENCE=<audience> task api:run", "the repo needs no new render",
 				"`RS256`", "`iss`", "`aud`", "`exp`", "Authorization: Bearer", "401", "WWW-Authenticate: Bearer", "403", "With the method `oauth`",
 				`{"successful": false, "messages": ["sign in to continue"]}`,
@@ -1383,6 +1385,7 @@ add_to:
 			for _, part := range []string{
 				"MY_SERVICE_API_KEY", "credentialCommand", "my-service auth status", "Authorization: Bearer <key>",
 				"the method `api-key`", "the CLI follows the method of the API", "[api-auth.md](api-auth.md)",
+				`apiclient.New("http://localhost:3333/api")`, `client.Do(ctx, http.MethodPost, "/accounts", body)`, "ends with `/api`",
 			} {
 				require.Contains(t, docs, part)
 			}
@@ -1390,6 +1393,54 @@ add_to:
 				require.True(t, slices.ContainsFunc(slices.Collect(maps.Keys(files)), func(written string) bool {
 					return written == path[1] || strings.HasPrefix(written, path[1]+"/")
 				}), path[1])
+			}
+		})
+
+		t.Run("the docs, the README and the Taskfiles of a repo name each route of its API under /api, and do not name GET / alone", func(t *testing.T) {
+			_, starterAlone := writtenStarter(t, nil)
+			routePattern := regexp.MustCompile(`route\.(?:Public|Protected)\("[A-Z]+", "([^"]+)"`)
+			apiVariable := regexp.MustCompile(`(?m)^\s+API: (\S+)$`)
+			rootAlone := regexp.MustCompile("GET /(?:[\\s`'\")|,.]|$)")
+
+			for name, files := range map[string]map[string]string{
+				"the starter alone":                starterAlone,
+				"api-auth with the method api-key": writtenWithAPIAuth(t, nil, map[string]string{"method": "api-key"}),
+				"api-auth with the method oauth":   writtenWithAPIAuth(t, nil, map[string]string{"method": "oauth"}),
+				"cli-auth":                         writtenWithFeatures(t, withoutValues("cli-auth")),
+			} {
+				var routes []string
+				for path, contents := range files {
+					if strings.HasPrefix(path, "internal/api/use_cases/") && strings.HasSuffix(path, ".go") {
+						for _, match := range routePattern.FindAllStringSubmatch(contents, -1) {
+							if match[1] != "/" {
+								routes = append(routes, match[1])
+							}
+						}
+					}
+				}
+				var withoutPrefix []string
+				for path, contents := range files {
+					if !strings.HasPrefix(path, "docs/") && path != "README.md" && !regexp.MustCompile(`^Taskfile[^/]*\.yml$`).MatchString(path) {
+						continue
+					}
+					if api := apiVariable.FindStringSubmatch(contents); api != nil {
+						contents = strings.ReplaceAll(contents, "{{.API}}", api[1])
+					}
+					for _, route := range routes {
+						for _, match := range regexp.MustCompile("(\"?)([^\\s\"'`(|]*)"+regexp.QuoteMeta(route)).FindAllStringSubmatch(contents, -1) {
+							pathAfterBaseURL := match[1] == `"` && match[2] == ""
+							if !pathAfterBaseURL && !strings.HasSuffix(match[2], "/api") {
+								withoutPrefix = append(withoutPrefix, path+": "+match[0])
+							}
+						}
+					}
+					for _, match := range rootAlone.FindAllString(contents, -1) {
+						withoutPrefix = append(withoutPrefix, path+": "+match)
+					}
+				}
+
+				require.Contains(t, routes, "/accounts", name)
+				require.Empty(t, withoutPrefix, name)
 			}
 		})
 

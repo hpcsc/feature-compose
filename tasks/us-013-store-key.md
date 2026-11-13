@@ -420,26 +420,26 @@ names the feature, the option, the `when`, the reference and the references that
 `when`, whatever value its options can have.
 
 **Acceptance Criteria:**
-- [ ] A `when` of an option that reads a reference that it cannot read (decision 2) is a mistake. The tests take one
+- [x] A `when` of an option that reads a reference that it cannot read (decision 2) is a mistake. The tests take one
   reference of each form that the expression language gives: a name with no prefix (an option of its own feature that
   has a `when`, also the option itself, and a name that is no option); `<feature>.<option>` (of an option that a need does not declare,
   of a feature that is not in `needs`, and of a need of a need); and `starter.<option>` (of an option that no target
   declares). The message names the feature, the option, the `when` as written, the reference, and the references
   that the `when` of an option can read.
-- [ ] `starter.<option>` of an option that one target declares and another target does not is a mistake, and the
+- [x] `starter.<option>` of an option that one target declares and another target does not is a mistake, and the
   message names each target that does not declare it.
-- [ ] Each reference in the `when` is checked: on both sides of `&&` and `||`, under `!`, in parentheses, in a
+- [x] Each reference in the `when` is checked: on both sides of `&&` and `||`, under `!`, in parentheses, in a
   comparison and as a bare name. A `when` that reads one such reference two times gives one mistake.
-- [ ] A `when` that reads only options of the needs, starter options that each target declares, and options of its
+- [x] A `when` that reads only options of the needs, starter options that each target declares, and options of its
   own feature that have no `when` is not a mistake.
   A `when` that does not parse gives only its mistake of Task 1.
-- [ ] The mistake comes one time for the feature, also with two targets, after the reads of the `when` of the files
+- [x] The mistake comes one time for the feature, also with two targets, after the reads of the `when` of the files
   entries and before the reads of the templates, in the order of the option names (decision 8).
-- [ ] The mistakes of US-006, US-009 and Task 1 are still found, and `Catalog.Check` on `catalog/` gives no mistake.
-- [ ] `feature-compose check` prints the mistake with the other mistakes (`TestCheckCommand`).
-- [ ] `docs/commands.md`, "Check the Catalog": a row for the mistake that names what the `when` of an option reads
+- [x] The mistakes of US-006, US-009 and Task 1 are still found, and `Catalog.Check` on `catalog/` gives no mistake.
+- [x] `feature-compose check` prints the mistake with the other mistakes (`TestCheckCommand`).
+- [x] `docs/commands.md`, "Check the Catalog": a row for the mistake that names what the `when` of an option reads
   and the rule of the targets, and the order list names it.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `internal/catalog/feature.go` — the references that the `when` of an option can read, and its read mistakes

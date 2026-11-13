@@ -169,24 +169,49 @@ func (f feature) mistakes(starters []Starter, catalogFeatures map[string]feature
 func (f feature) readMistakes(starters []Starter, catalogFeatures map[string]feature) []string {
 	readable := f.readable(starters, catalogFeatures)
 	checkedEntries := map[string]bool{}
-	var whenReads, templateReads, parseMistakes []string
+	var entryWhenMistakes, templateReads, parseMistakes []string
 	for _, t := range f.templates {
 		if !checkedEntries[t.entry] {
 			checkedEntries[t.entry] = true
 			for _, reference := range t.when.references() {
 				if !readable[reference] {
-					whenReads = append(whenReads, fmt.Sprintf("the when %q of the files entry %q reads %q, which %s",
-						t.when.text, t.entry, reference, f.whyCannotRead(reference, readable, starters)))
+					entryWhenMistakes = append(entryWhenMistakes, fmt.Sprintf("the when %q of the files entry %q reads %q, which %s",
+						t.when.text, t.entry, reference, f.whyCannotRead(reference, readable, starters, "the feature")))
 				}
 			}
 		}
-		reads, err := t.readMistakes(readable, func(reference string) string { return f.whyCannotRead(reference, readable, starters) })
+		reads, err := t.readMistakes(readable, func(reference string) string { return f.whyCannotRead(reference, readable, starters, "the feature") })
 		if err != nil {
 			parseMistakes = append(parseMistakes, err.Error())
 		}
 		templateReads = append(templateReads, reads...)
 	}
-	return slices.Concat(whenReads, templateReads, parseMistakes)
+	return slices.Concat(entryWhenMistakes, f.optionWhenReadMistakes(starters, readable), templateReads, parseMistakes)
+}
+
+func (f feature) optionWhenReadMistakes(starters []Starter, readable map[string]bool) []string {
+	readableByWhen := maps.Clone(readable)
+	for optionName, declared := range f.options.declared {
+		if declared.hasWhen() {
+			delete(readableByWhen, optionName)
+		}
+	}
+	var mistakes []string
+	for _, optionName := range slices.Sorted(maps.Keys(f.options.declared)) {
+		when := f.options.declared[optionName].when
+		for _, reference := range when.references() {
+			switch {
+			case readableByWhen[reference]:
+			case f.options.declared[reference].hasWhen():
+				mistakes = append(mistakes, fmt.Sprintf("the when %q of the option %q reads %q, which has a when of its own, so the when of an option cannot read it",
+					when.text, optionName, reference))
+			default:
+				mistakes = append(mistakes, fmt.Sprintf("the when %q of the option %q reads %q, which %s",
+					when.text, optionName, reference, f.whyCannotRead(reference, readableByWhen, starters, "the when of an option")))
+			}
+		}
+	}
+	return mistakes
 }
 
 func (f feature) readable(starters []Starter, catalogFeatures map[string]feature) map[string]bool {
@@ -207,7 +232,7 @@ func (f feature) readable(starters []Starter, catalogFeatures map[string]feature
 	return readable
 }
 
-func (f feature) whyCannotRead(reference string, readable map[string]bool, starters []Starter) string {
+func (f feature) whyCannotRead(reference string, readable map[string]bool, starters []Starter, reader string) string {
 	if optionName, isStarterOption := strings.CutPrefix(reference, starterPrefix); isStarterOption {
 		switch notDeclaring := f.targetsThatDoNotDeclare(optionName, starters); len(notDeclaring) {
 		case 0:
@@ -218,9 +243,9 @@ func (f feature) whyCannotRead(reference string, readable map[string]bool, start
 		}
 	}
 	if len(readable) == 0 {
-		return "the feature cannot read: it can read no option"
+		return reader + " cannot read: it can read no option"
 	}
-	return "the feature cannot read: it can read " + strings.Join(slices.Sorted(maps.Keys(readable)), ", ")
+	return reader + " cannot read: it can read " + strings.Join(slices.Sorted(maps.Keys(readable)), ", ")
 }
 
 func (f feature) targetsThatDoNotDeclare(optionName string, starters []Starter) []string {

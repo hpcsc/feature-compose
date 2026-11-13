@@ -143,6 +143,18 @@ the feature auth: the when "method ==" of the option "store-key": method == need
 `, printed)
 		})
 
+		t.Run("prints each reference that a when of an option reads and cannot read", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth": "targets: [service]\noptions:\n  store-key:\n    default: \"false\"\n    when: 'api-auth.method == \"api-key\"'\n",
+			})
+
+			printed, err := runCheck(t, files)
+
+			require.EqualError(t, err, "the catalog has 1 mistake")
+			require.Equal(t, `the feature auth: the when "api-auth.method == \"api-key\"" of the option "store-key" reads "api-auth.method", which the when of an option cannot read: it can read no option
+`, printed)
+		})
+
 		t.Run("prints each reference that a when reads and the feature cannot read", func(t *testing.T) {
 			files := withFeatures(map[string]string{
 				"auth": "targets: [service]\noptions:\n  method:\n    default: api-key\nfiles:\n  - path: files/\n    when: 'method == \"oauth\" && starter.region == \"eu\"'\n",

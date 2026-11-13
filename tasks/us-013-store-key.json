@@ -94,7 +94,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Find a `when` of an option that reads an option that it cannot read",
       "language": "Go",
       "testable": true,

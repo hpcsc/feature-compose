@@ -8,6 +8,14 @@ add_to:
   taskfile.flat_includes:
     - name: cli
       taskfile: Taskfile.cli.yml
+  mise.tools:
+    - name: aqua:goreleaser/goreleaser
+      version: "2.18.2"
+    - name: node
+      version: "26.10.0"
+  gitignore.patterns:
+    - pattern: dist/
+    - pattern: e2e/node_modules/
 
 extension_points:
   cli.commands:

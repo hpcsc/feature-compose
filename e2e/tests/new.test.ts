@@ -116,7 +116,7 @@ describe('feature-compose new', () => {
   )
 
   it(
-    'makes a CLI repo from go with cli that builds, passes the unit tests of the starter and of the CLI, builds and runs the CLI with its tasks, passes its end-to-end tests with task test:e2e:local, and whose snapshot from task release:local has the archives and the checksums that update and the installer download',
+    'makes a CLI repo from go with cli that builds, passes the unit tests of the starter and of the CLI, builds and runs the CLI with its tasks, passes its end-to-end tests with task test:e2e:local, whose snapshot from task release:local has the archives and the checksums that update and the installer download, and whose git status shows no file of the snapshot or of the packages of e2e',
     async () => {
       const dir = scratchDir()
       const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
@@ -164,6 +164,16 @@ describe('feature-compose new', () => {
       expect(untar.status, untar.stderr).toBe(0)
       const version = await runProgram(extracted, join(extracted, 'my-tool'), ['version'])
       expect(version).toMatchObject({ status: 0, stdout: `${tag}\n` })
+
+      expect(existsSync(join(repo, 'e2e', 'node_modules'))).toBe(true)
+      const onlyTheConfigOfTheRepo = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', XDG_CONFIG_HOME: scratchDir() }
+      const init = await runProgram(repo, 'git', ['init', '--quiet'], onlyTheConfigOfTheRepo)
+      expect(init.status, init.stderr).toBe(0)
+      const status = await runProgram(repo, 'git', ['status', '--porcelain', '--untracked-files=all'], onlyTheConfigOfTheRepo)
+      expect(status.status, status.stderr).toBe(0)
+      const untracked = status.stdout.split('\n').map((line) => line.slice(3))
+      expect(untracked).toContain('go.mod')
+      expect(untracked.filter((path) => path.startsWith('dist/') || path.startsWith('e2e/node_modules/'))).toEqual([])
     },
     15 * 60 * 1000,
   )

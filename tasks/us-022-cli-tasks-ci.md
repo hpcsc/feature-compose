@@ -419,19 +419,19 @@ and after `task release:local` and an `npm install` in `e2e/`, `git status` show
 `e2e/node_modules/`. A repo without `cli` has the `mise.toml` and the `.gitignore` of its starter.
 
 **Acceptance Criteria:**
-- [ ] The `starter.yml` of each target of `cli` declares `mise.tools` with the file `go/mise.toml` and the item
+- [x] The `starter.yml` of each target of `cli` declares `mise.tools` with the file `go/mise.toml` and the item
   fields `[name, version]`, and `gitignore.patterns` with the file `go/.gitignore` and the item field `[pattern]`.
-- [ ] `TestCatalog`: for each target with `cli`, `mise.toml` parses as TOML and has the tools of the starter at
+- [x] `TestCatalog`: for each target with `cli`, `mise.toml` parses as TOML and has the tools of the starter at
   their versions, `aqua:goreleaser/goreleaser` at `2.18.2` and `node` at `26.10.0`. `.gitignore` has the lines
   `dist/` and `e2e/node_modules/`. Without `cli`, `mise.toml` has neither tool, `.gitignore` has neither line, and
   both files hold only the lines of the starter.
-- [ ] `e2e/tests/new.test.ts`, the run of `go` with `cli`: after `task release:local` and
+- [x] `e2e/tests/new.test.ts`, the run of `go` with `cli`: after `task release:local` and
   `npm install --no-audit --no-fund` in `e2e/`, `git init` and `git status --porcelain --untracked-files=all` in the
   repo list `go.mod`, and no path under `dist/` or `e2e/node_modules/`.
-- [ ] `docs/e2e-tests.md` of this repo tells the step of `git status`.
-- [ ] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass, and
+- [x] `docs/e2e-tests.md` of this repo tells the step of `git status`.
+- [x] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass, and
   `task test:combinations` passes.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new`, `show` and `check` pass
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new`, `show` and `check` pass
   on the host.
 
 **Affected Files/Modules:**

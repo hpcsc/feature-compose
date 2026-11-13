@@ -1905,6 +1905,45 @@ files:
 			}
 		})
 
+		t.Run("with cli, mise.toml of each target has the tools of the starter at their versions, GoReleaser 2.18.2 and Node 26.10.0, and without cli it has neither of the two", func(t *testing.T) {
+			for _, starterName := range targetsOfCLI(t) {
+				withoutCLI := toolsOf(t, writtenTarget(t, starterName, nil, nil)["mise.toml"])
+				withCLI := toolsOf(t, writtenTarget(t, starterName, nil, withoutValues("cli"))["mise.toml"])
+
+				require.Equal(t, "3.42.1", withoutCLI["aqua:go-task/task"], starterName)
+				require.NotContains(t, withoutCLI, "aqua:goreleaser/goreleaser", starterName)
+				require.NotContains(t, withoutCLI, "node", starterName)
+				expected := maps.Clone(withoutCLI)
+				expected["aqua:goreleaser/goreleaser"] = "2.18.2"
+				expected["node"] = "26.10.0"
+				require.Equal(t, expected, withCLI, starterName)
+			}
+		})
+
+		t.Run("with cli, .gitignore of each target has dist/ and e2e/node_modules/ after the lines of the starter, and without cli it has neither", func(t *testing.T) {
+			for _, starterName := range targetsOfCLI(t) {
+				withoutCLI := writtenTarget(t, starterName, nil, nil)[".gitignore"]
+				withCLI := writtenTarget(t, starterName, nil, withoutValues("cli"))[".gitignore"]
+
+				require.Contains(t, strings.Split(withoutCLI, "\n"), "bin", starterName)
+				require.NotContains(t, strings.Split(withoutCLI, "\n"), "dist/", starterName)
+				require.NotContains(t, strings.Split(withoutCLI, "\n"), "e2e/node_modules/", starterName)
+				require.Equal(t, withoutCLI+"dist/\ne2e/node_modules/\n", withCLI, starterName)
+			}
+		})
+
+		t.Run("with no item, mise.toml and .gitignore of each target of cli end with the last line of the starter", func(t *testing.T) {
+			for starterName, lastLines := range map[string][2]string{
+				"go":                        {`"go:golang.org/x/vuln/cmd/govulncheck" = "1.8.0"` + "\n", "go.work\nbin\n.idea\n"},
+				"go-event-sourcing-service": {`"go:golang.org/x/vuln/cmd/govulncheck" = "1.8.0"` + "\n", "tmp\ntags\nbin\n"},
+			} {
+				files := writtenTarget(t, starterName, nil, nil)
+
+				require.True(t, strings.HasSuffix(files["mise.toml"], lastLines[0]), starterName+": "+files["mise.toml"])
+				require.True(t, strings.HasSuffix(files[".gitignore"], lastLines[1]), starterName+": "+files[".gitignore"])
+			}
+		})
+
 		t.Run("Taskfile.cli.yml builds the CLI into bin with the kebab-case name of the repo, runs it from the source with the arguments of task, makes a GoReleaser snapshot, and runs the end-to-end tests in Docker and with Node against a binary of the tag v0.1.0", func(t *testing.T) {
 			_, files := writtenWithCLI(t, "MyService.v2", nil)
 
@@ -2329,6 +2368,22 @@ func tasksOf(t *testing.T, files map[string]string) []string {
 		}
 	}
 	return tasks
+}
+
+func toolsOf(t *testing.T, miseConfig string) map[string]string {
+	t.Helper()
+	lines := strings.Split(strings.TrimSuffix(miseConfig, "\n"), "\n")
+	require.Equal(t, "[tools]", lines[0])
+	tool := regexp.MustCompile(`^(?:"([^"]+)"|([A-Za-z0-9_-]+)) = "([^"]+)"$`)
+	tools := map[string]string{}
+	for _, line := range lines[1:] {
+		match := tool.FindStringSubmatch(line)
+		require.NotNil(t, match, line)
+		name := match[1] + match[2]
+		require.NotContains(t, tools, name, line)
+		tools[name] = match[3]
+	}
+	return tools
 }
 
 func catalogOnDisk(t *testing.T) fstest.MapFS {

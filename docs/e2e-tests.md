@@ -110,6 +110,9 @@ The second adds `--feature cli`, and makes a CLI in its own repo:
    test calculates from the file.
 7. The binary in the archive for the platform of the test prints the tag of the snapshot for `version`. So the
    ldflag of `.goreleaser.yaml` sets the version.
+8. The test runs `git init` in the repo. `git status --porcelain --untracked-files=all` lists `go.mod`, and no
+   path under `dist/` or `e2e/node_modules/`, which the snapshot and the `npm install` of step 5 made. So the
+   `.gitignore` of the repo has the patterns of `cli`.
 
 The other six make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
 

@@ -5,3 +5,6 @@ go = "{{ option "starter.go-version" }}"
 "aqua:koalaman/shellcheck" = "0.10.0"
 "aqua:golang-migrate/migrate" = "4.18.2"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.8.0"
+{{- range items "mise.tools" }}
+"{{ .name }}" = "{{ .version }}"
+{{- end }}

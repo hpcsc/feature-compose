@@ -91,7 +91,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Install GoReleaser and Node with `mise install`, and keep `dist/` and `e2e/node_modules/` out of git",
       "language": "Go",
       "testable": true,

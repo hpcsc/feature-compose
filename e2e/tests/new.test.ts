@@ -5,7 +5,7 @@ import { createServer, type Server } from 'node:http'
 import { type AddressInfo, createServer as createNetServer, type Socket } from 'node:net'
 import { dirname, join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { configHome, getExecutablePath, openCli, runCli, runProgram, scratchDir } from '../testUtils'
+import { buildTag, configHome, getExecutablePath, openCli, runCli, runProgram, scratchDir } from '../testUtils'
 
 describe('feature-compose new', () => {
   it('an unknown starter stops new, and the message lists the starters of the catalog folder that the config file names', async () => {
@@ -362,6 +362,9 @@ describe('feature-compose new', () => {
       expect(made.status, made.stdout + made.stderr).toBe(0)
       expect(made.stdout).toBe('api-auth: needed by cli-auth\ncli: needed by cli-auth\nMade my-service from the starter go-event-sourcing-service.\n')
       const repo = join(dir, 'my-service')
+      expect(readFileSync(join(repo, '.feature-compose.yml'), 'utf8')).toContain(
+        `version: ${buildTag()}\nstarter: go-event-sourcing-service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\n`,
+      )
       const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
       expect(unformatted).toMatchObject({ status: 0, stdout: '' })
       const build = await runProgram(repo, 'go', ['build', '-o', 'bin/my-service', './cmd/my-service'], env)

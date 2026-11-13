@@ -24,6 +24,8 @@ import (
 )
 
 func TestNewCommand(t *testing.T) {
+	const version = "v1.2.3"
+	defaultSelectionFile := "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\n"
 	starterFiles := func(afterRender string) fstest.MapFS {
 		return fstest.MapFS{
 			"starters/service/starter.yml": &fstest.MapFile{Data: []byte(`
@@ -47,7 +49,7 @@ folders:
 	runNew := func(t *testing.T, files fstest.MapFS, arguments ...string) (string, error) {
 		t.Helper()
 		var printed bytes.Buffer
-		command := newNewCommand(loaded(files))
+		command := newNewCommand(loaded(files), version)
 		command.Reader = strings.NewReader("")
 		command.Writer = &printed
 		command.ErrWriter = &printed
@@ -78,7 +80,7 @@ folders:
 				time.Sleep(50 * time.Millisecond)
 			}
 		}()
-		command := newNewCommand(loaded(files))
+		command := newNewCommand(loaded(files), version)
 		command.Reader, command.Writer, command.ErrWriter = tty, tty, tty
 
 		runErr := command.Run(ctx, append([]string{"new"}, arguments...))
@@ -133,7 +135,10 @@ folders:
 			_, err := runNew(t, starterFiles(""), "service", "my-service")
 
 			require.NoError(t, err)
-			require.Equal(t, map[string]string{"my-service/go.mod": "module github.com/hpcsc/my-service\ngo 1.27.1\n"}, filesIn(t, workingFolder))
+			require.Equal(t, map[string]string{
+				"my-service/go.mod":               "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				"my-service/.feature-compose.yml": defaultSelectionFile,
+			}, filesIn(t, workingFolder))
 		})
 
 		t.Run("each --feature selects one feature, and new writes its files with the files of the starter", func(t *testing.T) {
@@ -147,6 +152,7 @@ folders:
 				"go.mod":                 "module github.com/hpcsc/my-service\ngo 1.27.1\n",
 				"cmd/my-service/main.go": "package main // my-service\n",
 				"docs/index.md":          "docs\n",
+				".feature-compose.yml":   defaultSelectionFile,
 			}, filesIn(t, output))
 		})
 
@@ -158,8 +164,9 @@ folders:
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
-				"go.mod":        "module github.com/hpcsc/my-service\ngo 1.27.1\n",
-				"docs/index.md": "docs\n",
+				"go.mod":               "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				"docs/index.md":        "docs\n",
+				".feature-compose.yml": defaultSelectionFile,
 			}, filesIn(t, output))
 		})
 
@@ -177,8 +184,9 @@ folders:
 
 				require.NoError(t, err)
 				require.Equal(t, map[string]string{
-					"go.mod":   "module github.com/hpcsc/my-service\ngo 1.27.1\n",
-					"auth.txt": "oauth accounts",
+					"go.mod":               "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+					"auth.txt":             "oauth accounts",
+					".feature-compose.yml": defaultSelectionFile,
 				}, filesIn(t, output))
 			})
 		}
@@ -191,8 +199,9 @@ folders:
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
-				"go.mod":   "module github.com/hpcsc/my-service\ngo 1.27.1\n",
-				"auth.txt": "api-key api",
+				"go.mod":               "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				"auth.txt":             "api-key api",
+				".feature-compose.yml": defaultSelectionFile,
 			}, filesIn(t, output))
 		})
 
@@ -217,8 +226,9 @@ folders:
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
-				"go.mod":   "module github.com/acme/ledger\ngo 1.27.1\n",
-				"tool.txt": "my-tool acme/ledger {{ .Tag }}",
+				"go.mod":               "module github.com/acme/ledger\ngo 1.27.1\n",
+				"tool.txt":             "my-tool acme/ledger {{ .Tag }}",
+				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: My.Tool\noptions:\n  go-version: 1.27.1\n  module: github.com/acme/ledger\n",
 			}, filesIn(t, output))
 		})
 
@@ -230,8 +240,9 @@ folders:
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
-				"go.mod":   "module github.com/hpcsc/my-service\ngo 1.27.1\n",
-				"comma.md": "comma\n",
+				"go.mod":               "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				"comma.md":             "comma\n",
+				".feature-compose.yml": defaultSelectionFile,
 			}, filesIn(t, output))
 		})
 
@@ -288,7 +299,7 @@ folders:
 		t.Run("a closing message that cannot be written stops new with an error", func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			output := filepath.Join(t.TempDir(), "my-service")
-			command := newNewCommand(loaded(starterFiles("")))
+			command := newNewCommand(loaded(starterFiles("")), version)
 			command.Writer, command.ErrWriter = failingWriter{}, io.Discard
 
 			err := command.Run(context.Background(), []string{"new", "service", "my-service", "--output-dir", output})
@@ -303,7 +314,10 @@ folders:
 			_, err := runNew(t, starterFiles(""), "service", "my-service", "--output-dir", output)
 
 			require.NoError(t, err)
-			require.Equal(t, map[string]string{"go.mod": "module github.com/hpcsc/my-service\ngo 1.27.1\n"}, filesIn(t, output))
+			require.Equal(t, map[string]string{
+				"go.mod":               "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				".feature-compose.yml": defaultSelectionFile,
+			}, filesIn(t, output))
 		})
 
 		t.Run("each --option sets one option of the starter, and a value keeps its commas", func(t *testing.T) {
@@ -314,7 +328,27 @@ folders:
 				"--option", "module=example.com/a,b", "--option", "go-version=1.28.0")
 
 			require.NoError(t, err)
-			require.Equal(t, map[string]string{"go.mod": "module example.com/a,b\ngo 1.28.0\n"}, filesIn(t, output))
+			require.Equal(t, map[string]string{
+				"go.mod":               "module example.com/a,b\ngo 1.28.0\n",
+				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.28.0\n  module: example.com/a,b\n",
+			}, filesIn(t, output))
+		})
+
+		t.Run("the two orders of two --option flags give the same .feature-compose.yml", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			var written [2]string
+			for i, order := range [2][]string{
+				{"--option", "module=example.com/ledger", "--option", "go-version=1.28.0"},
+				{"--option", "go-version=1.28.0", "--option", "module=example.com/ledger"},
+			} {
+				output := filepath.Join(t.TempDir(), "my-service")
+				_, err := runNew(t, starterFiles(""), append([]string{"service", "my-service", "--output-dir", output}, order...)...)
+				require.NoError(t, err)
+				written[i] = filesIn(t, output)[".feature-compose.yml"]
+			}
+
+			require.Equal(t, written[0], written[1])
+			require.Equal(t, "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.28.0\n  module: example.com/ledger\n", written[0])
 		})
 
 		t.Run("--option gives a value to an option with no default", func(t *testing.T) {
@@ -324,20 +358,27 @@ folders:
 			_, err := runNew(t, withoutDefaults(), "service", "my-service", "--output-dir", output, "--option", "region=eu")
 
 			require.NoError(t, err)
-			require.Equal(t, map[string]string{"region.txt": "eu", "ran": ""}, filesIn(t, output))
+			require.Equal(t, map[string]string{
+				"region.txt":           "eu",
+				"ran":                  "",
+				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  region: eu\n",
+			}, filesIn(t, output))
 		})
 
 		t.Run("with or without --no-prompt, new gives each option its default and reads no input", func(t *testing.T) {
 			for _, arguments := range [][]string{{"--no-prompt"}, {}} {
 				t.Chdir(t.TempDir())
 				output := filepath.Join(t.TempDir(), "my-service")
-				command := newNewCommand(loaded(starterFiles("")))
+				command := newNewCommand(loaded(starterFiles("")), version)
 				command.Writer, command.ErrWriter, command.Reader = io.Discard, io.Discard, failingReader{t: t}
 
 				err := command.Run(context.Background(), append([]string{"new", "service", "my-service", "--output-dir", output}, arguments...))
 
 				require.NoError(t, err)
-				require.Equal(t, map[string]string{"go.mod": "module github.com/hpcsc/my-service\ngo 1.27.1\n"}, filesIn(t, output))
+				require.Equal(t, map[string]string{
+					"go.mod":               "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+					".feature-compose.yml": defaultSelectionFile,
+				}, filesIn(t, output))
 			}
 		})
 
@@ -369,7 +410,7 @@ folders:
 				selection, err := starter.Select("my-service", test.given, test.givenByFeature, test.answers)
 				require.NoError(t, err)
 				expected := filepath.Join(t.TempDir(), "my-service")
-				require.NoError(t, selection.Write(expected))
+				require.NoError(t, selection.MakeRepo(context.Background(), expected, version))
 				output := filepath.Join(t.TempDir(), "elsewhere")
 				split, err := exec.Command("sh", "-c", `printf '%s\000' `+selection.Arguments(output)).Output()
 				require.NoError(t, err)
@@ -390,8 +431,23 @@ folders:
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
-				"go.mod": "module github.com/hpcsc/my-service\ngo 1.27.1\n",
-				"copy":   "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				"go.mod":               "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				"copy":                 "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				".feature-compose.yml": defaultSelectionFile,
+			}, filesIn(t, output))
+		})
+
+		t.Run("new writes .feature-compose.yml after the last after_render command, so no command finds it", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			_, err := runNew(t, starterFiles(`"ls -A > listed"`), "service", "my-service", "--output-dir", output)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"go.mod":               "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				"listed":               "go.mod\nlisted\n",
+				".feature-compose.yml": defaultSelectionFile,
 			}, filesIn(t, output))
 		})
 
@@ -404,6 +460,17 @@ folders:
 			require.ErrorContains(t, err, "folder go")
 			require.ErrorContains(t, err, "echo tidy failed >&2; exit 1")
 			require.ErrorContains(t, err, "tidy failed")
+			require.Equal(t, map[string]string{"go.mod": "module github.com/hpcsc/my-service\ngo 1.27.1\n"}, filesIn(t, output))
+		})
+
+		t.Run("an after_render command that makes a folder at .feature-compose.yml stops new with an error that names the file, and new prints nothing", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			printed, err := runNew(t, starterFiles(`"mkdir .feature-compose.yml"`), "service", "my-service", "--output-dir", output)
+
+			require.ErrorContains(t, err, "write .feature-compose.yml")
+			require.Empty(t, printed)
 		})
 
 		t.Run("the name of each combination of the catalog, given to new with a name, makes the repo of that combination", func(t *testing.T) {
@@ -427,7 +494,7 @@ folders:
 				selection, err := starter.Select("my-service", combination.StarterValues, combination.FeatureValues, catalog.Answers{})
 				require.NoError(t, err)
 				output = filepath.Join(t.TempDir(), "my-service")
-				require.NoError(t, selection.Write(output))
+				require.NoError(t, selection.MakeRepo(context.Background(), output, version))
 				fromSelection[combination.String()] = filesIn(t, output)
 			}
 
@@ -571,7 +638,7 @@ folders:
 			var printed bytes.Buffer
 			command := newNewCommand(func() (catalog.Catalog, error) {
 				return catalog.Catalog{}, errors.New("no config file at /home/config.yml")
-			})
+			}, version)
 			command.Writer, command.ErrWriter = &printed, &printed
 
 			err := command.Run(context.Background(), []string{"new", "service", "my-service", "--dry-run"})
@@ -582,7 +649,7 @@ folders:
 
 		t.Run("a preview that cannot be written stops --dry-run with an error", func(t *testing.T) {
 			t.Chdir(t.TempDir())
-			command := newNewCommand(loaded(starterFiles("")))
+			command := newNewCommand(loaded(starterFiles("")), version)
 			command.Writer, command.ErrWriter = failingWriter{}, io.Discard
 
 			err := command.Run(context.Background(), []string{"new", "service", "my-service", "--dry-run"})
@@ -633,7 +700,11 @@ folders:
 			screen, err := runInTerminal(t, withFeatures(), "Repo", "wy", "service", "my-service", "--output-dir", output, "--feature", "cli", "--option", "go-version=1.27.1", "--option", "module=github.com/hpcsc/my-service")
 
 			require.NoError(t, err)
-			require.Equal(t, map[string]string{"go.mod": "module github.com/hpcsc/my-service\ngo 1.27.1\n", "cmd/my-service/main.go": "package main // my-service\n"}, filesIn(t, output))
+			require.Equal(t, map[string]string{
+				"go.mod":                 "module github.com/hpcsc/my-service\ngo 1.27.1\n",
+				"cmd/my-service/main.go": "package main // my-service\n",
+				".feature-compose.yml":   defaultSelectionFile,
+			}, filesIn(t, output))
 			require.Contains(t, screen, "To make the same repo again, run:\r\n  feature-compose new service my-service --output-dir "+output+" --feature cli\r\n")
 		})
 
@@ -697,7 +768,7 @@ folders:
 					_ = tty.Close()
 					_ = master.Close()
 				})
-				command := newNewCommand(loaded(withFeatures()))
+				command := newNewCommand(loaded(withFeatures()), version)
 				command.Reader, command.Writer, command.ErrWriter = io.Reader(strings.NewReader("")), io.Writer(io.Discard), io.Discard
 				if test.readerIsTerminal {
 					command.Reader = tty
@@ -914,7 +985,7 @@ folders:
 			t.Chdir(workingFolder)
 			command := newNewCommand(func() (catalog.Catalog, error) {
 				return catalog.Catalog{}, errors.New("no config file at /home/config.yml")
-			})
+			}, version)
 			command.Writer, command.ErrWriter = io.Discard, io.Discard
 
 			err := command.Run(context.Background(), []string{"new", "service", "my-service"})

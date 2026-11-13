@@ -77,6 +77,29 @@ func (s Selection) Write(output string) error {
 	return nil
 }
 
+func (s Selection) MakeRepo(ctx context.Context, output, version string) error {
+	if err := s.Write(output); err != nil {
+		return err
+	}
+	if err := s.RunAfterRender(ctx, output); err != nil {
+		return err
+	}
+	return s.writeSelectionFile(output, version)
+}
+
+func (s Selection) writeSelectionFile(output, version string) error {
+	contents, err := selectionFile{
+		Version:       version,
+		StarterName:   s.starter.name,
+		Name:          s.name,
+		StarterValues: s.starter.values.byName,
+	}.contents()
+	if err != nil {
+		return err
+	}
+	return file{path: selectionFilePath, contents: contents}.write(output)
+}
+
 func (s Selection) Preview() (string, error) {
 	files, err := s.files()
 	if err != nil {

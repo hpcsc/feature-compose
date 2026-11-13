@@ -27,7 +27,29 @@ feature-compose new <starter> <name> [--feature <name>[:<option>=<value>,...]]..
 | `--dry-run` | Prints a preview of the repo, writes no file and runs no command. |
 
 `new` writes each file of the starter and of the selected features. Then it runs the `after_render` commands of
-each folder of the starter, for example `go mod tidy`. The output folder must be empty or absent.
+each folder of the starter, for example `go mod tidy`. Last, it writes the selection file `.feature-compose.yml` to
+the root of the repo. The output folder must be empty or absent.
+
+### The Selection File
+
+`.feature-compose.yml` keeps a record of the choices that made the repo:
+
+```yaml
+version: v0.1.0
+starter: go-event-sourcing-service
+name: my-service
+options:
+  go-version: 1.27.1
+  module: github.com/hpcsc/my-service
+```
+
+| Key | Value |
+| --- | --- |
+| `version` | The text that `feature-compose version` prints. The catalog is a folder with no version, so this is not a version of the catalog. |
+| `starter`, `name` | The starter and the name of the repo. |
+| `options` | Each option of the starter, with the value that the templates read. The file also holds a value that came from a default. |
+
+The options are in the order of their names, so one selection gives the same file in each order of the flags.
 
 ## Preview a Repo
 

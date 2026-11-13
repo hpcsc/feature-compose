@@ -1,0 +1,140 @@
+{
+  "story": "Record the selection in the repo",
+  "story_id": "feature-compose/US-011",
+  "tasks_file": "tasks/us-011-record-selection.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Write `.feature-compose.yml` with the version, the starter, the name and the options of the starter",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "internal/cmd/new.go:66-85",
+        "internal/catalog/selection.go:64-78",
+        "internal/catalog/file.go:16-32",
+        "internal/catalog/combination.go:9-13",
+        "internal/catalog/definitions.go:43-64",
+        "internal/catalog/option_values.go:10-31",
+        "internal/cmd/show.go:49-51",
+        "internal/cmd/root.go:27-52",
+        "internal/cmd/root_test.go:119-128",
+        "internal/cmd/root_test.go:20-37",
+        "internal/catalog/selection_test.go:25-67",
+        "internal/cmd/new_test.go:27-58",
+        "internal/cmd/new_test.go:309-329",
+        "internal/cmd/new_test.go:385-407",
+        "internal/cmd/new_test.go:628-640",
+        "e2e/tests/new.test.ts:354-370",
+        "e2e/testUtils.ts:17-23",
+        "tasks/learnings.md:3-8",
+        "tasks/learnings.md:185-191",
+        "tasks/learnings.md:73-79",
+        "tasks/learnings.md:206-212",
+        "tasks/learnings.md:430-435",
+        "tasks/learnings.md:220-226",
+        "tasks/learnings.md:59-65"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "internal/catalog/selection_file.go",
+        "internal/catalog/selection.go",
+        "internal/catalog/selection_test.go",
+        "internal/cmd/new.go",
+        "internal/cmd/root.go",
+        "internal/cmd/new_test.go",
+        "internal/cmd/root_test.go",
+        "docs/commands.md",
+        "e2e/tests/new.test.ts"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Write each feature with its options, and the requested features, to `.feature-compose.yml`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "internal/catalog/selection.go:369-422",
+        "internal/catalog/selection.go:146-160",
+        "internal/catalog/starter.go:98-114",
+        "internal/catalog/option.go:64-109",
+        "internal/catalog/selection.go:162-174",
+        "internal/catalog/selection_test.go:2030-2041",
+        "internal/catalog/selection_test.go:944-971",
+        "internal/cmd/new_test.go:106-117",
+        "internal/cmd/new_test.go:267-286",
+        "internal/cmd/new_test.go:343-379",
+        "internal/cmd/new_test.go:59-90",
+        "internal/cmd/new_test.go:628-640",
+        "internal/form/draft.go:74-92",
+        "e2e/tests/new.test.ts:354-370",
+        "e2e/tests/new.test.ts:662-698",
+        "task:1",
+        "tasks/learnings.md:199-205",
+        "tasks/learnings.md:304-310",
+        "tasks/learnings.md:311-317",
+        "tasks/learnings.md:206-212",
+        "tasks/learnings.md:430-435",
+        "tasks/learnings.md:220-226",
+        "tasks/learnings.md:59-65"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "internal/catalog/selection_file.go",
+        "internal/catalog/selection.go",
+        "internal/catalog/selection_test.go",
+        "internal/cmd/new_test.go",
+        "docs/commands.md",
+        "e2e/tests/new.test.ts"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "List `.feature-compose.yml` in the preview, and stop a template that writes its path",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/catalog/selection.go:200-228",
+        "internal/catalog/selection.go:192-198",
+        "internal/catalog/template.go:57-61",
+        "internal/catalog/template.go:120-129",
+        "internal/catalog/selection_test.go:246-260",
+        "internal/catalog/selection_test.go:507-523",
+        "internal/catalog/selection_test.go:974-1053",
+        "internal/catalog/selection_test.go:1877-1902",
+        "internal/cmd/new_test.go:439-449",
+        "internal/cmd/new_test.go:530-568",
+        "internal/form/model_test.go:870-876",
+        "e2e/tests/new.test.ts:405-415",
+        "task:1",
+        "tasks/learnings.md:185-191",
+        "tasks/learnings.md:304-310",
+        "tasks/learnings.md:430-435",
+        "tasks/learnings.md:59-65"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "internal/catalog/selection.go",
+        "internal/catalog/selection_test.go",
+        "internal/cmd/new_test.go",
+        "internal/form/model_test.go",
+        "docs/commands.md",
+        "docs/catalog.md",
+        "e2e/tests/new.test.ts"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-011-record-selection.design.yaml"
+}

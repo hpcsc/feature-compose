@@ -31,7 +31,7 @@ func newCommand() *cli.Command {
 		Version:               version.Current(),
 		EnableShellCompletion: true,
 		Commands: []*cli.Command{
-			newNewCommand(catalogInConfig),
+			newNewCommand(catalogInConfig, version.Current()),
 			newShowCommand(catalogInConfig),
 			newCheckCommand(catalogInConfig),
 			newVersionCommand(),

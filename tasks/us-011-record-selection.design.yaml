@@ -1,0 +1,42 @@
+design: planned
+types:
+  - name: Selection
+    package: internal/catalog
+    change: changed
+    does: one repo that new makes, from a starter, its features with the values of their options, a name and the values of the starter options
+    owns:
+      - WriteSelectionFile writes .feature-compose.yml to the root of the output folder with the version that its caller gives; it writes no other file and runs no command, and new calls it after RunAfterRender
+      - the selection file holds, for each option of the starter and of each feature, the value that the templates read, also a default and a value that a need sets or that the form answers
+      - a feature is in requested when a --feature flag gives it or the form selects it, also when a selected feature needs it; a feature that only a need added is in features and not in requested
+      - Preview lists .feature-compose.yml with the owner feature-compose among the files, in the order of the paths, so the paths of the preview are the paths of the files of Write and of WriteSelectionFile
+      - Write and Preview stop before the first file on a template whose path in the repo is .feature-compose.yml, with the message of two owners that names the template, its owner and feature-compose
+    fields: [folders, name, starter, features, templates, extensionPoints]
+    methods: [Write, Preview, RunAfterRender, WriteSelectionFile]
+  - name: selectionFile
+    package: internal/catalog
+    change: new
+    does: the contents of .feature-compose.yml for one selection, as section 13 of the proposal shows them
+    owns:
+      - its keys come in the order version, starter, name, options, features, requested, each also when it is empty
+      - the options of the starter, the features, the options of each feature and the requested features come in the order of their names, so one selection gives the same bytes in each order of the flags
+      - each value reads back with a YAML parser as the same text
+    # the fields are exported because the YAML encoder reads only exported fields
+    fields: [Version, StarterName, Name, StarterValues, FeatureValues, Requested]
+    methods: [contents]
+functions: []
+words:
+  - concept: the file .feature-compose.yml that new writes to the root of the repo, with the version of feature-compose, the starter, the name, the values of the options and the features of the repo
+    word: selection file
+    not: [record, manifest, lock file, state file, metadata file, config file]
+  - concept: a feature that the developer named with --feature or selected in the form, which the selection file lists under requested
+    word: requested
+    not: [explicit, chosen, selected, named, direct, top-level]
+  - concept: the text that feature-compose version prints, which the selection file holds under version
+    word: version
+    not: [catalog version, release, build]
+  - concept: the owner of .feature-compose.yml, which the preview and the message of two owners name
+    word: feature-compose
+    not: [the tool, the system, generated]
+dependencies:
+  - internal/cmd -> internal/catalog
+  - internal/cmd -> internal/version

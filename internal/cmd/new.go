@@ -13,7 +13,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
+func newNewCommand(load func() (catalog.Catalog, error), version string) *cli.Command {
 	return &cli.Command{
 		Name:      "new",
 		Usage:     "make a new repo from a starter",
@@ -67,10 +67,7 @@ func newNewCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			if output == "" {
 				output = selection.Name()
 			}
-			if err := selection.Write(output); err != nil {
-				return err
-			}
-			if err := selection.RunAfterRender(ctx, output); err != nil {
+			if err := selection.MakeRepo(ctx, output, version); err != nil {
 				return err
 			}
 			var printed strings.Builder

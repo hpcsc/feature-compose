@@ -36,6 +36,25 @@ func TestRootCommand(t *testing.T) {
 			require.Empty(t, filesIn(t, workingFolder))
 		})
 
+		t.Run("new writes the version of feature-compose to .feature-compose.yml of the repo", func(t *testing.T) {
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+			configHome := t.TempDir()
+			catalogDir := t.TempDir()
+			t.Setenv("XDG_CONFIG_HOME", configHome)
+			require.NoError(t, os.MkdirAll(filepath.Join(catalogDir, "starters", "alpha", "files", "go"), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(catalogDir, "starters", "alpha", "starter.yml"), []byte("folders:\n  go:\n    path: .\n"), 0o644))
+			require.NoError(t, os.MkdirAll(filepath.Join(configHome, "feature-compose"), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(configHome, "feature-compose", "config.yml"), []byte("catalog: "+catalogDir+"\n"), 0o644))
+			command := newCommand()
+			command.Writer, command.ErrWriter = io.Discard, io.Discard
+
+			err := command.Run(context.Background(), []string{"feature-compose", "new", "alpha", "my-repo"})
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"my-repo/.feature-compose.yml": "version: " + version.Current() + "\nstarter: alpha\nname: my-repo\noptions: {}\n"}, filesIn(t, workingFolder))
+		})
+
 		t.Run("show prints the starters and the features of the catalog folder that the config file names", func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			configHome := t.TempDir()

@@ -20,6 +20,7 @@ import (
 
 	"github.com/hpcsc/feature-compose/internal/catalog"
 	"github.com/stretchr/testify/require"
+	"go.yaml.in/yaml/v3"
 )
 
 func TestSelection(t *testing.T) {
@@ -968,6 +969,109 @@ the option level of the feature a has no default and no value: give it with --fe
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{"main.go": "package main\n", "a.txt": "slow", "b.txt": "b\n"}, filesIn(t, answersOutput))
 			require.Equal(t, filesIn(t, flagsOutput), filesIn(t, answersOutput))
+		})
+	})
+
+	t.Run("make repo", func(t *testing.T) {
+		selectionWith := func(t *testing.T, starterYML string, name string, given map[string]string, answers catalog.Answers) catalog.Selection {
+			t.Helper()
+			files := fstest.MapFS{
+				"starters/service/starter.yml":          &fstest.MapFile{Data: []byte(starterYML)},
+				"starters/service/files/go/go.mod.tmpl": &fstest.MapFile{Data: []byte("module {{ .Name }}\n")},
+			}
+			starter, err := catalog.New(files).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select(name, given, nil, answers)
+			require.NoError(t, err)
+			return selection
+		}
+		threeOptions := "folders:\n  go:\n    path: .\noptions:\n  region:\n    default: us\n  module:\n    default: example.com/{{ .Name }}\n  tier:\n    default: free\n"
+
+		t.Run("writes .feature-compose.yml with the version that it gets, the starter, the name, and each option of the starter in the order of the names with the value that the templates read", func(t *testing.T) {
+			selection := selectionWith(t, threeOptions, "my-service", map[string]string{"region": "eu"}, catalog.Answers{StarterValues: map[string]string{"tier": "gold"}})
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"go.mod":               "module my-service\n",
+				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  module: example.com/my-service\n  region: eu\n  tier: gold\n",
+			}, filesIn(t, output))
+		})
+
+		t.Run("runs the after_render commands of each folder before it writes .feature-compose.yml, so no command finds the file", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			selection := selectionWith(t, "folders:\n  go:\n    path: .\n    after_render: [\"ls -A > listed\"]\n", "ledger", nil, catalog.Answers{})
+			output := filepath.Join(t.TempDir(), "ledger")
+
+			err := selection.MakeRepo(context.Background(), output, "v0.1.0")
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"go.mod":               "module ledger\n",
+				"listed":               "go.mod\nlisted\n",
+				".feature-compose.yml": "version: v0.1.0\nstarter: service\nname: ledger\noptions: {}\n",
+			}, filesIn(t, output))
+		})
+
+		t.Run("a starter with no option gives an empty map of options", func(t *testing.T) {
+			selection := selectionWith(t, "folders:\n  go:\n    path: .\n", "api", nil, catalog.Answers{})
+			output := t.TempDir()
+
+			err := selection.MakeRepo(context.Background(), output, "0123abc-dirty")
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"go.mod": "module api\n", ".feature-compose.yml": "version: 0123abc-dirty\nstarter: service\nname: api\noptions: {}\n"}, filesIn(t, output))
+		})
+
+		t.Run("each value reads back with a YAML parser as the same text, also a value that YAML reads as a number, a bool or null", func(t *testing.T) {
+			starterYML := "folders:\n  go:\n    path: .\noptions:\n"
+			for _, optionName := range []string{"float", "bool", "on", "empty", "tilde"} {
+				starterYML += "  " + optionName + ":\n    default: x\n"
+			}
+			selection := selectionWith(t, starterYML, "my-service", map[string]string{"float": "1.28", "bool": "true", "on": "on", "empty": "", "tilde": "~"}, catalog.Answers{})
+			output := t.TempDir()
+			require.NoError(t, selection.MakeRepo(context.Background(), output, "v1.2.3"))
+			var readBack map[string]any
+
+			err := yaml.Unmarshal([]byte(filesIn(t, output)[".feature-compose.yml"]), &readBack)
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]any{"float": "1.28", "bool": "true", "on": "on", "empty": "", "tilde": "~"}, readBack["options"])
+		})
+
+		t.Run("an output folder that has entries stops it before the first file, so it runs no command and writes no .feature-compose.yml", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			selection := selectionWith(t, "folders:\n  go:\n    path: .\n    after_render: [\"touch ran\"]\n", "my-service", nil, catalog.Answers{})
+			output := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(output, "notes.txt"), []byte("my notes\n"), 0o644))
+
+			err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+
+			require.ErrorContains(t, err, "is not empty")
+			require.Equal(t, map[string]string{"notes.txt": "my notes\n"}, filesIn(t, output))
+		})
+
+		t.Run("an after_render command that fails stops it before it writes .feature-compose.yml", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			selection := selectionWith(t, "folders:\n  go:\n    path: .\n    after_render: [\"exit 3\"]\n", "my-service", nil, catalog.Answers{})
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+
+			require.ErrorContains(t, err, "exit 3")
+			require.Equal(t, map[string]string{"go.mod": "module my-service\n"}, filesIn(t, output))
+		})
+
+		t.Run("an after_render command that makes a folder at .feature-compose.yml stops it with an error that names the file", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			selection := selectionWith(t, "folders:\n  go:\n    path: .\n    after_render: [\"mkdir .feature-compose.yml\"]\n", "my-service", nil, catalog.Answers{})
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+
+			require.ErrorContains(t, err, "write .feature-compose.yml")
 		})
 	})
 

@@ -52,7 +52,7 @@ describe('feature-compose show in a terminal', () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show'], {}, rowsOfTheWholeTree)
 
-    await session.waitForText('A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow.')
+    await session.waitForText('A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow.', { timeout: 15_000 })
     const screen = await session.text()
     for (const part of ['╭─ Catalog ', '╭─ go ─', '▾ go-event-sourcing-service', '├─ ▾ features', '│  ├─ api-auth', '│  ├─ cli-auth', '│  └─ process-manager', '└─ ▾ extension points', '├─ api.middleware', '├─ cli.commands', '└─ use_cases.handlers', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
       expect(screen).toContain(part)
@@ -71,7 +71,7 @@ describe('feature-compose show in a terminal', () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
 
-    await session.waitForText('▾ go-event-sourcing-service')
+    await session.waitForText('▾ go-event-sourcing-service', { timeout: 15_000 })
     await session.press('h')
     await session.waitForText('▸ go-event-sourcing-service')
     expect(await session.text()).not.toContain('api-auth')
@@ -91,7 +91,7 @@ describe('feature-compose show in a terminal', () => {
       const dir = scratchDir()
       const session = await openCli(dir, args)
 
-      await session.waitForText('EXIT:0')
+      await session.waitForText('EXIT:0', { timeout: 15_000 })
       const screen = await session.text()
       expect(screen).toContain('"starters": {')
       expect(screen).not.toContain('╭─ Catalog')
@@ -102,7 +102,7 @@ describe('feature-compose show in a terminal', () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
 
-    await session.waitForText('└─ process-manager')
+    await session.waitForText('└─ process-manager', { timeout: 15_000 })
     for (let i = 0; i < 4; i++) {
       await session.press('j')
     }
@@ -122,7 +122,7 @@ describe('feature-compose show in a terminal', () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'], {}, rowsOfTheWholeTree)
 
-    await session.waitForText('└─ use_cases.handlers')
+    await session.waitForText('└─ use_cases.handlers', { timeout: 15_000 })
     for (let i = 0; i < 10; i++) {
       await session.press('j')
     }
@@ -139,7 +139,7 @@ describe('feature-compose show in a terminal', () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
 
-    await session.waitForText('▾ go-event-sourcing-service')
+    await session.waitForText('▾ go-event-sourcing-service', { timeout: 15_000 })
     expect(await session.text()).toContain('╭─ go-event-sourcing-service ')
     await session.press('q')
     await session.waitForText('EXIT:0')
@@ -149,7 +149,7 @@ describe('feature-compose show in a terminal', () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'no-such-starter'])
 
-    await session.waitForText(/EXIT:[1-9]/)
+    await session.waitForText(/EXIT:[1-9]/, { timeout: 15_000 })
     const screen = await session.text()
     expect(screen).toContain('unknown starter "no-such-starter": the catalog has go, go-event-sourcing-service')
     expect(screen).not.toContain('╭─ Catalog')

@@ -285,6 +285,8 @@ Keep these rules:
 - **Wait for the text that you check, not for a title:** a program that loads in the background can show a
   title before its content.
 - **Give each test its own folder:** `scratchDir()` makes the folder, and `onTestFinished` deletes it.
+- **Wait 15 seconds for the first text:** tuistory starts each command about 5 seconds late, so the first
+  `waitForText` of a screen test passes `{ timeout: 15_000 }`.
 - **Do not change the terminal size:** `openCli` uses 160 columns and 40 rows, and the tests expect text
   that fits that size. A test that reads the whole tree of `show` gives `openCli` 60 rows, because each
   extension point of each starter has a line of its own, and the tree does not fit on 40 rows.

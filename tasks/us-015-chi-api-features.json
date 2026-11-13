@@ -198,7 +198,7 @@
     },
     {
       "n": 4,
-      "done": false,
+      "done": true,
       "title": "Make `cli-auth` target `chi-api`, with one text of its docs for each target",
       "language": "Go",
       "testable": true,

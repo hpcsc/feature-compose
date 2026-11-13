@@ -103,7 +103,7 @@ if err != nil {
 	return err
 }
 client := apiclient.New(apiURL.String())
-response, err := client.Do(ctx, http.MethodPost, "/accounts", body)
+response, err := client.Do(ctx, http.MethodPost, "/<route>", body)
 if err != nil {
 	return err
 }

@@ -522,7 +522,7 @@ describe('feature-compose new', () => {
       expect(statusHelp.stdout).not.toMatch(/--\S*key/i)
 
       const api = await startedApi(repo, { ...env, API_KEY_HASHES: createHash('sha256').update(key).digest('hex') })
-      const call = await builtCall(repo, env)
+      const call = await builtCall(repo, env, '/accounts')
       const withKey = await runProgram(repo, call, [api], { ...env, XDG_CONFIG_HOME: scratchDir(), MY_SERVICE_API_KEY: key })
       expect(withKey, 'POST /api/accounts with {} gets the answer 400 of the handler').toMatchObject({ status: 0, stdout: '400\n' })
       const wrongKey = await runProgram(repo, call, [api], { ...env, XDG_CONFIG_HOME: scratchDir(), MY_SERVICE_API_KEY: 'an-unknown-key' })
@@ -531,6 +531,46 @@ describe('feature-compose new', () => {
       const noKey = await runProgram(repo, call, [api], { ...env, XDG_CONFIG_HOME: scratchDir(), MY_SERVICE_API_KEY: '' })
       expect(noKey.status).not.toBe(0)
       expect(noKey.stdout).toContain('no API key: set MY_SERVICE_API_KEY, or set credentialCommand in')
+    },
+    15 * 60 * 1000,
+  )
+
+  it(
+    'makes a repo from chi-api with cli-auth, which also selects cli and api-auth, whose go.mod requires no module of cli-auth, passes its unit tests, and whose CLI calls its API with the key',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'chi-api', 'my-api', '--feature', 'cli-auth', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      expect(made.stdout).toBe('api-auth: needed by cli-auth\ncli: needed by cli-auth\nMade my-api from the starter chi-api.\n')
+      const repo = join(dir, 'my-api')
+      const requires: Array<{ module: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['cli-auth'].add_to['gomod.requires']
+      const goMod = readFileSync(join(repo, 'go.mod'), 'utf8')
+      for (const { module } of requires) {
+        expect(goMod, `go mod tidy removes ${module}, which only the files of the method oauth and of the stored key import`).not.toContain(module)
+      }
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      const build = await runProgram(repo, 'go', ['build', '-o', 'bin/my-api', './cmd/my-api'], env)
+      expect(build.status, build.stdout + build.stderr).toBe(0)
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      expect(passedPackages(unit.stdout)).toEqual(expect.arrayContaining(['internal/credential', 'internal/apiclient', 'internal/auth', 'internal/cli', 'internal/use_cases/user']))
+      const key = 'the-key-of-the-e2e-test'
+
+      const api = await startedApi(repo, { ...env, API_KEY_HASHES: createHash('sha256').update(key).digest('hex') })
+      const call = await builtCall(repo, env, '/users')
+
+      const withKey = await runProgram(repo, call, [api], { ...env, XDG_CONFIG_HOME: scratchDir(), MY_API_API_KEY: key })
+      expect(withKey, 'POST /api/users with {} gets the answer 400 of the handler').toMatchObject({ status: 0, stdout: '400\n' })
+      const wrongKey = await runProgram(repo, call, [api], { ...env, XDG_CONFIG_HOME: scratchDir(), MY_API_API_KEY: 'an-unknown-key' })
+      expect(wrongKey.status).not.toBe(0)
+      expect(wrongKey.stdout).toContain('the API refused the API key from MY_API_API_KEY: set MY_API_API_KEY, or set credentialCommand in')
+      const noKey = await runProgram(repo, call, [api], { ...env, XDG_CONFIG_HOME: scratchDir(), MY_API_API_KEY: '' })
+      expect(noKey.status).not.toBe(0)
+      expect(noKey.stdout).toContain('no API key: set MY_API_API_KEY, or set credentialCommand in')
     },
     15 * 60 * 1000,
   )
@@ -570,7 +610,7 @@ describe('feature-compose new', () => {
       const key = 'the-key-of-the-e2e-test'
       const api = await startedApi(repo, { ...env, API_KEY_HASHES: createHash('sha256').update(key).digest('hex') })
       const cli = join(repo, 'bin', 'my-service')
-      const call = await builtCall(repo, env)
+      const call = await builtCall(repo, env, '/accounts')
       const settings = { ...env, XDG_CONFIG_HOME: scratchDir(), MY_SERVICE_API_KEY: '', MY_SERVICE_API_URL: api, MY_SERVICE_CREDENTIAL_STORE: 'file' }
 
       const login = await runProgram(repo, 'sh', ['-c', `printf '%s' '${key}' | '${cli}' auth login`], settings)
@@ -623,7 +663,7 @@ describe('feature-compose new', () => {
       const issuer = await startedTestIssuer()
       const api = await startedApi(repo, { ...env, OAUTH_ISSUER_URL: issuer.url, OAUTH_AUDIENCE: 'my-api' })
       const cli = join(repo, 'bin', 'my-service')
-      const call = await builtCall(repo, env)
+      const call = await builtCall(repo, env, '/accounts')
       const settings = (audience: string) => ({
         ...env,
         XDG_CONFIG_HOME: scratchDir(),
@@ -1381,9 +1421,10 @@ function freePort(): Promise<number> {
   })
 }
 
-// POST /api/accounts with the body {} gets the answer 400 of the handler, because the owner is missing, before any
-// query to the database.
-async function builtCall(repo: string, env: Record<string, string>): Promise<string> {
+// The call sends POST with the body {} to the route, which the handler of each starter answers with 400, because a
+// field is missing, before any query to a database.
+async function builtCall(repo: string, env: Record<string, string>, route: string): Promise<string> {
+  const module = /^module (\S+)$/m.exec(readFileSync(join(repo, 'go.mod'), 'utf8'))?.[1]
   mkdirSync(join(repo, 'cmd', 'call-of-the-test'))
   writeFileSync(
     join(repo, 'cmd', 'call-of-the-test', 'main.go'),
@@ -1396,11 +1437,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hpcsc/my-service/internal/apiclient"
+	"${module}/internal/apiclient"
 )
 
 func main() {
-	response, err := apiclient.New(os.Args[1]).Do(context.Background(), http.MethodPost, "/accounts", strings.NewReader("{}"))
+	response, err := apiclient.New(os.Args[1]).Do(context.Background(), http.MethodPost, "${route}", strings.NewReader("{}"))
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)

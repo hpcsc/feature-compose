@@ -1,5 +1,5 @@
 summary: The CLI sends the credential that the API asks for, in the method of api-auth, an API key, which it can keep in the OS credential store, or the access token of a login at the issuer.
-targets: [go-event-sourcing-service]
+targets: [chi-api, go-event-sourcing-service]
 needs: [cli, api-auth]
 
 options:

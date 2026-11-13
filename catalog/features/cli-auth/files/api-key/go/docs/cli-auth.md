@@ -89,7 +89,7 @@ API, which ends with `/api`, and give each call the path of the route after `/ap
 ```go
 client := apiclient.New("http://localhost:3333/api")
 {{- end }}
-response, err := client.Do(ctx, http.MethodPost, "/accounts", body)
+response, err := client.Do(ctx, http.MethodPost, "/<route>", body)
 if err != nil {
 	return err
 }

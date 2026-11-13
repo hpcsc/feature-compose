@@ -614,39 +614,39 @@ needs, its option and its files entries as they are. Its needs `cli` and `api-au
 every target: its example call names a placeholder route (open question 1).
 
 **Acceptance Criteria:**
-- [ ] The `targets` of `catalog/features/cli-auth/feature.yml` name `chi-api` and `go-event-sourcing-service`, and
+- [x] The `targets` of `catalog/features/cli-auth/feature.yml` name `chi-api` and `go-event-sourcing-service`, and
   no other line of the file changes.
-- [ ] Tests of the group `embedded` take the targets of `cli-auth` from its `feature.yml`. For each target and each
+- [x] Tests of the group `embedded` take the targets of `cli-auth` from its `feature.yml`. For each target and each
   variant (the method `api-key`, the method `oauth`, and `store-key=true`), `cli-auth` adds its files, and of the
   files of the repo with `cli` and `api-auth` it changes only `internal/cli/root.go`, which lists `auth` after
   `version` and `update`, and `go.mod`. For each two targets and each variant, the files that `cli-auth` adds have
   the same paths and the same contents.
-- [ ] For each target and each variant, `go.mod` of the selection requires a version of each module that a Go file
+- [x] For each target and each variant, `go.mod` of the selection requires a version of each module that a Go file
   of `cli-auth` imports, other than the standard library and the module of the repo, and the Go files of `cli-auth`
   import only its own packages and `cli`, and only a test imports `internal/auth`.
-- [ ] For each target and each variant, `docs/cli-auth.md` names what it names today for
+- [x] For each target and each variant, `docs/cli-auth.md` names what it names today for
   `go-event-sourcing-service` (the variable, `credentialCommand`, `auth status`, the method of `api-auth`, the API
   URL that ends with `/api`), and each path that it names in backticks is in the repo of that target. Its example
   call names no route that only one target serves.
-- [ ] The test of `TestCatalog` that reads the routes of the API reads a `chi-api` repo with `cli-auth`, and with
+- [x] The test of `TestCatalog` that reads the routes of the API reads a `chi-api` repo with `cli-auth`, and with
   `cli-auth` and the method `oauth`: its docs name each route under `/api`, and do not name `GET /` alone.
-- [ ] The test of `TestCatalog` of the combinations of this repo finds, for `chi-api` and for
+- [x] The test of `TestCatalog` of the combinations of this repo finds, for `chi-api` and for
   `go-event-sourcing-service`, `cli-auth` with each value of `store-key` and with the method `oauth`, and no
   combination of `store-key=true` with `oauth`; `Select` takes each combination.
-- [ ] `e2e/tests/new.test.ts`: `feature-compose new chi-api my-api --feature cli-auth --no-prompt` exits with 0, and
+- [x] `e2e/tests/new.test.ts`: `feature-compose new chi-api my-api --feature cli-auth --no-prompt` exits with 0, and
   its output names `api-auth` and `cli` as needed by `cli-auth` and `chi-api` as the starter. `go.mod` holds no module
   of the items of `gomod.requires` of `cli-auth`. `gofmt -l .` lists no file, the CLI builds, and `task test:unit`
   exits with 0 and its lines that start with `✓` name `internal/credential`, `internal/apiclient`, `internal/auth`
   and `internal/cli`. With the API that the test starts with `API_KEY_HASHES` of a key of the test, a call of
   `internal/apiclient` to `POST /users` with `{}` gets the answer 400 of the handler with the key in `MY_API_API_KEY`,
   stops with the message of a refused key with an unknown key, and stops with the message of no key with no key.
-- [ ] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass. `task test:combinations`
+- [x] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass. `task test:combinations`
   passes, and its output names `chi-api --feature cli-auth:store-key=false`, `chi-api --feature cli-auth:store-key=true`
   and `chi-api --feature api-auth:method=oauth --feature cli-auth:store-key=false`.
-- [ ] The e2e tests of `show` pass, and the two tests that read the whole tree see its last line.
-- [ ] `README.md` of this repo gives `chi-api` and `go-event-sourcing-service` as the targets of `cli-auth`.
+- [x] The e2e tests of `show` pass, and the two tests that read the whole tree see its last line.
+- [x] `README.md` of this repo gives `chi-api` and `go-event-sourcing-service` as the targets of `cli-auth`.
   `docs/e2e-tests.md` tells the full run of `chi-api` with `cli-auth`.
-- [ ] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass, and
+- [x] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass, and
   the e2e tests of `new`, `show` and `check` pass on the host.
 
 **Affected Files/Modules:**

@@ -115,7 +115,7 @@ add_to:
 
 ```yaml
 summary: The CLI sends the credential that the API asks for, in the method of api-auth.
-targets: [go-event-sourcing-service]
+targets: [chi-api, go-event-sourcing-service]
 needs: [cli, api-auth]
 
 options:

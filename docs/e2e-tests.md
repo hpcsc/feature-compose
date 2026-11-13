@@ -79,7 +79,7 @@ tests keep the original binary.
 
 ## The full run of `new`
 
-Fourteen tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
+Fifteen tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
 first makes the repo from the starter alone:
 
 1. `feature-compose new go my-tool --no-prompt` makes the repo. Its `after_render` commands run `go mod tidy`,
@@ -120,7 +120,7 @@ The second adds `--feature cli`, and makes a CLI in its own repo:
    path under `dist/` or `e2e/node_modules/`, which the snapshot and the `npm install` of step 6 made. So the
    `.gitignore` of the repo has the patterns of `cli`.
 
-Four make a repo from the starter `chi-api`. The first makes the repo from the starter alone:
+Five make a repo from the starter `chi-api`. The first makes the repo from the starter alone:
 
 1. `feature-compose new chi-api my-api --no-prompt` makes the repo. Its `after_render` commands run
    `go mod tidy`, which downloads the modules of the repo.
@@ -163,6 +163,18 @@ The fourth adds `--feature cli`, and checks that the feature fits the starter:
 4. `task --dry api:run` prints `go run ./cmd/api`. So the task of the API stays the task of the starter.
 5. `task --list-all` names each task that `.github/workflows/ci.yml` calls, `test:unit` and `test:e2e` among
    them. So the job `e2e` of `cli` calls a task that the repo has.
+
+The fifth adds only `--feature cli-auth`, which needs `cli` and `api-auth`:
+
+1. The output names `api-auth` and `cli` as needed by `cli-auth`, and `chi-api` as the starter.
+2. `go.mod` holds no module of the items of `gomod.requires` of `cli-auth`, because only the files of the
+   method `oauth` and of the stored key import them.
+3. `gofmt -l .` lists no file, the CLI builds, and `task test:unit` stops with the exit status 0. The tests of
+   `internal/credential`, `internal/apiclient`, `internal/auth` and `internal/cli` ran and passed.
+4. The test starts the API with `API_KEY_HASHES` of a key of the test, and builds a program that calls
+   `POST /users` of the API through `internal/apiclient` of the repo. With the key in `MY_API_API_KEY`, the
+   call gets the answer 400 of the handler. With an unknown key, it stops with the message of a refused key,
+   and with no key, it stops with the message of no key.
 
 The other eight make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
 

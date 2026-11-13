@@ -79,8 +79,8 @@ tests keep the original binary.
 
 | Command | Where | What it needs |
 | --- | --- | --- |
-| `docker build -f e2e/Dockerfile --build-arg BUILD_TAG=v0.1.0 -t {{ kebab .Name }}-e2e .`, then `docker container run --rm {{ kebab .Name }}-e2e` | Docker | Docker |
-| `npx vitest run` in `e2e/`, after a build of the CLI with the tag `v0.1.0` ([cli.md](cli.md#e2e-test) has the commands) | This machine | Node |
+| `task test:e2e` | Docker | Docker |
+| `task test:e2e:local` | This machine | Node |
 
 Both ways build the CLI with the tag `v0.1.0`. They set
 two environment variables for the tests: `EXECUTABLE`, the path of the binary, and `BUILD_TAG`, the tag.

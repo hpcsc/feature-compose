@@ -1638,6 +1638,7 @@ files:
 			require.Contains(t, files[".goreleaser.yaml"], "-X github.com/acme/ledger/internal/cli/version.releaseTag={{ .Tag }}")
 			require.Contains(t, files["e2e/Dockerfile"], "-X github.com/acme/ledger/internal/cli/version.releaseTag=${BUILD_TAG}")
 			require.Contains(t, files["e2e/Dockerfile"], "FROM golang:1.28.0")
+			require.Contains(t, files["Taskfile.cli.yml"], "-X github.com/acme/ledger/internal/cli/version.releaseTag={{.E2E_TAG}}")
 			for path, contents := range files {
 				require.NotContains(t, contents, "github.com/hpcsc/my-service", path)
 			}
@@ -1870,46 +1871,62 @@ files:
 			}
 		})
 
-		t.Run("the docs of cli name the tasks build, cli and release:local, and each task that they name is a task of each target of cli", func(t *testing.T) {
+		t.Run("the docs of cli name the tasks build, cli, release:local, test:e2e and test:e2e:local, and each task that they name is a task of each target of cli", func(t *testing.T) {
 			for _, starterName := range targetsOfCLI(t) {
 				files := writtenTarget(t, starterName, nil, withoutValues("cli"))
+				tasks := tasksOf(t, files)
 
-				var named []string
-				for _, path := range []string{"docs/cli.md", "docs/e2e-tests.md"} {
-					require.Contains(t, files, path, starterName)
+				for path, expected := range map[string][]string{
+					"docs/cli.md":       {"build", "cli", "release:local", "test:e2e", "test:e2e:local"},
+					"docs/e2e-tests.md": {"test:e2e", "test:e2e:local"},
+				} {
+					var named []string
 					for _, match := range regexp.MustCompile("(?m)(?:^|`)task ([a-z0-9:_-]+)").FindAllStringSubmatch(files[path], -1) {
 						named = append(named, match[1])
 					}
+					require.Subset(t, named, expected, starterName+": "+path)
+					require.Subset(t, tasks, named, starterName+": "+path)
 				}
-				require.Subset(t, named, []string{"build", "cli", "release:local"}, starterName)
-				require.Subset(t, tasksOf(t, files), named, starterName)
 			}
 		})
 
-		t.Run("with cli, each target has the tasks of Taskfile.cli.yml, build, cli and release:local among them, and without cli it has none of them", func(t *testing.T) {
+		t.Run("with cli, each target has the tasks of Taskfile.cli.yml beside test:unit, build, cli, release:local, test:e2e and test:e2e:local among them, and without cli it has none of them", func(t *testing.T) {
 			for _, starterName := range targetsOfCLI(t) {
-				withCLI := writtenTarget(t, starterName, nil, withoutValues("cli"))
-				withoutCLI := tasksOf(t, writtenTarget(t, starterName, nil, nil))
+				filesWithCLI := writtenTarget(t, starterName, nil, withoutValues("cli"))
+				tasksWithoutCLI := tasksOf(t, writtenTarget(t, starterName, nil, nil))
 
-				cliTasks := slices.Collect(maps.Keys(parsedYAML(t, withCLI["Taskfile.cli.yml"])["tasks"].(map[string]any)))
-				require.Subset(t, cliTasks, []string{"build", "cli", "release:local"}, starterName)
+				cliTasks := slices.Collect(maps.Keys(parsedYAML(t, filesWithCLI["Taskfile.cli.yml"])["tasks"].(map[string]any)))
+				require.Subset(t, cliTasks, []string{"build", "cli", "release:local", "test:e2e", "test:e2e:local"}, starterName)
+				require.Contains(t, tasksWithoutCLI, "test:unit", starterName)
 				for _, name := range cliTasks {
-					require.NotContains(t, withoutCLI, name, starterName)
+					require.NotContains(t, tasksWithoutCLI, name, starterName)
 				}
-				require.ElementsMatch(t, append(withoutCLI, cliTasks...), tasksOf(t, withCLI), starterName)
+				require.ElementsMatch(t, append(tasksWithoutCLI, cliTasks...), tasksOf(t, filesWithCLI), starterName)
 			}
 		})
 
-		t.Run("Taskfile.cli.yml builds the CLI into bin with the kebab-case name of the repo, runs it from the source with the arguments of task, and makes a GoReleaser snapshot", func(t *testing.T) {
+		t.Run("Taskfile.cli.yml builds the CLI into bin with the kebab-case name of the repo, runs it from the source with the arguments of task, makes a GoReleaser snapshot, and runs the end-to-end tests in Docker and with Node against a binary of the tag v0.1.0", func(t *testing.T) {
 			_, files := writtenWithCLI(t, "MyService.v2", nil)
 
-			tasks := parsedYAML(t, files["Taskfile.cli.yml"])["tasks"].(map[string]any)
+			taskfile := parsedYAML(t, files["Taskfile.cli.yml"])
+			require.Equal(t, map[string]any{"E2E_TAG": "v0.1.0"}, taskfile["vars"])
+			tasks := taskfile["tasks"].(map[string]any)
 			require.Equal(t, map[string]any{
 				"cmds": []any{"mkdir -p ./bin", "go build -o ./bin/my-service-v2 ./cmd/my-service-v2"},
 				"env":  map[string]any{"CGO_ENABLED": "0"},
 			}, tasks["build"])
 			require.Equal(t, map[string]any{"cmds": []any{"go run ./cmd/my-service-v2 {{.CLI_ARGS}}"}}, tasks["cli"])
 			require.Equal(t, map[string]any{"cmds": []any{"goreleaser release --snapshot --clean"}}, tasks["release:local"])
+			require.Equal(t, []any{
+				"docker build -f e2e/Dockerfile --build-arg BUILD_TAG={{.E2E_TAG}} -t my-service-v2-e2e .",
+				"docker container run --rm my-service-v2-e2e",
+			}, tasks["test:e2e"].(map[string]any)["cmds"])
+			require.Equal(t, "e2e", tasks["test:e2e:local"].(map[string]any)["dir"])
+			require.Equal(t, []any{
+				`CGO_ENABLED=0 go build -ldflags "-X github.com/hpcsc/MyService.v2/internal/cli/version.releaseTag={{.E2E_TAG}}" -o ../bin/my-service-v2-e2e ../cmd/my-service-v2`,
+				"npm install --no-audit --no-fund",
+				"EXECUTABLE=../bin/my-service-v2-e2e BUILD_TAG={{.E2E_TAG}} npx vitest run",
+			}, tasks["test:e2e:local"].(map[string]any)["cmds"])
 		})
 
 		for module, repository := range map[string][2]string{

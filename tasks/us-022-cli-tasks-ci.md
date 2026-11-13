@@ -346,25 +346,25 @@ the image, and `test:e2e:local`, which builds the CLI with the tag `v0.1.0` in i
 The docs of `cli` name both tasks in place of the raw commands.
 
 **Acceptance Criteria:**
-- [ ] `Taskfile.cli.yml` has `test:e2e` and `test:e2e:local` with the commands of the e2e section of
+- [x] `Taskfile.cli.yml` has `test:e2e` and `test:e2e:local` with the commands of the e2e section of
   `docs/cli.md` of `cli`, and one tag, `v0.1.0`, for both. Written with `module=github.com/acme/ledger`, the
   ldflag of `test:e2e:local` names `github.com/acme/ledger/internal/cli/version`, and no file of the repo holds
   `github.com/hpcsc/my-tool`.
-- [ ] `TestCatalog`: the tasks of each target with `cli` hold `test:e2e` and `test:e2e:local` beside `test:unit`.
+- [x] `TestCatalog`: the tasks of each target with `cli` hold `test:e2e` and `test:e2e:local` beside `test:unit`.
   Without `cli`, no target has `test:e2e` or `test:e2e:local`.
-- [ ] `e2e/tests/new.test.ts`, the run of `go` with `cli`: `task test:e2e:local` exits with 0, and its output names
+- [x] `e2e/tests/new.test.ts`, the run of `go` with `cli`: `task test:e2e:local` exits with 0, and its output names
   each test file under `e2e/tests` of the written repo as passed, taken from the folder and not from a list of the
   test.
-- [ ] `e2e/tests/new.test.ts`, the run of `go` alone: `task --list-all` names no task `test:e2e` or
+- [x] `e2e/tests/new.test.ts`, the run of `go` alone: `task --list-all` names no task `test:e2e` or
   `test:e2e:local`.
-- [ ] The section "E2E Test" of `docs/cli.md` of `cli` names `task test:e2e`, which runs the tests in Docker, and
+- [x] The section "E2E Test" of `docs/cli.md` of `cli` names `task test:e2e`, which runs the tests in Docker, and
   `task test:e2e:local`, which runs them on the machine with Node. The table "Where the tests run" of
   `docs/e2e-tests.md` of `cli` names the same two tasks. The test of the tasks of the docs of `cli` (Task 1)
   passes for each target.
-- [ ] `docs/e2e-tests.md` of this repo tells the new step of the run of `go` with `cli`.
-- [ ] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass, and
+- [x] `docs/e2e-tests.md` of this repo tells the new step of the run of `go` with `cli`.
+- [x] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass, and
   `task test:combinations` passes.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `check` pass on the
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `check` pass on the
   host.
 
 **Affected Files/Modules:**

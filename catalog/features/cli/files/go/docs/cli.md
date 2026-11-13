@@ -75,16 +75,7 @@ This repo has no workflow that publishes releases or prereleases.
 The end-to-end tests run the built binary in a terminal, send keys to it, and read the screen. They are
 in `e2e/`, and [e2e-tests.md](e2e-tests.md) tells how they work.
 
-In Docker:
-
 ```shell
-docker build -f e2e/Dockerfile --build-arg BUILD_TAG=v0.1.0 -t {{ kebab .Name }}-e2e .
-docker container run --rm {{ kebab .Name }}-e2e
-```
-
-On this machine, with node:
-
-```shell
-CGO_ENABLED=0 go build -ldflags "-X {{ option "starter.module" }}/internal/cli/version.releaseTag=v0.1.0" -o ./bin/{{ kebab .Name }}-e2e ./cmd/{{ kebab .Name }}
-cd e2e && npm install --no-audit --no-fund && EXECUTABLE=../bin/{{ kebab .Name }}-e2e BUILD_TAG=v0.1.0 npx vitest run
+task test:e2e          # in Docker
+task test:e2e:local    # on this machine, with Node
 ```

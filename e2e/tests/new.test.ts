@@ -108,7 +108,7 @@ describe('feature-compose new', () => {
       )
       expect(called).toContain('test:unit')
       expect(tasksIn(list.stdout)).toEqual(expect.arrayContaining(called))
-      for (const name of ['build', 'cli', 'release:local']) {
+      for (const name of ['build', 'cli', 'release:local', 'test:e2e', 'test:e2e:local']) {
         expect(tasksIn(list.stdout)).not.toContain(name)
       }
     },
@@ -116,7 +116,7 @@ describe('feature-compose new', () => {
   )
 
   it(
-    'makes a CLI repo from go with cli that builds, passes the unit tests of the starter and of the CLI, builds and runs the CLI with its tasks, and whose snapshot from task release:local has the archives and the checksums that update and the installer download',
+    'makes a CLI repo from go with cli that builds, passes the unit tests of the starter and of the CLI, builds and runs the CLI with its tasks, passes its end-to-end tests with task test:e2e:local, and whose snapshot from task release:local has the archives and the checksums that update and the installer download',
     async () => {
       const dir = scratchDir()
       const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
@@ -138,8 +138,15 @@ describe('feature-compose new', () => {
       expect(await commandsOfTheCLIFromTheSource(repo, env)).toEqual(['version', 'update', 'help, h'])
       const list = await runProgram(repo, 'task', ['--list-all'], env)
       const named = [...readFileSync(join(repo, 'docs', 'cli.md'), 'utf8').matchAll(/(?:^|`)task ([a-z0-9:_-]+)/gm)].map((match) => match[1])
-      expect(named).toEqual(expect.arrayContaining(['build', 'cli', 'release:local']))
+      expect(named).toEqual(expect.arrayContaining(['build', 'cli', 'release:local', 'test:e2e', 'test:e2e:local']))
       expect(tasksIn(list.stdout)).toEqual(expect.arrayContaining(named))
+      const e2eTests = readdirSync(join(repo, 'e2e', 'tests'))
+      expect(e2eTests).toContain('cli.test.ts')
+      const e2e = await runProgram(repo, 'task', ['test:e2e:local'], { ...env, NO_COLOR: '1' })
+      expect(e2e.status, e2e.stdout + e2e.stderr).toBe(0)
+      for (const file of e2eTests) {
+        expect(e2e.stdout, file).toMatch(new RegExp(`✓ tests/${file.replaceAll('.', '\\.')} `))
+      }
 
       const snapshot = await runProgram(repo, 'task', ['release:local'], env)
 

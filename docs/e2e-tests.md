@@ -88,8 +88,8 @@ first makes the repo from the starter alone:
 3. `task test:unit` stops with the exit status 0, and the output of gotestsum shows that the tests of the example
    package `internal/greeting` ran and passed.
 4. `task --list-all` names each task that `.github/workflows/ci.yml` and `scripts/libs/git-hook-prepush.sh` of the
-   repo call. The test takes the names from the two files. It names no task `build`, `cli` or `release:local`,
-   because these tasks come from `cli`.
+   repo call. The test takes the names from the two files. It names no task `build`, `cli`, `release:local`,
+   `test:e2e` or `test:e2e:local`, because these tasks come from `cli`.
 
 The second adds `--feature cli`, and makes a CLI in its own repo:
 
@@ -99,13 +99,16 @@ The second adds `--feature cli`, and makes a CLI in its own repo:
 3. `task build` builds `bin/my-tool`. With no command, it prints the commands of the CLI, which are only
    `version`, `update` and `help`. `task cli -- --help` runs the CLI from the source and prints the same
    commands.
-4. `task --list-all` names each task that the `docs/cli.md` of the repo names, and the doc names `build`, `cli`
-   and `release:local`.
-5. `task release:local` makes a GoReleaser snapshot of the repo. For each `goos` and `goarch` of the
+4. `task --list-all` names each task that the `docs/cli.md` of the repo names, and the doc names `build`, `cli`,
+   `release:local`, `test:e2e` and `test:e2e:local`.
+5. `task test:e2e:local` builds the CLI with the tag `v0.1.0`, installs the packages of `e2e/` with npm, and
+   runs the end-to-end tests of the repo with vitest. It stops with the exit status 0, and its output shows
+   each test file in `e2e/tests` of the repo as passed. The test takes the names from the folder.
+6. `task release:local` makes a GoReleaser snapshot of the repo. For each `goos` and `goarch` of the
    `.goreleaser.yaml` of the repo, `dist/` has the archive `my-tool-<goos>-<goarch>.tar.gz`, the name that
    `update` and `scripts/install.sh` download. `dist/checksums.txt` has the SHA-256 of each archive, which the
    test calculates from the file.
-6. The binary in the archive for the platform of the test prints the tag of the snapshot for `version`. So the
+7. The binary in the archive for the platform of the test prints the tag of the snapshot for `version`. So the
    ldflag of `.goreleaser.yaml` sets the version.
 
 The other six make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
@@ -210,7 +213,7 @@ handler, because the owner is missing, before any query. So the test needs no Po
 and the webhook server stop when the test ends.
 
 So these tests need Go, Task, gotestsum, a C compiler and the network. The test of `go` with `cli` also needs
-GoReleaser and git: GoReleaser stops when no `git` is on the `PATH`, also outside a git repository. Each takes about a minute when the Go
+Node with npm, GoReleaser and git: GoReleaser stops when no `git` is on the `PATH`, also outside a git repository. Each takes about a minute when the Go
 module cache has the modules of the new repo, and some minutes when it does not, for example in Docker.
 They are the only tests with a timeout longer than the 30 seconds of `e2e/vitest.config.ts`: their timeout
 is 15 minutes.

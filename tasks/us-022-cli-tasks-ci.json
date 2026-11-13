@@ -54,7 +54,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Run the end-to-end tests of the CLI with `task test:e2e` and `task test:e2e:local`",
       "language": "Go",
       "testable": true,

@@ -339,14 +339,24 @@ describe('feature-compose new', () => {
     expect(readdirSync(dir)).toEqual([])
   })
 
+  it('--dry-run names the need of a selected feature as the source of the value that the need sets', async () => {
+    const dir = scratchDir()
+
+    const result = await runCli(dir, ['new', 'service', 'my-service', '--feature', 'client', '--dry-run'], { XDG_CONFIG_HOME: needValueHome() })
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toContain('  auth.method: api-key (need of client)\n')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
   for (const flag of ['--no-prompt', '--dry-run']) {
-    it(`cli-auth with the method oauth stops new ${flag}, names oauth from the command line and api-key from the need of cli-auth, and makes no folder`, async () => {
+    it(`a flag with another value than the need of a feature sets stops new ${flag}, names both sources, and makes no folder`, async () => {
       const dir = scratchDir()
 
-      const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--feature', 'api-auth:method=oauth', flag])
+      const result = await runCli(dir, ['new', 'service', 'my-service', '--feature', 'client', '--feature', 'auth:method=oauth', flag], { XDG_CONFIG_HOME: needValueHome() })
 
       expect(result.status).not.toBe(0)
-      expect(result.stdout + result.stderr).toContain('"oauth" from the command line and "api-key" from the need of cli-auth')
+      expect(result.stdout + result.stderr).toContain('"oauth" from the command line and "api-key" from the need of client')
       expect(readdirSync(dir)).toEqual([])
     })
   }
@@ -412,6 +422,88 @@ describe('feature-compose new', () => {
     15 * 60 * 1000,
   )
 
+  it(
+    'makes a repo with cli-auth and api-auth:method=oauth that passes its unit and end-to-end tests, whose CLI logs in at the issuer for the audience of the API, and whose API accepts the token that the CLI gets, also after a refresh',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--feature', 'api-auth:method=oauth', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      expect(made.stdout).toBe('cli: needed by cli-auth\nMade my-service from the starter go-event-sourcing-service.\n')
+      const repo = join(dir, 'my-service')
+      expect(readFileSync(join(repo, '.feature-compose.yml'), 'utf8')).toContain('features:\n  api-auth:\n    method: oauth\n  cli: {}\n  cli-auth: {}\n')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      const build = await runProgram(repo, 'go', ['build', '-o', 'bin/my-service', './cmd/my-service'], env)
+      expect(build.status, build.stdout + build.stderr).toBe(0)
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      expect(passedPackages(unit.stdout)).toEqual(expect.arrayContaining(['internal/credential', 'internal/apiclient', 'internal/auth', 'internal/cli']))
+      const requires: Array<{ module: string; version: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['cli-auth'].add_to['gomod.requires']
+      expect(requires.map((item) => item.module).sort()).toEqual(['github.com/cli/browser', 'github.com/zalando/go-keyring', 'golang.org/x/oauth2'])
+      const goMod = readFileSync(join(repo, 'go.mod'), 'utf8')
+      for (const { module, version } of requires) {
+        expect(goMod, module).toMatch(new RegExp(`^\\s*(?:require )?${module.replaceAll('.', '\\.')} ${version.replaceAll('.', '\\.')}$`, 'm'))
+      }
+      const e2e = await runProgram(repo, 'task', ['test:e2e:local'], { ...env, NO_COLOR: '1' })
+      expect(e2e.status, e2e.stdout + e2e.stderr).toBe(0)
+      expect(e2e.stdout).toMatch(/✓ tests\/auth\.test\.ts /)
+
+      const issuer = await startedTestIssuer()
+      const api = await startedApi(repo, { ...env, OAUTH_ISSUER_URL: issuer.url, OAUTH_AUDIENCE: 'my-api' })
+      const cli = join(repo, 'bin', 'my-service')
+      const call = await builtCall(repo, env)
+      const settings = (audience: string) => ({
+        ...env,
+        XDG_CONFIG_HOME: scratchDir(),
+        MY_SERVICE_TOKEN: '',
+        MY_SERVICE_OAUTH_ISSUER_URL: issuer.url,
+        MY_SERVICE_OAUTH_CLIENT_ID: 'my-cli',
+        MY_SERVICE_OAUTH_AUDIENCE: audience,
+        MY_SERVICE_API_URL: api,
+        MY_SERVICE_CREDENTIAL_STORE: 'file',
+      })
+      const loggedIn = settings('my-api')
+
+      const login = await runProgram(repo, cli, ['auth', 'login', '--device'], loggedIn)
+
+      expect(login.status, login.stdout + login.stderr).toBe(0)
+      expect(issuer.audiences).toEqual(['my-api'])
+      const accepted = await runProgram(repo, call, [api], loggedIn)
+      expect(accepted, 'POST /api/accounts with {} gets the answer 400 of the handler, so the API accepted the token').toMatchObject({ status: 0, stdout: '400\n' })
+
+      const expiring = settings('my-api')
+      issuer.expiresIn = 1
+      expect((await runProgram(repo, cli, ['auth', 'login', '--device'], expiring)).status).toBe(0)
+      issuer.expiresIn = 3600
+      const refreshed = await runProgram(repo, call, [api], expiring)
+      expect(refreshed, 'the call refreshes the expired access token, and the API accepts the new one').toMatchObject({ status: 0, stdout: '400\n' })
+      expect(issuer.refreshes).toBe(1)
+
+      const notRefreshable = settings('my-api')
+      issuer.expiresIn = 1
+      expect((await runProgram(repo, cli, ['auth', 'login', '--device'], notRefreshable)).status).toBe(0)
+      issuer.refusesRefresh = true
+      const notRefreshed = await runProgram(repo, call, [api], notRefreshable)
+      expect(notRefreshed.status).not.toBe(0)
+      expect(notRefreshed.stdout).toContain('refresh the tokens for 127.0.0.1:')
+      expect(notRefreshed.stdout).toContain('run "my-service auth login"')
+      issuer.refusesRefresh = false
+      issuer.expiresIn = 3600
+
+      const otherAudience = settings('another-api')
+      expect((await runProgram(repo, cli, ['auth', 'login', '--device'], otherAudience)).status).toBe(0)
+      expect(issuer.audiences.at(-1)).toBe('another-api')
+      const refusedByTheAPI = await runProgram(repo, call, [api], otherAudience)
+      expect(refusedByTheAPI.status).not.toBe(0)
+      expect(refusedByTheAPI.stdout).toContain('the API refused the token from')
+      expect(refusedByTheAPI.stdout).toContain('run "my-service auth login"')
+    },
+    15 * 60 * 1000,
+  )
+
   it('--dry-run prints the repo, its starter, and each file with its owner, and writes nothing', async () => {
     const dir = scratchDir()
 
@@ -425,13 +517,34 @@ describe('feature-compose new', () => {
     expect(readdirSync(dir)).toEqual([])
   })
 
-  it('--dry-run lists each feature of cli-auth with its source, and writes nothing', async () => {
+  it('--dry-run lists each feature of cli-auth with its source and the files of the default method api-key, and writes nothing', async () => {
     const dir = scratchDir()
 
     const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--dry-run'])
 
     expect(result.status, result.stderr).toBe(0)
     expect(result.stdout).toContain('Features:\n  api-auth: needed by cli-auth\n  cli: needed by cli-auth\n  cli-auth: command line\n\n')
+    expect(result.stdout).toContain('  internal/credential/credential.go: the feature cli-auth\n')
+    expect(result.stdout).not.toContain('internal/credential/login.go')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  it('--dry-run of cli-auth with api-auth:method=oauth names the method from the command line and the files of oauth of cli-auth, and writes nothing', async () => {
+    const dir = scratchDir()
+
+    const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--feature', 'api-auth:method=oauth', '--dry-run'])
+
+    expect(result.status, result.stderr).toBe(0)
+    for (const part of [
+      '  api-auth: command line, needed by cli-auth\n',
+      '  cli: needed by cli-auth\n',
+      '  cli-auth: command line\n',
+      '  api-auth.method: oauth (command line)\n',
+      '  internal/credential/login.go: the feature cli-auth\n',
+      '  internal/credential/store.go: the feature cli-auth\n',
+    ]) {
+      expect(result.stdout).toContain(part)
+    }
     expect(readdirSync(dir)).toEqual([])
   })
 
@@ -441,7 +554,7 @@ describe('feature-compose new', () => {
     const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--option', 'go-version=1.28', '--feature', 'cli-auth', '--dry-run'])
 
     expect(result.status, result.stderr).toBe(0)
-    expect(result.stdout).toContain('Options:\n  starter.go-version: 1.28 (command line)\n  starter.module: github.com/hpcsc/my-service (default)\n  api-auth.method: api-key (need of cli-auth)\n\n')
+    expect(result.stdout).toContain('Options:\n  starter.go-version: 1.28 (command line)\n  starter.module: github.com/hpcsc/my-service (default)\n  api-auth.method: api-key (default)\n\n')
     expect(readdirSync(dir)).toEqual([])
   })
 
@@ -613,31 +726,73 @@ describe('feature-compose new in a terminal', () => {
     expect(readdirSync(dir)).toEqual([])
   })
 
-  it('with --feature cli-auth, the form marks the method of api-auth as fixed with the source need of cli-auth, and enter at it starts no edit and names cli-auth', async () => {
+  it('with a feature whose need sets a value, the form marks the option as fixed with the source need of the feature, and enter at it starts no edit and names the feature', async () => {
     const dir = scratchDir()
-    const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth'])
+    const session = await openCli(dir, ['new', 'service', 'my-service', '--feature', 'client'], { XDG_CONFIG_HOME: needValueHome() })
 
     await session.waitForText('method  api-key  fixed', { timeout: 15_000 })
-    await pressed(session, ['j', 'j', 'j', 'j', 'j'])
-    await session.waitForText('source   need of cli-auth')
+    await pressed(session, ['j', 'j', 'j'])
+    await session.waitForText('source   need of client')
     await session.press('enter')
-    await session.waitForText('The option method is fixed: the need of')
-    expect(await session.text()).toContain('cli-auth sets it.')
+    await session.waitForText('The option method is fixed')
+    expect(detailsPaneOf(await session.text())).toContain('The option method is fixed: the need of client sets it.')
     await session.press('q')
     await session.waitForText('EXIT:1')
     expect(readdirSync(dir)).toEqual([])
   })
 
-  it('with --feature api-auth:method=oauth, space at cli-auth leaves it unselected, and the details name oauth from the command line and api-key from the need of cli-auth', async () => {
+  it('with a flag of another value than the need of a feature sets, space at the feature leaves it unselected, and the details name both sources', async () => {
+    const dir = scratchDir()
+    const session = await openCli(dir, ['new', 'service', 'my-service', '--feature', 'auth:method=oauth'], { XDG_CONFIG_HOME: needValueHome() })
+
+    await session.waitForText('method  oauth  fixed', { timeout: 15_000 })
+    await pressed(session, ['j', 'j', 'j', 'j', 'space'])
+    await session.waitForText('two values')
+    const refused = await session.text()
+    expect(refused).toContain('[ ] client')
+    expect(detailsPaneOf(refused)).toContain('"oauth" from the command line and "api-key" from the need of client')
+    await session.press('q')
+    await session.waitForText('EXIT:1')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  it('with --feature api-auth:method=oauth, space at cli-auth selects it and cli', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'api-auth:method=oauth'])
 
     await session.waitForText('method  oauth  fixed', { timeout: 15_000 })
     await pressed(session, ['j', 'j', 'j', 'j', 'j', 'j', 'j', 'space'])
-    await session.waitForText('two values')
-    const refused = await session.text()
-    expect(refused).toContain('[ ] cli-auth')
-    expect(detailsPaneOf(refused)).toContain('"oauth" from the command line and "api-key" from the need of cli-auth')
+    await session.waitForText('[x] cli  needed by cli-auth')
+    const selected = await session.text()
+    expect(selected).toContain('[x] cli-auth')
+    expect(selected).not.toContain('two values')
+    await session.press('q')
+    await session.waitForText('EXIT:1')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  it('with --feature cli-auth, the method of api-auth is not fixed, enter lists api-key and oauth, and after oauth the preview names the answer and the files of oauth of cli-auth', async () => {
+    const dir = scratchDir()
+    const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth'])
+
+    await session.waitForText('needed by cli-auth', { timeout: 15_000 })
+    expect(await session.text()).toMatch(/method {2}api-key +││/)
+    await pressed(session, ['j', 'j', 'j', 'j', 'j'])
+    await session.waitForText('source   default')
+    await session.press('enter')
+    await session.waitForText('▌api-key')
+    expect(detailsPaneOf(await session.text())).toContain('▌api-key oauth')
+    await session.press('j')
+    await session.waitForText('▌oauth')
+    await session.press('enter')
+    await session.waitForText('method  oauth')
+    await session.press('w')
+    await session.waitForText('Write the repo?')
+    expect(await session.text()).toContain('api-auth.method: oauth (answered)')
+    for (let i = 0; i < 20 && !(await session.text()).includes('internal/credential/login.go: the feature cli-auth'); i++) {
+      await session.press(['ctrl', 'd'])
+    }
+    expect(await session.text()).toContain('internal/credential/login.go: the feature cli-auth')
     await session.press('q')
     await session.waitForText('EXIT:1')
     expect(readdirSync(dir)).toEqual([])
@@ -662,7 +817,7 @@ describe('feature-compose new in a terminal', () => {
     await session.press('w')
     await session.waitForText('Write the repo?')
     const preview = await session.text()
-    for (const part of ['starter.go-version: 1.28 (answered)', 'starter.module: github.com/hpcsc/my-service (default)', 'api-auth.method: api-key (need of cli-auth)']) {
+    for (const part of ['starter.go-version: 1.28 (answered)', 'starter.module: github.com/hpcsc/my-service (default)', 'api-auth.method: api-key (default)']) {
       expect(preview).toContain(part)
     }
     await session.press('q')
@@ -766,6 +921,24 @@ function filesOf(dir: string): Record<string, string> {
   return files
 }
 
+function needValueHome(): string {
+  const catalogDir = scratchDir()
+  const files: Record<string, string> = {
+    'starters/service/starter.yml': 'folders:\n  go:\n    path: .\n',
+    'starters/service/files/go/main.go': 'package main\n',
+    'features/auth/feature.yml': 'summary: Auth.\ntargets: [service]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n',
+    'features/client/feature.yml': 'summary: Client.\ntargets: [service]\nneeds:\n  auth:\n    method: api-key\n',
+  }
+  for (const [path, contents] of Object.entries(files)) {
+    mkdirSync(dirname(join(catalogDir, path)), { recursive: true })
+    writeFileSync(join(catalogDir, path), contents)
+  }
+  const home = scratchDir()
+  mkdirSync(join(home, 'feature-compose'))
+  writeFileSync(join(home, 'feature-compose', 'config.yml'), `catalog: ${catalogDir}\n`)
+  return home
+}
+
 function exitStatus(child: ChildProcess): Promise<number | null> {
   return new Promise((done) => child.on('close', (status) => done(status)))
 }
@@ -859,30 +1032,80 @@ async function startedWebhookServer(): Promise<{ url: string; received: { path: 
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, received }
 }
 
-async function startedTestIssuer(): Promise<{ url: string; token: (claims: Record<string, unknown>) => string }> {
+interface TestIssuer {
+  url: string
+  token: (claims: Record<string, unknown>) => string
+  expiresIn: number
+  refusesRefresh: boolean
+  audiences: string[]
+  refreshes: number
+}
+
+async function startedTestIssuer(): Promise<TestIssuer> {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
-  let url = ''
-  const server = createServer((request, response) => {
-    const documents: Record<string, unknown> = {
-      '/.well-known/openid-configuration': { issuer: url, jwks_uri: `${url}/signing-keys` },
-      '/signing-keys': { keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'e2e', use: 'sig', alg: 'RS256' }] },
+  const encoded = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url')
+  const issuer: TestIssuer = {
+    url: '',
+    token: (claims) => {
+      const signed = `${encoded({ alg: 'RS256', typ: 'JWT', kid: 'e2e' })}.${encoded({ iss: issuer.url, exp: Math.floor(Date.now() / 1000) + 3600, ...claims })}`
+      return `${signed}.${sign('RSA-SHA256', Buffer.from(signed), privateKey).toString('base64url')}`
+    },
+    expiresIn: 3600,
+    refusesRefresh: false,
+    audiences: [],
+    refreshes: 0,
+  }
+  const audienceOf = new Map<string, string>()
+  let issued = 0
+  const tokens = (audience: string) => {
+    issued += 1
+    audienceOf.set(`refresh-${issued}`, audience)
+    return {
+      access_token: issuer.token({ aud: audience, exp: Math.floor(Date.now() / 1000) + issuer.expiresIn }),
+      refresh_token: `refresh-${issued}`,
+      token_type: 'Bearer',
+      expires_in: issuer.expiresIn,
     }
-    const document = documents[request.url ?? '']
-    response.writeHead(document ? 200 : 404, { 'Content-Type': 'application/json' })
-    response.end(JSON.stringify(document ?? {}))
+  }
+  const server = createServer(async (request, response) => {
+    let text = ''
+    for await (const chunk of request) text += chunk
+    const form = new URLSearchParams(text)
+    const json = (status: number, value: unknown) => {
+      response.writeHead(status, { 'Content-Type': 'application/json' })
+      response.end(JSON.stringify(value))
+    }
+    switch (request.url) {
+      case '/.well-known/openid-configuration':
+        return json(200, { issuer: issuer.url, jwks_uri: `${issuer.url}/signing-keys`, device_authorization_endpoint: `${issuer.url}/device`, token_endpoint: `${issuer.url}/token` })
+      case '/signing-keys':
+        return json(200, { keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'e2e', use: 'sig', alg: 'RS256' }] })
+      case '/device': {
+        issuer.audiences.push(form.get('audience') ?? '')
+        const deviceCode = `device-${issuer.audiences.length}`
+        audienceOf.set(deviceCode, form.get('audience') ?? '')
+        return json(200, { device_code: deviceCode, user_code: 'ABCD-EFGH', verification_uri: `${issuer.url}/activate`, expires_in: 600, interval: 1 })
+      }
+      case '/token': {
+        if (form.get('grant_type') === 'urn:ietf:params:oauth:grant-type:device_code') {
+          const audience = audienceOf.get(form.get('device_code') ?? '')
+          return audience === undefined ? json(400, { error: 'invalid_grant' }) : json(200, tokens(audience))
+        }
+        const audience = audienceOf.get(form.get('refresh_token') ?? '')
+        if (form.get('grant_type') !== 'refresh_token' || issuer.refusesRefresh || audience === undefined) return json(400, { error: 'invalid_grant' })
+        issuer.refreshes += 1
+        return json(200, tokens(audience))
+      }
+    }
+    json(404, {})
   })
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done))
-  url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  issuer.url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
   onTestFinished(() => {
     server.closeAllConnections()
     server.close()
   })
-  const encoded = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url')
-  const token = (claims: Record<string, unknown>) => {
-    const signed = `${encoded({ alg: 'RS256', typ: 'JWT', kid: 'e2e' })}.${encoded({ iss: url, exp: Math.floor(Date.now() / 1000) + 3600, ...claims })}`
-    return `${signed}.${sign('RSA-SHA256', Buffer.from(signed), privateKey).toString('base64url')}`
-  }
-  return { url, token }
+  return issuer
 }
 
 async function answers(url: string): Promise<boolean> {

@@ -79,7 +79,7 @@ tests keep the original binary.
 
 ## The full run of `new`
 
-Eight tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
+Nine tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
 first makes the repo from the starter alone:
 
 1. `feature-compose new go my-tool --no-prompt` makes the repo. Its `after_render` commands run `go mod tidy`,
@@ -120,7 +120,7 @@ The second adds `--feature cli`, and makes a CLI in its own repo:
    path under `dist/` or `e2e/node_modules/`, which the snapshot and the `npm install` of step 6 made. So the
    `.gitignore` of the repo has the patterns of `cli`.
 
-The other six make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
+The other seven make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
 
 1. `feature-compose new go-event-sourcing-service my-service --no-prompt` makes the repo. Its `after_render`
    commands run `go mod tidy`, which downloads the modules of the repo.
@@ -197,6 +197,31 @@ The next adds only `--feature cli-auth`, which needs `cli` and `api-auth`:
    `apiclient.New` with the base URL of the API, which ends with `/api`, and `Do` with `POST /accounts`. With
    the key of the test, the program prints the answer 400 of the handler. With an unknown key and with no key,
    it stops with the messages of the CLI.
+5. The `go.mod` of the repo requires none of the modules of the method `oauth` of `cli-auth`, which `show`
+   lists in its `gomod.requires`.
+
+The next adds `--feature cli-auth --feature api-auth:method=oauth`, so the CLI logs in at an issuer:
+
+1. `new` prints `cli: needed by cli-auth`, and `.feature-compose.yml` holds `api-auth` with `method: oauth`.
+2. `gofmt -l .` lists no file, and the CLI builds. `task test:unit` stops with the exit status 0, and the
+   tests of `internal/credential`, `internal/apiclient`, `internal/auth` and `internal/cli` ran and passed.
+   The `go.mod` of the repo requires each module of the `gomod.requires` of `cli-auth` at its version.
+3. `task test:e2e:local` of the repo stops with the exit status 0, with `tests/auth.test.ts` among the files that
+   passed. These tests run `auth status`, `auth login`, `auth token` and `auth logout` against a test issuer of
+   their own.
+4. The test starts a test issuer on `127.0.0.1`. It serves OpenID Connect discovery, one signing key, the device
+   authorization endpoint and the token endpoint. It signs RS256 access tokens for the audience of the device
+   authorization request, and a refresh keeps that audience. The test starts the API with `OAUTH_ISSUER_URL`
+   set to the test issuer and `OAUTH_AUDIENCE` set to `my-api`.
+5. The built CLI runs `auth login --device` with `MY_SERVICE_OAUTH_AUDIENCE=my-api`, the API URL of the API, and
+   `MY_SERVICE_CREDENTIAL_STORE=file` in an empty config folder. The test issuer gets the audience `my-api`. The
+   program of the test calls `POST /api/accounts` through `apiclient.Do` and prints the answer 400 of the
+   handler, so the API accepted the token that the CLI got.
+6. After a login whose access token expires, the call refreshes the token at the test issuer, and the API
+   accepts the new token. When the test issuer refuses the refresh, the call stops, and the message tells the
+   user to run `my-service auth login`.
+7. With `MY_SERVICE_OAUTH_AUDIENCE=another-api`, the same binary logs in for `another-api`, and the API refuses
+   the token. So the CLI changes its audience with no new render.
 
 The last adds `--feature process-manager`, the example of a payment to another bank:
 
@@ -245,6 +270,11 @@ three environment variables for the tests: `EXECUTABLE`, the path of the binary,
 `CATALOG_DIR`, the catalog folder of this repo. The `version` and `update` tests compare the output of the
 CLI with `BUILD_TAG`. `runCli` and `openCli` give the CLI a config file that names `CATALOG_DIR`, through
 `XDG_CONFIG_HOME`, and a test can give another `XDG_CONFIG_HOME` in its `env`.
+
+No feature of the catalog of this repo sets a value in a need. So the tests of a need value, the source
+`need of <features>`, the stop of a flag against a need and the mark `fixed` of the form, write a catalog to a
+scratch folder: a starter `service`, a feature `auth` with the option `method`, and a feature `client` whose
+need sets `method: api-key`. `needValueHome` gives them a config folder that names that catalog.
 
 The Docker image has two stages:
 

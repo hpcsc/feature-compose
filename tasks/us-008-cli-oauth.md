@@ -496,36 +496,36 @@ test makes the repo of `oauth`, logs in with the built CLI at a test issuer, cal
 client, and gets the answer of the handler.
 
 **Acceptance Criteria:**
-- [ ] `catalog/features/cli-auth/feature.yml` has `needs: [cli, api-auth]` and a `summary` that names the API key
+- [x] `catalog/features/cli-auth/feature.yml` has `needs: [cli, api-auth]` and a `summary` that names the API key
   and the access token of a login at the issuer.
-- [ ] `new go-event-sourcing-service my-service --feature cli-auth --feature api-auth:method=oauth --dry-run` ends with
+- [x] `new go-event-sourcing-service my-service --feature cli-auth --feature api-auth:method=oauth --dry-run` ends with
   the exit status 0 and prints `api-auth: command line, needed by cli-auth`, `cli: needed by cli-auth`,
   `cli-auth: command line` and `api-auth.method: oauth (command line)`, the files of `files/oauth/` and
   `files/store/` of `cli-auth` with the owner `the feature cli-auth`, and none of `files/api-key/`. With
   `--feature cli-auth` alone, the preview prints `api-auth.method: api-key (default)` and the files of `api-key`.
-- [ ] `Selection.Questions` of a selection of the catalog of this repo with `cli-auth`, with each method, holds no
+- [x] `Selection.Questions` of a selection of the catalog of this repo with `cli-auth`, with each method, holds no
   question of `cli-auth`, and `method` of `api-auth` is its only question of a feature. With `--feature cli-auth`
   and the answer `oauth` for `method` of `api-auth`, the selection writes the files of `oauth` of `cli-auth`, and the
   preview prints `api-auth.method: oauth (answered)`.
-- [ ] `Catalog.Combinations` of the catalog of this repo holds
+- [x] `Catalog.Combinations` of the catalog of this repo holds
   `go-event-sourcing-service --feature api-auth:method=oauth --feature cli-auth`, and `task test:combinations`
   passes.
-- [ ] `show --output json` prints `features["cli-auth"].needs` as `{"cli": {}, "api-auth": {}}`
+- [x] `show --output json` prints `features["cli-auth"].needs` as `{"cli": {}, "api-auth": {}}`
   (`e2e/tests/show.test.ts:16`).
-- [ ] The tests of `TestCatalog` that used the need value of `cli-auth` (`internal/catalog/catalog_test.go:1957-1964`
+- [x] The tests of `TestCatalog` that used the need value of `cli-auth` (`internal/catalog/catalog_test.go:1957-1964`
   and `internal/catalog/catalog_test.go:2365-2375`) check the selection of `cli-auth` with `oauth` and the source
   `default` of `api-auth.method`.
-- [ ] The e2e tests of a need value use a catalog in a scratch folder with a starter, a feature with the option
+- [x] The e2e tests of a need value use a catalog in a scratch folder with a starter, a feature with the option
   `method`, and a feature whose need sets `method: api-key`: `--dry-run` prints the source `need of <feature>`; a
   flag with another value stops `new` with `--no-prompt` and with `--dry-run`, names both sources, and makes no
   folder; in the form, the option shows `fixed`, Enter starts no edit and names the need, and a Space at the feature
   with a flag of another value leaves it `[ ]` and shows the message that names both sources.
-- [ ] The e2e tests of the form on the catalog of this repo: with `--feature cli-auth`, the row of `method` of
+- [x] The e2e tests of the form on the catalog of this repo: with `--feature cli-auth`, the row of `method` of
   `api-auth` shows `method  api-key` with no mark `fixed`, Enter lists `api-key` and `oauth`, and after `oauth` the
   preview of `w` prints `api-auth.method: oauth (answered)` and a file of `files/oauth/` of `cli-auth`. With
   `--feature api-auth:method=oauth`, a Space at `cli-auth` selects it and `cli`. The preview test of
   `e2e/tests/new.test.ts:640-665` expects `api-auth.method: api-key (default)`.
-- [ ] An e2e full run, `new go-event-sourcing-service my-service --feature cli-auth --feature api-auth:method=oauth --no-prompt`:
+- [x] An e2e full run, `new go-event-sourcing-service my-service --feature cli-auth --feature api-auth:method=oauth --no-prompt`:
   - ends with the exit status 0, prints `cli: needed by cli-auth` before the line that names the output folder, and
     writes `.feature-compose.yml` with `api-auth` at `method: oauth`;
   - gives a repo in which `gofmt -l .` lists no file, `go build ./...` builds, and `task test:unit` passes with
@@ -547,7 +547,7 @@ client, and gets the answer of the handler.
   - with `MY_SERVICE_OAUTH_AUDIENCE=another-api` and another empty config folder, the same binary logs in, and the
     call fails with a message that names `my-service auth login`: the API refused a token for another audience, and
     the CLI changed its audience with no new render.
-- [ ] `docs/catalog.md`: the `feature.yml` of `cli-auth` shows `needs: [cli, api-auth]` and the files entries that read
+- [x] `docs/catalog.md`: the `feature.yml` of `cli-auth` shows `needs: [cli, api-auth]` and the files entries that read
   `api-auth.method`; the text of needs and of the sources of an option names a need value with an example that is
   not a feature of the catalog of this repo, and says that `cli-auth` follows `api-auth.method` through `when`.
   `docs/commands.md`: the preview prints `api-auth.method: api-key (default)`, and the examples of `need of`, of the
@@ -556,7 +556,7 @@ client, and gets the answer of the handler.
   the API key or the access token of a login. `docs/e2e-tests.md` tells the full run of `oauth` with its test issuer,
   and the tests of a need value on a catalog in a scratch folder. No doc says that the need of `cli-auth` sets a
   value.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, `task test:catalog` finds no mistake, and the e2e
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, `task test:catalog` finds no mistake, and the e2e
   tests of `new`, `show` and `check` pass on the host.
 
 **Affected Files/Modules:**

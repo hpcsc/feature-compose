@@ -82,7 +82,7 @@ Features:
 Options:
   starter.go-version: 1.28 (command line)
   starter.module: github.com/hpcsc/my-service (default)
-  api-auth.method: api-key (need of cli-auth)
+  api-auth.method: api-key (default)
 
 Files:
   .dockerignore: the feature cli
@@ -110,7 +110,7 @@ above. Each option shows the value that the templates read, and its source:
 | Source | Meaning |
 | --- | --- |
 | `command line` | `--option <name>=<value>` or `--feature <name>:<option>=<value>` gives the value, also when it is the same as the default. When a need also sets the value, the line ends with `, need of <features>`. |
-| `need of <features>` | The `needs` of the features that select this feature set the value, for example the need of `cli-auth` sets the `method` of `api-auth` to `api-key`. A need comes after a flag and before an answer. |
+| `need of <features>` | The `needs` of the features that select this feature set the value, for example a feature `client` with `needs: {auth: {method: api-key}}` sets the `method` of `auth` to `api-key`. A need comes after a flag and before an answer. |
 | `answered` | You keep the value with Enter in the form, also when it is the default. `--dry-run` opens no form, so it never shows this source. |
 | `default` | No flag gives the value, so the option has its default. A default that holds `{{ .Name }}` shows with the name of the repo. |
 
@@ -123,7 +123,7 @@ option another value than a need sets, stops `--dry-run` with the same message, 
 The message of a feature that does not target the starter names the feature and the starter, and lists the features
 that target the starter, for example `the feature api-auth does not target the starter go: the features that target
 the starter go are cli`. The message of a flag against a need
-names both sources, for example `"oauth" from the command line and "api-key" from the need of cli-auth`.
+names both sources, for example `"oauth" from the command line and "api-key" from the need of client`.
 `--dry-run` does not read the output folder, so an output folder that has files stops `new` but not `--dry-run`.
 
 The preview is text for a person, and its layout can change. A script reads the catalog with
@@ -145,7 +145,7 @@ pane shows the details of the selected row. You can change any answer in any ord
 │    ├─   go-version  1.27.1               ││                                                                │
 │    ├─   module      github.com/hpcsc/my… ││                                                                │
 │    ├─ ▾ [x] api-auth  needed by cli-auth ││                                                                │
-│    │  └─   method  api-key  fixed        ││                                                                │
+│    │  └─   method  api-key               ││                                                                │
 │    ├─   [x] cli  needed by cli-auth      ││                                                                │
 │    └─   [x] cli-auth  fixed              ││                                                                │
 ╰──────────────────────────────────────────╯╰────────────────────────────────────────────────────────────────╯
@@ -188,8 +188,8 @@ features that need it. Space at a feature that you selected clears it, and also 
 needs selected. A feature that a `--feature` flag gives stays selected, and you can select more features next to it.
 When the selection stops, for example because two features declare one extension point, the feature stays as it was
 and the details show the message. The selection also stops when the need of a feature sets another value than a flag,
-for example a Space at `cli-auth`, whose need sets `api-auth.method` to `api-key`, with
-`--feature api-auth:method=oauth`. The message names both sources.
+for example a Space at a feature `client` whose need sets `auth.method` to `api-key`, with
+`--feature auth:method=oauth`. The message names both sources.
 
 **The edit.** Enter at the name, or at an option without `values`, starts an edit of the text in the right pane. Each
 key goes to the text. While the text does not pass its check, the details say why, for example that it does not match
@@ -346,7 +346,7 @@ feature-compose check --catalog ./catalog
 | Two targets of a feature declare an extension point of its `add_to` with different item fields. In a target where a need of the feature declares the extension point, the item fields of the need count. A target that does not declare the extension point is not in this message. | `the feature auth adds to the extension point "api.middleware", which its targets declare with different item fields: [code, import] in the starter service, [code] in the starter worker` |
 | A need is not a feature of the catalog. | `the starter service: the feature auth needs vault, which is not a feature of the catalog` |
 | A need does not target each target of the feature. | `the starter worker: the feature auth needs cli, which does not target the starter` |
-| A need sets a value that its option does not have: a value that is not one of the values of the option or does not match its pattern, or an option that the needed feature does not declare. Each wrong value is one mistake, also in a target that the need does not target. | `the starter service: the need of the feature cli-auth: the feature api-auth: the value "basic" of the option method is not one of its values: api-key, oauth` |
+| A need sets a value that its option does not have: a value that is not one of the values of the option or does not match its pattern, or an option that the needed feature does not declare. Each wrong value is one mistake, also in a target that the need does not target. | `the starter service: the need of the feature client: the feature auth: the value "basic" of the option method is not one of its values: api-key, oauth` |
 | The needs of the features of a starter form a cycle. The message names each feature of the cycle in the order of the needs, and no feature that only needs a feature of the cycle. Each feature that is in a cycle is in at least one message, also when two cycles share it. A cycle gives one mistake for each starter whose features hold it. | `the starter service: the needs of the features form a cycle: app needs base needs app` |
 | The `when` of a files entry does not parse. Each such files entry is one mistake of the feature, also when the feature has two targets, and `check` still finds the other mistakes of the feature. `new` stops on the first one. | `the feature auth: the when "method ==" of the files entry "files/": method == needs a quoted value after it` |
 | A `when` reads an option that the feature cannot read. A feature reads its own options by name, the options of each feature in its `needs` as `<need>.<option>`, and `starter.<option>` for an option that each of its targets declares. A need of a need does not count. Each reference that a `when` cannot read is one mistake. For a starter option, the message names each target that does not declare it. | `the feature cli: the when "starter.region == \"eu\"" of the files entry "files/" reads "starter.region", which the starter worker does not declare` |

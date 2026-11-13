@@ -84,7 +84,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Let `cli-auth` follow the method of `api-auth`, and show that the API of the repo accepts the token that the CLI gets",
       "language": "TypeScript",
       "testable": true,

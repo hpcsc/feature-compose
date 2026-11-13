@@ -114,26 +114,32 @@ add_to:
 ```
 
 ```yaml
-summary: The CLI sends the API key that the API asks for.
+summary: The CLI sends the credential that the API asks for, in the method of api-auth.
 targets: [go-event-sourcing-service]
-needs:
-  cli:
-  api-auth:
-    method: api-key
+needs: [cli, api-auth]
 
 files:
   - path: files/common/
+  - path: files/api-key/
+    when: api-auth.method == "api-key"
+  - path: files/oauth/
+    when: api-auth.method == "oauth"
+  - path: files/store/
+    when: api-auth.method == "oauth"
 
 add_to:
   cli.commands:
     - code: newAuthCommand()
+  gomod.requires:
+    - module: golang.org/x/oauth2
+      version: v0.38.0
 ```
 
 | Field | Meaning |
 | --- | --- |
 | `summary` | One sentence about what the feature adds. `show` shows it. |
 | `targets` | The starters that the feature works with. `new` stops when you select the feature with another starter. |
-| `needs` | The features that this feature cannot work without. A need can set options of the feature that it names, for example `method: api-key`. |
+| `needs` | The features that this feature cannot work without, as a list, or as a map whose values set options of the feature that each key names. |
 | `options` | The questions of the feature. |
 | `files` | The files entries of the feature. `path` is a folder under the folder of the feature. `when` adds the entry only when its expression is true. |
 | `add_to` | The items that the feature adds to each extension point. |
@@ -153,7 +159,8 @@ An option is a question. Its answer selects a variant of the files.
 The tool takes the value of an option from the first of these sources that gives one:
 
 1. The command line, for example `--option go-version=1.28` or `--feature api-auth:method=oauth`
-2. A need of a selected feature, for example the need of `cli-auth` sets `api-auth.method` to `api-key`
+2. A need of a selected feature, for example a feature `client` with `needs: {auth: {method: api-key}}` sets
+   `auth.method` to `api-key`
 3. The form of `new`
 4. The default
 
@@ -168,9 +175,21 @@ A need is a feature that another feature cannot work without. When you select a 
 each feature that it needs, and the needs of those features. A need must target each target of the feature
 that needs it.
 
-A need can set options of the feature that it names. `cli-auth` sets `api-auth.method` to `api-key`, because
-the CLI sends an API key. So the CLI and the API cannot use different methods: the API decides, and the
-feature that needs it follows.
+A need can set options of the feature that it names. A feature `client` that works only with the method
+`api-key` of a feature `auth` writes:
+
+```yaml
+needs:
+  auth:
+    method: api-key
+```
+
+Then `new` stops when a flag gives `auth.method` another value, and the form does not change the value.
+
+A feature that works with each value reads the option of its need in place of a value in its need. `cli-auth`
+needs `api-auth` with no value, and the `when` of its files entries reads `api-auth.method`. So the CLI uses the
+method of the API: the tool asks for `method` one time, as the option of `api-auth`, and `cli-auth` has no
+question of its own.
 
 ## Files for One Value of an Option
 

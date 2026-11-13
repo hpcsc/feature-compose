@@ -1954,13 +1954,56 @@ files:
 			require.ErrorContains(t, err, `the feature api-auth: the value "basic" of the option method is not one of its values: api-key, oauth`)
 		})
 
-		t.Run("cli-auth with the method oauth stops, and the message names oauth from the command line and api-key from the need of cli-auth", func(t *testing.T) {
+		t.Run("cli-auth with the method oauth of api-auth selects cli, and the preview names the command line as the source of the method and the files of oauth of cli-auth", func(t *testing.T) {
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil, "api-auth": {"method": "oauth"}}, catalog.Answers{})
+			require.NoError(t, err)
 
-			_, err = starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil, "api-auth": {"method": "oauth"}}, catalog.Answers{})
+			preview, err := selection.Preview()
 
-			require.ErrorContains(t, err, `the option method of the feature api-auth has two values: "oauth" from the command line and "api-key" from the need of cli-auth`)
+			require.NoError(t, err)
+			for _, part := range []string{
+				"  api-auth: command line, needed by cli-auth\n", "  cli: needed by cli-auth\n", "  cli-auth: command line\n",
+				"  api-auth.method: oauth (command line)\n", "  internal/credential/login.go: the feature cli-auth\n", "  internal/credential/store.go: the feature cli-auth\n",
+			} {
+				require.Contains(t, preview, part)
+			}
+		})
+
+		for _, method := range []string{"api-key", "oauth"} {
+			t.Run("with the method "+method+", the questions of a selection with cli-auth hold no question of cli-auth, and method of api-auth is its only question of a feature", func(t *testing.T) {
+				starter, err := repoCatalog().Starter("go-event-sourcing-service")
+				require.NoError(t, err)
+				selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil, "api-auth": {"method": method}}, catalog.Answers{})
+				require.NoError(t, err)
+
+				var featureQuestions []string
+				for _, q := range selection.Questions() {
+					if q.Feature != "" {
+						featureQuestions = append(featureQuestions, q.Feature+"."+q.Option+"="+q.Value)
+					}
+				}
+
+				require.Equal(t, []string{"api-auth.method=" + method}, featureQuestions)
+			})
+		}
+
+		t.Run("with cli-auth and the answer oauth for method of api-auth, the selection writes the files of oauth of cli-auth, and the preview names the answer as the source", func(t *testing.T) {
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil}, catalog.Answers{}.WithValue("api-auth", "method", "oauth"))
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+			require.NoError(t, selection.Write(output))
+
+			preview, err := selection.Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, "  api-auth.method: oauth (answered)\n")
+			files := filesIn(t, output)
+			require.Contains(t, files, "internal/credential/login.go")
+			require.Contains(t, files["internal/credential/credential.go"], "_TOKEN")
 		})
 
 		for _, method := range []string{"api-key", "oauth"} {
@@ -2206,17 +2249,7 @@ files:
 
 		writtenWithCLIAuthMethod := func(t *testing.T, method string) map[string]string {
 			t.Helper()
-			files := catalogOnDisk(t)
-			cliAuth := string(files["features/cli-auth/feature.yml"].Data)
-			require.Contains(t, cliAuth, "  api-auth:\n    method: api-key\n")
-			files["features/cli-auth/feature.yml"] = &fstest.MapFile{Data: []byte(strings.Replace(cliAuth, "  api-auth:\n    method: api-key\n", "  api-auth:\n", 1))}
-			starter, err := catalog.New(files).Starter("go-event-sourcing-service")
-			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil, "api-auth": {"method": method}}, catalog.Answers{})
-			require.NoError(t, err)
-			output := filepath.Join(t.TempDir(), "my-service")
-			require.NoError(t, selection.Write(output))
-			return filesIn(t, output)
+			return writtenWithFeatures(t, map[string]map[string]string{"cli-auth": nil, "api-auth": {"method": method}})
 		}
 
 		addedAndChangedByCLIAuth := func(t *testing.T, method string) (map[string]string, []string) {
@@ -2270,7 +2303,7 @@ files:
 			require.Equal(t, writtenWithFeatures(t, withoutValues("cli-auth")), writtenWithFeatures(t, withoutValues("cli-auth", "cli", "api-auth")))
 		})
 
-		t.Run("with the method api-key, cli-auth writes the same files when its need sets no method", func(t *testing.T) {
+		t.Run("cli-auth with no method of api-auth writes the files of the default method api-key", func(t *testing.T) {
 			require.Equal(t, writtenWithFeatures(t, withoutValues("cli-auth")), writtenWithCLIAuthMethod(t, "api-key"))
 		})
 
@@ -2511,7 +2544,7 @@ files:
 			}
 		})
 
-		t.Run("the need of cli-auth sets the method api-key of api-auth, and the preview names the need as its source", func(t *testing.T) {
+		t.Run("the need of cli-auth sets no method of api-auth, so the preview names the default as the source of the method", func(t *testing.T) {
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil}, catalog.Answers{})
@@ -2520,7 +2553,7 @@ files:
 			preview, err := selection.Preview()
 
 			require.NoError(t, err)
-			require.Contains(t, preview, "  api-auth.method: api-key (need of cli-auth)\n")
+			require.Contains(t, preview, "  api-auth.method: api-key (default)\n")
 		})
 
 		t.Run("the files of cli hold no value of scaffold", func(t *testing.T) {
@@ -3337,7 +3370,7 @@ files:
 			}
 		})
 
-		t.Run("the catalog of this repo gives no combination of cli-auth with the method oauth, because the need of cli-auth sets the method api-key", func(t *testing.T) {
+		t.Run("the catalog of this repo gives the combination of cli-auth with the method oauth of api-auth", func(t *testing.T) {
 			combinations, err := repoCatalog().Combinations()
 			require.NoError(t, err)
 			var names []string
@@ -3345,13 +3378,8 @@ files:
 				names = append(names, combination.String())
 			}
 
-			require.Contains(t, names, "go-event-sourcing-service --feature api-auth:method=oauth")
 			require.Contains(t, names, "go-event-sourcing-service --feature cli-auth")
-			for _, name := range names {
-				if strings.Contains(name, "--feature cli-auth") {
-					require.NotContains(t, name, "api-auth:method=oauth", name)
-				}
-			}
+			require.Contains(t, names, "go-event-sourcing-service --feature api-auth:method=oauth --feature cli-auth")
 		})
 
 		for _, failing := range []string{"starters", "starters/api/starter.yml", "features", "features/cli/feature.yml"} {

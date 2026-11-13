@@ -68,7 +68,7 @@ flowchart LR
     catalog --> cli["Feature<br/>cli"]
     cliAuth -- targets --> starter
     cliAuth -- needs --> cli
-    cliAuth -- "needs, with method: api-key" --> apiAuth
+    cliAuth -- needs --> apiAuth
     apiAuth -- "adds an item to api.middleware" --> starter
     starter --> repo["New repo"]
     cli --> repo
@@ -78,8 +78,8 @@ flowchart LR
 
 - The starter gives the base files of the repo, and it declares its extension points.
 - A feature works only with a starter that its `targets` name.
-- When you select a feature, the tool also selects its needs. A need can set an option of the feature that
-  it selects, so two features cannot disagree on one answer.
+- When you select a feature, the tool also selects its needs. A feature can read an option of its need, so two
+  features follow one answer: `cli-auth` sends the credential of the `method` of `api-auth`.
 - A feature changes a file of the starter only through an item of an extension point. The file of the
   starter writes the items. So the feature and the starter can change apart.
 
@@ -140,7 +140,7 @@ After the form, it also prints the command that makes the same repo again.
 | --- | --- | --- |
 | `cli` | `go`, `go-event-sourcing-service` | A command line program with releases from GoReleaser, and a command that updates it |
 | `api-auth` | `go-event-sourcing-service` | A check of an API key or of an OAuth access token on each protected route of the API |
-| `cli-auth` | `go-event-sourcing-service` | The API key in each request of the CLI. It needs `cli` and `api-auth` |
+| `cli-auth` | `go-event-sourcing-service` | The credential in each request of the CLI, in the method of `api-auth`: the API key, or the access token of a login at the issuer. It needs `cli` and `api-auth` |
 | `process-manager` | `go-event-sourcing-service` | The example of a process manager, a payment to another bank, with fakes of its outside systems |
 
 ## More Documents

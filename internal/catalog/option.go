@@ -53,6 +53,14 @@ type options struct {
 	declared map[string]option
 }
 
+func (o options) references(prefix string) map[string]bool {
+	references := make(map[string]bool, len(o.declared))
+	for optionName := range o.declared {
+		references[prefix+optionName] = true
+	}
+	return references
+}
+
 func (o options) withDefaults(given map[string]string, setByNeeds valuesSetByNeeds, answered map[string]string, name string) (optionValues, error) {
 	if err := o.check(given); err != nil {
 		return optionValues{}, err

@@ -103,7 +103,7 @@ func (c Catalog) Check() ([]string, error) {
 		mistakes = append(mistakes, starter.mistakes(catalogFeatures)...)
 	}
 	for _, featureName := range slices.Sorted(maps.Keys(catalogFeatures)) {
-		mistakes = append(mistakes, catalogFeatures[featureName].mistakes(starters)...)
+		mistakes = append(mistakes, catalogFeatures[featureName].mistakes(starters, catalogFeatures)...)
 	}
 	return mistakes, nil
 }

@@ -249,24 +249,24 @@ names the `when`, its files entry, the reference and the feature. For a starter 
 not declare it. It checks every `when`, whatever value its options can have.
 
 **Acceptance Criteria:**
-- [ ] A `when` that reads a reference that the feature cannot read is a mistake. The message names the `when`, its
+- [x] A `when` that reads a reference that the feature cannot read is a mistake. The message names the `when`, its
   files entry, the reference and the feature. These are such references: an option that the feature does not declare;
   `<need>.<option>` of an option that the need does not declare; `<feature>.<option>` of a feature that the feature does
   not name in `needs`, also a need of a need; and `starter.<option>` of an option that no target declares.
-- [ ] `starter.<option>` of an option that one target declares and another target does not is a mistake, and the
+- [x] `starter.<option>` of an option that one target declares and another target does not is a mistake, and the
   message names each target that does not declare it.
-- [ ] Each reference in the `when` is checked: on both sides of `&&` and `||`, under `!`, in parentheses, in a
+- [x] Each reference in the `when` is checked: on both sides of `&&` and `||`, under `!`, in parentheses, in a
   comparison and as a bare name. A `when` that reads one such reference two times gives one mistake.
-- [ ] An option of the feature, an option of a need, and a starter option that each target declares are not
+- [x] An option of the feature, an option of a need, and a starter option that each target declares are not
   mistakes.
-- [ ] A `when` that does not parse gives only its mistake of Task 1.
-- [ ] The mistake comes one time for the feature, also with two targets, after its mistakes of Task 1, in a fixed
+- [x] A `when` that does not parse gives only its mistake of Task 1.
+- [x] The mistake comes one time for the feature, also with two targets, after its mistakes of Task 1, in a fixed
   order.
-- [ ] The mistakes of US-006 and Task 1 are still found, and `Catalog.Check` on `catalog/` gives no mistake.
-- [ ] `feature-compose check` prints the mistake with the other mistakes.
-- [ ] `docs/commands.md` "Check the Catalog" has a row for the mistake that names the three kinds of readable
+- [x] The mistakes of US-006 and Task 1 are still found, and `Catalog.Check` on `catalog/` gives no mistake.
+- [x] `feature-compose check` prints the mistake with the other mistakes.
+- [x] `docs/commands.md` "Check the Catalog" has a row for the mistake that names the three kinds of readable
   references and the rule of the targets.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `internal/catalog/expression.go` — the references that an expression reads

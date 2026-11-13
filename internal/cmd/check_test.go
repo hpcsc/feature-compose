@@ -126,6 +126,19 @@ the feature auth: the when "method ==" of the files entry "files/": method == ne
 `, printed)
 		})
 
+		t.Run("prints each reference that a when reads and the feature cannot read", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth": "targets: [service]\noptions:\n  method:\n    default: api-key\nfiles:\n  - path: files/\n    when: 'method == \"oauth\" && starter.region == \"eu\"'\n",
+			})
+			files["features/auth/files/go/auth.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+
+			printed, err := runCheck(t, files)
+
+			require.EqualError(t, err, "the catalog has 1 mistake")
+			require.Equal(t, `the feature auth: the when "method == \"oauth\" && starter.region == \"eu\"" of the files entry "files/" reads "starter.region", which the starter service does not declare
+`, printed)
+		})
+
 		t.Run("--catalog checks the catalog in that folder, also with no config file", func(t *testing.T) {
 			catalogDir := t.TempDir()
 			for path, contents := range map[string]string{

@@ -69,6 +69,21 @@ func (e expression) trueFor(values map[string]string) (bool, error) {
 	return value == "true", nil
 }
 
+func (e expression) references() []string {
+	var references []string
+	for _, operand := range e.operands {
+		for _, reference := range operand.references() {
+			if !slices.Contains(references, reference) {
+				references = append(references, reference)
+			}
+		}
+	}
+	if e.name != "" {
+		references = append(references, e.name)
+	}
+	return references
+}
+
 func (e expression) tokens(rest string) ([]string, error) {
 	rest = strings.TrimLeftFunc(rest, unicode.IsSpace)
 	if rest == "" {

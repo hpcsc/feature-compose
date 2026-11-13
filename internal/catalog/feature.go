@@ -60,12 +60,17 @@ func newFeature(fsys fs.FS, featureName string, parsed featureYML) (feature, err
 		rules = append(rules, rule)
 	}
 	var templates []template
+	entryRoots := map[string]bool{}
 	var whenParseMistakes []string
 	for _, entry := range parsed.Files {
 		entryRoot := path.Join(root, entry.Path)
 		if !strings.HasPrefix(entryRoot, root+"/") {
 			return feature{}, fmt.Errorf("read %s: the files entry %q is outside the folder of the feature", ymlPath, entry.Path)
 		}
+		if entryRoots[entryRoot] {
+			return feature{}, fmt.Errorf("read %s: files names the path %q two times", ymlPath, entry.Path)
+		}
+		entryRoots[entryRoot] = true
 		read, err := readTemplates(fsys, entryRoot, featureName)
 		if err != nil {
 			return feature{}, err
@@ -143,12 +148,75 @@ func (f feature) needMistakes(starterName string, catalogFeatures map[string]fea
 	return mistakes
 }
 
-func (f feature) mistakes(starters []Starter) []string {
+func (f feature) mistakes(starters []Starter, catalogFeatures map[string]feature) []string {
 	mistakes := f.itemFieldsMistakes(starters)
 	for _, mistake := range f.whenParseMistakes {
 		mistakes = append(mistakes, "the feature "+f.name+": "+mistake)
 	}
+	return append(mistakes, f.readMistakes(starters, catalogFeatures)...)
+}
+
+func (f feature) readMistakes(starters []Starter, catalogFeatures map[string]feature) []string {
+	readable := f.readable(starters, catalogFeatures)
+	checkedEntries := map[string]bool{}
+	var mistakes []string
+	for _, t := range f.templates {
+		if checkedEntries[t.entry] {
+			continue
+		}
+		checkedEntries[t.entry] = true
+		for _, reference := range t.when.references() {
+			if !readable[reference] {
+				mistakes = append(mistakes, fmt.Sprintf("the feature %s: the when %q of the files entry %q reads %q, which %s",
+					f.name, t.when.text, t.entry, reference, f.whyCannotRead(reference, readable, starters)))
+			}
+		}
+	}
 	return mistakes
+}
+
+func (f feature) readable(starters []Starter, catalogFeatures map[string]feature) map[string]bool {
+	readable := f.options.references("")
+	for _, needName := range f.needs {
+		maps.Copy(readable, catalogFeatures[needName].options.references(needName+"."))
+	}
+	for _, s := range starters {
+		if !f.targetsStarter(s.name) {
+			continue
+		}
+		for optionName := range s.options.declared {
+			if len(f.targetsThatDoNotDeclare(optionName, starters)) == 0 {
+				readable[starterPrefix+optionName] = true
+			}
+		}
+	}
+	return readable
+}
+
+func (f feature) whyCannotRead(reference string, readable map[string]bool, starters []Starter) string {
+	if optionName, isStarterOption := strings.CutPrefix(reference, starterPrefix); isStarterOption {
+		switch notDeclaring := f.targetsThatDoNotDeclare(optionName, starters); len(notDeclaring) {
+		case 0:
+		case 1:
+			return "the starter " + notDeclaring[0] + " does not declare"
+		default:
+			return "the starters " + strings.Join(notDeclaring, ", ") + " do not declare"
+		}
+	}
+	if len(readable) == 0 {
+		return "the feature cannot read: it can read no option"
+	}
+	return "the feature cannot read: it can read " + strings.Join(slices.Sorted(maps.Keys(readable)), ", ")
+}
+
+func (f feature) targetsThatDoNotDeclare(optionName string, starters []Starter) []string {
+	var notDeclaring []string
+	for _, s := range starters {
+		if _, declared := s.options.declared[optionName]; f.targetsStarter(s.name) && !declared {
+			notDeclaring = append(notDeclaring, s.name)
+		}
+	}
+	return notDeclaring
 }
 
 func (f feature) itemFieldsMistakes(starters []Starter) []string {

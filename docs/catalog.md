@@ -171,7 +171,8 @@ feature that needs it follows.
 
 ## Files for One Value of an Option
 
-`when` in a files entry adds the entry only when its expression is true:
+Each files entry of a feature has its own path. `when` in a files entry adds the entry only when its expression
+is true:
 
 | Expression | True when |
 | --- | --- |

@@ -846,11 +846,130 @@ files:
 			}, mistakes)
 		})
 
+		t.Run("a when that reads a reference that the feature cannot read is a mistake, and the message names the feature, the when, its files entry, the reference and the references that the feature can read", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"base":     "targets: [service]\noptions:\n  level:\n    default: low\n",
+				"api-auth": "targets: [service]\nneeds: [base]\noptions:\n  method:\n    default: api-key\n  scope:\n    default: read\n",
+				"tokens":   "targets: [service]\noptions:\n  ttl:\n    default: 1h\n",
+				"vault":    "targets: [service]\noptions:\n  mode:\n    default: slow\n",
+				"cli-auth": `targets: [service]
+needs: [api-auth, tokens]
+options:
+  debug:
+    default: "false"
+  store:
+    default: "false"
+files:
+  - path: files/own/
+    when: region == "us"
+  - path: files/need/
+    when: api-auth.port == "80"
+  - path: files/other/
+    when: vault.mode == "fast"
+  - path: files/deep/
+    when: base.level == "high"
+  - path: files/starter/
+    when: starter.region == "eu"
+  - path: files/readable/
+    when: store && debug && api-auth.method == "oauth" && api-auth.scope && tokens.ttl && starter.module != "x" && starter.go-version
+`,
+			})
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\noptions:\n  module:\n    default: example.com/service\n  go-version:\n    default: \"1.25\"\n")}
+			for _, entry := range []string{"own", "need", "other", "deep", "starter", "readable"} {
+				files["features/cli-auth/files/"+entry+"/go/"+entry+".go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+			}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the feature cli-auth: the when "region == \"us\"" of the files entry "files/own/" reads "region", which the feature cannot read: it can read api-auth.method, api-auth.scope, debug, starter.go-version, starter.module, store, tokens.ttl`,
+				`the feature cli-auth: the when "api-auth.port == \"80\"" of the files entry "files/need/" reads "api-auth.port", which the feature cannot read: it can read api-auth.method, api-auth.scope, debug, starter.go-version, starter.module, store, tokens.ttl`,
+				`the feature cli-auth: the when "vault.mode == \"fast\"" of the files entry "files/other/" reads "vault.mode", which the feature cannot read: it can read api-auth.method, api-auth.scope, debug, starter.go-version, starter.module, store, tokens.ttl`,
+				`the feature cli-auth: the when "base.level == \"high\"" of the files entry "files/deep/" reads "base.level", which the feature cannot read: it can read api-auth.method, api-auth.scope, debug, starter.go-version, starter.module, store, tokens.ttl`,
+				`the feature cli-auth: the when "starter.region == \"eu\"" of the files entry "files/starter/" reads "starter.region", which the starter service does not declare`,
+			}, mistakes)
+		})
+
+		t.Run("a starter option that a target does not declare is one mistake of the feature, which names each target that does not declare it and no other starter, and a feature with no target in the catalog can read no starter option", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"cli":    "targets: [cron, ghost, service, worker]\nfiles:\n  - path: files/\n    when: 'starter.region == \"eu\" || starter.module == \"x\" || starter.go-version == \"1.25\"'\n",
+				"orphan": "targets: [ghost]\nfiles:\n  - path: files/\n    when: 'starter.module == \"x\"'\n",
+			})
+			for starterName, options := range map[string]string{
+				"api":     "  module:\n    default: example.com/api\n  region:\n    default: us\n",
+				"cron":    "  go-version:\n    default: \"1.25\"\n",
+				"service": "  go-version:\n    default: \"1.25\"\n  module:\n    default: example.com/service\n  region:\n    default: us\n",
+				"worker":  "  go-version:\n    default: \"1.25\"\n  module:\n    default: example.com/worker\n",
+			} {
+				files["starters/"+starterName+"/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\noptions:\n" + options)}
+				files["starters/"+starterName+"/files/go/main.go"] = &fstest.MapFile{Data: []byte("package main\n")}
+			}
+			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte("package cli\n")}
+			files["features/orphan/files/go/orphan.go"] = &fstest.MapFile{Data: []byte("package orphan\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the feature cli: the when "starter.region == \"eu\" || starter.module == \"x\" || starter.go-version == \"1.25\"" of the files entry "files/" reads "starter.region", which the starters cron, worker do not declare`,
+				`the feature cli: the when "starter.region == \"eu\" || starter.module == \"x\" || starter.go-version == \"1.25\"" of the files entry "files/" reads "starter.module", which the starter cron does not declare`,
+				`the feature orphan: the when "starter.module == \"x\"" of the files entry "files/" reads "starter.module", which the feature cannot read: it can read no option`,
+			}, mistakes)
+		})
+
+		t.Run("each reference of a when is checked one time, also for a files entry with two templates: on both sides of && and ||, under !, in parentheses, in a comparison and as a bare name", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"cli": "targets: [service]\nfiles:\n  - path: files/\n    when: '!(a && b == \"x\") || c != \"y\" || a'\n",
+			})
+			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte("package cli\n")}
+			files["features/cli/files/go/flags.go"] = &fstest.MapFile{Data: []byte("package cli\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the feature cli: the when "!(a && b == \"x\") || c != \"y\" || a" of the files entry "files/" reads "a", which the feature cannot read: it can read no option`,
+				`the feature cli: the when "!(a && b == \"x\") || c != \"y\" || a" of the files entry "files/" reads "b", which the feature cannot read: it can read no option`,
+				`the feature cli: the when "!(a && b == \"x\") || c != \"y\" || a" of the files entry "files/" reads "c", which the feature cannot read: it can read no option`,
+			}, mistakes)
+		})
+
+		t.Run("the mistakes of the reads of a feature come after its whens that do not parse, and two files entries with one when give one mistake each", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth": "targets: [service]\nfiles:\n  - path: files/first/\n    when: mode\n  - path: files/broken/\n    when: 'mode =='\n  - path: files/second/\n    when: mode\n",
+			})
+			for _, entry := range []string{"first", "broken", "second"} {
+				files["features/auth/files/"+entry+"/go/"+entry+".go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+			}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the feature auth: the when "mode ==" of the files entry "files/broken/": mode == needs a quoted value after it`,
+				`the feature auth: the when "mode" of the files entry "files/first/" reads "mode", which the feature cannot read: it can read no option`,
+				`the feature auth: the when "mode" of the files entry "files/second/" reads "mode", which the feature cannot read: it can read no option`,
+			}, mistakes)
+		})
+
 		t.Run("the catalog of this repo has no mistake", func(t *testing.T) {
 			mistakes, err := repoCatalog().Check()
 
 			require.NoError(t, err)
 			require.Empty(t, mistakes)
+		})
+
+		t.Run("two files entries of a feature with one path stop the check and the read of the starter, and the message names the feature.yml and the path", func(t *testing.T) {
+			files := withFeatures(map[string]string{"auth": "targets: [service]\nfiles:\n  - path: files/\n    when: a\n  - path: files\n    when: b\n"})
+			files["features/auth/files/go/auth.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+
+			_, checkErr := catalog.New(files).Check()
+			_, starterErr := catalog.New(files).Starter("service")
+
+			for _, err := range []error{checkErr, starterErr} {
+				require.EqualError(t, err, `read features/auth/feature.yml: files names the path "files" two times`)
+			}
 		})
 
 		t.Run("a starter.yml that is not valid YAML stops the check, and the message names the file", func(t *testing.T) {

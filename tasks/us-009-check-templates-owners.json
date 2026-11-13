@@ -38,7 +38,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Find a `when` that reads an option that rule 5 does not allow",
       "language": "Go",
       "testable": true,

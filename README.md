@@ -140,7 +140,7 @@ After the form, it also prints the command that makes the same repo again.
 | Feature | Targets | What it adds |
 | --- | --- | --- |
 | `cli` | `go`, `go-event-sourcing-service` | A command line program with releases from GoReleaser, and a command that updates it |
-| `api-auth` | `go-event-sourcing-service` | A check of an API key or of an OAuth access token on each protected route of the API |
+| `api-auth` | `chi-api`, `go-event-sourcing-service` | A check of an API key or of an OAuth access token on each protected route of the API |
 | `cli-auth` | `go-event-sourcing-service` | The credential in each request of the CLI, in the method of `api-auth`: the API key, which `store-key` keeps in the OS credential store, or the access token of a login at the issuer. It needs `cli` and `api-auth` |
 | `process-manager` | `go-event-sourcing-service` | The example of a process manager, a payment to another bank, with fakes of its outside systems |
 

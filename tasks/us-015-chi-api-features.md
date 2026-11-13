@@ -400,28 +400,28 @@ files entries as they are. `feature-compose new chi-api my-api --feature api-aut
 has one text for every target, which names only what the repo of each target has (open question 1).
 
 **Acceptance Criteria:**
-- [ ] `catalog/starters/chi-api/starter.yml` declares `api.middleware` with the item `[code, import]` in
+- [x] `catalog/starters/chi-api/starter.yml` declares `api.middleware` with the item `[code, import]` in
   `go/internal/server/server.go`, and `api.config` with the item `[name, type, import]` in
   `go/internal/config/config.go`, each with a summary that names what the item can use.
-- [ ] The `targets` of `catalog/features/api-auth/feature.yml` name `chi-api` and `go-event-sourcing-service`, and
+- [x] The `targets` of `catalog/features/api-auth/feature.yml` name `chi-api` and `go-event-sourcing-service`, and
   its options, files entries and `add_to` do not change.
-- [ ] With a feature of a test catalog that targets `chi-api` and adds two items to `api.middleware` and one to
+- [x] With a feature of a test catalog that targets `chi-api` and adds two items to `api.middleware` and one to
   `api.config`, the server of the written repo gives the two items in their order to the protected routes and
   imports their package one time, and the config has the field and imports its package one time. With no item, the
   server gives no middleware to the protected routes, the config has only its own fields, and no written file holds
   the name of an extension point.
-- [ ] A test of the group `embedded` takes the targets of `api-auth` from its `feature.yml`. For each target and each
+- [x] A test of the group `embedded` takes the targets of `api-auth` from its `feature.yml`. For each target and each
   method, `api-auth` adds the files of the method, and of the files of the target it changes only the file of each
   extension point that it adds items to. For each two targets and each method, the files that `api-auth` adds have
   the same paths and the same contents.
-- [ ] For each target of `api-auth` and each method, `docs/api-auth.md` names the settings of the method,
+- [x] For each target of `api-auth` and each method, `docs/api-auth.md` names the settings of the method,
   `Authorization: Bearer`, the answers 401 with `WWW-Authenticate: Bearer`, `` `GET /api/` is public ``, the JSON body
   of the refusal, and how to start the API on this machine with the settings through `task api:run`. Each file and
   each folder that it names in backticks is in the repo of that target, and each `task <name>` that it names is a
   task of that repo.
-- [ ] The test of `TestCatalog` that reads the routes of the API reads a `chi-api` repo with `api-auth` of each
+- [x] The test of `TestCatalog` that reads the routes of the API reads a `chi-api` repo with `api-auth` of each
   method: its docs name each route under `/api`, and do not name `GET /` alone.
-- [ ] `e2e/tests/new.test.ts`: `feature-compose new chi-api my-api --feature api-auth --no-prompt` exits with 0. In
+- [x] `e2e/tests/new.test.ts`: `feature-compose new chi-api my-api --feature api-auth --no-prompt` exits with 0. In
   `./my-api`, `gofmt -l .` lists no file, `go build ./...` exits with 0, and `task test:unit` exits with 0 and its
   lines that start with `✓` name `internal/auth` and `internal/use_cases/user`. The test starts the API with
   `API_KEY_HASHES` of a key of the test. `GET /api/` gets 200 with no key. `POST /api/users` gets 401 with
@@ -429,15 +429,15 @@ has one text for every target, which names only what the repo of each target has
   handler with the key. The body of the 401 is JSON with the keys of the body of the 400, `successful` false, and a
   message that tells the client to sign in. `go.mod` of the repo is the `go.mod` of a `chi-api` repo without
   `api-auth`.
-- [ ] `e2e/tests/new.test.ts`: with `--feature api-auth:method=oauth`, the API that the test starts with the test
+- [x] `e2e/tests/new.test.ts`: with `--feature api-auth:method=oauth`, the API that the test starts with the test
   issuer and the audience `my-api` answers `POST /api/users` with 401 with no token and with a token for another
   audience, and with the answer 400 of the handler with a token for `my-api`.
-- [ ] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass. `task test:combinations`
+- [x] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass. `task test:combinations`
   passes, and its output names `chi-api --feature api-auth` and `chi-api --feature api-auth:method=oauth`.
-- [ ] The e2e tests of `show` pass, and the two tests that read the whole tree see its last line.
-- [ ] `README.md` of this repo gives `chi-api` and `go-event-sourcing-service` as the targets of `api-auth`.
+- [x] The e2e tests of `show` pass, and the two tests that read the whole tree see its last line.
+- [x] `README.md` of this repo gives `chi-api` and `go-event-sourcing-service` as the targets of `api-auth`.
   `docs/e2e-tests.md` tells the two full runs of `chi-api` with `api-auth`.
-- [ ] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass, and
+- [x] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass, and
   the e2e tests of `new`, `show` and `check` pass on the host.
 
 **Affected Files/Modules:**

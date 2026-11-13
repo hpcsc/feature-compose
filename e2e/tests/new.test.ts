@@ -326,6 +326,81 @@ describe('feature-compose new', () => {
   )
 
   it(
+    'makes a repo from chi-api with api-auth that passes its unit tests, whose go.mod is the go.mod of chi-api alone, and whose API answers 401 to a request to a protected route without a known key',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+      const key = 'the-key-of-the-e2e-test'
+
+      const made = await runCli(dir, ['new', 'chi-api', 'my-api', '--feature', 'api-auth', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      const repo = join(dir, 'my-api')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      const build = await runProgram(repo, 'go', ['build', './...'], env)
+      expect(build.status, build.stdout + build.stderr).toBe(0)
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      expect(passedPackages(unit.stdout)).toEqual(expect.arrayContaining(['internal/auth', 'internal/use_cases', 'internal/use_cases/user']))
+      const api = await startedApi(repo, { ...env, API_KEY_HASHES: createHash('sha256').update(key).digest('hex') })
+      expect((await fetch(`${api}/`)).status).toBe(200)
+      for (const authorization of [undefined, 'Bearer an-unknown-key']) {
+        const refused = await createUser(api, authorization)
+        const label = authorization ?? 'no Authorization header'
+        expect(refused.status, label).toBe(401)
+        expect(refused.headers.get('www-authenticate'), label).toBe('Bearer')
+      }
+      expect(await answersOf(await createUser(api), await createUser(api, `Bearer ${key}`))).toMatchObject({
+        refused: { status: 401, contentType: 'application/json', keys: ['messages', 'successful'], successful: false, messages: [expect.stringContaining('sign in')] },
+        rejectedByTheHandler: { status: 400, keys: ['messages', 'successful'], successful: false },
+      })
+      const withoutApiAuth = scratchDir()
+      const plain = await runCli(withoutApiAuth, ['new', 'chi-api', 'my-api', '--no-prompt'], { MISE_TRUSTED_CONFIG_PATHS: realpathSync(withoutApiAuth) })
+      expect(plain.status, plain.stdout + plain.stderr).toBe(0)
+      expect(readFileSync(join(repo, 'go.mod'), 'utf8')).toBe(readFileSync(join(withoutApiAuth, 'my-api', 'go.mod'), 'utf8'))
+    },
+    15 * 60 * 1000,
+  )
+
+  it(
+    'makes a repo from chi-api with api-auth:method=oauth that passes its unit tests, and whose API accepts only an access token of its issuer for its audience',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'chi-api', 'my-api', '--feature', 'api-auth:method=oauth', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      const repo = join(dir, 'my-api')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      const build = await runProgram(repo, 'go', ['build', './...'], env)
+      expect(build.status, build.stdout + build.stderr).toBe(0)
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      expect(passedPackages(unit.stdout)).toEqual(expect.arrayContaining(['internal/auth', 'internal/use_cases']))
+      const issuer = await startedTestIssuer()
+      const api = await startedApi(repo, { ...env, OAUTH_ISSUER_URL: issuer.url, OAUTH_AUDIENCE: 'my-api' })
+      expect((await fetch(`${api}/`)).status).toBe(200)
+      for (const [label, authorization] of [
+        ['no Authorization header', undefined],
+        ['a token for another audience', `Bearer ${issuer.token({ aud: 'another-api' })}`],
+      ] as Array<[string, string | undefined]>) {
+        const refused = await createUser(api, authorization)
+        expect(refused.status, label).toBe(401)
+        expect(refused.headers.get('www-authenticate'), label).toBe('Bearer')
+      }
+      const token = issuer.token({ aud: 'my-api' })
+      expect(await answersOf(await createUser(api), await createUser(api, `Bearer ${token}`))).toMatchObject({
+        refused: { status: 401, contentType: 'application/json', keys: ['messages', 'successful'], successful: false, messages: [expect.stringContaining('sign in')] },
+        rejectedByTheHandler: { status: 400, keys: ['messages', 'successful'], successful: false },
+      })
+    },
+    15 * 60 * 1000,
+  )
+
+  it(
     'makes a repo with process-manager that builds, passes its unit tests, has the tasks of task run, serves the payment and webhook routes, and whose fakes call the webhook of a request',
     async () => {
       const dir = scratchDir()
@@ -1325,11 +1400,15 @@ function createUser(api: string, authorization?: string): Promise<Response> {
 }
 
 async function errorAnswersOf(api: string, acceptedAuthorization: string) {
+  return answersOf(await openAccount(api), await openAccount(api, acceptedAuthorization))
+}
+
+async function answersOf(refused: Response, rejectedByTheHandler: Response) {
   const answerOf = async (response: Response) => {
     const body = (await response.json()) as Record<string, unknown>
     return { status: response.status, contentType: response.headers.get('content-type'), keys: Object.keys(body).sort(), successful: body.successful, messages: body.messages }
   }
-  return { refused: await answerOf(await openAccount(api)), rejectedByTheHandler: await answerOf(await openAccount(api, acceptedAuthorization)) }
+  return { refused: await answerOf(refused), rejectedByTheHandler: await answerOf(rejectedByTheHandler) }
 }
 
 async function allowedOriginsOf(api: string, origins: string[]): Promise<Record<string, string | null>> {

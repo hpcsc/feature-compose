@@ -4,10 +4,16 @@ import (
 	"fmt"
 
 	"github.com/caarlos0/env/v6"
+{{- range unique "import" "api.config" }}
+	"{{ option "starter.module" }}/{{ . }}"
+{{- end }}
 )
 
 type Config struct {
 	Port string `env:"PORT" envDefault:"3333"`
+{{- range items "api.config" }}
+	{{ .name }} {{ .type }}
+{{- end }}
 }
 
 func Load() (*Config, error) {

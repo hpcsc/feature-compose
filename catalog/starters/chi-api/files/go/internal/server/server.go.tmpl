@@ -14,6 +14,9 @@ import (
 	apiMiddleware "{{ option "starter.module" }}/internal/middleware"
 	"{{ option "starter.module" }}/internal/middleware/request"
 	"{{ option "starter.module" }}/internal/use_cases"
+{{- range unique "import" "api.middleware" }}
+	"{{ option "starter.module" }}/{{ . }}"
+{{- end }}
 )
 
 func New(cfg *config.Config, logger *slog.Logger) *Server {
@@ -21,22 +24,30 @@ func New(cfg *config.Config, logger *slog.Logger) *Server {
 		cfg: cfg,
 		httpServer: &http.Server{
 			Addr:    fmt.Sprintf(":%s", cfg.Port),
-			Handler: newHandler(logger),
+			Handler: newHandler(cfg, logger),
 		},
 		logger: logger,
 	}
 }
 
-func newHandler(logger *slog.Logger) http.Handler {
+func newHandler(cfg *config.Config, logger *slog.Logger) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(apiMiddleware.RequestLogger(logger, request.NewRealClock(), nil))
 
 	r.Use(middleware.Recoverer)
 
-	use_cases.Register(r, nil, logger)
+	use_cases.Register(r, protectedMiddleware(cfg), logger)
 
 	return r
+}
+
+func protectedMiddleware(cfg *config.Config) []func(http.Handler) http.Handler {
+	return []func(http.Handler) http.Handler{
+{{- range items "api.middleware" }}
+		{{ .code }},
+{{- end }}
+	}
 }
 
 type Server struct {

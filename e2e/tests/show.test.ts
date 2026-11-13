@@ -75,7 +75,7 @@ describe('feature-compose show in a terminal', () => {
     await session.waitForText('▾ go-event-sourcing-service', { timeout: 15_000 })
     await session.press('h')
     await session.waitForText('▸ go-event-sourcing-service')
-    expect(await session.text()).not.toContain('api-auth')
+    expect(await session.text()).not.toContain('process-manager')
     await session.press('l')
     await session.waitForText('└─ ▾ extension points')
     await session.press('q')

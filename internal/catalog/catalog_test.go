@@ -2026,6 +2026,57 @@ files:
 			require.Contains(t, files["internal/use_cases/register.go"], "\tclose_account.Register(bus, accounts)\n}")
 		})
 
+		targetsOf := func(t *testing.T, featureName string) []string {
+			t.Helper()
+			definitions, err := repoCatalog().Definitions()
+			require.NoError(t, err)
+			return definitions.Features[featureName].Targets
+		}
+
+		writtenTarget := func(t *testing.T, starterName string, given map[string]string, features map[string]map[string]string) map[string]string {
+			t.Helper()
+			starter, err := repoCatalog().Starter(starterName)
+			require.NoError(t, err)
+			selection, err := starter.Select("my-tool", given, features, catalog.Answers{})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-tool")
+			require.NoError(t, selection.Write(output))
+			return filesIn(t, output)
+		}
+
+		extensionPointFilesOf := func(t *testing.T, featureName string, starterName string) []string {
+			t.Helper()
+			definitions, err := repoCatalog().Definitions()
+			require.NoError(t, err)
+			var files []string
+			for name := range definitions.Features[featureName].AddTo {
+				files = append(files, strings.TrimPrefix(definitions.Starters[starterName].ExtensionPoints[name].File, "go/"))
+			}
+			return slices.Compact(slices.Sorted(slices.Values(files)))
+		}
+
+		changesBy := func(t *testing.T, starterName string, given map[string]string, features map[string]map[string]string) (added map[string]string, changed []string, removed []string) {
+			t.Helper()
+			without := writtenTarget(t, starterName, given, nil)
+			with := writtenTarget(t, starterName, given, features)
+			added = map[string]string{}
+			for path, contents := range with {
+				before, ok := without[path]
+				switch {
+				case !ok:
+					added[path] = contents
+				case before != contents:
+					changed = append(changed, path)
+				}
+			}
+			for path := range without {
+				if _, ok := with[path]; !ok {
+					removed = append(removed, path)
+				}
+			}
+			return added, changed, removed
+		}
+
 		writtenWithAPIAuth := func(t *testing.T, given map[string]string, apiAuthValues map[string]string) map[string]string {
 			t.Helper()
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
@@ -2048,25 +2099,28 @@ files:
 				"internal/auth/middleware_test.go", "internal/auth/test_issuer_test.go", "docs/api-auth.md",
 			},
 		} {
-			t.Run("with the method "+method+", api-auth adds the files of the method, and each file of the starter stays as without it except the server and the config of the API", func(t *testing.T) {
-				_, withoutAPIAuth := writtenStarter(t, nil)
+			t.Run("with the method "+method+", api-auth adds the files of the method to each of its targets, chi-api among them, and of the files of the target it changes only the file of each extension point that it adds items to", func(t *testing.T) {
+				targets := targetsOf(t, "api-auth")
 
-				withAPIAuth := writtenWithAPIAuth(t, nil, map[string]string{"method": method})
+				require.Contains(t, targets, "chi-api")
+				for _, starterName := range targets {
+					added, changed, removed := changesBy(t, starterName, nil, map[string]map[string]string{"api-auth": {"method": method}})
 
-				added := map[string]string{}
-				var changed []string
-				for path, contents := range withAPIAuth {
-					before, ok := withoutAPIAuth[path]
-					switch {
-					case !ok:
-						added[path] = contents
-					case before != contents:
-						changed = append(changed, path)
-					}
+					require.ElementsMatch(t, files, slices.Collect(maps.Keys(added)), starterName)
+					require.ElementsMatch(t, extensionPointFilesOf(t, "api-auth", starterName), changed, starterName)
+					require.Empty(t, removed, starterName)
 				}
-				require.ElementsMatch(t, files, slices.Collect(maps.Keys(added)))
-				require.ElementsMatch(t, []string{"internal/api/server/server.go", "internal/api/config.go"}, changed)
-				require.Len(t, withAPIAuth, len(withoutAPIAuth)+len(added))
+			})
+
+			t.Run("with the method "+method+", api-auth adds the same files with the same contents to each two of its targets", func(t *testing.T) {
+				targets := targetsOf(t, "api-auth")
+				require.GreaterOrEqual(t, len(targets), 2)
+				first, _, _ := changesBy(t, targets[0], nil, map[string]map[string]string{"api-auth": {"method": method}})
+
+				for _, starterName := range targets[1:] {
+					added, _, _ := changesBy(t, starterName, nil, map[string]map[string]string{"api-auth": {"method": method}})
+					require.Equal(t, first, added, targets[0]+" and "+starterName)
+				}
 			})
 		}
 
@@ -2208,39 +2262,52 @@ files:
 			})
 		}
 
-		t.Run("the docs of api-auth name the setting of the key hashes and the answers of the API, and only files that the repo has", func(t *testing.T) {
-			files := writtenWithAPIAuth(t, nil, nil)
-			docs := files["docs/api-auth.md"]
-
-			for _, part := range []string{
-				"API_KEY_HASHES", "Authorization: Bearer", "401", "WWW-Authenticate: Bearer", "403",
-				"`GET /api/` is public", "curl -X POST http://localhost:3333/api/accounts",
-				`{"successful": false, "messages": ["sign in to continue"]}`,
-				"With the method `api-key`", "API_KEY_HASHES=<hash of your key> task api:run",
-				"`Taskfile.api.yml`", "`README.md`", "`docker-compose.local.yml`",
-			} {
-				require.Contains(t, docs, part)
-			}
+		docsNameOnlyWhatTheRepoHas := func(t *testing.T, docs string, files map[string]string, starterName string) {
+			t.Helper()
 			for _, path := range regexp.MustCompile("`([A-Za-z0-9_./-]+\\.(?:ya?ml|go|md|local))`").FindAllStringSubmatch(docs, -1) {
-				require.Contains(t, files, path[1])
+				require.Contains(t, files, path[1], starterName)
+			}
+			namedPathsAreIn(t, docs, files)
+			var named []string
+			for _, match := range regexp.MustCompile(`\btask ([a-z0-9:_-]+)`).FindAllStringSubmatch(docs, -1) {
+				named = append(named, match[1])
+			}
+			require.Contains(t, named, "api:run", starterName)
+			require.Subset(t, tasksOf(t, files), named, starterName)
+		}
+
+		t.Run("for each target of api-auth, the docs of the method api-key name the setting of the key hashes, the run of the API with it, a request under /api and the answers of the API, and only paths and tasks that the repo has", func(t *testing.T) {
+			for _, starterName := range targetsOf(t, "api-auth") {
+				files := writtenTarget(t, starterName, nil, map[string]map[string]string{"api-auth": nil})
+				docs := files["docs/api-auth.md"]
+
+				for _, part := range []string{
+					"API_KEY_HASHES", "Authorization: Bearer", "401", "WWW-Authenticate: Bearer", "403",
+					"`GET /api/` is public", "curl http://localhost:3333/api/<route>",
+					`{"successful": false, "messages": ["sign in to continue"]}`,
+					"With the method `api-key`", "API_KEY_HASHES=<hash of your key> task api:run", "`README.md`",
+				} {
+					require.Contains(t, docs, part, starterName)
+				}
+				docsNameOnlyWhatTheRepoHas(t, docs, files, starterName)
 			}
 		})
 
-		t.Run("the docs of oauth name the issuer, the two settings, the allowlist and the checks, how a client sends the token, and the answers of the API, and only files that the repo has", func(t *testing.T) {
-			files := writtenWithAPIAuth(t, nil, map[string]string{"method": "oauth"})
-			docs := files["docs/api-auth.md"]
+		t.Run("for each target of api-auth, the docs of the method oauth name the issuer, the two settings, the run of the API with them, the allowlist and the checks, a request under /api, and the answers of the API, and only paths and tasks that the repo has", func(t *testing.T) {
+			for _, starterName := range targetsOf(t, "api-auth") {
+				files := writtenTarget(t, starterName, nil, map[string]map[string]string{"api-auth": {"method": "oauth"}})
+				docs := files["docs/api-auth.md"]
 
-			for _, part := range []string{
-				"JWT access tokens", "/.well-known/openid-configuration", "Google gives no JWT access token for your own API",
-				"`GET /api/` is public", "curl -X POST http://localhost:3333/api/accounts",
-				"OAUTH_ISSUER_URL", "OAUTH_AUDIENCE", "OAUTH_ISSUER_URL=<url> OAUTH_AUDIENCE=<audience> task api:run", "the repo needs no new render",
-				"`RS256`", "`iss`", "`aud`", "`exp`", "Authorization: Bearer", "401", "WWW-Authenticate: Bearer", "403", "With the method `oauth`",
-				`{"successful": false, "messages": ["sign in to continue"]}`,
-			} {
-				require.Contains(t, docs, part)
-			}
-			for _, path := range regexp.MustCompile("`([A-Za-z0-9_./-]+\\.(?:ya?ml|go|md|local))`").FindAllStringSubmatch(docs, -1) {
-				require.Contains(t, files, path[1])
+				for _, part := range []string{
+					"JWT access tokens", "/.well-known/openid-configuration", "Google gives no JWT access token for your own API",
+					"`GET /api/` is public", "curl http://localhost:3333/api/<route>",
+					"OAUTH_ISSUER_URL", "OAUTH_AUDIENCE", "OAUTH_ISSUER_URL=<url> OAUTH_AUDIENCE=<audience> task api:run", "the repo needs no new render",
+					"`RS256`", "`iss`", "`aud`", "`exp`", "Authorization: Bearer", "401", "WWW-Authenticate: Bearer", "403", "With the method `oauth`",
+					`{"successful": false, "messages": ["sign in to continue"]}`, "`internal/auth/middleware.go`", "`README.md`",
+				} {
+					require.Contains(t, docs, part, starterName)
+				}
+				docsNameOnlyWhatTheRepoHas(t, docs, files, starterName)
 			}
 		})
 
@@ -2255,63 +2322,12 @@ files:
 			return output, filesIn(t, output)
 		}
 
-		targetsOfCLI := func(t *testing.T) []string {
-			t.Helper()
-			definitions, err := repoCatalog().Definitions()
-			require.NoError(t, err)
-			return definitions.Features["cli"].Targets
-		}
-
-		writtenTarget := func(t *testing.T, starterName string, given map[string]string, features map[string]map[string]string) map[string]string {
-			t.Helper()
-			starter, err := repoCatalog().Starter(starterName)
-			require.NoError(t, err)
-			selection, err := starter.Select("my-tool", given, features, catalog.Answers{})
-			require.NoError(t, err)
-			output := filepath.Join(t.TempDir(), "my-tool")
-			require.NoError(t, selection.Write(output))
-			return filesIn(t, output)
-		}
-
-		extensionPointFilesOfCLI := func(t *testing.T, starterName string) []string {
-			t.Helper()
-			definitions, err := repoCatalog().Definitions()
-			require.NoError(t, err)
-			var files []string
-			for name := range definitions.Features["cli"].AddTo {
-				files = append(files, strings.TrimPrefix(definitions.Starters[starterName].ExtensionPoints[name].File, "go/"))
-			}
-			return slices.Compact(slices.Sorted(slices.Values(files)))
-		}
-
-		changesByCLI := func(t *testing.T, starterName string, given map[string]string) (added map[string]string, changed []string, removed []string) {
-			t.Helper()
-			withoutCLI := writtenTarget(t, starterName, given, nil)
-			withCLI := writtenTarget(t, starterName, given, withoutValues("cli"))
-			added = map[string]string{}
-			for path, contents := range withCLI {
-				before, ok := withoutCLI[path]
-				switch {
-				case !ok:
-					added[path] = contents
-				case before != contents:
-					changed = append(changed, path)
-				}
-			}
-			for path := range withoutCLI {
-				if _, ok := withCLI[path]; !ok {
-					removed = append(removed, path)
-				}
-			}
-			return added, changed, removed
-		}
-
 		t.Run("cli adds each of its files at its path to each of its targets, go among them, and of the files of the target it changes only the file of each extension point that it adds items to", func(t *testing.T) {
-			targets := targetsOfCLI(t)
+			targets := targetsOf(t, "cli")
 
 			require.Contains(t, targets, "go")
 			for _, starterName := range targets {
-				added, changed, removed := changesByCLI(t, starterName, nil)
+				added, changed, removed := changesBy(t, starterName, nil, withoutValues("cli"))
 
 				require.ElementsMatch(t, []string{
 					".dockerignore", ".goreleaser.yaml", "scripts/install.sh", "Taskfile.cli.yml",
@@ -2325,7 +2341,7 @@ files:
 					"e2e/tests/cli.test.ts", "e2e/tests/update.test.ts",
 				}, slices.Collect(maps.Keys(added)), starterName)
 				require.Contains(t, changed, "Taskfile.yml", starterName)
-				require.ElementsMatch(t, extensionPointFilesOfCLI(t, starterName), changed, starterName)
+				require.ElementsMatch(t, extensionPointFilesOf(t, "cli", starterName), changed, starterName)
 				require.Empty(t, removed, starterName)
 			}
 		})
@@ -2335,12 +2351,12 @@ files:
 			"with given values for the module and Go version": {"module": "github.com/acme/ledger", "go-version": "1.28.0"},
 		} {
 			t.Run("cli adds the same files with the same contents to each two of its targets, "+name, func(t *testing.T) {
-				targets := targetsOfCLI(t)
+				targets := targetsOf(t, "cli")
 				require.GreaterOrEqual(t, len(targets), 2)
-				first, _, _ := changesByCLI(t, targets[0], given)
+				first, _, _ := changesBy(t, targets[0], given, withoutValues("cli"))
 
 				for _, starterName := range targets[1:] {
-					added, _, _ := changesByCLI(t, starterName, given)
+					added, _, _ := changesBy(t, starterName, given, withoutValues("cli"))
 					require.Equal(t, first, added, targets[0]+" and "+starterName)
 				}
 			})
@@ -2760,6 +2776,8 @@ files:
 				"cli-auth with the method oauth":   {writtenWithCLIAuthVariant(t, "oauth"), "/accounts"},
 				"process-manager":                  {writtenWithProcessManager(t), "/accounts"},
 				"chi-api alone":                    {writtenTarget(t, "chi-api", nil, nil), "/users"},
+				"chi-api with api-auth of api-key": {writtenTarget(t, "chi-api", nil, map[string]map[string]string{"api-auth": {"method": "api-key"}}), "/users"},
+				"chi-api with api-auth of oauth":   {writtenTarget(t, "chi-api", nil, map[string]map[string]string{"api-auth": {"method": "oauth"}}), "/users"},
 			} {
 				files := written.files
 				var routes []string
@@ -2822,7 +2840,7 @@ files:
 		})
 
 		t.Run("the docs of cli name the tasks build, cli, release:local, test:e2e and test:e2e:local, and only tasks and paths that the repo of each target of cli has", func(t *testing.T) {
-			for _, starterName := range targetsOfCLI(t) {
+			for _, starterName := range targetsOf(t, "cli") {
 				files := writtenTarget(t, starterName, nil, withoutValues("cli"))
 				tasks := tasksOf(t, files)
 				filesAfterNpmInstall := maps.Clone(files)
@@ -2844,7 +2862,7 @@ files:
 		})
 
 		t.Run("with cli, each target has the tasks of Taskfile.cli.yml beside test:unit, build, cli, release:local, test:e2e and test:e2e:local among them, and without cli it has none of them", func(t *testing.T) {
-			for _, starterName := range targetsOfCLI(t) {
+			for _, starterName := range targetsOf(t, "cli") {
 				filesWithCLI := writtenTarget(t, starterName, nil, withoutValues("cli"))
 				tasksWithoutCLI := tasksOf(t, writtenTarget(t, starterName, nil, nil))
 
@@ -2859,7 +2877,7 @@ files:
 		})
 
 		t.Run("with cli, mise.toml of each target has the tools of the starter at their versions, GoReleaser 2.18.2 and Node 26.10.0, and without cli it has neither of the two", func(t *testing.T) {
-			for _, starterName := range targetsOfCLI(t) {
+			for _, starterName := range targetsOf(t, "cli") {
 				withoutCLI := toolsOf(t, writtenTarget(t, starterName, nil, nil)["mise.toml"])
 				withCLI := toolsOf(t, writtenTarget(t, starterName, nil, withoutValues("cli"))["mise.toml"])
 
@@ -2874,7 +2892,7 @@ files:
 		})
 
 		t.Run("with cli, .gitignore of each target has dist/ and e2e/node_modules/ after the lines of the starter, and without cli it has neither", func(t *testing.T) {
-			for _, starterName := range targetsOfCLI(t) {
+			for _, starterName := range targetsOf(t, "cli") {
 				withoutCLI := writtenTarget(t, starterName, nil, nil)[".gitignore"]
 				withCLI := writtenTarget(t, starterName, nil, withoutValues("cli"))[".gitignore"]
 
@@ -2898,7 +2916,7 @@ files:
 		})
 
 		t.Run("with cli, go.mod of each target requires a version of each module that a Go file of the repo imports, other than the standard library and the module of the repo", func(t *testing.T) {
-			for _, starterName := range targetsOfCLI(t) {
+			for _, starterName := range targetsOf(t, "cli") {
 				files := writtenTarget(t, starterName, nil, withoutValues("cli"))
 				required := slices.Collect(maps.Keys(requiredModulesOf(t, files["go.mod"])))
 
@@ -2950,7 +2968,7 @@ files:
 		})
 
 		t.Run("with cli, ci.yml of each target keeps the triggers, the permissions and the jobs of the starter, and has the job e2e, which runs task test:e2e", func(t *testing.T) {
-			for _, starterName := range targetsOfCLI(t) {
+			for _, starterName := range targetsOf(t, "cli") {
 				withoutCLI := parsedYAML(t, writtenTarget(t, starterName, nil, nil)[".github/workflows/ci.yml"])
 				withCLI := parsedYAML(t, writtenTarget(t, starterName, nil, withoutValues("cli"))[".github/workflows/ci.yml"])
 
@@ -2970,7 +2988,7 @@ files:
 		})
 
 		t.Run("the jobs that cli adds to ci.yml of each target keep the template syntax of GitHub Actions", func(t *testing.T) {
-			for _, starterName := range targetsOfCLI(t) {
+			for _, starterName := range targetsOf(t, "cli") {
 				workflow := writtenTarget(t, starterName, nil, withoutValues("cli"))[".github/workflows/ci.yml"]
 
 				require.Contains(t, workflow, "repo-token: ${{ secrets.GITHUB_TOKEN }}", starterName)
@@ -2984,7 +3002,7 @@ files:
 		}
 
 		t.Run("with cli, ci.yml of each target runs on each push, tags among them, and publishes a release only for a tag that starts with v and a prerelease only for main, each after the jobs test and e2e", func(t *testing.T) {
-			for _, starterName := range targetsOfCLI(t) {
+			for _, starterName := range targetsOf(t, "cli") {
 				workflow := parsedYAML(t, writtenTarget(t, starterName, nil, withoutValues("cli"))[".github/workflows/ci.yml"])
 				jobs := workflow["jobs"].(map[string]any)
 
@@ -3000,7 +3018,7 @@ files:
 		})
 
 		t.Run("with cli, each needs of each job of ci.yml of each target names a job of the workflow", func(t *testing.T) {
-			for _, starterName := range targetsOfCLI(t) {
+			for _, starterName := range targetsOf(t, "cli") {
 				jobs := ciJobsWithCLI(t, starterName)
 
 				var needed []any
@@ -3020,7 +3038,7 @@ files:
 		})
 
 		t.Run("with cli, only the jobs release and prerelease of ci.yml of each target can write the contents of the repo", func(t *testing.T) {
-			for _, starterName := range targetsOfCLI(t) {
+			for _, starterName := range targetsOf(t, "cli") {
 				workflow := parsedYAML(t, writtenTarget(t, starterName, nil, withoutValues("cli"))[".github/workflows/ci.yml"])
 				jobs := workflow["jobs"].(map[string]any)
 
@@ -3056,7 +3074,7 @@ files:
 			require.NotEmpty(t, releaseSteps)
 			require.NotEmpty(t, prereleaseSteps)
 
-			for _, starterName := range targetsOfCLI(t) {
+			for _, starterName := range targetsOf(t, "cli") {
 				jobs := ciJobsWithCLI(t, starterName)
 
 				require.Equal(t, releaseSteps, jobs["release"].(map[string]any)["steps"], starterName)
@@ -3408,6 +3426,89 @@ files:
 				}
 			}
 		})
+
+		writtenChiAPIWithGuard := func(t *testing.T) map[string]string {
+			t.Helper()
+			files := catalogOnDisk(t)
+			files["features/guard/feature.yml"] = &fstest.MapFile{Data: []byte(`summary: Guard.
+targets: [chi-api]
+add_to:
+  api.middleware:
+    - code: guard.Middleware(cfg.Guard)
+      import: internal/guard
+    - code: guard.Audit(cfg.Guard)
+      import: internal/guard
+  api.config:
+    - name: Guard
+      type: guard.Config
+      import: internal/guard
+`)}
+			starter, err := catalog.New(files).Starter("chi-api")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-api", nil, withoutValues("guard"), catalog.Answers{})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-api")
+			require.NoError(t, selection.Write(output))
+			return filesIn(t, output)
+		}
+
+		t.Run("the server of chi-api gives the items of api.middleware, in their order, to the protected routes, and imports their package one time", func(t *testing.T) {
+			files := writtenChiAPIWithGuard(t)
+
+			require.Contains(t, files["internal/server/server.go"], "\tuse_cases.Register(r, protectedMiddleware(cfg), logger)\n")
+			require.Contains(t, files["internal/server/server.go"], "return []func(http.Handler) http.Handler{\n\t\tguard.Middleware(cfg.Guard),\n\t\tguard.Audit(cfg.Guard),\n\t}")
+			require.Equal(t, 1, strings.Count(files["internal/server/server.go"], `"github.com/hpcsc/my-api/internal/guard"`))
+		})
+
+		t.Run("the config of chi-api has a field for each item of api.config, and imports its package one time", func(t *testing.T) {
+			files := writtenChiAPIWithGuard(t)
+
+			require.Contains(t, files["internal/config/config.go"], "\tGuard guard.Config\n}")
+			require.Equal(t, 1, strings.Count(files["internal/config/config.go"], `"github.com/hpcsc/my-api/internal/guard"`))
+		})
+
+		t.Run("with no item, the server of chi-api gives no middleware to the protected routes, and the config has only its own fields", func(t *testing.T) {
+			_, files := writtenChiAPI(t, nil)
+
+			require.Contains(t, files["internal/server/server.go"], "return []func(http.Handler) http.Handler{\n\t}")
+			require.Contains(t, files["internal/server/server.go"], "\t\"github.com/hpcsc/my-api/internal/use_cases\"\n)")
+			require.Contains(t, files["internal/config/config.go"], "import (\n\t\"fmt\"\n\n\t\"github.com/caarlos0/env/v6\"\n)\n")
+			require.Contains(t, files["internal/config/config.go"], "type Config struct {\n\tPort string `env:\"PORT\" envDefault:\"3333\"`\n}")
+		})
+
+		t.Run("no written file of chi-api holds the name of an extension point of the starter, with or without items", func(t *testing.T) {
+			definitions, err := repoCatalog().Definitions()
+			require.NoError(t, err)
+			extensionPoints := slices.Sorted(maps.Keys(definitions.Starters["chi-api"].ExtensionPoints))
+			require.Subset(t, extensionPoints, []string{"api.middleware", "api.config"})
+			_, withoutItems := writtenChiAPI(t, nil)
+
+			for _, files := range []map[string]string{withoutItems, writtenChiAPIWithGuard(t)} {
+				for path, contents := range files {
+					for _, extensionPoint := range extensionPoints {
+						require.NotContains(t, contents, extensionPoint, path)
+					}
+				}
+			}
+		})
+
+		for _, method := range []string{"api-key", "oauth"} {
+			t.Run("with api-auth of the method "+method+", the server and the config of chi-api hold the items of api-auth and import internal/auth one time", func(t *testing.T) {
+				starter, err := repoCatalog().Starter("chi-api")
+				require.NoError(t, err)
+				selection, err := starter.Select("my-api", nil, map[string]map[string]string{"api-auth": {"method": method}}, catalog.Answers{})
+				require.NoError(t, err)
+				output := filepath.Join(t.TempDir(), "my-api")
+				require.NoError(t, selection.Write(output))
+				files := filesIn(t, output)
+
+				require.Contains(t, files["internal/server/server.go"], "return []func(http.Handler) http.Handler{\n\t\tauth.Middleware(cfg.Auth),\n\t}")
+				require.Contains(t, files["internal/config/config.go"], "\tAuth auth.Config\n}")
+				for _, path := range []string{"internal/server/server.go", "internal/config/config.go"} {
+					require.Equal(t, 1, strings.Count(files[path], `"github.com/hpcsc/my-api/internal/auth"`), path)
+				}
+			})
+		}
 
 		t.Run("chi-api has the tasks of the API, the tests and the hook, and no task of cli", func(t *testing.T) {
 			_, files := writtenChiAPI(t, nil)

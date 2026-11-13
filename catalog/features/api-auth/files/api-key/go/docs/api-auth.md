@@ -32,31 +32,24 @@ To add or remove a key, change `API_KEY_HASHES` and restart the API. The code do
 
 ## Run the API on this machine
 
-`task run` in `README.md` starts the API with `task api:run`, which sets no `API_KEY_HASHES`. So that API
-refuses each request to a protected route. To start the API with your key hashes, stop the pane of
-`task api:run` and run it with the variable:
+`task api:run` starts the API on port 3333, and passes the variables of your shell to the API. Give it the
+hashes of your keys in the variable:
 
 ```shell
 API_KEY_HASHES=<hash of your key> task api:run
 ```
 
-`task api:run` passes the variables of your shell to the API.
-
-The requests in `Taskfile.api.yml`, such as `task api:open-account` in `README.md`, send no key, so the API
-answers them with 401. Send the key with curl, as the next section shows.
-
-`.env.local` and `docker-compose.local.yml` set no `API_KEY_HASHES` either. To run the `api` service of
-`docker-compose.local.yml` with your key hashes, add `API_KEY_HASHES` to its `environment`.
+With no `API_KEY_HASHES`, the API refuses each request to a protected route. Each other way to start the API
+that `README.md` tells, for example in Docker, also needs `API_KEY_HASHES` in the environment of the API.
 
 ## Send a request with a key
 
-A client sends the key in the `Authorization` header, with the scheme `Bearer`:
+A client sends the key in the `Authorization` header, with the scheme `Bearer`. Each route of the API is under
+`/api`, so the path of a request is `/api/<route>`:
 
 ```shell
-curl -X POST http://localhost:3333/api/accounts \
-  -H "Authorization: Bearer $key" \
-  -H 'Content-Type: application/json' \
-  -d '{"owner": "Jane"}'
+curl http://localhost:3333/api/<route> \
+  -H "Authorization: Bearer $key"
 ```
 
 ## The answers of the API

@@ -93,7 +93,7 @@ Use other delimiters for a file whose own syntax has `{{`, for example a Taskfil
 
 ```yaml
 summary: The API accepts a request to a protected route only when it carries a credential that the API accepts.
-targets: [go-event-sourcing-service]
+targets: [chi-api, go-event-sourcing-service]
 
 options:
   method:

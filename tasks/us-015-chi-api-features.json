@@ -93,7 +93,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Make `api-auth` target `chi-api` through `api.middleware` and `api.config`, with one text of its docs for each target",
       "language": "Go",
       "testable": true,

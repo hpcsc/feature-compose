@@ -1,5 +1,5 @@
 summary: The API accepts a request to a protected route only when it carries a credential that the API accepts, an API key or an OAuth access token.
-targets: [go-event-sourcing-service]
+targets: [chi-api, go-event-sourcing-service]
 
 options:
   method:

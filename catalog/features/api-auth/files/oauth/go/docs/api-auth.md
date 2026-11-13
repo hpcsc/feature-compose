@@ -31,32 +31,25 @@ the repo needs no new render.
 
 ## Run the API on this machine
 
-`task run` in `README.md` starts the API with `task api:run`, which sets neither variable. So that API refuses
-each request to a protected route. To start the API with your issuer, stop the pane of `task api:run` and run
-it with the variables:
+`task api:run` starts the API on port 3333, and passes the variables of your shell to the API. Give it your
+issuer and your audience in the variables:
 
 ```shell
 OAUTH_ISSUER_URL=<url> OAUTH_AUDIENCE=<audience> task api:run
 ```
 
-`task api:run` passes the variables of your shell to the API.
-
-The requests in `Taskfile.api.yml`, such as `task api:open-account` in `README.md`, send no token, so the API
-answers them with 401. Send the token with curl, as the next section shows.
-
-`.env.local` and `docker-compose.local.yml` set neither variable either. To run the `api` service of
-`docker-compose.local.yml` with your issuer, add the two variables to its `environment`.
+With neither variable, the API refuses each request to a protected route. Each other way to start the API that
+`README.md` tells, for example in Docker, also needs the two variables in the environment of the API.
 
 ## Send a request with an access token
 
 A client gets an access token from the issuer, for the audience of the API, and sends it in the
-`Authorization` header with the scheme `Bearer`:
+`Authorization` header with the scheme `Bearer`. Each route of the API is under `/api`, so the path of a request
+is `/api/<route>`:
 
 ```shell
-curl -X POST http://localhost:3333/api/accounts \
-  -H "Authorization: Bearer $token" \
-  -H 'Content-Type: application/json' \
-  -d '{"owner": "Jane"}'
+curl http://localhost:3333/api/<route> \
+  -H "Authorization: Bearer $token"
 ```
 
 ## The checks of an access token

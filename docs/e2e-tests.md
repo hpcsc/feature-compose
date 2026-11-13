@@ -79,7 +79,7 @@ tests keep the original binary.
 
 ## The full run of `new`
 
-Eleven tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
+Thirteen tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
 first makes the repo from the starter alone:
 
 1. `feature-compose new go my-tool --no-prompt` makes the repo. Its `after_render` commands run `go mod tidy`,
@@ -120,7 +120,7 @@ The second adds `--feature cli`, and makes a CLI in its own repo:
    path under `dist/` or `e2e/node_modules/`, which the snapshot and the `npm install` of step 6 made. So the
    `.gitignore` of the repo has the patterns of `cli`.
 
-One makes a repo from the starter `chi-api`:
+Three make a repo from the starter `chi-api`. The first makes the repo from the starter alone:
 
 1. `feature-compose new chi-api my-api --no-prompt` makes the repo. Its `after_render` commands run
    `go mod tidy`, which downloads the modules of the repo.
@@ -134,6 +134,24 @@ One makes a repo from the starter `chi-api`:
 5. The test starts the API of the repo. `GET /api/` gets 200, and `POST /api/users` with the body `{}` and no
    `Authorization` header gets the answer 400 of the handler. The API of a repo without `api-auth` accepts each
    request. Each route of the API is under `/api`, so `POST /users` gets 404.
+
+The second adds `--feature api-auth`, and checks the API key with the routes of `chi-api`:
+
+1. `gofmt -l .` lists no file, `go build ./...` builds, and `task test:unit` stops with the exit status 0.
+   The output of gotestsum shows that the tests of `internal/auth`, of `internal/use_cases` and of
+   `internal/use_cases/user` ran and passed.
+2. The test starts the API with `API_KEY_HASHES` set to the SHA-256 hash of a key of the test. `GET /api/`
+   gets 200 with no key. `POST /api/users` gets 401 with `WWW-Authenticate: Bearer` with no `Authorization`
+   header and with an unknown key, and it gets the answer 400 of the handler with the key of the test. The
+   body of the 401 is JSON with the keys of the error of the handler, `successful` false, and a message that
+   tells the client to sign in. So the server of `chi-api` gives the item of `api-auth` to the protected
+   routes.
+3. The test makes a second repo from `chi-api` alone. The `go.mod` of the two repos is the same.
+
+The third adds `--feature api-auth:method=oauth`. The test starts a test issuer, as the run of
+`go-event-sourcing-service` with the method `oauth` does, and the API with `OAUTH_AUDIENCE` set to `my-api`.
+`POST /api/users` gets 401 with `WWW-Authenticate: Bearer` with no `Authorization` header and with a token for
+another audience, and it gets the answer 400 of the handler with a token for `my-api`.
 
 The other eight make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
 

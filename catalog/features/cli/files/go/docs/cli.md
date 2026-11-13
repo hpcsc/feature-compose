@@ -55,20 +55,28 @@ this build is a different one, so `{{ kebab .Name }} update` on a prerelease goe
 release. A build from a commit is not a release or a prerelease, so `{{ kebab .Name }} update` does not
 replace it unless you add `--force`.
 
-## Goreleaser
+## Release
 
-GoReleaser builds the releases from `.goreleaser.yaml`.
+GoReleaser builds the releases from `.goreleaser.yaml`. The CI workflow, `.github/workflows/ci.yml`, publishes
+them after its jobs `test` and `e2e` pass:
 
-- Make a snapshot build under `./dist`: `task release:local`
-- Publish a release: tag the commit, then run GoReleaser with a `GITHUB_TOKEN` that can write releases.
+- A push of a tag `v<major>.<minor>.<patch>` publishes a release.
+- Each push to `main` publishes a prerelease. The job `prerelease` tags the commit with the next patch after the
+  latest release, the run number and the commit, for example `v0.2.1-42.g4829f92`. It keeps only the 5 newest
+  prereleases. A run whose commit is no longer the newest commit of `main` publishes nothing, so an older build
+  never replaces a newer prerelease.
+- A re-run of a `prerelease` job that pushed its tag fails at the tag. The next push to `main` publishes a new
+  prerelease.
+- When three pushes to `main` come close together, the newest commit can get no prerelease: the `prerelease` job
+  of an older commit can cancel the pending `prerelease` job of the newest commit. The next push to `main`
+  publishes a new prerelease.
 
 ```shell
 git tag vX.X.X
 git push origin vX.X.X
-GITHUB_TOKEN=... goreleaser release --clean
 ```
 
-This repo has no workflow that publishes releases or prereleases.
+`task release:local` makes a snapshot build in `dist/`, and publishes nothing.
 
 ## E2E Test
 

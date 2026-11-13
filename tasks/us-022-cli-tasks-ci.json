@@ -204,7 +204,7 @@
     },
     {
       "n": 6,
-      "done": false,
+      "done": true,
       "title": "Publish a release for each version tag and a prerelease for each push to `main`, after the tests pass",
       "language": "Go",
       "testable": true,

@@ -1242,8 +1242,9 @@ files:
 		namedPathsAreIn := func(t *testing.T, text string, files map[string]string) {
 			t.Helper()
 			for _, path := range regexp.MustCompile("`([A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+)`").FindAllStringSubmatch(text, -1) {
+				named := strings.TrimSuffix(path[1], "/")
 				require.True(t, slices.ContainsFunc(slices.Collect(maps.Keys(files)), func(written string) bool {
-					return written == path[1] || strings.HasPrefix(written, path[1]+"/")
+					return written == named || strings.HasPrefix(written, named+"/")
 				}), path[1])
 			}
 		}
@@ -1871,10 +1872,12 @@ files:
 			}
 		})
 
-		t.Run("the docs of cli name the tasks build, cli, release:local, test:e2e and test:e2e:local, and each task that they name is a task of each target of cli", func(t *testing.T) {
+		t.Run("the docs of cli name the tasks build, cli, release:local, test:e2e and test:e2e:local, and only tasks and paths that the repo of each target of cli has", func(t *testing.T) {
 			for _, starterName := range targetsOfCLI(t) {
 				files := writtenTarget(t, starterName, nil, withoutValues("cli"))
 				tasks := tasksOf(t, files)
+				filesAfterNpmInstall := maps.Clone(files)
+				filesAfterNpmInstall["e2e/package-lock.json"] = ""
 
 				for path, expected := range map[string][]string{
 					"docs/cli.md":       {"build", "cli", "release:local", "test:e2e", "test:e2e:local"},
@@ -1886,6 +1889,7 @@ files:
 					}
 					require.Subset(t, named, expected, starterName+": "+path)
 					require.Subset(t, tasks, named, starterName+": "+path)
+					namedPathsAreIn(t, files[path], filesAfterNpmInstall)
 				}
 			}
 		})
@@ -2021,6 +2025,108 @@ files:
 				workflow := writtenTarget(t, starterName, nil, withoutValues("cli"))[".github/workflows/ci.yml"]
 
 				require.Contains(t, workflow, "repo-token: ${{ secrets.GITHUB_TOKEN }}", starterName)
+			}
+		})
+
+		ciJobsWithCLI := func(t *testing.T, starterName string) map[string]any {
+			t.Helper()
+			workflow := writtenTarget(t, starterName, nil, withoutValues("cli"))[".github/workflows/ci.yml"]
+			return parsedYAML(t, workflow)["jobs"].(map[string]any)
+		}
+
+		t.Run("with cli, ci.yml of each target runs on each push, tags among them, and publishes a release only for a tag that starts with v and a prerelease only for main, each after the jobs test and e2e", func(t *testing.T) {
+			for _, starterName := range targetsOfCLI(t) {
+				workflow := parsedYAML(t, writtenTarget(t, starterName, nil, withoutValues("cli"))[".github/workflows/ci.yml"])
+				jobs := workflow["jobs"].(map[string]any)
+
+				require.Equal(t, map[string]any{"push": map[string]any{}}, workflow["on"], starterName)
+
+				release := jobs["release"].(map[string]any)
+				prerelease := jobs["prerelease"].(map[string]any)
+				require.Equal(t, "startsWith(github.ref, 'refs/tags/v')", release["if"], starterName)
+				require.Equal(t, "github.ref == 'refs/heads/main'", prerelease["if"], starterName)
+				require.ElementsMatch(t, []any{"test", "e2e"}, release["needs"], starterName)
+				require.ElementsMatch(t, []any{"test", "e2e"}, prerelease["needs"], starterName)
+			}
+		})
+
+		t.Run("with cli, each needs of each job of ci.yml of each target names a job of the workflow", func(t *testing.T) {
+			for _, starterName := range targetsOfCLI(t) {
+				jobs := ciJobsWithCLI(t, starterName)
+
+				var needed []any
+				for _, job := range jobs {
+					switch needs := job.(map[string]any)["needs"].(type) {
+					case string:
+						needed = append(needed, needs)
+					case []any:
+						needed = append(needed, needs...)
+					}
+				}
+				require.Contains(t, needed, "e2e", starterName)
+				for _, name := range needed {
+					require.Contains(t, jobs, name, starterName)
+				}
+			}
+		})
+
+		t.Run("with cli, only the jobs release and prerelease of ci.yml of each target can write the contents of the repo", func(t *testing.T) {
+			for _, starterName := range targetsOfCLI(t) {
+				workflow := parsedYAML(t, writtenTarget(t, starterName, nil, withoutValues("cli"))[".github/workflows/ci.yml"])
+				jobs := workflow["jobs"].(map[string]any)
+
+				require.Equal(t, map[string]any{"contents": "read"}, workflow["permissions"], starterName)
+				for name, job := range jobs {
+					permissions := job.(map[string]any)["permissions"]
+					if name == "release" || name == "prerelease" {
+						require.Equal(t, map[string]any{"contents": "write"}, permissions, starterName+": "+name)
+						continue
+					}
+					if permissions != nil {
+						require.IsType(t, map[string]any{}, permissions, starterName+": "+name)
+						require.NotEqual(t, "write", permissions.(map[string]any)["contents"], starterName+": "+name)
+					}
+				}
+			}
+		})
+
+		t.Run("with cli, the jobs release and prerelease of ci.yml of each target have the steps of the release workflows of this repo, prerelease publishes only the newest commit of main, and prereleases run one at a time", func(t *testing.T) {
+			newestCommitOnly := "head=$(git ls-remote --exit-code origin refs/heads/main)\n" +
+				"if [ \"${head%%[[:space:]]*}\" != \"$GITHUB_SHA\" ]; then\n" +
+				"  echo \"main has a newer commit, so this run publishes no prerelease\"\n" +
+				"  exit 0\n" +
+				"fi\n"
+			stepsOfThisRepo := func(t *testing.T, workflow, job string) any {
+				t.Helper()
+				contents, err := os.ReadFile(filepath.Join(repoCatalogDir, "..", ".github", "workflows", workflow))
+				require.NoError(t, err)
+				return parsedYAML(t, string(contents))["jobs"].(map[string]any)[job].(map[string]any)["steps"]
+			}
+			releaseSteps := stepsOfThisRepo(t, "release.yml", "release")
+			prereleaseSteps := stepsOfThisRepo(t, "prerelease.yml", "prerelease")
+			require.NotEmpty(t, releaseSteps)
+			require.NotEmpty(t, prereleaseSteps)
+
+			for _, starterName := range targetsOfCLI(t) {
+				jobs := ciJobsWithCLI(t, starterName)
+
+				require.Equal(t, releaseSteps, jobs["release"].(map[string]any)["steps"], starterName)
+				var prerelease []any
+				for _, written := range jobs["prerelease"].(map[string]any)["steps"].([]any) {
+					step := maps.Clone(written.(map[string]any))
+					switch step["name"] {
+					case "Tag the commit":
+						run, found := strings.CutPrefix(step["run"].(string), newestCommitOnly)
+						require.True(t, found, starterName+": "+step["run"].(string))
+						step["run"] = run
+					case "Release", "Keep the 5 newest prereleases of main":
+						require.Equal(t, "steps.tag.outputs.tag != ''", step["if"], starterName)
+						delete(step, "if")
+					}
+					prerelease = append(prerelease, step)
+				}
+				require.Equal(t, prereleaseSteps, prerelease, starterName)
+				require.Equal(t, map[string]any{"group": "prerelease", "cancel-in-progress": false}, jobs["prerelease"].(map[string]any)["concurrency"], starterName)
 			}
 		})
 

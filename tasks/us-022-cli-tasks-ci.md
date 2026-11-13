@@ -637,21 +637,21 @@ archives and `checksums.txt` of `.goreleaser.yaml`, whose names `update` and `sc
 docs of `cli` tell how a release and a prerelease come.
 
 **Acceptance Criteria:**
-- [ ] `TestCatalog`: for each target with `cli`, `ci.yml` has the jobs `release` and `prerelease`. The `if` of
+- [x] `TestCatalog`: for each target with `cli`, `ci.yml` has the jobs `release` and `prerelease`. The `if` of
   `release` lets it run only for a ref that starts with `refs/tags/v`, and the `if` of `prerelease` only for
   `refs/heads/main`. The `needs` of each holds `test` and `e2e`.
-- [ ] `TestCatalog`: each `needs` of each job of the written workflow names a job of the workflow.
-- [ ] `TestCatalog`: only `release` and `prerelease` have the permission `contents: write`, and the `on` and the
+- [x] `TestCatalog`: each `needs` of each job of the written workflow names a job of the workflow.
+- [x] `TestCatalog`: only `release` and `prerelease` have the permission `contents: write`, and the `on` and the
   `permissions` of the workflow are the same as without `cli`.
-- [ ] `TestCatalog`: the steps of `release` and of `prerelease` are the steps of the jobs `release` of
+- [x] `TestCatalog`: the steps of `release` and of `prerelease` are the steps of the jobs `release` of
   `.github/workflows/release.yml` and `prerelease` of `.github/workflows/prerelease.yml` of this repo, and
   `prerelease` has the concurrency group `prerelease` with no cancel of a run in progress.
-- [ ] `docs/cli.md` of `cli` tells that a tag `v<major>.<minor>.<patch>` publishes a release after the tests pass,
+- [x] `docs/cli.md` of `cli` tells that a tag `v<major>.<minor>.<patch>` publishes a release after the tests pass,
   that each push to `main` publishes a prerelease, and that `task release:local` makes a snapshot. No sentence says
   that the repo has no workflow that publishes releases or prereleases.
-- [ ] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass, and
+- [x] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass, and
   `task test:combinations` passes.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `check` pass on the
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new` and `check` pass on the
   host.
 
 **Affected Files/Modules:**

@@ -96,7 +96,7 @@ func newFeature(fsys fs.FS, featureName string, parsed featureYML) (feature, err
 	}
 	extensionPoints := make(map[string]extensionPoint, len(parsed.ExtensionPoints))
 	for name, declared := range parsed.ExtensionPoints {
-		extensionPoints[name] = extensionPoint{name: name, declarer: "the feature " + featureName, itemFields: declared.Item}
+		extensionPoints[name] = extensionPoint{name: name, declarer: "the feature " + featureName, file: declared.File, itemFields: declared.Item}
 	}
 	return feature{
 		name: featureName, targets: parsed.Targets, templates: templates, options: declaredOptions,
@@ -148,11 +148,15 @@ func (f feature) needMistakes(starterName string, catalogFeatures map[string]fea
 }
 
 func (f feature) mistakes(starters []Starter, catalogFeatures map[string]feature) []string {
+	ofFeature := slices.Concat(f.whenParseMistakes, f.readMistakes(starters, catalogFeatures))
+	for _, name := range slices.Sorted(maps.Keys(f.extensionPoints)) {
+		ofFeature = append(ofFeature, f.extensionPoints[name].fileMistakes(f.templates)...)
+	}
 	mistakes := f.itemFieldsMistakes(starters)
-	for _, mistake := range f.whenParseMistakes {
+	for _, mistake := range ofFeature {
 		mistakes = append(mistakes, "the feature "+f.name+": "+mistake)
 	}
-	return append(mistakes, f.readMistakes(starters, catalogFeatures)...)
+	return mistakes
 }
 
 func (f feature) readMistakes(starters []Starter, catalogFeatures map[string]feature) []string {
@@ -175,11 +179,7 @@ func (f feature) readMistakes(starters []Starter, catalogFeatures map[string]fea
 		}
 		templateReads = append(templateReads, reads...)
 	}
-	mistakes := slices.Concat(whenReads, templateReads, parseMistakes)
-	for i, mistake := range mistakes {
-		mistakes[i] = "the feature " + f.name + ": " + mistake
-	}
-	return mistakes
+	return slices.Concat(whenReads, templateReads, parseMistakes)
 }
 
 func (f feature) readable(starters []Starter, catalogFeatures map[string]feature) map[string]bool {

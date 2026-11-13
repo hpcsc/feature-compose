@@ -29,7 +29,7 @@ func TestCheckCommand(t *testing.T) {
 	withFeatures := func(features map[string]string) fstest.MapFS {
 		files := fstest.MapFS{
 			"starters/service/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code, import]\n")},
-			"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte("package server\n")},
+			"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range items "api.middleware" }}{{ .code }}{{ end }}` + "\n")},
 		}
 		for featureName, definition := range features {
 			files["features/"+featureName+"/feature.yml"] = &fstest.MapFile{Data: []byte(definition)}
@@ -39,10 +39,13 @@ func TestCheckCommand(t *testing.T) {
 
 	t.Run("check", func(t *testing.T) {
 		t.Run("with no mistake, prints that the catalog has no mistakes and stops with no error", func(t *testing.T) {
-			printed, err := runCheck(t, withFeatures(map[string]string{
+			files := withFeatures(map[string]string{
 				"auth": "targets: [service]\nneeds: [cli]\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n  cli.commands:\n    - code: newAuthCommand()\n",
-				"cli":  "targets: [service]\nextension_points:\n  cli.commands:\n    file: go/cli.go\n    item: [code]\n",
-			}))
+				"cli":  "targets: [service]\nextension_points:\n  cli.commands:\n    file: go/cli.go\n    item: [code]\nfiles:\n  - path: files/\n",
+			})
+			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte(`{{ range items "cli.commands" }}{{ .code }}{{ end }}` + "\n")}
+
+			printed, err := runCheck(t, files)
 
 			require.NoError(t, err)
 			require.Equal(t, "The catalog has no mistakes.\n", printed)
@@ -92,7 +95,7 @@ the starter service: the feature tools adds to the extension point "cli.commands
 				"web":   "targets: [service]\nfiles:\n  - path: files/\n",
 			})
 			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n")}
-			files["starters/worker/files/go/server.go"] = &fstest.MapFile{Data: []byte("package server\n")}
+			files["starters/worker/files/go/server.go"] = &fstest.MapFile{Data: []byte(`{{ range items "api.middleware" }}{{ .code }}{{ end }}` + "\n")}
 			files["features/web/files/README.md"] = &fstest.MapFile{Data: []byte("web\n")}
 			files["features/web/files/go/web.go"] = &fstest.MapFile{Data: []byte("package web\n")}
 			files["features/web/files/web/index.html"] = &fstest.MapFile{Data: []byte("<html></html>\n")}
@@ -151,6 +154,18 @@ the feature auth: the when "method ==" of the files entry "files/": method == ne
 			require.Equal(t, `the starter service: the template go/main.go reads "auth.method", which the starter cannot read: it can read no option
 the feature auth: the template go/auth.go of the files entry files/ reads "starter.region", which the starter service does not declare
 the feature auth: the template go/keys.go of the files entry files/ does not parse: template: go/keys.go:1: unexpected {{end}}
+`, printed)
+		})
+
+		t.Run("prints each extension point of the starter and of a feature whose file does not exist", func(t *testing.T) {
+			files := withFeatures(map[string]string{"cli": "targets: [service]\nextension_points:\n  cli.commands:\n    file: go/cli.go\n    item: [code]\n"})
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.config:\n    file: go/config.go\n    item: [code]\n  api.middleware:\n    file: go/server.go\n    item: [code, import]\n")}
+
+			printed, err := runCheck(t, files)
+
+			require.EqualError(t, err, "the catalog has 2 mistakes")
+			require.Equal(t, `the starter service: the file "go/config.go" of the extension point "api.config" does not exist
+the feature cli: the file "go/cli.go" of the extension point "cli.commands" does not exist
 `, printed)
 		})
 

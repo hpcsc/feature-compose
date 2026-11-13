@@ -73,8 +73,12 @@ func (t template) folderIn(folders map[string]folder) (string, bool) {
 }
 
 func (t template) splitPath() (folderName, pathInFolder string) {
-	folderName, pathInFolder, _ = strings.Cut(t.catalogPath, "/")
-	return folderName, strings.TrimSuffix(pathInFolder, ".tmpl")
+	folderName, pathInFolder, _ = strings.Cut(t.pathWithoutTmpl(), "/")
+	return folderName, pathInFolder
+}
+
+func (t template) pathWithoutTmpl() string {
+	return strings.TrimSuffix(t.catalogPath, ".tmpl")
 }
 
 func (t template) descriptionInOwner() string {

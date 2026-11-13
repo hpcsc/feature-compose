@@ -406,28 +406,28 @@ does not call `items` with the name of the extension point in its parse tree (de
 starter is a mistake of the starter; one of a feature is a mistake of the feature, one time.
 
 **Acceptance Criteria:**
-- [ ] An extension point of a starter whose `file` names no template of the starter is a mistake. The message names
+- [x] An extension point of a starter whose `file` names no template of the starter is a mistake. The message names
   the starter, the extension point and the file. A `file` that only a feature has, and an empty `file`, are such
   mistakes.
-- [ ] An extension point of a feature whose `file` names no template of the feature, in any of its files entries, is a
+- [x] An extension point of a feature whose `file` names no template of the feature, in any of its files entries, is a
   mistake. The message names the feature, the extension point and the file, and it comes one time, also when the
   feature has two targets.
-- [ ] A file whose parse tree does not call `items` with the name of the extension point is a mistake. The message
+- [x] A file whose parse tree does not call `items` with the name of the extension point is a mistake. The message
   names the declarer, the extension point and the file. A file that calls `items` only for another extension point,
   and a file that calls only `unique` for it, are such mistakes. A file that renders two extension points calls
   `items` for each.
-- [ ] A `file` matches a template whose catalog path is the `file` with `.tmpl` at its end. A file with other
+- [x] A `file` matches a template whose catalog path is the `file` with `.tmpl` at its end. A file with other
   delimiters is read with them, as the GitHub workflow of a starter is.
-- [ ] A file that does not parse gives only its mistake of Task 3.
-- [ ] The fixtures of the group `check` in `TestCatalog` and of `TestCheckCommand` give each extension point that they
+- [x] A file that does not parse gives only its mistake of Task 3.
+- [x] The fixtures of the group `check` in `TestCatalog` and of `TestCheckCommand` give each extension point that they
   declare a file that calls `items` for it, so each list of mistakes that their US-006 cases and Tasks 1 to 3 expect
   stays the same.
-- [ ] The mistakes of US-006 and Tasks 1 to 3 are still found, in a fixed order (decision 9), and `Catalog.Check` on
+- [x] The mistakes of US-006 and Tasks 1 to 3 are still found, in a fixed order (decision 9), and `Catalog.Check` on
   `catalog/` gives no mistake: each of its 27 extension points calls `items` in its file.
-- [ ] `feature-compose check` prints the mistakes of an extension point of the starter and of a feature.
-- [ ] `docs/commands.md` "Check the Catalog" has a row for each mistake, and the "Extension Points" section of
+- [x] `feature-compose check` prints the mistakes of an extension point of the starter and of a feature.
+- [x] `docs/commands.md` "Check the Catalog" has a row for each mistake, and the "Extension Points" section of
   `docs/catalog.md` says that `check` finds a file that does not exist or does not call `items`.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `internal/catalog/extension_point.go` — the file of an extension point, and its mistakes

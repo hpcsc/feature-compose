@@ -10,6 +10,7 @@ import (
 type extensionPoint struct {
 	name       string
 	declarer   string
+	file       string
 	itemFields []string
 	items      []map[string]string
 }
@@ -35,6 +36,29 @@ func (e extensionPoint) checkItem(featureName string, number int, item map[strin
 			number, featureName, e.name, strings.Join(fields, ", "), strings.Join(e.itemFields, ", "))
 	}
 	return nil
+}
+
+func (e extensionPoint) fileMistakes(templates []template) []string {
+	if e.file == "" {
+		return []string{fmt.Sprintf("the extension point %q names no file", e.name)}
+	}
+	var mistakes []string
+	found := false
+	for _, t := range templates {
+		if t.pathWithoutTmpl() != e.file {
+			continue
+		}
+		found = true
+		parsed, err := t.calls()
+		if err != nil || slices.Contains(parsed.argumentsOf("items"), e.name) {
+			continue
+		}
+		mistakes = append(mistakes, fmt.Sprintf("%s does not call items %q", t.descriptionInOwner(), e.name))
+	}
+	if !found {
+		return []string{fmt.Sprintf("the file %q of the extension point %q does not exist", e.file, e.name)}
+	}
+	return mistakes
 }
 
 func (e extensionPoint) values(field string) ([]string, error) {

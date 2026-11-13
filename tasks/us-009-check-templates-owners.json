@@ -124,7 +124,7 @@
     },
     {
       "n": 4,
-      "done": false,
+      "done": true,
       "title": "Find an extension point whose `file` does not exist or does not call `items` for it",
       "language": "Go",
       "testable": true,

@@ -226,6 +226,10 @@ func protectedMiddleware(cfg *api.Config) []func(http.Handler) http.Handler {
   item is the same as a file with no extension point.
 - A feature can add items only to an extension point that the starter, the feature, or one of its needs
   declares.
+- The `file` of an extension point is the path of a template of its declarer, without `.tmpl`. It starts with
+  a folder name: for a starter, it is the path under `files/`, and for a feature, the path in a files entry.
+  The template must call `items` with the name of the extension point. `check` finds a `file` that does not
+  exist, and a file that does not call `items` for its extension point, also when it calls only `unique`.
 
 An item can hold a block of YAML, for example a job of a CI workflow. The feature writes the block with each
 key at the left edge, and the file of the extension point sets the indent with `indent`:

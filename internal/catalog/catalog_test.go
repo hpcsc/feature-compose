@@ -352,10 +352,17 @@ func TestCatalog(t *testing.T) {
 	})
 
 	t.Run("check", func(t *testing.T) {
+		rendersItems := func(extensionPoints ...string) *fstest.MapFile {
+			var text strings.Builder
+			for _, name := range extensionPoints {
+				text.WriteString("{{ range items " + strconv.Quote(name) + " }}{{ .code }}{{ end }}\n")
+			}
+			return &fstest.MapFile{Data: []byte(text.String())}
+		}
 		withFeatures := func(features map[string]string) fstest.MapFS {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code, import]\n")},
-				"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte("package server\n")},
+				"starters/service/files/go/server.go": rendersItems("api.middleware"),
 			}
 			for featureName, definition := range features {
 				files["features/"+featureName+"/feature.yml"] = &fstest.MapFile{Data: []byte(definition)}
@@ -370,8 +377,9 @@ func TestCatalog(t *testing.T) {
 			t.Run("an add_to to an extension point "+name+" is a mistake, and the message names the starter, the feature and the extension point", func(t *testing.T) {
 				files := withFeatures(map[string]string{
 					"auth": "targets: [service]\nadd_to:\n  " + extensionPoint + ":\n    - path: auth.md\n",
-					"docs": "targets: [service]\nextension_points:\n  docs.pages:\n    file: go/index.md\n    item: [path]\n",
+					"docs": "targets: [service]\nextension_points:\n  docs.pages:\n    file: go/index.md\n    item: [path]\nfiles:\n  - path: files/\n",
 				})
+				files["features/docs/files/go/index.md"] = rendersItems("docs.pages")
 
 				mistakes, err := catalog.New(files).Check()
 
@@ -404,10 +412,16 @@ add_to:
     - code: appHook()
   docs.pages:
     - path: app.md
+files:
+  - path: files/
 `,
-				"cli":  "targets: [service]\nneeds: [base]\nextension_points:\n  cli.commands:\n    file: go/cli.go\n    item: [code]\n  cli.flags:\n    file: go/flags.go\n    item: [name]\n",
-				"base": "targets: [service]\nextension_points:\n  base.hooks:\n    file: go/base.go\n    item: [code]\n",
+				"cli":  "targets: [service]\nneeds: [base]\nextension_points:\n  cli.commands:\n    file: go/cli.go\n    item: [code]\n  cli.flags:\n    file: go/flags.go\n    item: [name]\nfiles:\n  - path: files/\n",
+				"base": "targets: [service]\nextension_points:\n  base.hooks:\n    file: go/base.go\n    item: [code]\nfiles:\n  - path: files/\n",
 			})
+			files["features/app/files/go/routes.go"] = rendersItems("app.routes")
+			files["features/cli/files/go/cli.go"] = rendersItems("cli.commands")
+			files["features/cli/files/go/flags.go"] = rendersItems("cli.flags")
+			files["features/base/files/go/base.go"] = rendersItems("base.hooks")
 
 			mistakes, err := catalog.New(files).Check()
 
@@ -526,8 +540,9 @@ files:
 		t.Run("a feature whose targets declare an extension point of its add_to with different item fields is a mistake, the message names each target with its item fields, and in a target where a need declares the extension point, the fields of the need count", func(t *testing.T) {
 			files := withFeatures(map[string]string{
 				"auth":  "targets: [service, worker]\nneeds: [queue]\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n",
-				"queue": "targets: [worker]\nextension_points:\n  api.middleware:\n    file: go/queue.go\n    item: [code]\n",
+				"queue": "targets: [worker]\nextension_points:\n  api.middleware:\n    file: go/queue.go\n    item: [code]\nfiles:\n  - path: files/\n",
 			})
+			files["features/queue/files/go/queue.go"] = rendersItems("api.middleware")
 			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")}
 			files["starters/worker/files/go/main.go"] = &fstest.MapFile{Data: []byte("package main\n")}
 
@@ -549,11 +564,11 @@ files:
 			for starterName, extensionPoints := range map[string]string{
 				"api":     "",
 				"cron":    "extension_points:\n  api.middleware:\n    file: go/main.go\n    item: [code, import]\n  cli.commands:\n    file: go/main.go\n    item: [code]\n",
-				"service": "extension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n  cli.commands:\n    file: go/server.go\n    item: [code]\n",
+				"service": "extension_points:\n  api.middleware:\n    file: go/main.go\n    item: [code]\n  cli.commands:\n    file: go/main.go\n    item: [code]\n",
 				"worker":  "extension_points:\n  api.middleware:\n    file: go/main.go\n    item: [code, import]\n  cli.commands:\n    file: go/main.go\n    item: [code, name]\n",
 			} {
 				files["starters/"+starterName+"/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n" + extensionPoints)}
-				files["starters/"+starterName+"/files/go/main.go"] = &fstest.MapFile{Data: []byte("package main\n")}
+				files["starters/"+starterName+"/files/go/main.go"] = rendersItems("api.middleware", "cli.commands")
 			}
 
 			mistakes, err := catalog.New(files).Check()
@@ -572,7 +587,7 @@ files:
 		t.Run("targets that declare the item fields of an extension point in another order are not a mistake, and a target that does not declare it is not named", func(t *testing.T) {
 			files := withFeatures(map[string]string{"auth": "targets: [service, worker, cron]\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n"})
 			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [import, code]\n")}
-			files["starters/worker/files/go/server.go"] = &fstest.MapFile{Data: []byte("package server\n")}
+			files["starters/worker/files/go/server.go"] = rendersItems("api.middleware")
 			files["starters/cron/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")}
 			files["starters/cron/files/go/main.go"] = &fstest.MapFile{Data: []byte("package main\n")}
 
@@ -587,7 +602,7 @@ files:
 		t.Run("a starter that the feature does not target is not in the comparison of the item fields of its targets", func(t *testing.T) {
 			files := withFeatures(map[string]string{"auth": "targets: [service]\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n  cli.commands:\n    - code: newAuthCommand()\n"})
 			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n")}
-			files["starters/worker/files/go/server.go"] = &fstest.MapFile{Data: []byte("package server\n")}
+			files["starters/worker/files/go/server.go"] = rendersItems("api.middleware")
 
 			mistakes, err := catalog.New(files).Check()
 
@@ -600,7 +615,7 @@ files:
 		t.Run("an extension point that two targets declare with different item fields is not a mistake when the feature does not add to it", func(t *testing.T) {
 			files := withFeatures(map[string]string{"tools": "targets: [service, worker]\nadd_to:\n  cli.commands:\n    - code: newToolsCommand()\n"})
 			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n")}
-			files["starters/worker/files/go/server.go"] = &fstest.MapFile{Data: []byte("package server\n")}
+			files["starters/worker/files/go/server.go"] = rendersItems("api.middleware")
 
 			mistakes, err := catalog.New(files).Check()
 
@@ -810,7 +825,7 @@ files:
 				"cli": "targets: [service]\nfiles:\n  - path: files/\n    when: 'a &&'\n",
 			})
 			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n")}
-			files["starters/worker/files/go/server.go"] = &fstest.MapFile{Data: []byte("package server\n")}
+			files["starters/worker/files/go/server.go"] = rendersItems("api.middleware")
 			files["features/auth/files/api-key/go/keys.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
 			files["features/auth/files/common/go/auth.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
 			files["features/auth/files/oauth/go/tokens.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
@@ -1097,6 +1112,107 @@ files:
 			require.Equal(t, []string{
 				`the feature auth: the when "mode" of the files entry "files/b/" reads "mode", which the feature cannot read: it can read no option`,
 				`the feature auth: the template go/a.go of the files entry files/a/ reads "region", which the feature cannot read: it can read no option`,
+			}, mistakes)
+		})
+
+		t.Run("an extension point of the starter whose file is not a template of the starter, also a file that only a feature has, or that names no file, is a mistake of the starter after its templates, and a template with .tmpl after the file matches", func(t *testing.T) {
+			files := withFeatures(map[string]string{"auth": "targets: [service]\nfiles:\n  - path: files/\n"})
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  a.missing:\n    file: go/missing.go\n    item: [code]\n  b.empty:\n    item: [code]\n  c.feature:\n    file: go/auth.go\n    item: [code]\n  d.module:\n    file: go/go.mod\n    item: [code]\n")}
+			files["starters/service/files/go/go.mod.tmpl"] = rendersItems("d.module")
+			files["starters/service/files/go/main.go"] = &fstest.MapFile{Data: []byte(`{{ option "auth.method" }}` + "\n")}
+			files["features/auth/files/go/auth.go"] = rendersItems("c.feature")
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the starter service: the template go/main.go reads "auth.method", which the starter cannot read: it can read no option`,
+				`the starter service: the file "go/missing.go" of the extension point "a.missing" does not exist`,
+				`the starter service: the extension point "b.empty" names no file`,
+				`the starter service: the file "go/auth.go" of the extension point "c.feature" does not exist`,
+			}, mistakes)
+		})
+
+		t.Run("an extension point of a feature whose file is not a template of the feature in any files entry is one mistake of the feature, also with two targets", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"cli": "targets: [service, worker]\nextension_points:\n  cli.commands:\n    file: go/cli.go\n    item: [code]\n  cli.flags:\n    file: go/flags.go\n    item: [name]\nfiles:\n  - path: files/common/\n  - path: files/extra/\n",
+			})
+			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")}
+			files["starters/worker/files/go/main.go"] = &fstest.MapFile{Data: []byte("package main\n")}
+			files["features/cli/files/common/go/root.go"] = &fstest.MapFile{Data: []byte("package cli\n")}
+			files["features/cli/files/extra/go/flags.go"] = rendersItems("cli.flags")
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{`the feature cli: the file "go/cli.go" of the extension point "cli.commands" does not exist`}, mistakes)
+		})
+
+		t.Run("each copy of the file of an extension point in the files entries of a feature must call items, and the message names the files entry of each copy that does not", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth": "targets: [service]\noptions:\n  method:\n    values: [api-key, oauth, sso]\n    default: api-key\nextension_points:\n  auth.checks:\n    file: go/checks.go\n    item: [code]\nfiles:\n  - path: files/api-key/\n    when: method == \"api-key\"\n  - path: files/oauth/\n    when: method == \"oauth\"\n  - path: files/sso/\n    when: method == \"sso\"\n",
+			})
+			files["features/auth/files/api-key/go/checks.go"] = rendersItems("auth.checks")
+			files["features/auth/files/oauth/go/checks.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+			files["features/auth/files/sso/go/checks.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the feature auth: the template go/checks.go of the files entry files/oauth/ does not call items "auth.checks"`,
+				`the feature auth: the template go/checks.go of the files entry files/sso/ does not call items "auth.checks"`,
+			}, mistakes)
+		})
+
+		t.Run("the mistakes of the files of the extension points of a feature come in the order of the names of the extension points", func(t *testing.T) {
+			files := withFeatures(map[string]string{"cli": "targets: [service]\nextension_points:\n  cli.hooks:\n    file: go/hooks.go\n    item: [code]\n  cli.flags:\n    file: go/flags.go\n    item: [name]\n  cli.args:\n    file: go/args.go\n    item: [name]\n  cli.env:\n    file: go/env.go\n    item: [name]\n  cli.commands:\n    file: go/commands.go\n    item: [code]\n"})
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the feature cli: the file "go/args.go" of the extension point "cli.args" does not exist`,
+				`the feature cli: the file "go/commands.go" of the extension point "cli.commands" does not exist`,
+				`the feature cli: the file "go/env.go" of the extension point "cli.env" does not exist`,
+				`the feature cli: the file "go/flags.go" of the extension point "cli.flags" does not exist`,
+				`the feature cli: the file "go/hooks.go" of the extension point "cli.hooks" does not exist`,
+			}, mistakes)
+		})
+
+		t.Run("a file whose parse tree does not call items with the name of its extension point is a mistake, also when it calls items for another extension point or only unique for it, and it is parsed with the delimiters of its declarer", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"cli": "targets: [service]\nextension_points:\n  cli.commands:\n    file: go/cli.go\n    item: [code]\n  cli.flags:\n    file: go/cli.go\n    item: [name]\nfiles:\n  - path: files/\n",
+			})
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\ndelimiters:\n  - glob: go/*.yml\n    left: '[['\n    right: ']]'\nextension_points:\n  api.config:\n    file: go/server.go\n    item: [code]\n  api.middleware:\n    file: go/server.go\n    item: [code]\n  ci.jobs:\n    file: go/ci.yml\n    item: [text]\n  ci.steps:\n    file: go/ci.yml\n    item: [text]\n")}
+			files["starters/service/files/go/server.go"] = &fstest.MapFile{Data: []byte(`{{ range items "api.config" }}{{ .code }}{{ end }}{{ range unique "code" "api.middleware" }}{{ . }}{{ end }}` + "\n")}
+			files["starters/service/files/go/ci.yml"] = &fstest.MapFile{Data: []byte(`[[ range items "ci.jobs" ]][[ .text ]][[ end ]] {{ range items "ci.steps" }}{{ .text }}{{ end }}` + "\n")}
+			files["features/cli/files/go/cli.go"] = rendersItems("cli.flags")
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the starter service: the template go/server.go does not call items "api.middleware"`,
+				`the starter service: the template go/ci.yml does not call items "ci.steps"`,
+				`the feature cli: the template go/cli.go of the files entry files/ does not call items "cli.commands"`,
+			}, mistakes)
+		})
+
+		t.Run("a file of an extension point that does not parse gives only its parse mistake, and the mistakes of the files of a feature come after its parse mistakes", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"cli": "targets: [service]\nextension_points:\n  cli.commands:\n    file: go/cli.go\n    item: [code]\n  cli.flags:\n    file: go/flags.go\n    item: [name]\nfiles:\n  - path: files/\n",
+			})
+			files["starters/service/files/go/server.go"] = &fstest.MapFile{Data: []byte("{{ if }}\n")}
+			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte("{{ end }}\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the starter service: the template go/server.go does not parse: template: go/server.go:1: missing value for if`,
+				`the feature cli: the template go/cli.go of the files entry files/ does not parse: template: go/cli.go:1: unexpected {{end}}`,
+				`the feature cli: the file "go/flags.go" of the extension point "cli.flags" does not exist`,
 			}, mistakes)
 		})
 

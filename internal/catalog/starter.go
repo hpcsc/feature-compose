@@ -66,7 +66,7 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature, ot
 	}
 	extensionPoints := make(map[string]extensionPoint, len(parsed.ExtensionPoints))
 	for name, declared := range parsed.ExtensionPoints {
-		extensionPoints[name] = extensionPoint{name: name, declarer: "the starter " + starterName, itemFields: declared.Item}
+		extensionPoints[name] = extensionPoint{name: name, declarer: "the starter " + starterName, file: declared.File, itemFields: declared.Item}
 	}
 	return Starter{
 		name: starterName, options: declaredOptions, folders: folders, templates: templates, features: features,
@@ -182,6 +182,9 @@ func (s Starter) mistakes(catalogFeatures map[string]feature) []string {
 	}
 	mistakes = append(mistakes, s.cycleMistakes()...)
 	mistakes = append(mistakes, s.templateMistakes()...)
+	for _, name := range slices.Sorted(maps.Keys(s.extensionPoints)) {
+		mistakes = append(mistakes, s.extensionPoints[name].fileMistakes(s.templates)...)
+	}
 	for i, mistake := range mistakes {
 		mistakes[i] = "the starter " + s.name + ": " + mistake
 	}

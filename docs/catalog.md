@@ -42,7 +42,8 @@ These rules apply to each file under `files/`:
 - **Each file of the repo has one owner,** the starter or one feature. When two of them write the same path,
   `new` stops, and the message names both. `check` finds two owners of one path for each starter, also when
   the `when` of a files entry is false. One feature can write one path from two files entries, for example
-  with `when` expressions that exclude each other.
+  with `when` expressions that exclude each other. `.feature-compose.yml` at the root of the repo has the owner
+  feature-compose, because `new` writes the selection file there. A template that writes this path stops `new`.
 
 ## starter.yml
 

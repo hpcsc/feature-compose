@@ -1144,6 +1144,7 @@ Features:
 Options: none
 
 Files:
+  .feature-compose.yml: feature-compose
   cmd/my-service/main.go: the feature cli
   frontend/index.html: the starter
   go.mod: the starter
@@ -1153,7 +1154,7 @@ Files:
 		t.Run("gives the path of each file that the write of the same selection writes, one time each", func(t *testing.T) {
 			selection := featureSelection(t, withFeature(), "cli")
 			output := filepath.Join(t.TempDir(), "my-service")
-			require.NoError(t, selection.Write(output))
+			require.NoError(t, selection.MakeRepo(context.Background(), output, "v1.2.3"))
 
 			preview, err := selection.Preview()
 
@@ -1186,10 +1187,10 @@ Files:
 			preview, err := featureSelection(t, files).Preview()
 
 			require.NoError(t, err)
-			require.True(t, strings.HasSuffix(preview, "\nFiles:\n  notes: the starter\n  notes.md: the starter\n"), preview)
+			require.True(t, strings.HasSuffix(preview, "\nFiles:\n  .feature-compose.yml: feature-compose\n  notes: the starter\n  notes.md: the starter\n"), preview)
 		})
 
-		t.Run("a starter with no template gives a repo with no file", func(t *testing.T) {
+		t.Run("a starter with no template gives a repo with the selection file as its one file", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml": oneFolder,
 				"starters/service/files":       &fstest.MapFile{Mode: fs.ModeDir | 0o755},
@@ -1198,7 +1199,7 @@ Files:
 			preview, err := featureSelection(t, files).Preview()
 
 			require.NoError(t, err)
-			require.Equal(t, "Repo: my-service\nStarter: service\n\nFeatures: none\n\nOptions: none\n\nFiles: none\n", preview)
+			require.Equal(t, "Repo: my-service\nStarter: service\n\nFeatures: none\n\nOptions: none\n\nFiles:\n  .feature-compose.yml: feature-compose\n", preview)
 		})
 
 		t.Run("gives each feature after its needs and otherwise in the order of the names, a given feature with the source command line, and a feature that a need added with the features that need it", func(t *testing.T) {
@@ -1219,6 +1220,7 @@ Features:
 Options: none
 
 Files:
+  .feature-compose.yml: feature-compose
   main.go: the starter
 `, preview)
 		})
@@ -2042,13 +2044,13 @@ folders:
 			selection, err := starter.Select("my-service", nil, givenByFeature, answers)
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "repo")
-			require.NoError(t, selection.Write(output))
+			require.NoError(t, selection.MakeRepo(context.Background(), output, "v1.2.3"))
 			preview, err := selection.Preview()
 			require.NoError(t, err)
 			return append(slices.Sorted(maps.Keys(filesIn(t, output))), strings.Split(strings.TrimSpace(preview[strings.Index(preview, "Files:\n"):]), "\n  ")[1:]...)
 		}
-		writtenOnlyAlways := []string{"always.txt", "main.go", "always.txt: the feature x", "main.go: the starter"}
-		writtenWithWhen := []string{"always.txt", "main.go", "when.txt", "when2.txt", "always.txt: the feature x", "main.go: the starter", "when.txt: the feature x", "when2.txt: the feature x"}
+		writtenOnlyAlways := []string{".feature-compose.yml", "always.txt", "main.go", ".feature-compose.yml: feature-compose", "always.txt: the feature x", "main.go: the starter"}
+		writtenWithWhen := []string{".feature-compose.yml", "always.txt", "main.go", "when.txt", "when2.txt", ".feature-compose.yml: feature-compose", "always.txt: the feature x", "main.go: the starter", "when.txt: the feature x", "when2.txt: the feature x"}
 
 		for name, test := range map[string]struct {
 			when    string
@@ -2135,6 +2137,48 @@ folders:
 
 			require.Equal(t, []string{"api-key", "oauth"}, []string{writtenAuth(nil), writtenAuth(map[string]string{"method": "oauth"})})
 			require.ErrorContains(t, previewErr, "the template go/auth.txt of the files entry files/api-key/ of the feature x and the template go/auth.txt of the files entry files/extra/ of the feature x both write auth.txt")
+		})
+
+		for name, test := range map[string]struct {
+			path    string
+			message string
+		}{
+			"a template of the starter": {
+				path:    "starters/service/files/go/.feature-compose.yml",
+				message: "the template go/.feature-compose.yml of the starter and feature-compose both write .feature-compose.yml",
+			},
+			"a template of a feature whose path renders to it": {
+				path:    `features/x/files/always/go/{{ ".feature-compose" }}.yml`,
+				message: `the template go/{{ ".feature-compose" }}.yml of the files entry files/always/ of the feature x and feature-compose both write .feature-compose.yml`,
+			},
+		} {
+			t.Run(name+" that writes .feature-compose.yml at the root of the repo stops Write and Preview before the first file, with the message of two owners", func(t *testing.T) {
+				files := withWhen("store-key")
+				files[test.path] = &fstest.MapFile{Data: []byte("version: mine\n")}
+				starter, err := catalog.New(files).Starter("service")
+				require.NoError(t, err)
+				selection, err := starter.Select("my-service", nil, map[string]map[string]string{"x": {}}, catalog.Answers{})
+				require.NoError(t, err)
+				output := filepath.Join(t.TempDir(), "repo")
+
+				writeErr := selection.Write(output)
+				_, previewErr := selection.Preview()
+
+				for _, err := range []error{writeErr, previewErr} {
+					require.EqualError(t, err, test.message)
+				}
+				require.NoDirExists(t, output)
+			})
+		}
+
+		t.Run("a template that writes .feature-compose.yml in a folder below the root of the repo is written and previewed as any other file", func(t *testing.T) {
+			files := withWhen("store-key")
+			files["features/x/files/always/go/sub/.feature-compose.yml"] = &fstest.MapFile{Data: []byte("version: mine\n")}
+
+			require.Equal(t, []string{
+				".feature-compose.yml", "always.txt", "main.go", "sub/.feature-compose.yml",
+				".feature-compose.yml: feature-compose", "always.txt: the feature x", "main.go: the starter", "sub/.feature-compose.yml: the feature x",
+			}, writtenAndPreviewed(t, files, map[string]map[string]string{"x": {}}, catalog.Answers{}))
 		})
 
 		for _, when := range []string{`mode == "x"`, `!mode`, `mode && store-key`, `store-key || mode`} {

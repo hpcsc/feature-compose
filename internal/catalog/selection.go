@@ -120,7 +120,7 @@ func (s Selection) Preview() (string, error) {
 	fmt.Fprintf(&preview, "Repo: %s\nStarter: %s\n", s.name, s.starter.name)
 	s.writeSection(&preview, "Features", s.featureLines())
 	s.writeSection(&preview, "Options", s.optionLines())
-	s.writeSection(&preview, "Files", s.fileLines(files))
+	s.writeSection(&preview, "Files", s.fileLines(append(files, file{path: selectionFilePath, owner: selectionFileOwner})))
 	return preview.String(), nil
 }
 
@@ -251,6 +251,9 @@ func (s Selection) files() ([]file, error) {
 		f, err := t.render(s)
 		if err != nil {
 			return nil, err
+		}
+		if f.path == selectionFilePath {
+			return nil, fmt.Errorf("%s and %s both write %s", t.description(), selectionFileOwner, f.path)
 		}
 		if other, ok := writers[f.path]; ok {
 			return nil, fmt.Errorf("%s and %s both write %s", other.description(), t.description(), f.path)

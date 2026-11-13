@@ -87,6 +87,8 @@ Options:
 Files:
   .dockerignore: the feature cli
   .env.integration: the starter
+  .env.local: the starter
+  .feature-compose.yml: feature-compose
   ...
   cmd/my-service/main.go: the feature cli
   ...
@@ -113,7 +115,7 @@ above. Each option shows the value that the templates read, and its source:
 | `default` | No flag gives the value, so the option has its default. A default that holds `{{ .Name }}` shows with the name of the repo. |
 
 Last, the preview gives each file of the repo by its path, in the order of the paths, with its owner: the starter,
-or the feature whose template writes the file.
+the feature whose template writes the file, or `feature-compose` for the selection file `.feature-compose.yml`.
 
 Before it prints, `--dry-run` does the same checks as `new`. A selection that stops `new`, for example an unknown
 feature, a feature that does not target the starter, a value that does not match its pattern, or a flag that gives an

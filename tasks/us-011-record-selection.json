@@ -97,7 +97,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "List `.feature-compose.yml` in the preview, and stop a template that writes its path",
       "language": "Go",
       "testable": true,

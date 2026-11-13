@@ -872,7 +872,7 @@ func TestModel(t *testing.T) {
 
 			_, title := paneTitlesOf(m)
 			require.Equal(t, "Preview", title)
-			require.Equal(t, "Write the repo?\n\nRepo: my-service\nStarter: service\n\nFeatures:\n  zed: needed by alpha\n  alpha: command line\n\nOptions: none\n\nFiles:\n  main.go: the starter", detailsOf(m))
+			require.Equal(t, "Write the repo?\n\nRepo: my-service\nStarter: service\n\nFeatures:\n  zed: needed by alpha\n  alpha: command line\n\nOptions: none\n\nFiles:\n  .feature-compose.yml: feature-compose\n  main.go: the starter", detailsOf(m))
 		})
 
 		t.Run("the preview shows the answers of the developer with the source answered", func(t *testing.T) {

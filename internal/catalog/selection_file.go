@@ -7,7 +7,10 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-const selectionFilePath = ".feature-compose.yml"
+const (
+	selectionFilePath  = ".feature-compose.yml"
+	selectionFileOwner = "feature-compose"
+)
 
 type selectionFile struct {
 	Version       string                       `yaml:"version"`

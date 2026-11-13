@@ -384,22 +384,22 @@ template of the starter or of a feature that renders to it stops `new` and `--dr
 message of two owners (decision 8).
 
 **Acceptance Criteria:**
-- [ ] The preview lists `.feature-compose.yml` one time, with the owner `feature-compose`, among the files in the
+- [x] The preview lists `.feature-compose.yml` one time, with the owner `feature-compose`, among the files in the
   order of the paths. A starter with no template previews a repo with this one file.
-- [ ] The paths of the preview are the paths of the files that `new` writes for the same arguments: the files of
+- [x] The paths of the preview are the paths of the files that `new` writes for the same arguments: the files of
   `Selection.Write` and `.feature-compose.yml`. The tests of `TestSelection` that compare the paths of the preview
   with the written files also write the selection file.
-- [ ] The confirm step of the form shows the line `.feature-compose.yml: feature-compose`, as its preview is the text
+- [x] The confirm step of the form shows the line `.feature-compose.yml: feature-compose`, as its preview is the text
   of `--dry-run`.
-- [ ] A template of the starter or of a feature whose path in the repo, after the render, is `.feature-compose.yml`
+- [x] A template of the starter or of a feature whose path in the repo, after the render, is `.feature-compose.yml`
   stops `new` and `--dry-run` before the first file, with the same message and a status other than 0. The message
   names the template, its owner and `feature-compose`, and says that both write `.feature-compose.yml`. `new` makes
   no output folder. A template that writes `.feature-compose.yml` in a folder of the repo below its root is a file
   like any other.
-- [ ] `docs/commands.md`: "Preview a Repo" names `.feature-compose.yml` with the owner `feature-compose`, in its text
+- [x] `docs/commands.md`: "Preview a Repo" names `.feature-compose.yml` with the owner `feature-compose`, in its text
   and in its example. `docs/catalog.md`: the rule of one owner for each file says that `.feature-compose.yml` at the
   root of the repo belongs to feature-compose, and that a template that writes it stops `new`.
-- [ ] `e2e/tests/new.test.ts`: the `--dry-run` test of `go-event-sourcing-service` with `cli` finds
+- [x] `e2e/tests/new.test.ts`: the `--dry-run` test of `go-event-sourcing-service` with `cli` finds
   `.feature-compose.yml: feature-compose` among the files, and the scratch folder holds no entry after the run.
 
 **Affected Files/Modules:**

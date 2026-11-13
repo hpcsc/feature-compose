@@ -415,6 +415,7 @@ describe('feature-compose new', () => {
     expect(result.stdout).toContain('Repo: my-service\nStarter: go-event-sourcing-service\n')
     expect(result.stdout).toContain('\n  go.mod: the starter\n')
     expect(result.stdout).toContain('\n  cmd/my-service/main.go: the feature cli\n')
+    expect(result.stdout).toContain('\n  .feature-compose.yml: feature-compose\n')
     expect(readdirSync(dir)).toEqual([])
   })
 

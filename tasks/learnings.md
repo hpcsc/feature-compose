@@ -454,3 +454,38 @@
 - Observed: task 1 — us-011-record-selection
 - Learning: With yaml.NewEncoder and SetIndent(2), go.yaml.in/yaml/v3 writes a nil or empty map as {}, a nil or empty list as [], the keys of a map in the order of the names, and quotes 1.28, true, on, ~ and the empty text so that each reads back as text; SetIndent(1) writes the same bytes as SetIndent(2), so clerk mutants reports its INTEGER_DECREMENT as an equivalent mutant. A key null in starter.yml or feature.yml is a null key, so an option cannot have the name null.
 - Apply when: writing or reading .feature-compose.yml or another YAML file that the tool writes, or naming an option in a test fixture of the catalog
+
+## The mock of go-keyring fails every call or none
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: us-008-cli-oauth
+- Learning: keyring.MockInit gives a store where each call works, and keyring.MockInitWithError gives one where each call fails; a new MockInit empties the store. So no unit test of Store in cli-auth can show a Set that fails while Get works, or a Delete that fails while Get works. The audit of US-008 raised both (a stale keyring entry that shadows a new login, and a logout that hides a keyring failure); they were declined as ported code and written as limits in docs/cli-auth.md of oauth. A fix needs a seam in Store, for example a field of a small interface over keyring that an internal test sets.
+- Apply when: changing Store in catalog/features/cli-auth/files/store, for example the stored API key of US-013, or fixing a defect of the OS credential store
+
+## A fold that conflicts goes to the first task commit that holds the old text of each hunk
+- Type: pattern
+- Recorded: 2026-11-13
+- Observed: us-008-cli-oauth
+- Learning: When clerk fixup replay conflicts in a file that several task commits change (internal/catalog/catalog_test.go in US-008), fold the other files with clerk fixup first, then split the diff of that file against HEAD into hunks with difflib and three lines of context, give each hunk to the first task commit whose file holds its old text exactly once (and check that each later commit holds it too), and rebuild the commits with git commit-tree, checking that the last tree equals the work tree and running the tests of each earlier commit in a git worktree. Two rounds of US-008 folded this way with no hand-made spec.
+- Apply when: folding the fixes of an audit round when clerk fixup replay conflicts, most of all in the umbrella test files of internal/catalog
+
+## clerk fixup mark refuses a new file as new work
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: us-008-cli-oauth
+- Learning: A fix that adds a file, for example a test file for a test gap that the audit found in the code of task 1, gets the reason untouched from clerk fixup mark, because no commit in range touches the path. Mark the other files of the fix with --onto, then git add the new file and git commit --amend --no-edit, so the fixup! commit carries it, and clerk fixup replay folds it into the task commit.
+- Apply when: folding an audit fix that adds a new file, for example a new _test.go.tmpl in a feature of the catalog
+
+## A break that makes a test hang shows no FAIL line
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: us-008-cli-oauth
+- Learning: go test prints panic: test timed out and no --- FAIL line when a break makes a test wait for ever, so a script of breaks by hand that looks for --- FAIL calls the break live. In US-008 the break that opened the browser in the login goroutine hung the login test. Run the breaks with -timeout, and write the test so that it fails fast: run the call in a goroutine and select on its result and time.After.
+- Apply when: proving a test of a template or of the tool with breaks by hand, most of all a test of a call that can block, such as a login, a server or a lock
+
+## A task that moves files breaks the precedent paths of its task record
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: us-008-cli-oauth
+- Learning: clerk finish lints the task record with certainty-unevidenced, and a precedent under patterns_to_follow that names a file the task moved (files/common/ to files/api-key/ in US-008) is a precedent that cannot be opened, so the finish refuses. Change the paths in the .json and the .md of the breakdown to the new place before clerk finish.
+- Apply when: building a task that moves or renames files of the catalog or of the tool that the breakdown names as precedents

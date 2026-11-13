@@ -487,20 +487,20 @@ of the folder commands keeps those versions, so a new release of such a module d
 makes. A repo without `cli` has the `go.mod` of its starter.
 
 **Acceptance Criteria:**
-- [ ] The `starter.yml` of each target of `cli` declares `gomod.requires` with the file `go/go.mod` and the item
+- [x] The `starter.yml` of each target of `cli` declares `gomod.requires` with the file `go/go.mod` and the item
   fields `[module, version]`.
-- [ ] `TestCatalog`, for each target of `cli`: the `go.mod` written with `cli`, before the folder commands, has a
+- [x] `TestCatalog`, for each target of `cli`: the `go.mod` written with `cli`, before the folder commands, has a
   `require` with a version for each module that a Go file of the written repo imports, other than the standard
   library and the module of the repo. The test takes the imports from the written Go files with `go/parser`, and
   not from a list. Without `cli`, `go.mod` holds only the lines of the starter.
-- [ ] `e2e/tests/new.test.ts`, the run of `go` with `cli`: the written `go.mod` gives each required module of the
+- [x] `e2e/tests/new.test.ts`, the run of `go` with `cli`: the written `go.mod` gives each required module of the
   items of `cli` in its `feature.yml` the version of the item. A second `new go my-tool --feature cli --no-prompt`
   into another folder, with `GOPROXY=off`, `GOSUMDB=off` and the module cache of the first, exits with 0, and its
   `go.mod` is the same as the `go.mod` of the first.
-- [ ] `docs/e2e-tests.md` of this repo tells the second `new`.
-- [ ] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass, and
+- [x] `docs/e2e-tests.md` of this repo tells the second `new`.
+- [x] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass, and
   `task test:combinations` passes.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new`, `show` and `check` pass
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new`, `show` and `check` pass
   on the host.
 
 **Affected Files/Modules:**

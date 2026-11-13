@@ -116,7 +116,7 @@ describe('feature-compose new', () => {
   )
 
   it(
-    'makes a CLI repo from go with cli that builds, passes the unit tests of the starter and of the CLI, builds and runs the CLI with its tasks, passes its end-to-end tests with task test:e2e:local, whose snapshot from task release:local has the archives and the checksums that update and the installer download, and whose git status shows no file of the snapshot or of the packages of e2e',
+    'makes a CLI repo from go with cli whose go.mod gives the modules of the CLI the versions of cli, also with no proxy, that builds, passes the unit tests of the starter and of the CLI, builds and runs the CLI with its tasks, passes its end-to-end tests with task test:e2e:local, whose snapshot from task release:local has the archives and the checksums that update and the installer download, and whose git status shows no file of the snapshot or of the packages of e2e',
     async () => {
       const dir = scratchDir()
       const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
@@ -125,6 +125,20 @@ describe('feature-compose new', () => {
 
       expect(made.status, made.stdout + made.stderr).toBe(0)
       const repo = join(dir, 'my-tool')
+      const requires: Array<{ module: string; version: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features.cli.add_to['gomod.requires']
+      expect(requires.map((item) => item.module)).toContain('github.com/urfave/cli/v3')
+      const goMod = readFileSync(join(repo, 'go.mod'), 'utf8')
+      for (const { module, version } of requires) {
+        expect(goMod, module).toMatch(new RegExp(`^\\s*(?:require )?${module.replaceAll('.', '\\.')} ${version.replaceAll('.', '\\.')}$`, 'm'))
+      }
+      const withNoProxy = scratchDir()
+      const madeWithNoProxy = await runCli(withNoProxy, ['new', 'go', 'my-tool', '--feature', 'cli', '--no-prompt'], {
+        MISE_TRUSTED_CONFIG_PATHS: realpathSync(withNoProxy),
+        GOPROXY: 'off',
+        GOSUMDB: 'off',
+      })
+      expect(madeWithNoProxy.status, madeWithNoProxy.stdout + madeWithNoProxy.stderr).toBe(0)
+      expect(readFileSync(join(withNoProxy, 'my-tool', 'go.mod'), 'utf8')).toBe(goMod)
       const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
       expect(unformatted).toMatchObject({ status: 0, stdout: '' })
       const build = await runProgram(repo, 'go', ['build', './...'], env)

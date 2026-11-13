@@ -70,7 +70,7 @@ export function runCli(
 
 // openCli starts the CLI in a pseudo-terminal. When the CLI stops, the shell
 // writes its exit status on the screen, so a test can wait for EXIT:0.
-export async function openCli(cwd: string, args: string[] = [], env: Record<string, string> = {}): Promise<Session> {
+export async function openCli(cwd: string, args: string[] = [], env: Record<string, string> = {}, rows = 40): Promise<Session> {
   const assignments = Object.entries({ XDG_CONFIG_HOME: configHome(), ...env })
     .map(([name, value]) => `${name}='${value.replaceAll("'", `'\\''`)}'`)
     .join(' ')
@@ -83,7 +83,7 @@ export async function openCli(cwd: string, args: string[] = [], env: Record<stri
     args: ['-c', `printf '\\033[20l'; ${assignments} "${getExecutablePath()}" ${args.join(' ')}; echo "EXIT:$?"`],
     cwd,
     cols: 160,
-    rows: 40,
+    rows,
   })
   onTestFinished(() => session.close())
   return session

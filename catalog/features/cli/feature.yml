@@ -13,6 +13,13 @@ add_to:
       version: "2.18.2"
     - name: node
       version: "26.10.0"
+  gomod.requires:
+    - module: github.com/fatih/color
+      version: v1.19.0
+    - module: github.com/mattn/go-isatty
+      version: v0.0.24
+    - module: github.com/urfave/cli/v3
+      version: v3.14.0
   gitignore.patterns:
     - pattern: dist/
     - pattern: e2e/node_modules/

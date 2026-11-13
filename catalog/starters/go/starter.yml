@@ -23,6 +23,10 @@ extension_points:
     summary: A tool that mise install installs, with the name that mise.toml gives it and a fixed version.
     file: go/mise.toml
     item: [name, version]
+  gomod.requires:
+    summary: A module that the Go code of a feature imports and that the starter does not require, with a fixed version, so that go mod tidy takes no latest version.
+    file: go/go.mod
+    item: [module, version]
   gitignore.patterns:
     summary: A line of .gitignore for the files that a command of a feature makes, for example a folder of build output.
     file: go/.gitignore

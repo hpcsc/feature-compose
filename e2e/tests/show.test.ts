@@ -46,9 +46,11 @@ describe('feature-compose show', () => {
 })
 
 describe('feature-compose show in a terminal', () => {
+  const rowsOfTheWholeTree = 60
+
   it('opens the tree with each starter open and the details of the first starter, go, and filters it with /', async () => {
     const dir = scratchDir()
-    const session = await openCli(dir, ['show'])
+    const session = await openCli(dir, ['show'], {}, rowsOfTheWholeTree)
 
     await session.waitForText('A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow.')
     const screen = await session.text()
@@ -118,7 +120,7 @@ describe('feature-compose show in a terminal', () => {
 
   it('shows the contract of api.middleware and the features that add items to it', async () => {
     const dir = scratchDir()
-    const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
+    const session = await openCli(dir, ['show', 'go-event-sourcing-service'], {}, rowsOfTheWholeTree)
 
     await session.waitForText('└─ use_cases.handlers')
     for (let i = 0; i < 10; i++) {

@@ -1944,6 +1944,43 @@ files:
 			}
 		})
 
+		t.Run("with cli, go.mod of each target requires a version of each module that a Go file of the repo imports, other than the standard library and the module of the repo", func(t *testing.T) {
+			for _, starterName := range targetsOfCLI(t) {
+				files := writtenTarget(t, starterName, nil, withoutValues("cli"))
+				required := slices.Collect(maps.Keys(requiredModulesOf(t, files["go.mod"])))
+
+				var imported []string
+				for path, contents := range files {
+					if !strings.HasSuffix(path, ".go") {
+						continue
+					}
+					parsed, err := parser.ParseFile(token.NewFileSet(), path, contents, parser.ImportsOnly)
+					require.NoError(t, err, path)
+					for _, spec := range parsed.Imports {
+						importPath, err := strconv.Unquote(spec.Path.Value)
+						require.NoError(t, err)
+						host := strings.Split(importPath, "/")[0]
+						if strings.Contains(host, ".") && !strings.HasPrefix(importPath, "github.com/hpcsc/my-tool/") {
+							imported = append(imported, importPath)
+						}
+					}
+				}
+				require.Contains(t, imported, "github.com/urfave/cli/v3", starterName)
+				majorVersion := regexp.MustCompile(`^/v([2-9]|[1-9][0-9]+)(/|$)`)
+				for _, importPath := range imported {
+					require.True(t, slices.ContainsFunc(required, func(module string) bool {
+						rest, ok := strings.CutPrefix(importPath, module)
+						return ok && (rest == "" || strings.HasPrefix(rest, "/")) && !majorVersion.MatchString(rest)
+					}), starterName+": "+importPath)
+				}
+			}
+		})
+
+		t.Run("with no item, go.mod of each target of cli holds only the lines of the starter", func(t *testing.T) {
+			require.Equal(t, "module github.com/hpcsc/my-tool\n\ngo 1.27.1\n\nrequire github.com/stretchr/testify v1.12.1\n", writtenTarget(t, "go", nil, nil)["go.mod"])
+			require.Contains(t, writtenTarget(t, "go-event-sourcing-service", nil, nil)["go.mod"], "\tgithub.com/unrolled/render v1.8.1\n)\n\nrequire (\n")
+		})
+
 		t.Run("Taskfile.cli.yml builds the CLI into bin with the kebab-case name of the repo, runs it from the source with the arguments of task, makes a GoReleaser snapshot, and runs the end-to-end tests in Docker and with Node against a binary of the tag v0.1.0", func(t *testing.T) {
 			_, files := writtenWithCLI(t, "MyService.v2", nil)
 
@@ -2368,6 +2405,31 @@ func tasksOf(t *testing.T, files map[string]string) []string {
 		}
 	}
 	return tasks
+}
+
+func requiredModulesOf(t *testing.T, goMod string) map[string]string {
+	t.Helper()
+	required := map[string]string{}
+	inBlock := false
+	for _, line := range strings.Split(goMod, "\n") {
+		fields := strings.Fields(line)
+		switch {
+		case strings.TrimSpace(line) == "require (":
+			inBlock = true
+			continue
+		case inBlock && strings.TrimSpace(line) == ")":
+			inBlock = false
+			continue
+		case !inBlock && len(fields) == 3 && fields[0] == "require":
+			fields = fields[1:]
+		case !inBlock:
+			continue
+		}
+		require.GreaterOrEqual(t, len(fields), 2, line)
+		require.Regexp(t, `^v[0-9]+\.[0-9]+\.[0-9]+`, fields[1], line)
+		required[fields[0]] = fields[1]
+	}
+	return required
 }
 
 func toolsOf(t *testing.T, miseConfig string) map[string]string {

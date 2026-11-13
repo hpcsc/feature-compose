@@ -128,7 +128,7 @@
     },
     {
       "n": 4,
-      "done": false,
+      "done": true,
       "title": "Fix the version of each module that the CLI imports in `go.mod`",
       "language": "Go",
       "testable": true,

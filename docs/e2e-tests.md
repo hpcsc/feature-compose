@@ -93,25 +93,30 @@ first makes the repo from the starter alone:
 
 The second adds `--feature cli`, and makes a CLI in its own repo:
 
-1. `gofmt -l .` lists no file, and `go build ./...` builds.
-2. `task test:unit` stops with the exit status 0. The output of gotestsum shows that the tests of
+1. The `go.mod` of the repo, after `go mod tidy`, gives each module of the items of `gomod.requires` of `cli`
+   the version of the item. The test takes the items from the JSON of `show`. A second `new` of the same repo
+   into another folder, with `GOPROXY=off` and `GOSUMDB=off`, stops with the exit status 0 and writes the same
+   `go.mod`. With no proxy, `go mod tidy` reads only the module cache, which the first `new` filled, and it
+   stops when an import needs a lookup of a latest version.
+2. `gofmt -l .` lists no file, and `go build ./...` builds.
+3. `task test:unit` stops with the exit status 0. The output of gotestsum shows that the tests of
    `internal/greeting` and of each package under `internal/cli` that has a test file ran and passed.
-3. `task build` builds `bin/my-tool`. With no command, it prints the commands of the CLI, which are only
+4. `task build` builds `bin/my-tool`. With no command, it prints the commands of the CLI, which are only
    `version`, `update` and `help`. `task cli -- --help` runs the CLI from the source and prints the same
    commands.
-4. `task --list-all` names each task that the `docs/cli.md` of the repo names, and the doc names `build`, `cli`,
+5. `task --list-all` names each task that the `docs/cli.md` of the repo names, and the doc names `build`, `cli`,
    `release:local`, `test:e2e` and `test:e2e:local`.
-5. `task test:e2e:local` builds the CLI with the tag `v0.1.0`, installs the packages of `e2e/` with npm, and
+6. `task test:e2e:local` builds the CLI with the tag `v0.1.0`, installs the packages of `e2e/` with npm, and
    runs the end-to-end tests of the repo with vitest. It stops with the exit status 0, and its output shows
    each test file in `e2e/tests` of the repo as passed. The test takes the names from the folder.
-6. `task release:local` makes a GoReleaser snapshot of the repo. For each `goos` and `goarch` of the
+7. `task release:local` makes a GoReleaser snapshot of the repo. For each `goos` and `goarch` of the
    `.goreleaser.yaml` of the repo, `dist/` has the archive `my-tool-<goos>-<goarch>.tar.gz`, the name that
    `update` and `scripts/install.sh` download. `dist/checksums.txt` has the SHA-256 of each archive, which the
    test calculates from the file.
-7. The binary in the archive for the platform of the test prints the tag of the snapshot for `version`. So the
+8. The binary in the archive for the platform of the test prints the tag of the snapshot for `version`. So the
    ldflag of `.goreleaser.yaml` sets the version.
-8. The test runs `git init` in the repo. `git status --porcelain --untracked-files=all` lists `go.mod`, and no
-   path under `dist/` or `e2e/node_modules/`, which the snapshot and the `npm install` of step 5 made. So the
+9. The test runs `git init` in the repo. `git status --porcelain --untracked-files=all` lists `go.mod`, and no
+   path under `dist/` or `e2e/node_modules/`, which the snapshot and the `npm install` of step 6 made. So the
    `.gitignore` of the repo has the patterns of `cli`.
 
 The other six make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
@@ -281,4 +286,5 @@ Keep these rules:
   title before its content.
 - **Give each test its own folder:** `scratchDir()` makes the folder, and `onTestFinished` deletes it.
 - **Do not change the terminal size:** `openCli` uses 160 columns and 40 rows, and the tests expect text
-  that fits that size.
+  that fits that size. A test that reads the whole tree of `show` gives `openCli` 60 rows, because each
+  extension point of each starter has a line of its own, and the tree does not fit on 40 rows.

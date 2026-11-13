@@ -10,10 +10,12 @@ import (
 const selectionFilePath = ".feature-compose.yml"
 
 type selectionFile struct {
-	Version       string            `yaml:"version"`
-	StarterName   string            `yaml:"starter"`
-	Name          string            `yaml:"name"`
-	StarterValues map[string]string `yaml:"options"`
+	Version       string                       `yaml:"version"`
+	StarterName   string                       `yaml:"starter"`
+	Name          string                       `yaml:"name"`
+	StarterValues map[string]string            `yaml:"options"`
+	FeatureValues map[string]map[string]string `yaml:"features"`
+	Requested     []string                     `yaml:"requested,flow"`
 }
 
 func (f selectionFile) contents() (string, error) {

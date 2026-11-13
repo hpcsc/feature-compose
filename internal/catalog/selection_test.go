@@ -996,7 +996,7 @@ the option level of the feature a has no default and no value: give it with --fe
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
 				"go.mod":               "module my-service\n",
-				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  module: example.com/my-service\n  region: eu\n  tier: gold\n",
+				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  module: example.com/my-service\n  region: eu\n  tier: gold\nfeatures: {}\nrequested: []\n",
 			}, filesIn(t, output))
 		})
 
@@ -1011,7 +1011,7 @@ the option level of the feature a has no default and no value: give it with --fe
 			require.Equal(t, map[string]string{
 				"go.mod":               "module ledger\n",
 				"listed":               "go.mod\nlisted\n",
-				".feature-compose.yml": "version: v0.1.0\nstarter: service\nname: ledger\noptions: {}\n",
+				".feature-compose.yml": "version: v0.1.0\nstarter: service\nname: ledger\noptions: {}\nfeatures: {}\nrequested: []\n",
 			}, filesIn(t, output))
 		})
 
@@ -1022,7 +1022,7 @@ the option level of the feature a has no default and no value: give it with --fe
 			err := selection.MakeRepo(context.Background(), output, "0123abc-dirty")
 
 			require.NoError(t, err)
-			require.Equal(t, map[string]string{"go.mod": "module api\n", ".feature-compose.yml": "version: 0123abc-dirty\nstarter: service\nname: api\noptions: {}\n"}, filesIn(t, output))
+			require.Equal(t, map[string]string{"go.mod": "module api\n", ".feature-compose.yml": "version: 0123abc-dirty\nstarter: service\nname: api\noptions: {}\nfeatures: {}\nrequested: []\n"}, filesIn(t, output))
 		})
 
 		t.Run("each value reads back with a YAML parser as the same text, also a value that YAML reads as a number, a bool or null", func(t *testing.T) {
@@ -1039,6 +1039,51 @@ the option level of the feature a has no default and no value: give it with --fe
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]any{"float": "1.28", "bool": "true", "on": "on", "empty": "", "tilde": "~"}, readBack["options"])
+		})
+
+		selectionOfFeatures := func(t *testing.T, definitions map[string]string, givenByFeature map[string]map[string]string, answers catalog.Answers) catalog.Selection {
+			t.Helper()
+			starter, err := catalog.New(withFeatureDefinitions(definitions)).Starter("service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, givenByFeature, answers)
+			require.NoError(t, err)
+			return selection
+		}
+
+		t.Run("features holds each feature in the order of the names, also a feature that only a need added, each with its options and the value that the templates read from a flag, a need, an answer or the default", func(t *testing.T) {
+			selection := selectionOfFeatures(t, map[string]string{
+				"auth-cli": "needs:\n  api:\n    method: oauth\n",
+				"api":      "options:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n  realm:\n    default: api\n",
+				"zone":     "options:\n  region:\n    default: eu\n  tier:\n    default: free\n",
+				"docs":     "",
+			}, map[string]map[string]string{"auth-cli": {}, "zone": {"tier": "gold"}}, catalog.Answers{Features: []string{"docs"}, FeatureValues: map[string]map[string]string{"zone": {"region": "us"}}})
+			output := t.TempDir()
+
+			err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"main.go":              "package main\n",
+				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions: {}\nfeatures:\n  api:\n    method: oauth\n    realm: api\n  auth-cli: {}\n  docs: {}\n  zone:\n    region: us\n    tier: gold\nrequested: [auth-cli, docs, zone]\n",
+			}, filesIn(t, output))
+		})
+
+		t.Run("requested lists in the order of the names each feature that a flag gives or that the form selects, also one that another feature needs, and not a feature that only a need added, also when an answer gives a value to its option", func(t *testing.T) {
+			selection := selectionOfFeatures(t, map[string]string{
+				"a": "needs: [b]\n",
+				"b": "",
+				"c": "needs: [d]\n",
+				"d": "options:\n  mode:\n    values: [fast, slow]\n    default: fast\n",
+			}, map[string]map[string]string{"a": {}, "b": {}}, catalog.Answers{Features: []string{"c"}, FeatureValues: map[string]map[string]string{"d": {"mode": "slow"}}})
+			output := t.TempDir()
+
+			err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{
+				"main.go":              "package main\n",
+				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions: {}\nfeatures:\n  a: {}\n  b: {}\n  c: {}\n  d:\n    mode: slow\nrequested: [a, b, c]\n",
+			}, filesIn(t, output))
 		})
 
 		t.Run("an output folder that has entries stops it before the first file, so it runs no command and writes no .feature-compose.yml", func(t *testing.T) {

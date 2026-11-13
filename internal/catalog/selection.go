@@ -88,11 +88,22 @@ func (s Selection) MakeRepo(ctx context.Context, output, version string) error {
 }
 
 func (s Selection) writeSelectionFile(output, version string) error {
+	featureValues := make(map[string]map[string]string, len(s.features))
+	var requested []string
+	for _, f := range s.features {
+		featureValues[f.name] = f.values.byName
+		if f.requested() {
+			requested = append(requested, f.name)
+		}
+	}
+	slices.Sort(requested)
 	contents, err := selectionFile{
 		Version:       version,
 		StarterName:   s.starter.name,
 		Name:          s.name,
 		StarterValues: s.starter.values.byName,
+		FeatureValues: featureValues,
+		Requested:     requested,
 	}.contents()
 	if err != nil {
 		return err

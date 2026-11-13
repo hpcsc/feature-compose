@@ -32,7 +32,8 @@ the root of the repo. The output folder must be empty or absent.
 
 ### The Selection File
 
-`.feature-compose.yml` keeps a record of the choices that made the repo:
+`.feature-compose.yml` keeps a record of the choices that made the repo. This is the file of
+`feature-compose new go-event-sourcing-service my-service --feature cli-auth`:
 
 ```yaml
 version: v0.1.0
@@ -41,6 +42,12 @@ name: my-service
 options:
   go-version: 1.27.1
   module: github.com/hpcsc/my-service
+features:
+  api-auth:
+    method: api-key
+  cli: {}
+  cli-auth: {}
+requested: [cli-auth]
 ```
 
 | Key | Value |
@@ -48,8 +55,11 @@ options:
 | `version` | The text that `feature-compose version` prints. The catalog is a folder with no version, so this is not a version of the catalog. |
 | `starter`, `name` | The starter and the name of the repo. |
 | `options` | Each option of the starter, with the value that the templates read. The file also holds a value that came from a default. |
+| `features` | Each feature of the repo, with each of its options and the value that the templates read. The file also holds a feature that only a need added, and a value that came from a default or from a need. |
+| `requested` | Each feature that you named with `--feature` or selected in the form, also when another feature needs it. A feature that only a need added is in `features` and not in `requested`. |
 
-The options are in the order of their names, so one selection gives the same file in each order of the flags.
+The options, the features and the requested features are in the order of their names, so one selection gives the
+same file in each order of the flags.
 
 ## Preview a Repo
 
@@ -218,7 +228,8 @@ To make the same repo again, run:
 
 The command names each value that is not its default, and each feature that you selected. It puts each word that a
 shell splits, expands or matches against files in single quotes. That command with `--no-prompt` makes the same
-files.
+files. When you give a value to an option of a feature that only a need added, the command names that feature with
+`--feature`. So the selection file of the repo that the command makes also lists that feature in `requested`.
 
 `new` opens no form when stdin or stdout is not a terminal, or with `--no-prompt` or `--dry-run`. CI uses this mode.
 `new` then needs both arguments, `<starter>` and `<name>`.

@@ -362,8 +362,9 @@ describe('feature-compose new', () => {
       expect(made.status, made.stdout + made.stderr).toBe(0)
       expect(made.stdout).toBe('api-auth: needed by cli-auth\ncli: needed by cli-auth\nMade my-service from the starter go-event-sourcing-service.\n')
       const repo = join(dir, 'my-service')
-      expect(readFileSync(join(repo, '.feature-compose.yml'), 'utf8')).toContain(
-        `version: ${buildTag()}\nstarter: go-event-sourcing-service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\n`,
+      expect(readFileSync(join(repo, '.feature-compose.yml'), 'utf8')).toBe(
+        `version: ${buildTag()}\nstarter: go-event-sourcing-service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\n` +
+          'features:\n  api-auth:\n    method: api-key\n  cli: {}\n  cli-auth: {}\nrequested: [cli-auth]\n',
       )
       const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
       expect(unformatted).toMatchObject({ status: 0, stdout: '' })
@@ -695,6 +696,7 @@ describe('feature-compose new in a terminal', () => {
       const made = await runCli(join(dir, 'flags'), ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--no-prompt'], env)
 
       expect(made.status, made.stdout + made.stderr).toBe(0)
+      expect(readFileSync(join(dir, 'tui', 'my-service', '.feature-compose.yml'), 'utf8')).toContain('\nrequested: [cli-auth]\n')
       expect(filesOf(join(dir, 'flags', 'my-service'))).toEqual(filesOf(join(dir, 'tui', 'my-service')))
     },
     15 * 60 * 1000,

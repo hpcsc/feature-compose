@@ -25,7 +25,7 @@ import (
 
 func TestNewCommand(t *testing.T) {
 	const version = "v1.2.3"
-	defaultSelectionFile := "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\n"
+	defaultSelectionFile := "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\nfeatures: {}\nrequested: []\n"
 	starterFiles := func(afterRender string) fstest.MapFS {
 		return fstest.MapFS{
 			"starters/service/starter.yml": &fstest.MapFile{Data: []byte(`
@@ -152,7 +152,7 @@ folders:
 				"go.mod":                 "module github.com/hpcsc/my-service\ngo 1.27.1\n",
 				"cmd/my-service/main.go": "package main // my-service\n",
 				"docs/index.md":          "docs\n",
-				".feature-compose.yml":   defaultSelectionFile,
+				".feature-compose.yml":   "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\nfeatures:\n  cli: {}\n  docs: {}\nrequested: [cli, docs]\n",
 			}, filesIn(t, output))
 		})
 
@@ -166,7 +166,7 @@ folders:
 			require.Equal(t, map[string]string{
 				"go.mod":               "module github.com/hpcsc/my-service\ngo 1.27.1\n",
 				"docs/index.md":        "docs\n",
-				".feature-compose.yml": defaultSelectionFile,
+				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\nfeatures:\n  docs: {}\nrequested: [docs]\n",
 			}, filesIn(t, output))
 		})
 
@@ -186,7 +186,7 @@ folders:
 				require.Equal(t, map[string]string{
 					"go.mod":               "module github.com/hpcsc/my-service\ngo 1.27.1\n",
 					"auth.txt":             "oauth accounts",
-					".feature-compose.yml": defaultSelectionFile,
+					".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\nfeatures:\n  auth:\n    method: oauth\n    realm: accounts\nrequested: [auth]\n",
 				}, filesIn(t, output))
 			})
 		}
@@ -201,7 +201,7 @@ folders:
 			require.Equal(t, map[string]string{
 				"go.mod":               "module github.com/hpcsc/my-service\ngo 1.27.1\n",
 				"auth.txt":             "api-key api",
-				".feature-compose.yml": defaultSelectionFile,
+				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\nfeatures:\n  auth:\n    method: api-key\n    realm: api\nrequested: [auth]\n",
 			}, filesIn(t, output))
 		})
 
@@ -228,7 +228,7 @@ folders:
 			require.Equal(t, map[string]string{
 				"go.mod":               "module github.com/acme/ledger\ngo 1.27.1\n",
 				"tool.txt":             "my-tool acme/ledger {{ .Tag }}",
-				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: My.Tool\noptions:\n  go-version: 1.27.1\n  module: github.com/acme/ledger\n",
+				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: My.Tool\noptions:\n  go-version: 1.27.1\n  module: github.com/acme/ledger\nfeatures:\n  tool: {}\nrequested: [tool]\n",
 			}, filesIn(t, output))
 		})
 
@@ -242,7 +242,7 @@ folders:
 			require.Equal(t, map[string]string{
 				"go.mod":               "module github.com/hpcsc/my-service\ngo 1.27.1\n",
 				"comma.md":             "comma\n",
-				".feature-compose.yml": defaultSelectionFile,
+				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\nfeatures:\n  a,b: {}\nrequested: ['a,b']\n",
 			}, filesIn(t, output))
 		})
 
@@ -274,14 +274,23 @@ folders:
 			require.Equal(t, "Made my-service from the starter service.\n", printed)
 		})
 
-		for name, flags := range map[string][2][]string{
-			"with the defaults":         {{"--feature", "a", "--feature", "b"}, {"--feature", "b", "--feature", "a"}},
-			"with a value of an option": {{"--feature", "a", "--feature", "b:mode=slow"}, {"--feature", "b:mode=slow", "--feature", "a"}},
+		for name, test := range map[string]struct {
+			flags         [2][]string
+			selectionFile string
+		}{
+			"with the defaults": {
+				flags:         [2][]string{{"--feature", "a", "--feature", "b"}, {"--feature", "b", "--feature", "a"}},
+				selectionFile: "version: v1.2.3\nstarter: service\nname: my-service\noptions: {}\nfeatures:\n  a: {}\n  b:\n    mode: fast\nrequested: [a, b]\n",
+			},
+			"with a value of an option": {
+				flags:         [2][]string{{"--feature", "a", "--feature", "b:mode=slow"}, {"--feature", "b:mode=slow", "--feature", "a"}},
+				selectionFile: "version: v1.2.3\nstarter: service\nname: my-service\noptions: {}\nfeatures:\n  a: {}\n  b:\n    mode: slow\nrequested: [a, b]\n",
+			},
 		} {
 			t.Run("the two orders of the flags of a feature and its need give the same files and the same output, "+name, func(t *testing.T) {
 				var printed [2]string
 				var written [2]map[string]string
-				for i, order := range flags {
+				for i, order := range test.flags {
 					workingFolder := t.TempDir()
 					t.Chdir(workingFolder)
 					var err error
@@ -293,6 +302,7 @@ folders:
 				require.Equal(t, printed[0], printed[1])
 				require.Equal(t, written[0], written[1])
 				require.Equal(t, "b;a;", written[0]["my-service/server.go"])
+				require.Equal(t, test.selectionFile, written[0]["my-service/.feature-compose.yml"])
 			})
 		}
 
@@ -330,7 +340,7 @@ folders:
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
 				"go.mod":               "module example.com/a,b\ngo 1.28.0\n",
-				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.28.0\n  module: example.com/a,b\n",
+				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.28.0\n  module: example.com/a,b\nfeatures: {}\nrequested: []\n",
 			}, filesIn(t, output))
 		})
 
@@ -348,7 +358,7 @@ folders:
 			}
 
 			require.Equal(t, written[0], written[1])
-			require.Equal(t, "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.28.0\n  module: example.com/ledger\n", written[0])
+			require.Equal(t, "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.28.0\n  module: example.com/ledger\nfeatures: {}\nrequested: []\n", written[0])
 		})
 
 		t.Run("--option gives a value to an option with no default", func(t *testing.T) {
@@ -361,7 +371,7 @@ folders:
 			require.Equal(t, map[string]string{
 				"region.txt":           "eu",
 				"ran":                  "",
-				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  region: eu\n",
+				".feature-compose.yml": "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  region: eu\nfeatures: {}\nrequested: []\n",
 			}, filesIn(t, output))
 		})
 
@@ -387,30 +397,34 @@ folders:
 			given          map[string]string
 			givenByFeature map[string]map[string]string
 			answers        catalog.Answers
+			selectionFile  string
 		}{
-			"with features that answers select, and a need with an answered value": {
-				files:   withNeeds,
-				answers: catalog.Answers{Features: []string{"a", "w"}, FeatureValues: map[string]map[string]string{"b": {"mode": "slow"}}},
+			"with features that answers select, and a need with an answered value, which the arguments name with --feature": {
+				files:         withNeeds,
+				answers:       catalog.Answers{Features: []string{"a", "w"}, FeatureValues: map[string]map[string]string{"b": {"mode": "slow"}}},
+				selectionFile: "version: v1.2.3\nstarter: service\nname: my-service\noptions: {}\nfeatures:\n  a: {}\n  b:\n    mode: slow\n  c: {}\n  w: {}\nrequested: [a, b, w]\n",
 			},
 			"with a value of the starter that has a space and a quote": {
-				files:   func() fstest.MapFS { return starterFiles("") },
-				answers: catalog.Answers{StarterValues: map[string]string{"module": "example.com/it's a b"}},
+				files:         func() fstest.MapFS { return starterFiles("") },
+				answers:       catalog.Answers{StarterValues: map[string]string{"module": "example.com/it's a b"}},
+				selectionFile: "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: example.com/it's a b\nfeatures: {}\nrequested: []\n",
 			},
 			"with flags, and an answer with $HOME and * in a value": {
 				files:          withFeatures,
 				given:          map[string]string{"go-version": "1.28.0"},
 				givenByFeature: map[string]map[string]string{"auth": {"method": "oauth"}},
 				answers:        catalog.Answers{FeatureValues: map[string]map[string]string{"auth": {"realm": "a $HOME *"}}},
+				selectionFile:  "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.28.0\n  module: github.com/hpcsc/my-service\nfeatures:\n  auth:\n    method: oauth\n    realm: a $HOME *\nrequested: [auth]\n",
 			},
 		} {
-			t.Run("new with the arguments of a selection "+name+", as sh splits them, and --no-prompt writes the files of the selection", func(t *testing.T) {
+			t.Run("new with the arguments of a selection "+name+", as sh splits them, and --no-prompt writes the files of the selection, and a selection file whose requested lists each feature that the arguments name", func(t *testing.T) {
 				t.Chdir(t.TempDir())
 				starter, err := catalog.New(test.files()).Starter("service")
 				require.NoError(t, err)
 				selection, err := starter.Select("my-service", test.given, test.givenByFeature, test.answers)
 				require.NoError(t, err)
 				expected := filepath.Join(t.TempDir(), "my-service")
-				require.NoError(t, selection.MakeRepo(context.Background(), expected, version))
+				require.NoError(t, selection.Write(expected))
 				output := filepath.Join(t.TempDir(), "elsewhere")
 				split, err := exec.Command("sh", "-c", `printf '%s\000' `+selection.Arguments(output)).Output()
 				require.NoError(t, err)
@@ -419,7 +433,10 @@ folders:
 				_, err = runNew(t, test.files(), append(words, "--no-prompt")...)
 
 				require.NoError(t, err)
-				require.Equal(t, filesIn(t, expected), filesIn(t, output))
+				written := filesIn(t, output)
+				require.Equal(t, test.selectionFile, written[".feature-compose.yml"])
+				delete(written, ".feature-compose.yml")
+				require.Equal(t, filesIn(t, expected), written)
 			})
 		}
 
@@ -703,9 +720,19 @@ folders:
 			require.Equal(t, map[string]string{
 				"go.mod":                 "module github.com/hpcsc/my-service\ngo 1.27.1\n",
 				"cmd/my-service/main.go": "package main // my-service\n",
-				".feature-compose.yml":   defaultSelectionFile,
+				".feature-compose.yml":   "version: v1.2.3\nstarter: service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\nfeatures:\n  cli: {}\nrequested: [cli]\n",
 			}, filesIn(t, output))
 			require.Contains(t, screen, "To make the same repo again, run:\r\n  feature-compose new service my-service --output-dir "+output+" --feature cli\r\n")
+		})
+
+		t.Run("in a terminal, a feature that space selects is in requested of .feature-compose.yml, and a feature that only its need adds is in features and not in requested", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			_, err := runInTerminal(t, withNeeds(), "Repo", "jjj wy", "service", "my-service", "--output-dir", output)
+
+			require.NoError(t, err)
+			require.Equal(t, "version: v1.2.3\nstarter: service\nname: my-service\noptions: {}\nfeatures:\n  a: {}\n  b:\n    mode: fast\nrequested: [a]\n", filesIn(t, output)[".feature-compose.yml"])
 		})
 
 		for name, keys := range map[string]string{

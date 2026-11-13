@@ -52,7 +52,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Write each feature with its options, and the requested features, to `.feature-compose.yml`",
       "language": "Go",
       "testable": true,

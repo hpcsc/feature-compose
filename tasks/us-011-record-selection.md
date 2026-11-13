@@ -291,31 +291,31 @@ another selected feature needs it (decision 5). A feature that only a need added
 `requested`.
 
 **Acceptance Criteria:**
-- [ ] `.feature-compose.yml` has `features` and then `requested` after `options`, as `PROPOSAL.md` section 13 shows
+- [x] `.feature-compose.yml` has `features` and then `requested` after `options`, as `PROPOSAL.md` section 13 shows
   them.
-- [ ] `features` holds each feature of the selection one time, by its name, in the order of the names: each feature
+- [x] `features` holds each feature of the selection one time, by its name, in the order of the names: each feature
   that a flag gives or that the form selects, and each feature that a need added. Each feature holds each of its
   options by its name, in the order of the names, with the value that the templates read: from
   `--feature <name>:<option>=<value>`, from the need of another feature, from an answer of the form, or the default.
   A feature with no option holds an empty map, as `cli: {}` in section 13. A selection with no feature gives an empty
   map.
-- [ ] `requested` lists, in the order of the names, each feature that a `--feature` flag gives or that the form
+- [x] `requested` lists, in the order of the names, each feature that a `--feature` flag gives or that the form
   selects, also when another selected feature needs it. A feature that only a need added is in `features` and not in
   `requested`, also when an answer of the form gives a value to one of its options. A selection with no requested
   feature gives an empty list.
-- [ ] In a terminal, a feature that space selects in the form is in `requested` of the repo that `new` writes, and
+- [x] In a terminal, a feature that space selects in the form is in `requested` of the repo that `new` writes, and
   each feature that only its needs add is in `features` and not in `requested`.
-- [ ] The two orders of the `--feature` flags of a feature and its need, with the defaults and with a value of an
+- [x] The two orders of the `--feature` flags of a feature and its need, with the defaults and with a value of an
   option, give the same bytes in `.feature-compose.yml`.
-- [ ] `new` with the arguments that `Selection.Arguments` gives for a selection, and `--no-prompt`, writes the files
+- [x] `new` with the arguments that `Selection.Arguments` gives for a selection, and `--no-prompt`, writes the files
   of that selection and its selection file, with one difference: a feature that only a need added and whose option an
   answer gives a value is in `requested` of the repo of the arguments, because the arguments name it with
   `--feature` (decision 6).
-- [ ] `docs/commands.md`: "The Selection File" tells `features` and `requested`, with the file of
+- [x] `docs/commands.md`: "The Selection File" tells `features` and `requested`, with the file of
   `new go-event-sourcing-service my-service --feature cli-auth` as its example. The text about the command that `new`
   prints after the form says that the selection file of its repo also lists in `requested` each feature that the
   command names only to give a value to its option.
-- [ ] `e2e/tests/new.test.ts`: in the test that makes a repo with `cli-auth`, `.feature-compose.yml` holds `api-auth`
+- [x] `e2e/tests/new.test.ts`: in the test that makes a repo with `cli-auth`, `.feature-compose.yml` holds `api-auth`
   with `method` `api-key`, and `cli` and `cli-auth` with no option, and lists only `cli-auth` under `requested`. In
   the form test with no argument, the selection file of the repo of the form lists only `cli-auth` under `requested`,
   and it is the same file as the selection file of the repo of the printed command.

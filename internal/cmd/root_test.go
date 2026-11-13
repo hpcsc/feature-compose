@@ -52,7 +52,7 @@ func TestRootCommand(t *testing.T) {
 			err := command.Run(context.Background(), []string{"feature-compose", "new", "alpha", "my-repo"})
 
 			require.NoError(t, err)
-			require.Equal(t, map[string]string{"my-repo/.feature-compose.yml": "version: " + version.Current() + "\nstarter: alpha\nname: my-repo\noptions: {}\n"}, filesIn(t, workingFolder))
+			require.Equal(t, map[string]string{"my-repo/.feature-compose.yml": "version: " + version.Current() + "\nstarter: alpha\nname: my-repo\noptions: {}\nfeatures: {}\nrequested: []\n"}, filesIn(t, workingFolder))
 		})
 
 		t.Run("show prints the starters and the features of the catalog folder that the config file names", func(t *testing.T) {

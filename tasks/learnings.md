@@ -13,6 +13,7 @@
 - Observed: this run
 - Learning: catalog/ is inside the Go module of the tool, so go build ./... and go vet ./... compile any .go file under it, and a go.mod under it splits the module. So go.mod and each .go file of a starter or a feature end in .tmpl, which the write removes. The write sets the mode from the contents and not from the catalog file: only a rendered file that starts with #! is written as an executable.
 - Apply when: adding a starter or a feature to catalog/
+
 ## A delimiters glob matches the catalog path, .tmpl included
 - Type: constraint
 - Recorded: 2026-11-08
@@ -68,6 +69,7 @@
 - Observed: us-018-form
 - Learning: A fix that changes code of several task commits is split by the commit that last changed each hunk, each part a fixup of that commit, built from the fixed tip and checked against the work tree before the rebase; only a part whose fold conflicts stays its own commit, with a message that says what it fixes, never inside another task's commit. A story that grows one bubbletea model over many tasks (US-018: internal/form/draft.go, model.go and model_test.go in six of nine commits) or moves tests between t.Run groups makes clerk fixup replay conflict; then build the task commits with git commit-tree: apply each fix as an exact string replacement to the file of each commit from its target task on (an earlier form of the old text, for example a field that a later task made a method, needs its own pair), gofmt, check that the last tree equals the work tree, and test each changed commit.
 - Apply when: folding the fixes of an audit round or a design check, most of all in internal/form/, in the umbrella test files of internal/catalog/, or when clerk fixup mark comes back ambiguous
+
 ## A struct that a template function returns has exported fields in the design
 - Type: constraint
 - Recorded: 2026-11-09
@@ -214,18 +216,21 @@
 - Observed: task 3 — us-007-oauth
 - Learning: A story that changes several files of internal/catalog, internal/form, internal/screen or internal/browser makes hundreds of mutants against the run base (US-018: 27 files, 309 mutants), and clerk mutants stops at 10 minutes with an INCOMPLETE row. One task can pass the limit too: the parser of when in US-007 made 269 mutants in 5 files, and each runs the tests of internal/catalog (about 10 seconds) on 4 workers. To read only the lines of a fix, run clerk mutants --base HEAD while the fix is still uncommitted (git add -N a new file first), then fold. When a task or a run against the base stops at the limit, run mutants run --base HEAD --tags unit --workers 6 with no --limit and a --json report (about 15 minutes), and accept the INCOMPLETE key with that report as the reason.
 - Apply when: running clerk mutants on a task or after the audit fixes of a story that changes internal/catalog, internal/form, internal/screen or internal/browser, or clerk finish or clerk audit accept refuses on an INCOMPLETE mutants row
+
 ## Test new in a pseudo-terminal that has a size, with a context that ends
 - Type: pattern
 - Recorded: 2026-11-11
 - Observed: task 9 — us-018-form
 - Learning: TestNewCommand starts the TUI only when stdin and stdout are terminals, so runInTerminal opens a creack/pty, sets its size (a pty of size 0 makes the TUI draw nothing), types each key alone with a pause of 50 ms after a text shows (bubbletea reads a burst of letters as one KeyMsg), and gives new a context of 3 seconds as a limit only. Each test ends the form with a key (q, ctrl+c, or w and y): when the context kills the program, bubbletea v1.3.10 closes its cancelreader while the read loop calls Fd(), and task test:unit, which runs -race, fails. runNew gives an empty reader and the same limit, so a TUI that starts by mistake fails a test instead of waiting for keys.
 - Apply when: writing a test in internal/cmd of when new starts the TUI, or of what new does after the TUI ends
+
 ## tuistory starts each command about 5 seconds late
 - Type: constraint
-- Recorded: 2026-11-11
-- Observed: us-007-oauth
-- Learning: In the terminal of tuistory a command that writes to the terminal draws its first output about 5 seconds after the start, also feature-compose version and also before the TUI of new existed, so a screen test waits up to 15 seconds for its first text and for an EXIT that follows it. Two tests of e2e/tests/show.test.ts (the tree with each starter open, and the contract of api.middleware) wait for their first text with the default 5 seconds, and each failed one time in US-007 when show.test.ts ran next to new.test.ts on a busy host; both pass when show.test.ts runs alone.
+- Recorded: 2026-11-13
+- Observed: us-022-cli-tasks-ci
+- Learning: In the terminal of tuistory a command that writes to the terminal draws its first output about 5 seconds after the start, so the first waitForText of each screen test passes { timeout: 15_000 }, a rule of docs/e2e-tests.md. Until US-022 the screen tests of show waited the default 5 seconds, and a different one failed with an empty screen in most runs, also when show.test.ts ran alone.
 - Apply when: writing an e2e screen test with openCli, or reading a waitForText timeout of about 5 seconds as a defect of the TUI
+
 ## The shell refuses > onto a file that exists
 - Type: constraint
 - Recorded: 2026-11-10
@@ -379,3 +384,38 @@
 - Observed: US-017 process-manager
 - Learning: In the Go code of the catalog, a package folder of more than one word is snake case (use_cases, close_account, welcome_bonus, cmd/fake_services), and a fake has no package of its own: a test double goes into the package of what it fakes (domain.FakeAggregate, command.FakeHandler), and a fake of an outside system goes beside the gateway that calls the system (checks.FakeServices, submission.FakeNetwork). The template of repo-templates broke both rules (fakeservices, closeaccount, welcomebonus, domain/fake), the port of US-017 copied them, and neither the breakdown nor the audit caught them; the user did.
 - Apply when: porting a template of repo-templates into the catalog, or adding a Go package, a command or a fake to a starter or a feature
+
+## A job-level concurrency group does not keep the push order of a CI workflow
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: us-022-cli-tasks-ci
+- Learning: A job that an item of ci.jobs adds joins its concurrency group when its needs finish, not in push order, so a publish job on main can publish an older commit after a newer one, and a newly queued job cancels the pending job of a newer commit. The prerelease job of cli reads the head of main with git ls-remote --exit-code and publishes nothing when the head is not GITHUB_SHA; the go-cli template had a workflow-level group, which an item cannot add.
+- Apply when: adding a job that publishes on main or on a tag to ci.jobs, for example the images of US-020, or porting a workflow whose concurrency group covers the whole workflow into an item
+
+## The open tree of show must fit rowsOfTheWholeTree
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: us-022-cli-tasks-ci
+- Learning: Each extension point of a starter is one line of the open tree of show, and two tests of e2e/tests/show.test.ts read the whole tree, so they open the terminal with rowsOfTheWholeTree (60) rows and the other screen tests keep 40. After US-022 the tree of go (6 points) and go-event-sourcing-service (22 points) needs about 43 rows; in US-022 the tree passed 40 rows at Task 4 and the two tests lost their last line.
+- Apply when: adding extension points to a starter or adding a starter to catalog/, for example in US-015, US-020 or US-021
+
+## Compare a ported CI job with its source by its parsed steps
+- Type: pattern
+- Recorded: 2026-11-13
+- Observed: us-022-cli-tasks-ci
+- Learning: TestCatalog compares the steps of the release and prerelease jobs that cli adds to ci.yml with the steps of .github/workflows/release.yml and prerelease.yml of this repo, parsed as YAML, and names each deliberate difference in the test. It found a jq line with two spaces too many during the port, which no review of the YAML text showed.
+- Apply when: porting a workflow or a job of this repo or of repo-templates into an item of ci.jobs, for example the image jobs of US-020
+
+## A task that a feature adds must not have the name of a task of any of its targets
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: us-022-cli-tasks-ci
+- Learning: A feature with one set of files writes the same Taskfile into each target, and two tasks of one name stop Task. US-022 named task run for the CLI, but task run of go-event-sourcing-service starts the service, so the user chose task cli in both repos; the breakdown found the conflict only by listing the tasks of each target.
+- Apply when: writing or decomposing a story whose feature adds tasks to the Taskfiles of more than one starter, for example US-015 (chi-api) or US-021 (push)
+
+## actionlint and act do not run on this machine
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: us-022-cli-tasks-ci
+- Learning: actionlint and act are not installed, and the permission check refuses go run of a module that it must download, so a written GitHub workflow gets only the YAML checks of TestCatalog here. In US-022 the verification of the release jobs planned actionlint, and it did not run.
+- Apply when: a breakdown plans actionlint, act or another tool fetched at run time as the check of a GitHub workflow

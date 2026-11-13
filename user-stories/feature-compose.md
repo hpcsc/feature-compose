@@ -740,9 +740,10 @@ CLI, so that I build, test and release the CLI with the same commands in a CLI r
 
 **Acceptance Criteria:**
 
-- [ ] In a repo with `cli`, `task build` builds the CLI into `bin/<name>`, `task run -- <arguments>` runs the
+- [ ] In a repo with `cli`, `task build` builds the CLI into `bin/<name>`, `task cli -- <arguments>` runs the
   CLI from the source, and `task release:local` makes a GoReleaser snapshot in `dist/`. A repo without `cli`
-  has none of these tasks.
+  has none of these tasks. The task that runs the CLI is `cli` and not `run`, because `task run` of a
+  `go-event-sourcing-service` repo starts the service.
 - [ ] `task test:e2e` runs the end-to-end tests of the CLI in Docker, and `task test:e2e:local` runs them on
   the machine with Node. The docs of `cli` name these tasks.
 - [ ] `mise install` in a repo with `cli` installs GoReleaser and Node. After `task release:local` and an
@@ -752,8 +753,9 @@ CLI, so that I build, test and release the CLI with the same commands in a CLI r
   makes.
 - [ ] The CI workflow of a repo with `cli` also runs the end-to-end tests of the CLI. A tag
   `v<major>.<minor>.<patch>` publishes a GitHub release with the archives and `checksums.txt` that `update`
-  and the installer download, and each push to `main` publishes a prerelease. A release starts only after
-  the tests pass.
+  and the installer download, and a push to `main` publishes a prerelease of the newest commit of `main`. A
+  release starts only after the tests pass. An older build never replaces a newer prerelease, because
+  `update --prerelease` installs the prerelease that the repo published last.
 - [ ] Each change that `cli` makes to a file of the starter is an item of an extension point of the starter,
   in each starter that `cli` targets: the Taskfiles, `mise.toml`, `.gitignore`, `go.mod`, and the CI
   workflow when `cli` adds a job to it. No step other than the folder commands changes a file after the

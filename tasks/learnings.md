@@ -465,8 +465,8 @@
 ## A fold that conflicts goes to the first task commit that holds the old text of each hunk
 - Type: pattern
 - Recorded: 2026-11-13
-- Observed: us-008-cli-oauth
-- Learning: When clerk fixup replay conflicts in a file that several task commits change (internal/catalog/catalog_test.go in US-008), fold the other files with clerk fixup first, then split the diff of that file against HEAD into hunks with difflib and three lines of context, give each hunk to the first task commit whose file holds its old text exactly once (and check that each later commit holds it too), and rebuild the commits with git commit-tree, checking that the last tree equals the work tree and running the tests of each earlier commit in a git worktree. Two rounds of US-008 folded this way with no hand-made spec.
+- Observed: us-013-store-key
+- Learning: When clerk fixup replay conflicts in a file that several task commits change (internal/catalog/catalog_test.go in US-008 and US-013), fold the other files with clerk fixup first, then split the diff of that file against HEAD into hunks with difflib and three lines of context, give each hunk to the first task commit whose file holds its old text exactly once (and check that each later commit holds it too), and rebuild the commits with git commit-tree, checking that the last tree equals the work tree and running the tests of each earlier commit in a git worktree. A hunk that only renames a name, for example the loop variable method to variant, can have old text that is older than the declaration of the new name in another hunk; then it goes to an earlier task, and the earlier commits do not build. Give such a hunk the task of the declaration (in US-013 a rule word=task), and build and test each earlier commit before the push.
 - Apply when: folding the fixes of an audit round when clerk fixup replay conflicts, most of all in the umbrella test files of internal/catalog
 
 ## clerk fixup mark refuses a new file as new work
@@ -489,3 +489,31 @@
 - Observed: us-008-cli-oauth
 - Learning: clerk finish lints the task record with certainty-unevidenced, and a precedent under patterns_to_follow that names a file the task moved (files/common/ to files/api-key/ in US-008) is a precedent that cannot be opened, so the finish refuses. Change the paths in the .json and the .md of the breakdown to the new place before clerk finish.
 - Apply when: building a task that moves or renames files of the catalog or of the tool that the breakdown names as precedents
+
+## A gomod.requires item above the module graph stays in each repo as indirect
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: us-013-store-key
+- Learning: go mod tidy removes an item of gomod.requires from a repo where no file imports it only when the module graph of the starter already selects that version. In US-013, golang.org/x/term v0.42.0 for the stored API key stayed in the go.mod of every repo with cli-auth as // indirect, also with api-key and oauth, because the starter graph selects v0.29.0 (go.sum names it). Give the item the version that the graph selects, or check with diff -r that a repo without the code that imports it keeps the go.mod of the commit before.
+- Apply when: adding an item of gomod.requires to a feature whose files import the module only with one value of an option, for example store-key of cli-auth or the method oauth
+
+## Check a template block on an option with a repo written from the commit before
+- Type: pattern
+- Recorded: 2026-11-13
+- Observed: us-013-store-key
+- Learning: In US-013 the files of api-key got blocks on store-key, and the render with store-key=false had to stay the same, byte for byte. Two of the first blocks did not: {{- if }} after a blank line also trims that line, and a block at the top of a file leaves a blank first line. Write a block that comes after a blank line as {{ if $x -}} ... {{- else -}} ... {{- end }}, start the file with {{- $x := ... -}}, and prove the other value with diff -r of a repo that the built binary writes from the catalog of the commit before (a git worktree) and from the work tree. gofmt in after_render can hide a Go difference, so the diff of .md and .ts files is the check that counts.
+- Apply when: adding {{ if }} blocks on an option to the templates of a starter or a feature, where the files of another value must not change
+
+## runCli of a written repo leaves stdin open
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: us-013-store-key
+- Learning: runCli in the testUtils.ts of the feature cli spawns the CLI and never closes its stdin, and the test 'with no command, prints its commands and reads no input' relies on that: a CLI that reads stdin would hang. US-013 gave runCli an optional input, which it writes to stdin and then closes, for auth login of the stored API key. A test of a command that reads stdin passes that input; a test in a terminal uses openCli.
+- Apply when: writing an e2e test of a written repo for a command that reads stdin or prompts in a terminal
+
+## The form of new follows Selection.Questions with no code of its own
+- Type: pattern
+- Recorded: 2026-11-13
+- Observed: us-013-store-key
+- Learning: The tree of the form takes the options of each selected feature from Selection.Questions, and the draft runs Select again after each answer and each Space. In US-013 an option whose when is false got no question, and the form then hid and showed the row after each answer with no change in internal/form; a kept answer comes back when Select uses it again. A story that changes which questions a selection has needs tests of TestModel and of the e2e form, not code in internal/form.
+- Apply when: decomposing or building a story that changes which options a selection asks, when an option applies, or the source of a value

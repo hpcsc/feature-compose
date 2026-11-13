@@ -436,22 +436,22 @@ combination. A need of a need gives none. The name of the combination is the arg
 repo, so `task test:combinations` makes the repo of each of them with no change to the task or to CI.
 
 **Acceptance Criteria:**
-- [ ] In a catalog where `client` needs `auth`, and `auth` has `method` with `values: [api-key, oauth, none]` and
+- [x] In a catalog where `client` needs `auth`, and `auth` has `method` with `values: [api-key, oauth, none]` and
   `default: api-key`, `Catalog.Combinations` holds `api --feature auth:method=oauth --feature client` and
   `api --feature auth:method=none --feature client`, beside the combinations of `client` alone and of `auth` with
   each value. The test states the whole list in its order.
-- [ ] When the need of `client` sets `method: api-key`, no combination varies `method` with `client`. When the need
+- [x] When the need of `client` sets `method: api-key`, no combination varies `method` with `client`. When the need
   sets one option of `auth` and `auth` has a second option with `values`, each combination of `client` with another
   value of the second option holds the first option at the value of the need.
-- [ ] A need with no option with `values`, a feature with no need, and a need of a need give no combination of this
+- [x] A need with no option with `values`, a feature with no need, and a need of a need give no combination of this
   kind. The tests of the group `combinations` of `TestCatalog` pass with their expected values unchanged.
-- [ ] `Select` of each such combination does not stop, and its repo holds the values that its name gives (the
+- [x] `Select` of each such combination does not stop, and its repo holds the values that its name gives (the
   pattern of `internal/catalog/catalog_test.go:2921-2947`).
-- [ ] In the catalog of this repo, no combination holds `cli-auth` with `api-auth:method=oauth`, because the need of
+- [x] In the catalog of this repo, no combination holds `cli-auth` with `api-auth:method=oauth`, because the need of
   `cli-auth` sets `method: api-key`.
-- [ ] `docs/development.md`, in "Test the Combinations of the Catalog", lists the combination of a feature with each
+- [x] `docs/development.md`, in "Test the Combinations of the Catalog", lists the combination of a feature with each
   other value of an option of a feature that it needs, and the values that the need sets.
-- [ ] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass.
+- [x] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `internal/catalog/starter.go` — `combinations`

@@ -57,7 +57,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Give each feature a combination with each other value of an option of its needs",
       "language": "Go",
       "testable": true,

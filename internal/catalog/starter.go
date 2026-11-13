@@ -145,7 +145,7 @@ func (s Starter) FeatureNames() ([]string, error) {
 func (s Starter) combinations() []Combination {
 	starterDefaults := s.options.defaultsOfOptionsWithValues()
 	combinations := []Combination{{StarterName: s.name, StarterValues: starterDefaults}}
-	for _, values := range s.options.otherValuesOfOptionsWithValues() {
+	for _, values := range s.options.otherValuesOfOptionsWithValues(nil) {
 		combinations = append(combinations, Combination{StarterName: s.name, StarterValues: values})
 	}
 	withFeatures := func(featureValues map[string]map[string]string) Combination {
@@ -153,10 +153,20 @@ func (s Starter) combinations() []Combination {
 	}
 	featureNames := slices.Sorted(maps.Keys(s.features))
 	for _, featureName := range featureNames {
-		declared := s.features[featureName].options
-		combinations = append(combinations, withFeatures(map[string]map[string]string{featureName: declared.defaultsOfOptionsWithValues()}))
-		for _, values := range declared.otherValuesOfOptionsWithValues() {
+		f := s.features[featureName]
+		featureDefaults := f.options.defaultsOfOptionsWithValues()
+		combinations = append(combinations, withFeatures(map[string]map[string]string{featureName: featureDefaults}))
+		for _, values := range f.options.otherValuesOfOptionsWithValues(nil) {
 			combinations = append(combinations, withFeatures(map[string]map[string]string{featureName: values}))
+		}
+		for _, needName := range slices.Sorted(slices.Values(f.needs)) {
+			setByNeeds, err := s.setByNeeds(s.withAllNeeds(featureName))
+			if err != nil {
+				continue
+			}
+			for _, values := range s.features[needName].options.otherValuesOfOptionsWithValues(setByNeeds[needName].byOption) {
+				combinations = append(combinations, withFeatures(map[string]map[string]string{featureName: maps.Clone(featureDefaults), needName: values}))
+			}
 		}
 	}
 	for i, first := range featureNames {
@@ -320,6 +330,14 @@ func (s Starter) extensionPointsDeclaredFor(f feature) map[string]extensionPoint
 		}
 	}
 	return declared
+}
+
+func (s Starter) withAllNeeds(featureName string) []feature {
+	features := []feature{s.features[featureName]}
+	for needName := range s.allNeedsOf(featureName) {
+		features = append(features, s.features[needName])
+	}
+	return features
 }
 
 func (s Starter) oneNeedsTheOther(first, second string) bool {

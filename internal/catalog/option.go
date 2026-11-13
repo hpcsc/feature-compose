@@ -154,15 +154,19 @@ func (o options) defaultsOfOptionsWithValues() map[string]string {
 	return defaults
 }
 
-func (o options) otherValuesOfOptionsWithValues() []map[string]string {
+func (o options) otherValuesOfOptionsWithValues(fixed map[string]string) []map[string]string {
 	var others []map[string]string
 	for _, optionName := range slices.Sorted(maps.Keys(o.declared)) {
+		if _, ok := fixed[optionName]; ok {
+			continue
+		}
 		declared := o.declared[optionName]
 		for _, value := range declared.accepted {
 			if value == declared.defaultValue {
 				continue
 			}
 			values := o.defaultsOfOptionsWithValues()
+			maps.Copy(values, fixed)
 			values[optionName] = value
 			others = append(others, values)
 		}

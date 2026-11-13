@@ -34,6 +34,10 @@ runs the `after_render` commands and then the `test` commands of each folder. Th
 - Each starter alone
 - Each starter with each feature that targets it, and the needs of the feature
 - One for each value of an option that has `values`, with the other options at their defaults
+- One for each value of an option that has `values` of a feature that a feature needs, with both features. The
+  option of the need has that value, and each other option of the need has the value that the needs of the feature
+  and of its own needs set, or its default. A value that these needs set gives no such combination, and a need of a
+  need gives none. When two of these needs set two values of one option, the feature gets no such combination.
 - Each pair of features that add items to one extension point, except a pair in which one feature needs the
   other: the repo of that feature already holds both
 

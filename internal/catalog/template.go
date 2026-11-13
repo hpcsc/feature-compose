@@ -22,7 +22,7 @@ type template struct {
 	when         expression
 }
 
-func readTemplates(fsys fs.FS, root, featureName string) ([]template, error) {
+func readTemplates(fsys fs.FS, root, featureName string, rules []delimitersRule) ([]template, error) {
 	owner := "the starter"
 	if featureName != "" {
 		owner = "the feature " + featureName
@@ -36,7 +36,14 @@ func readTemplates(fsys fs.FS, root, featureName string) ([]template, error) {
 		if err != nil {
 			return err
 		}
-		templates = append(templates, template{catalogPath: strings.TrimPrefix(name, root+"/"), owner: owner, featureName: featureName, contents: string(contents)})
+		t := template{catalogPath: strings.TrimPrefix(name, root+"/"), owner: owner, featureName: featureName, contents: string(contents), delimiters: defaultDelimiters}
+		for _, rule := range rules {
+			if rule.matches(t.catalogPath) {
+				t.delimiters = rule.delimiters
+				break
+			}
+		}
+		templates = append(templates, t)
 		return nil
 	})
 	if err != nil {
@@ -45,20 +52,14 @@ func readTemplates(fsys fs.FS, root, featureName string) ([]template, error) {
 	return templates, nil
 }
 
-func (t template) place(folders map[string]folder, rules []delimitersRule) (template, error) {
+func (t template) place(folders map[string]folder) (template, error) {
 	folderName, inFolder := t.folderIn(folders)
 	if !inFolder {
 		return template{}, fmt.Errorf("the template %s of %s is not in a folder of the starter: the folders are %s",
 			t.catalogPath, t.owner, strings.Join(slices.Sorted(maps.Keys(folders)), ", "))
 	}
 	_, pathInFolder := t.splitPath()
-	t.folder, t.pathInFolder, t.delimiters = folders[folderName], pathInFolder, defaultDelimiters
-	for _, rule := range rules {
-		if rule.matches(t.catalogPath) {
-			t.delimiters = rule.delimiters
-			break
-		}
-	}
+	t.folder, t.pathInFolder = folders[folderName], pathInFolder
 	return t, nil
 }
 
@@ -76,11 +77,37 @@ func (t template) splitPath() (folderName, pathInFolder string) {
 	return folderName, strings.TrimSuffix(pathInFolder, ".tmpl")
 }
 
-func (t template) description() string {
+func (t template) descriptionInOwner() string {
 	if t.entry == "" {
-		return "the template " + t.catalogPath + " of " + t.owner
+		return "the template " + t.catalogPath
 	}
-	return "the template " + t.catalogPath + " of the files entry " + t.entry + " of " + t.owner
+	return "the template " + t.catalogPath + " of the files entry " + t.entry
+}
+
+func (t template) description() string {
+	return t.descriptionInOwner() + " of " + t.owner
+}
+
+func (t template) calls() (calls, error) {
+	withPath, err := calls{}.with(t.catalogPath, t.catalogPath, defaultDelimiters)
+	if err != nil {
+		return calls{}, err
+	}
+	return withPath.with(t.catalogPath, t.contents, t.delimiters)
+}
+
+func (t template) readMistakes(readable map[string]bool, whyCannotRead func(reference string) string) ([]string, error) {
+	parsed, err := t.calls()
+	if err != nil {
+		return nil, fmt.Errorf("%s does not parse: %w", t.descriptionInOwner(), err)
+	}
+	var mistakes []string
+	for _, reference := range parsed.argumentsOf("option") {
+		if !readable[reference] {
+			mistakes = append(mistakes, fmt.Sprintf("%s reads %q, which %s", t.descriptionInOwner(), reference, whyCannotRead(reference)))
+		}
+	}
+	return mistakes, nil
 }
 
 func (t template) render(s Selection) (file, error) {

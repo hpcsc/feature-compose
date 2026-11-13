@@ -314,39 +314,39 @@ its owner cannot read (decisions 1, 2 and 6). Because it reads the parse tree, i
 combination of CI renders. A template that does not parse is a mistake of its owner (decision 5).
 
 **Acceptance Criteria:**
-- [ ] Each `option "<reference>"` in a template of a feature, with a reference that the feature cannot read under
+- [x] Each `option "<reference>"` in a template of a feature, with a reference that the feature cannot read under
   Task 2, is a mistake. The message names the template with its files entry, the reference and the feature, and for a
   starter option each target that does not declare it.
-- [ ] A call counts wherever it is in the parse tree: in an action, in the pipeline, the body or the `else` of `if`,
+- [x] A call counts wherever it is in the parse tree: in an action, in the pipeline, the body or the `else` of `if`,
   `range` and `with`, in a `define`, as a parenthesized argument of another function, and in the path of the template.
-- [ ] A template is checked whatever the `when` of its files entry: a template of an entry whose `when` holds for no
+- [x] A template is checked whatever the `when` of its files entry: a template of an entry whose `when` holds for no
   value that a combination of CI selects is still checked.
-- [ ] A template is parsed with the delimiters of the first delimiters rule of its owner that matches its catalog
+- [x] A template is parsed with the delimiters of the first delimiters rule of its owner that matches its catalog
   path: `[[ option "x" ]]` in such a file is a read, and `{{ option "x" }}` in it is text. A template of a feature gets
   these delimiters whatever the starter.
-- [ ] A template of the starter that reads a reference other than `starter.<option>` of an option of that starter is
+- [x] A template of the starter that reads a reference other than `starter.<option>` of an option of that starter is
   a mistake of the starter, and the message names the starter, the template and the reference.
-- [ ] A template that does not parse is a mistake. The message names the template, its owner and the error of the
+- [x] A template that does not parse is a mistake. The message names the template, its owner and the error of the
   parse, and `check` goes on with the other templates. A template that calls each template function that `new`
   renders with is not such a mistake.
-- [ ] A template that reads one reference that it cannot read many times gives one mistake. A template that reads
+- [x] A template that reads one reference that it cannot read many times gives one mistake. A template that reads
   only readable references gives none.
-- [ ] `new` renders each template with the same delimiters as before: the tests of the Taskfiles, the GitHub workflow
+- [x] `new` renders each template with the same delimiters as before: the tests of the Taskfiles, the GitHub workflow
   and `.goreleaser.yaml` (`internal/catalog/catalog_test.go:907-913`, `internal/catalog/catalog_test.go:1648-1654`) still
   pass.
-- [ ] The mistakes of US-006 and Tasks 1 and 2 are still found, in a fixed order (decision 9), and `Catalog.Check` on
+- [x] The mistakes of US-006 and Tasks 1 and 2 are still found, in a fixed order (decision 9), and `Catalog.Check` on
   `catalog/` gives no mistake.
-- [ ] `feature-compose check` prints the mistakes of a template of a feature and of a template of the starter.
-- [ ] `e2e/tests/check.test.ts`: `check` on a scratch catalog with a template of a feature that reads a starter option
+- [x] `feature-compose check` prints the mistakes of a template of a feature and of a template of the starter.
+- [x] `e2e/tests/check.test.ts`: `check` on a scratch catalog with a template of a feature that reads a starter option
   that its target does not declare exits with 1, and its line names the template, the option and the feature. The
   test of the catalog of this repo still exits with 0. Both pass on the host.
-- [ ] The usage of `check`, its line in the table at `docs/commands.md:7`, the first sentence of "Check the Catalog" in
+- [x] The usage of `check`, its line in the table at `docs/commands.md:7`, the first sentence of "Check the Catalog" in
   `docs/commands.md` and in `docs/catalog.md`, and the `desc` of `test:catalog` in `Taskfile.test.yml` say that `check`
   also checks the templates; `internal/cmd/root_test.go:140` follows the usage. `docs/commands.md` has a row for each
   mistake, and `docs/catalog.md:283-284` says that `check` finds a template that reads an option that it cannot read.
-- [ ] `clerk mutants` on the changed lines of `internal/catalog` completes within its time limit, with no mutant that
+- [x] `clerk mutants` on the changed lines of `internal/catalog` completes within its time limit, with no mutant that
   waits for its timeout.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `internal/catalog/parse_tree.go` — the parse tree of a template, and the quoted texts that each call of one function

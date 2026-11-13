@@ -14,7 +14,7 @@ import (
 func newCheckCommand(load func() (catalog.Catalog, error)) *cli.Command {
 	return &cli.Command{
 		Name:  "check",
-		Usage: "find each feature of the catalog that does not fit its targets or its needs",
+		Usage: "find the mistakes of the starters, the features and the templates of the catalog",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "catalog", Usage: "check the catalog in this folder, not the catalog folder of the config file"},
 		},

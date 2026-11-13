@@ -137,7 +137,7 @@ func TestRootCommand(t *testing.T) {
 			require.NoError(t, err)
 			require.Contains(t, printed.String(), "make a new repo from a starter")
 			require.Contains(t, printed.String(), "show the starters, the features and the extension points of the catalog")
-			require.Contains(t, printed.String(), "find each feature of the catalog that does not fit its targets or its needs")
+			require.Contains(t, printed.String(), "find the mistakes of the starters, the features and the templates of the catalog")
 			require.Contains(t, printed.String(), "replace feature-compose with the latest release")
 		})
 	})

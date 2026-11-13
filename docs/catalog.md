@@ -282,12 +282,14 @@ template can read these values and functions:
 | `kebab`, `snake`, `camel`, `pascal`, `upper` | Functions that change the case of a text, for example `{{ kebab .Name }}`. |
 
 A template that reads an unknown option, or an extension point that nobody declares, stops `new` before it
-writes the first file. The message names the template.
+writes the first file. The message names the template. `check` finds a template that reads an option that it
+cannot read, also a template that no repo of CI renders, because it reads the parse tree of each template.
 
 ## Check the Catalog
 
 `feature-compose check` finds each feature that does not fit its targets or its needs, for example an item with
-the wrong fields, or a need that does not target the starter.
+the wrong fields, or a need that does not target the starter. It also finds each template that reads an option
+that it cannot read, or that does not parse.
 [What Each Command of feature-compose Does](commands.md#check-the-catalog) lists each mistake that it finds.
 Run it in the CI of the catalog, so that a mistake stops before somebody runs `new`.
 

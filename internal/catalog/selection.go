@@ -255,9 +255,7 @@ func (s Selection) checkEmpty(output string) error {
 }
 
 func (s Selection) render(label, text string, d delimiters, featureName string) (string, error) {
-	option := func(reference string) (string, error) { return s.option(featureName, reference) }
-	funcs := texttemplate.FuncMap{"option": option, "items": s.items, "unique": s.unique, "indent": s.indent, "githubRepository": github.RepositoryOf, "kebab": textcase.Kebab, "snake": textcase.Snake, "camel": textcase.Camel, "pascal": textcase.Pascal, "upper": strings.ToUpper}
-	parsed, err := texttemplate.New(label).Delims(d.left, d.right).Funcs(funcs).Option("missingkey=error").Parse(text)
+	parsed, err := texttemplate.New(label).Delims(d.left, d.right).Funcs(s.funcs(featureName)).Option("missingkey=error").Parse(text)
 	if err != nil {
 		return "", fmt.Errorf("parse %w", err)
 	}
@@ -266,6 +264,11 @@ func (s Selection) render(label, text string, d delimiters, featureName string) 
 		return "", fmt.Errorf("render %w", err)
 	}
 	return rendered.String(), nil
+}
+
+func (s Selection) funcs(featureName string) texttemplate.FuncMap {
+	option := func(reference string) (string, error) { return s.option(featureName, reference) }
+	return texttemplate.FuncMap{"option": option, "items": s.items, "unique": s.unique, "indent": s.indent, "githubRepository": github.RepositoryOf, "kebab": textcase.Kebab, "snake": textcase.Snake, "camel": textcase.Camel, "pascal": textcase.Pascal, "upper": strings.ToUpper}
 }
 
 func (s Selection) indent(spaces int, text string) string {

@@ -13,7 +13,6 @@ type feature struct {
 	name              string
 	targets           []string
 	templates         []template
-	rules             []delimitersRule
 	options           options
 	extensionPoints   map[string]extensionPoint
 	addTo             map[string][]map[string]string
@@ -71,7 +70,7 @@ func newFeature(fsys fs.FS, featureName string, parsed featureYML) (feature, err
 			return feature{}, fmt.Errorf("read %s: files names the path %q two times", ymlPath, entry.Path)
 		}
 		entryRoots[entryRoot] = true
-		read, err := readTemplates(fsys, entryRoot, featureName)
+		read, err := readTemplates(fsys, entryRoot, featureName, rules)
 		if err != nil {
 			return feature{}, err
 		}
@@ -100,7 +99,7 @@ func newFeature(fsys fs.FS, featureName string, parsed featureYML) (feature, err
 		extensionPoints[name] = extensionPoint{name: name, declarer: "the feature " + featureName, itemFields: declared.Item}
 	}
 	return feature{
-		name: featureName, targets: parsed.Targets, templates: templates, rules: rules, options: declaredOptions,
+		name: featureName, targets: parsed.Targets, templates: templates, options: declaredOptions,
 		extensionPoints: extensionPoints, addTo: parsed.AddTo, needs: parsed.needNames, needValues: parsed.Needs,
 		whenParseMistakes: whenParseMistakes,
 	}, nil
@@ -109,7 +108,7 @@ func newFeature(fsys fs.FS, featureName string, parsed featureYML) (feature, err
 func (f feature) placedIn(folders map[string]folder) ([]template, error) {
 	placed := make([]template, 0, len(f.templates))
 	for _, t := range f.templates {
-		inFolder, err := t.place(folders, f.rules)
+		inFolder, err := t.place(folders)
 		if err != nil {
 			return nil, err
 		}
@@ -159,18 +158,26 @@ func (f feature) mistakes(starters []Starter, catalogFeatures map[string]feature
 func (f feature) readMistakes(starters []Starter, catalogFeatures map[string]feature) []string {
 	readable := f.readable(starters, catalogFeatures)
 	checkedEntries := map[string]bool{}
-	var mistakes []string
+	var whenReads, templateReads, parseMistakes []string
 	for _, t := range f.templates {
-		if checkedEntries[t.entry] {
-			continue
-		}
-		checkedEntries[t.entry] = true
-		for _, reference := range t.when.references() {
-			if !readable[reference] {
-				mistakes = append(mistakes, fmt.Sprintf("the feature %s: the when %q of the files entry %q reads %q, which %s",
-					f.name, t.when.text, t.entry, reference, f.whyCannotRead(reference, readable, starters)))
+		if !checkedEntries[t.entry] {
+			checkedEntries[t.entry] = true
+			for _, reference := range t.when.references() {
+				if !readable[reference] {
+					whenReads = append(whenReads, fmt.Sprintf("the when %q of the files entry %q reads %q, which %s",
+						t.when.text, t.entry, reference, f.whyCannotRead(reference, readable, starters)))
+				}
 			}
 		}
+		reads, err := t.readMistakes(readable, func(reference string) string { return f.whyCannotRead(reference, readable, starters) })
+		if err != nil {
+			parseMistakes = append(parseMistakes, err.Error())
+		}
+		templateReads = append(templateReads, reads...)
+	}
+	mistakes := slices.Concat(whenReads, templateReads, parseMistakes)
+	for i, mistake := range mistakes {
+		mistakes[i] = "the feature " + f.name + ": " + mistake
 	}
 	return mistakes
 }

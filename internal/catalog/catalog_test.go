@@ -953,6 +953,153 @@ files:
 			}, mistakes)
 		})
 
+		t.Run("each option call in a template of a feature that reads a reference that the feature cannot read is one mistake, wherever the call is in the parse tree, also in each define in the order of their names, and the message names the template, its files entry, the reference and the feature", func(t *testing.T) {
+			files := withFeatures(map[string]string{"cli": "targets: [service]\noptions:\n  method:\n    default: api-key\nfiles:\n  - path: files/\n"})
+			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte(`{{ option "a" }}
+{{ if eq (option "b") "x" }}{{ option "c" }}{{ else }}{{ option "d" }}{{ end }}
+{{ range items "api.middleware" }}{{ option "e" }}{{ end }}
+{{ with option "f" }}{{ . }}{{ end }}
+{{ define "t" }}{{ option "q" }}{{ end }}{{ define "part" }}{{ option "g" }}{{ end }}{{ define "s" }}{{ option "p" }}{{ end }}{{ define "r" }}{{ option "o" }}{{ end }}
+{{ githubRepository (option "h") }}
+{{ template "part" }}{{ template "part" option "i" }}
+{{ .Name | printf "%s-%s" (option "k") }}{{ (option "l").Size }}
+{{ option "a" }}{{ option "method" }}{{ "j" | printf "%s" }}
+`)}
+			files[`features/cli/files/go/{{ option "path" }}.go`] = &fstest.MapFile{Data: []byte("package cli\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the feature cli: the template go/cli.go of the files entry files/ reads "a", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/cli.go of the files entry files/ reads "b", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/cli.go of the files entry files/ reads "c", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/cli.go of the files entry files/ reads "d", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/cli.go of the files entry files/ reads "e", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/cli.go of the files entry files/ reads "f", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/cli.go of the files entry files/ reads "h", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/cli.go of the files entry files/ reads "i", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/cli.go of the files entry files/ reads "k", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/cli.go of the files entry files/ reads "l", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/cli.go of the files entry files/ reads "g", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/cli.go of the files entry files/ reads "o", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/cli.go of the files entry files/ reads "p", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/cli.go of the files entry files/ reads "q", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/{{ option "path" }}.go of the files entry files/ reads "path", which the feature cannot read: it can read method`,
+			}, mistakes)
+		})
+
+		t.Run("an option call whose argument is not quoted text, and a call whose function is not a name, read nothing", func(t *testing.T) {
+			files := withFeatures(map[string]string{"cli": "targets: [service]\nfiles:\n  - path: files/\n"})
+			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte(`{{ option .Name }}{{ .Name "m" }}{{ option "n" }}` + "\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{`the feature cli: the template go/cli.go of the files entry files/ reads "n", which the feature cannot read: it can read no option`}, mistakes)
+		})
+
+		t.Run("a template of a feature is parsed with the delimiters of its feature, and its path with {{ }}", func(t *testing.T) {
+			files := withFeatures(map[string]string{"tasks": `targets: [service]
+delimiters:
+  - glob: go/Taskfile*.yml
+    left: '[['
+    right: ']]'
+files:
+  - path: files/
+`})
+			files["features/tasks/files/go/Taskfile.tasks.yml"] = &fstest.MapFile{Data: []byte(`run: [[ option "x" ]] {{ option "y" }} {{.CLI_ARGS}}` + "\n")}
+			files[`features/tasks/files/go/Taskfile.{{ option "w" }}.yml`] = &fstest.MapFile{Data: []byte("tasks: {}\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the feature tasks: the template go/Taskfile.tasks.yml of the files entry files/ reads "x", which the feature cannot read: it can read no option`,
+				`the feature tasks: the template go/Taskfile.{{ option "w" }}.yml of the files entry files/ reads "w", which the feature cannot read: it can read no option`,
+			}, mistakes)
+		})
+
+		t.Run("a template of a feature is checked whatever the when of its files entry", func(t *testing.T) {
+			files := withFeatures(map[string]string{"tasks": "targets: [service]\noptions:\n  mode:\n    values: [fast]\n    default: fast\nfiles:\n  - path: files/slow/\n    when: mode == \"slow\"\n"})
+			files["features/tasks/files/slow/go/slow.go"] = &fstest.MapFile{Data: []byte(`{{ option "z" }}` + "\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{`the feature tasks: the template go/slow.go of the files entry files/slow/ reads "z", which the feature cannot read: it can read mode`}, mistakes)
+		})
+
+		t.Run("a template of the starter that reads a reference other than an option of the starter is a mistake of the starter after its cycles, parsed with the delimiters of the starter, and the message names the starter, the template and the reference", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"a": "targets: [service]\nneeds: [b]\n",
+				"b": "targets: [service]\nneeds: [a]\n",
+			})
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\noptions:\n  module:\n    default: example.com/service\n  region:\n    default: us\ndelimiters:\n  - glob: go/*.yml\n    left: '[['\n    right: ']]'\n")}
+			files["starters/service/files/go/main.go"] = &fstest.MapFile{Data: []byte(`{{ option "starter.module" }} {{ option "cli.mode" }} {{ option "starter.port" }} {{ option "starter.region" }}` + "\n")}
+			files["starters/service/files/go/ci.yml"] = &fstest.MapFile{Data: []byte(`ref: ${{ github.ref }} [[ option "ci.token" ]]` + "\n")}
+			files["starters/bare/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")}
+			files["starters/bare/files/go/main.go"] = &fstest.MapFile{Data: []byte(`{{ option "starter.module" }}` + "\n")}
+			files["starters/one/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\noptions:\n  module:\n    default: example.com/one\n")}
+			files["starters/one/files/go/main.go"] = &fstest.MapFile{Data: []byte(`{{ option "starter.region" }}` + "\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the starter bare: the template go/main.go reads "starter.module", which the starter cannot read: it can read no option`,
+				`the starter one: the template go/main.go reads "starter.region", which the starter cannot read: it can read starter.module`,
+				"the starter service: the needs of the features form a cycle: a needs b needs a",
+				`the starter service: the template go/ci.yml reads "ci.token", which the starter cannot read: it can read starter.module, starter.region`,
+				`the starter service: the template go/main.go reads "cli.mode", which the starter cannot read: it can read starter.module, starter.region`,
+				`the starter service: the template go/main.go reads "starter.port", which the starter cannot read: it can read starter.module, starter.region`,
+			}, mistakes)
+		})
+
+		t.Run("a template that does not parse is a mistake of its owner that names the template and the error, after the reads of the templates of that owner", func(t *testing.T) {
+			files := withFeatures(map[string]string{"cli": "targets: [service]\noptions:\n  method:\n    default: api-key\nfiles:\n  - path: files/\n"})
+			files["starters/service/files/go/bad.go"] = &fstest.MapFile{Data: []byte("{{ if }}\n")}
+			files["starters/service/files/go/reads.go"] = &fstest.MapFile{Data: []byte(`{{ option "x" }}` + "\n")}
+			files["features/cli/files/go/a.go"] = &fstest.MapFile{Data: []byte("{{ nope }}\n")}
+			files["features/cli/files/go/c.go"] = &fstest.MapFile{Data: []byte(`{{ option "mode" }}` + "\n")}
+			files[`features/cli/files/go/{{ if }}.go`] = &fstest.MapFile{Data: []byte("package cli\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the starter service: the template go/reads.go reads "x", which the starter cannot read: it can read no option`,
+				`the starter service: the template go/bad.go does not parse: template: go/bad.go:1: missing value for if`,
+				`the feature cli: the template go/c.go of the files entry files/ reads "mode", which the feature cannot read: it can read method`,
+				`the feature cli: the template go/a.go of the files entry files/ does not parse: template: go/a.go:1: function "nope" not defined`,
+				`the feature cli: the template go/{{ if }}.go of the files entry files/ does not parse: template: go/{{ if }}.go:1: missing value for if`,
+			}, mistakes)
+		})
+
+		t.Run("a template that calls each template function of new parses", func(t *testing.T) {
+			files := withFeatures(map[string]string{"cli": "targets: [service]\noptions:\n  method:\n    default: api-key\nfiles:\n  - path: files/\n"})
+			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte(`{{ option "method" }}{{ items "api.middleware" }}{{ unique "code" "api.middleware" }}{{ indent 2 "x" }}{{ githubRepository "github.com/a/b" }}{{ kebab "A" }}{{ snake "A" }}{{ camel "A" }}{{ pascal "A" }}{{ upper "a" }}` + "\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Empty(t, mistakes)
+		})
+
+		t.Run("the reads of the templates of a feature come after the reads of its when expressions", func(t *testing.T) {
+			files := withFeatures(map[string]string{"auth": "targets: [service]\nfiles:\n  - path: files/a/\n  - path: files/b/\n    when: mode\n"})
+			files["features/auth/files/a/go/a.go"] = &fstest.MapFile{Data: []byte(`{{ option "region" }}` + "\n")}
+			files["features/auth/files/b/go/b.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the feature auth: the when "mode" of the files entry "files/b/" reads "mode", which the feature cannot read: it can read no option`,
+				`the feature auth: the template go/a.go of the files entry files/a/ reads "region", which the feature cannot read: it can read no option`,
+			}, mistakes)
+		})
+
 		t.Run("the catalog of this repo has no mistake", func(t *testing.T) {
 			mistakes, err := repoCatalog().Check()
 

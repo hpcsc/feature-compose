@@ -4,7 +4,7 @@
 | --- | --- |
 | `feature-compose new [<starter> [<name>]]` | Makes a new repo from a starter and the features that you select. |
 | `feature-compose show [<starter>]` | Shows the starters, the features and the extension points of the catalog. |
-| `feature-compose check` | Finds each feature of the catalog that does not fit its targets or its needs. |
+| `feature-compose check` | Finds the mistakes of the starters, the features and the templates of the catalog. |
 | `feature-compose version` | Prints the tag that the binary comes from, or its commit. |
 | `feature-compose update` | Replaces the binary with the latest release or prerelease. |
 
@@ -284,8 +284,9 @@ is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each
 
 ## Check the Catalog
 
-`feature-compose check` finds each feature of the catalog that does not fit its targets or its needs, so that a
-mistake in the catalog stops before a developer runs `new`. It reads the catalog folder that the config file
+`feature-compose check` finds each feature of the catalog that does not fit its targets or its needs, and each
+template that reads an option that it cannot read or that does not parse, so that a mistake in the catalog stops
+before a developer runs `new`. It reads the catalog folder that the config file
 names, and checks each feature against each starter that its `targets` name. `--catalog <folder>` checks the
 catalog in that folder, and `check` then does not read the config file. A `--catalog` path that is not a folder
 stops `check`, and the message names the path.
@@ -313,6 +314,9 @@ feature-compose check --catalog ./catalog
 | The needs of the features of a starter form a cycle. The message names each feature of the cycle in the order of the needs, and no feature that only needs a feature of the cycle. Each feature that is in a cycle is in at least one message, also when two cycles share it. A cycle gives one mistake for each starter whose features hold it. | `the starter service: the needs of the features form a cycle: app needs base needs app` |
 | The `when` of a files entry does not parse. Each such files entry is one mistake of the feature, also when the feature has two targets, and `check` still finds the other mistakes of the feature. `new` stops on the first one. | `the feature auth: the when "method ==" of the files entry "files/": method == needs a quoted value after it` |
 | A `when` reads an option that the feature cannot read. A feature reads its own options by name, the options of each feature in its `needs` as `<need>.<option>`, and `starter.<option>` for an option that each of its targets declares. A need of a need does not count. Each reference that a `when` cannot read is one mistake. For a starter option, the message names each target that does not declare it. | `the feature cli: the when "starter.region == \"eu\"" of the files entry "files/" reads "starter.region", which the starter worker does not declare` |
+| A template of a feature calls `option` with an option that the feature cannot read, by the rule of the row above. `check` reads the parse tree of the path of each template, with `{{ }}`, and of its contents, with the delimiters of the feature, so it also checks a template whose `when` is false in each repo of CI. Only a call with a quoted option counts, also as a parenthesized argument or in a `define`. Each option is one mistake for each template. | `the feature cli: the template go/cli.go of the files entry files/ reads "starter.region", which the starter worker does not declare` |
+| A template of the starter calls `option` with an option other than `starter.<option>` of an option that the starter declares. | `the starter service: the template go/main.go reads "cli.mode", which the starter cannot read: it can read starter.go-version, starter.module` |
+| A template does not parse with its delimiters and the template functions of `new`. The message gives the error of the parse. | `the feature cli: the template go/cli.go of the files entry files/ does not parse: template: go/cli.go:1: function "nope" not defined` |
 
 Each message names the feature, the starter, and the extension point, the folder or the need that is wrong. A
 feature with two targets gives one mistake for each target that it does not fit. A mistake that is not about one
@@ -320,10 +324,11 @@ target, for example a `when` that does not parse, comes one time and names no st
 mistake of the feature that has the need, not of the features that need that feature.
 
 `check` prints each mistake on its own line to stdout. The mistakes of each starter come first, in the order of the
-starters, the features, the extension points and the items, and the cycles of each starter come after its
-features. Then the mistakes of each feature come, in the order of the features: its targets with different item
-fields, then its `when` expressions that do not parse, then the options that its `when` expressions read and cannot
-read, each in the order of the files entries. Then `check` writes the number of the mistakes to stderr, for example
+starters, the features, the extension points and the items, the cycles of each starter come after its features,
+and the reads and then the parse mistakes of its templates come after its cycles. Then the mistakes of each feature
+come, in the order of the features: its targets with different item fields, then its `when` expressions that do
+not parse, then the options that its `when` expressions read and cannot read, then the options that its templates
+read and cannot read, then its templates that do not parse, each in the order of the files entries. Then `check` writes the number of the mistakes to stderr, for example
 `the catalog has 2 mistakes`, and exits with the status 1. With no mistake, it prints
 `The catalog has no mistakes.` and exits with the status 0. A catalog that `check` cannot read, for example a
 `starter.yml` that is not valid YAML, stops `check` with the message that `new` and `show` give, and the exit

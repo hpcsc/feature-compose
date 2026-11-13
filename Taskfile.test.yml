@@ -14,7 +14,7 @@ tasks:
       - gotestsum --format testname -- -tags=combinations -count=1 -timeout=60m ./internal/catalog/
 
   catalog:
-    desc: Check the links between the features and the starters of the catalog in catalog/
+    desc: Check the starters, the features and the templates of the catalog in catalog/
     cmds:
       - go run ./cmd/feature-compose check --catalog catalog
 

@@ -139,6 +139,21 @@ the feature auth: the when "method ==" of the files entry "files/": method == ne
 `, printed)
 		})
 
+		t.Run("prints the reads and the parse mistakes of the templates of the starter and of a feature", func(t *testing.T) {
+			files := withFeatures(map[string]string{"auth": "targets: [service]\nfiles:\n  - path: files/\n"})
+			files["starters/service/files/go/main.go"] = &fstest.MapFile{Data: []byte(`{{ option "auth.method" }}` + "\n")}
+			files["features/auth/files/go/auth.go"] = &fstest.MapFile{Data: []byte(`{{ option "starter.region" }}` + "\n")}
+			files["features/auth/files/go/keys.go"] = &fstest.MapFile{Data: []byte("{{ end }}\n")}
+
+			printed, err := runCheck(t, files)
+
+			require.EqualError(t, err, "the catalog has 3 mistakes")
+			require.Equal(t, `the starter service: the template go/main.go reads "auth.method", which the starter cannot read: it can read no option
+the feature auth: the template go/auth.go of the files entry files/ reads "starter.region", which the starter service does not declare
+the feature auth: the template go/keys.go of the files entry files/ does not parse: template: go/keys.go:1: unexpected {{end}}
+`, printed)
+		})
+
 		t.Run("--catalog checks the catalog in that folder, also with no config file", func(t *testing.T) {
 			catalogDir := t.TempDir()
 			for path, contents := range map[string]string{

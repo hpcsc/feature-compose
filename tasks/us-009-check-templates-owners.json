@@ -75,7 +75,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Find a template that reads an option that rule 5 does not allow, in its parse tree",
       "language": "Go",
       "testable": true,

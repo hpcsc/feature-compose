@@ -52,13 +52,13 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature, ot
 		}
 		rules = append(rules, rule)
 	}
-	read, err := readTemplates(fsys, path.Join(root, "files"), "")
+	read, err := readTemplates(fsys, path.Join(root, "files"), "", rules)
 	if err != nil {
 		return Starter{}, err
 	}
 	templates := make([]template, 0, len(read))
 	for _, t := range read {
-		placed, err := t.place(folders, rules)
+		placed, err := t.place(folders)
 		if err != nil {
 			return Starter{}, err
 		}
@@ -181,6 +181,7 @@ func (s Starter) mistakes(catalogFeatures map[string]feature) []string {
 		mistakes = append(mistakes, f.needMistakes(s.name, catalogFeatures)...)
 	}
 	mistakes = append(mistakes, s.cycleMistakes()...)
+	mistakes = append(mistakes, s.templateMistakes()...)
 	for i, mistake := range mistakes {
 		mistakes[i] = "the starter " + s.name + ": " + mistake
 	}
@@ -222,6 +223,23 @@ func (s Starter) folderMistakes(f feature) []string {
 		}
 	}
 	return mistakes
+}
+
+func (s Starter) templateMistakes() []string {
+	readable := s.options.references(starterPrefix)
+	canRead := "it can read no option"
+	if len(readable) > 0 {
+		canRead = "it can read " + strings.Join(slices.Sorted(maps.Keys(readable)), ", ")
+	}
+	var reads, parseMistakes []string
+	for _, t := range s.templates {
+		templateReads, err := t.readMistakes(readable, func(string) string { return "the starter cannot read: " + canRead })
+		if err != nil {
+			parseMistakes = append(parseMistakes, err.Error())
+		}
+		reads = append(reads, templateReads...)
+	}
+	return append(reads, parseMistakes...)
 }
 
 func (s Starter) cycleMistakes() []string {

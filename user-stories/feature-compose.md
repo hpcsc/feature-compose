@@ -68,6 +68,7 @@ flowchart LR
     E --> K
     J --> L
     G --> M
+    I --> M
     R --> M
     E --> N
     D --> O
@@ -97,6 +98,7 @@ The critical path is ten stories deep: US-001, then US-002 or US-003, then US-00
 US-007, US-019, US-017, and US-021. Build US-002 and US-003 at the same time, and start the TUI (US-010, then
 US-012) soon after US-005. US-018 also waits for `show` (US-014), because the form of `new` has the look and
 the keys of `show`. US-007 and US-013 wait for the form, because each one changes what its tree shows.
+US-013 also waits for US-009, because `check` must check the `when` of `store-key`.
 US-019 is the next bottleneck: US-015, US-017, and US-021 wait for it, because each of them names a route of
 the API, and US-019 puts the routes under `/api`.
 
@@ -451,12 +453,14 @@ store, so that the users of the CLI give the key one time with `auth login`, and
 - [ ] With `store-key=false`, the CLI has no code for the store.
 - [ ] `--feature cli-auth:store-key=true` with `method=oauth` stops the tool before it writes a file. The
   message says that `store-key` applies only to the method `api-key`.
+- [ ] `check` finds a `when` of an option that does not parse, or that reads an option that rule 5 does not
+  allow, as it does for the `when` of a files entry (US-009).
 
 **Context:** This is the preset `api-key-stored` of `global/go-cli-auth`. The CLI with `oauth` keeps its
 tokens in the same store (US-008), so the files of the store serve both methods. The `when` of `store-key`
 reads an option of a need.
 
-**Depends on:** US-007, US-018
+**Depends on:** US-007, US-009, US-018
 
 ### US-014: Show the catalog
 

@@ -155,6 +155,7 @@ An option is a question. Its answer selects a variant of the files.
 | `values` | The values that the option accepts. With no `values`, the option accepts any text. |
 | `pattern` | A regular expression that a text must match. |
 | `default` | The value when nobody gives one. A default can read the name of the repo, for example `github.com/hpcsc/{{ .Name }}`. An option with no default must get a value. |
+| `when` | An expression that decides when the option applies, in the language of the `when` of a files entry. Only an option of a feature can have a `when`. |
 
 The tool takes the value of an option from the first of these sources that gives one:
 
@@ -165,6 +166,33 @@ The tool takes the value of an option from the first of these sources that gives
 4. The default
 
 When the command line and a need give different values, `new` stops, and the message names both sources.
+
+### An Option That Applies Only Sometimes
+
+An option with a `when` applies only while its expression is true. The expression reads the options of the needs of
+the feature as `<need>.<option>`, the options of the starter as `starter.<option>`, and the options of the feature
+itself that have no `when`, by their names. For example, a feature `client` that needs `auth` declares:
+
+```yaml
+options:
+  store-key:
+    values: ["true", "false"]
+    default: "false"
+    when: auth.method == "api-key"
+```
+
+While the `when` is false, the option does not apply:
+
+- The tool asks no question for it, and the form of `new` shows no row for it.
+- It has its default, also when the form keeps another value for it. That value comes back when the `when` is true
+  again.
+- An option with no default is not missing.
+- A flag or a need that gives it its default is accepted. A flag or a need that gives it another value stops `new`,
+  and the message says when the option applies, for example `the option store-key of the feature client applies only
+  when auth.method == "api-key", and auth.method is "oauth", but the command line gives it "true"`.
+
+The `when` of an option cannot read an option of its own feature that has a `when` of its own, so the `when`
+expressions of one feature form no cycle. A `when` that reads a name that it cannot read stops `new`.
 
 Two features that do the same job are one feature with an option. For example, `api-auth` has one option,
 `method`, and no second feature for OAuth. So the catalog has no list of features that exclude each other.

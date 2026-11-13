@@ -3389,6 +3389,35 @@ files:
 			require.Contains(t, names, "api --feature auth:method=oauth,store=keychain --feature tokens")
 		})
 
+		t.Run("an option with a when gives a combination for each of its values, the need of the feature gives its other values with the option at its default, and Select takes each combination", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/api/starter.yml":      oneFolder,
+				"starters/api/files/go/main.go": mainGo,
+				"features/auth/feature.yml":     &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [api]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n")},
+				"features/client/feature.yml":   &fstest.MapFile{Data: []byte("summary: Client.\ntargets: [api]\nneeds: [auth]\noptions:\n  store-key:\n    values: [\"true\", \"false\"]\n    default: \"false\"\n    when: auth.method == \"api-key\"\n")},
+			}
+
+			combinations, err := catalog.New(files).Combinations()
+			require.NoError(t, err)
+			var names []string
+			for _, combination := range combinations {
+				starter, err := catalog.New(files).Starter(combination.StarterName)
+				require.NoError(t, err)
+				_, err = starter.Select("my-service", combination.StarterValues, combination.FeatureValues, catalog.Answers{})
+				require.NoError(t, err, combination.String())
+				names = append(names, combination.String())
+			}
+
+			require.Equal(t, []string{
+				"api",
+				"api --feature auth:method=api-key",
+				"api --feature auth:method=oauth",
+				"api --feature client:store-key=false",
+				"api --feature client:store-key=true",
+				"api --feature auth:method=oauth --feature client:store-key=false",
+			}, names)
+		})
+
 		t.Run("a feature with two needs gives the combinations of the values of each need, in the order of the names of the needs", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/api/starter.yml":      oneFolder,

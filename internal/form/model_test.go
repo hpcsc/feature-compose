@@ -49,6 +49,14 @@ func TestModel(t *testing.T) {
 			"features/cli-auth/feature.yml":     &fstest.MapFile{Data: []byte("summary: CLI auth.\ntargets: [service]\nneeds:\n  auth:\n    method: api-key\n")},
 		}
 	}
+	withWhen := func() fstest.MapFS {
+		return fstest.MapFS{
+			"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n")},
+			"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			"features/auth/feature.yml":         &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [service]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n")},
+			"features/client/feature.yml":       &fstest.MapFile{Data: []byte("summary: Client.\ntargets: [service]\nneeds: [auth]\noptions:\n  store-key:\n    values: [\"true\", \"false\"]\n    default: \"false\"\n    when: auth.method == \"api-key\"\n")},
+		}
+	}
 	withCycle := func() fstest.MapFS {
 		files := withNeeds()
 		files["features/beta/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Feature beta.\ntargets: [service]\nneeds: [gamma]\n")}
@@ -579,6 +587,25 @@ func TestModel(t *testing.T) {
 				require.Equal(t, test.message, strings.Join(strings.Fields(strings.SplitN(detailsOf(m), "\n\n", 2)[0]), " "))
 			})
 		}
+
+		t.Run("the tree shows an option only while its when is true, after each answer, and the option has its kept value again when its when is true again", func(t *testing.T) {
+			kept := pressed(sized(opened(t, withWhen(), "service", "my-service", map[string]map[string]string{"client": {}}), 120, 20), "j", "j", "j", "j", "j", "enter", "k", "enter")
+			withOAuth := pressed(kept, "k", "k", "enter", "j", "enter")
+			withAPIKey := pressed(withOAuth, "enter", "k", "enter")
+
+			require.Contains(t, strings.Join(treeOf(kept), "\n"), "store-key  true")
+			require.NotContains(t, strings.Join(treeOf(withOAuth), "\n"), "store-key")
+			require.Contains(t, strings.Join(treeOf(withOAuth), "\n"), "method  oauth")
+			require.Contains(t, strings.Join(treeOf(withAPIKey), "\n"), "store-key  true")
+			require.Contains(t, detailsOf(pressed(withOAuth, "w")), "\n  client.store-key: false (default)\n")
+		})
+
+		t.Run("an answer that makes the when of an option false while a flag gives the option another value than its default leaves the answer as it was, and the details show why", func(t *testing.T) {
+			m := pressed(sized(opened(t, withWhen(), "service", "my-service", map[string]map[string]string{"client": {"store-key": "true"}}), 120, 20), "j", "j", "j", "enter", "j", "enter")
+
+			require.Contains(t, strings.Join(treeOf(m), "\n"), "method  api-key")
+			require.Contains(t, strings.Join(strings.Fields(detailsOf(m)), " "), `the option store-key of the feature client applies only when auth.method == "api-key", and auth.method is "oauth", but the command line gives it "true"`)
+		})
 
 		t.Run("a value that the developer kept gives way to the value of a need, and the option has the kept value again when no selected need sets it", func(t *testing.T) {
 			kept := pressed(sized(opened(t, withNeedValue(), "service", "my-service", nil), 120, 20), "j", "j", "space", "j", "enter", "j", "enter")

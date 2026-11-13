@@ -127,6 +127,16 @@ folders:
 		}
 	}
 
+	withWhen := func() fstest.MapFS {
+		return fstest.MapFS{
+			"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+			"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			"features/auth/feature.yml":         &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [service]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n")},
+			"features/client/feature.yml":       &fstest.MapFile{Data: []byte("summary: Client.\ntargets: [service]\nneeds: [auth]\noptions:\n  store-key:\n    values: [\"true\", \"false\"]\n    default: \"false\"\n    when: auth.method == \"api-key\"\n")},
+		}
+	}
+	const doesNotApply = `the option store-key of the feature client applies only when auth.method == "api-key", and auth.method is "oauth", but the command line gives it "true"`
+
 	t.Run("write", func(t *testing.T) {
 		t.Run("writes the repo to a folder with the name of the repo in the working folder", func(t *testing.T) {
 			workingFolder := t.TempDir()
@@ -815,6 +825,17 @@ folders:
 			})
 		}
 
+		t.Run("in a terminal, a flag that gives another value to an option whose when is false stops new before the TUI starts, and new writes nothing", func(t *testing.T) {
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+
+			screen, err := runInTerminal(t, withWhen(), "", "", "service", "my-service", "--feature", "client:store-key=true", "--feature", "auth:method=oauth")
+
+			require.EqualError(t, err, doesNotApply)
+			require.NotContains(t, screen, "feature-compose new")
+			require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
+		})
+
 		t.Run("in a terminal, a flag that gives an option another value than a need stops new before the TUI starts, and new writes nothing", func(t *testing.T) {
 			workingFolder := t.TempDir()
 			t.Chdir(workingFolder)
@@ -861,6 +882,24 @@ folders:
 	})
 
 	t.Run("stop", func(t *testing.T) {
+		for name, arguments := range map[string][]string{
+			"the option first, no prompt": {"--feature", "client:store-key=true", "--feature", "auth:method=oauth", "--no-prompt"},
+			"the method first, no prompt": {"--feature", "auth:method=oauth", "--feature", "client:store-key=true", "--no-prompt"},
+			"the option first, dry run":   {"--feature", "client:store-key=true", "--feature", "auth:method=oauth", "--dry-run"},
+			"the method first, dry run":   {"--feature", "auth:method=oauth", "--feature", "client:store-key=true", "--dry-run"},
+		} {
+			t.Run("a flag that gives another value than its default to an option whose when is false stops new, prints nothing and makes no output folder: "+name, func(t *testing.T) {
+				workingFolder := t.TempDir()
+				t.Chdir(workingFolder)
+
+				printed, err := runNew(t, withWhen(), append([]string{"service", "my-service"}, arguments...)...)
+
+				require.EqualError(t, err, doesNotApply)
+				require.Equal(t, "", printed)
+				require.NoDirExists(t, filepath.Join(workingFolder, "my-service"))
+			})
+		}
+
 		for name, arguments := range map[string][]string{
 			"no argument":  {},
 			"one argument": {"service"},

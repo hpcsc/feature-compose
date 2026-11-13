@@ -112,14 +112,15 @@ above. Each option shows the value that the templates read, and its source:
 | `command line` | `--option <name>=<value>` or `--feature <name>:<option>=<value>` gives the value, also when it is the same as the default. When a need also sets the value, the line ends with `, need of <features>`. |
 | `need of <features>` | The `needs` of the features that select this feature set the value, for example a feature `client` with `needs: {auth: {method: api-key}}` sets the `method` of `auth` to `api-key`. A need comes after a flag and before an answer. |
 | `answered` | You keep the value with Enter in the form, also when it is the default. `--dry-run` opens no form, so it never shows this source. |
-| `default` | No flag gives the value, so the option has its default. A default that holds `{{ .Name }}` shows with the name of the repo. |
+| `default` | No flag gives the value, so the option has its default. A default that holds `{{ .Name }}` shows with the name of the repo. An option whose `when` is false has its default, also when the form keeps another value for it. |
 
 Last, the preview gives each file of the repo by its path, in the order of the paths, with its owner: the starter,
 the feature whose template writes the file, or `feature-compose` for the selection file `.feature-compose.yml`.
 
 Before it prints, `--dry-run` does the same checks as `new`. A selection that stops `new`, for example an unknown
-feature, a feature that does not target the starter, a value that does not match its pattern, or a flag that gives an
-option another value than a need sets, stops `--dry-run` with the same message, and `--dry-run` then prints nothing.
+feature, a feature that does not target the starter, a value that does not match its pattern, a flag that gives an
+option another value than a need sets, or a flag that gives another value than its default to an option whose `when`
+is false, stops `--dry-run` with the same message, and `--dry-run` then prints nothing.
 The message of a feature that does not target the starter names the feature and the starter, and lists the features
 that target the starter, for example `the feature api-auth does not target the starter go: the features that target
 the starter go are cli`. The message of a flag against a need
@@ -190,6 +191,12 @@ When the selection stops, for example because two features declare one extension
 and the details show the message. The selection also stops when the need of a feature sets another value than a flag,
 for example a Space at a feature `client` whose need sets `auth.method` to `api-key`, with
 `--feature auth:method=oauth`. The message names both sources.
+
+**An option with a `when`.** The tree shows an option only while its `when` is true, and it changes after each
+answer. For example, the answer `oauth` for `auth.method` hides an option whose `when` is
+`auth.method == "api-key"`. A value that you kept for the option comes back when its `when` is true again. An answer
+that makes the `when` false while a flag gives the option another value than its default stops the selection: the
+answer stays as it was, and the details show the message.
 
 **The edit.** Enter at the name, or at an option without `values`, starts an edit of the text in the right pane. Each
 key goes to the text. While the text does not pass its check, the details say why, for example that it does not match

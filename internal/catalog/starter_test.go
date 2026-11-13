@@ -4,7 +4,9 @@ package catalog_test
 
 import (
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -903,6 +905,197 @@ folders:
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{"server.go": "plain;", "plain.txt": "plain"}, written(t, selection))
 		})
+		withWhen := func(clientOptions string) fstest.MapFS {
+			return fstest.MapFS{
+				"starters/api/starter.yml":            &fstest.MapFile{Data: []byte("options:\n  region:\n    default: us\nfolders:\n  go:\n    path: .\n")},
+				"starters/api/files/go/main.go":       &fstest.MapFile{Data: []byte("package main\n")},
+				"features/auth/feature.yml":           &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [api]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n")},
+				"features/client/feature.yml":         &fstest.MapFile{Data: []byte("summary: Client.\ntargets: [api]\nneeds: [auth]\nfiles:\n  - path: files/\noptions:\n" + clientOptions)},
+				"features/client/files/go/client.txt": &fstest.MapFile{Data: []byte(`{{ option "store-key" }}`)},
+			}
+		}
+		storeKey := "  store-key:\n    values: [\"true\", \"false\"]\n    default: \"false\"\n    when: auth.method == \"api-key\"\n"
+		selectWithWhen := func(t *testing.T, files fstest.MapFS, givenByFeature map[string]map[string]string, answers catalog.Answers) (catalog.Selection, error) {
+			t.Helper()
+			starter, err := catalog.New(files).Starter("api")
+			require.NoError(t, err)
+			return starter.Select("my-service", nil, givenByFeature, answers)
+		}
+		questionsOf := func(selection catalog.Selection) []string {
+			var questions []string
+			for _, q := range selection.Questions() {
+				if q.Feature != "" {
+					questions = append(questions, q.Feature+"."+q.Option)
+				}
+			}
+			return questions
+		}
+
+		for name, test := range map[string]struct {
+			givenByFeature map[string]map[string]string
+			answers        catalog.Answers
+		}{
+			"the default": {map[string]map[string]string{"client": nil}, catalog.Answers{}},
+			"a flag":      {map[string]map[string]string{"client": nil, "auth": {"method": "api-key"}}, catalog.Answers{}},
+			"an answer":   {map[string]map[string]string{"client": nil}, catalog.Answers{}.WithValue("auth", "method", "api-key")},
+		} {
+			t.Run("with auth.method at api-key from "+name+", the questions hold store-key, whose when is true", func(t *testing.T) {
+				selection, err := selectWithWhen(t, withWhen(storeKey), test.givenByFeature, test.answers)
+
+				require.NoError(t, err)
+				require.Equal(t, []string{"auth.method", "client.store-key"}, questionsOf(selection))
+			})
+		}
+
+		t.Run("with auth.method at api-key, a flag of store-key gives the templates its value, with the source command line", func(t *testing.T) {
+			selection, err := selectWithWhen(t, withWhen(storeKey), map[string]map[string]string{"client": {"store-key": "true"}}, catalog.Answers{})
+			require.NoError(t, err)
+
+			preview, err := selection.Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, "  client.store-key: true (command line)\n")
+			require.Equal(t, "true", written(t, selection)["client.txt"])
+		})
+
+		for name, test := range map[string]struct {
+			givenByFeature map[string]map[string]string
+			answers        catalog.Answers
+		}{
+			"a flag":    {map[string]map[string]string{"client": nil, "auth": {"method": "oauth"}}, catalog.Answers{}},
+			"an answer": {map[string]map[string]string{"client": nil}, catalog.Answers{}.WithValue("auth", "method", "oauth")},
+		} {
+			t.Run("with auth.method at oauth from "+name+", store-key does not apply: no question, the templates read its default, and the preview prints it with the source default", func(t *testing.T) {
+				selection, err := selectWithWhen(t, withWhen(storeKey), test.givenByFeature, test.answers)
+				require.NoError(t, err)
+
+				preview, err := selection.Preview()
+
+				require.NoError(t, err)
+				require.Equal(t, []string{"auth.method"}, questionsOf(selection))
+				require.Contains(t, preview, "  client.store-key: false (default)\n")
+				require.Equal(t, "false", written(t, selection)["client.txt"])
+			})
+		}
+
+		t.Run("with oauth, an answer for store-key is not used and is not an argument, and with api-key again the answer gives its value", func(t *testing.T) {
+			answers := catalog.Answers{}.WithValue("client", "store-key", "true")
+
+			withOAuth, err := selectWithWhen(t, withWhen(storeKey), map[string]map[string]string{"client": nil}, answers.WithValue("auth", "method", "oauth"))
+			require.NoError(t, err)
+			withAPIKey, err := selectWithWhen(t, withWhen(storeKey), map[string]map[string]string{"client": nil}, answers.WithValue("auth", "method", "api-key"))
+			require.NoError(t, err)
+
+			oauthPreview, err := withOAuth.Preview()
+			require.NoError(t, err)
+			apiKeyPreview, err := withAPIKey.Preview()
+			require.NoError(t, err)
+			require.Contains(t, oauthPreview, "  client.store-key: false (default)\n")
+			require.NotContains(t, withOAuth.Arguments("my-service"), "store-key")
+			require.Contains(t, apiKeyPreview, "  client.store-key: true (answered)\n")
+			require.Contains(t, withAPIKey.Arguments("my-service"), "client:store-key=true")
+		})
+
+		t.Run("with oauth, a flag that gives store-key another value than its default stops, and the message says when the option applies, the value of auth.method and the source", func(t *testing.T) {
+			_, err := selectWithWhen(t, withWhen(storeKey), map[string]map[string]string{"client": {"store-key": "true"}, "auth": {"method": "oauth"}}, catalog.Answers{})
+
+			require.EqualError(t, err, `the option store-key of the feature client applies only when auth.method == "api-key", and auth.method is "oauth", but the command line gives it "true"`)
+		})
+
+		t.Run("the message of an option that does not apply names the value of each option that its when reads", func(t *testing.T) {
+			options := "  store-key:\n    values: [\"true\", \"false\"]\n    default: \"false\"\n    when: auth.method == \"api-key\" && starter.region == \"us\"\n"
+
+			_, err := selectWithWhen(t, withWhen(options), map[string]map[string]string{"client": {"store-key": "true"}, "auth": {"method": "oauth"}}, catalog.Answers{})
+
+			require.EqualError(t, err, `the option store-key of the feature client applies only when auth.method == "api-key" && starter.region == "us", and auth.method is "oauth" and starter.region is "us", but the command line gives it "true"`)
+		})
+
+		t.Run("a when of an option reads the options of each need of its feature", func(t *testing.T) {
+			files := withWhen("  store-key:\n    values: [\"true\", \"false\"]\n    default: \"false\"\n    when: auth.method == \"api-key\" && cache.size == \"large\"\n")
+			files["features/client/feature.yml"] = &fstest.MapFile{Data: []byte(strings.Replace(string(files["features/client/feature.yml"].Data), "needs: [auth]", "needs: [auth, cache]", 1))}
+			files["features/cache/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Cache.\ntargets: [api]\noptions:\n  size:\n    values: [small, large]\n    default: large\n")}
+
+			selection, err := selectWithWhen(t, files, map[string]map[string]string{"client": nil}, catalog.Answers{})
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"auth.method", "cache.size", "client.store-key"}, questionsOf(selection))
+		})
+
+		t.Run("a when of an option reads two options of its own feature that have no when, also one whose name comes after its own", func(t *testing.T) {
+			options := "  level:\n    default: high\n  zone:\n    default: fast\n  store-key:\n    values: [\"true\", \"false\"]\n    default: \"false\"\n    when: level == \"high\" && zone == \"fast\"\n"
+
+			selection, err := selectWithWhen(t, withWhen(options), map[string]map[string]string{"client": nil}, catalog.Answers{})
+
+			require.NoError(t, err)
+			require.Contains(t, questionsOf(selection), "client.store-key")
+		})
+
+		t.Run("with oauth, a flag that gives store-key its default does not stop, and its source is the command line", func(t *testing.T) {
+			selection, err := selectWithWhen(t, withWhen(storeKey), map[string]map[string]string{"client": {"store-key": "false"}, "auth": {"method": "oauth"}}, catalog.Answers{})
+			require.NoError(t, err)
+
+			preview, err := selection.Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, "  client.store-key: false (command line)\n")
+		})
+
+		for value, stops := range map[string]bool{"true": true, "false": false} {
+			t.Run("with oauth, a need that sets store-key to "+value+" of client stops only when the value is not the default", func(t *testing.T) {
+				files := withWhen(storeKey)
+				files["features/pusher/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Pusher.\ntargets: [api]\nneeds:\n  client:\n    store-key: \"" + value + "\"\n")}
+
+				_, err := selectWithWhen(t, files, map[string]map[string]string{"pusher": nil, "auth": {"method": "oauth"}}, catalog.Answers{})
+
+				if stops {
+					require.EqualError(t, err, `the option store-key of the feature client applies only when auth.method == "api-key", and auth.method is "oauth", but the need of pusher gives it "true"`)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+
+		t.Run("an option that does not apply and has no default is not missing, and has no question", func(t *testing.T) {
+			selection, err := selectWithWhen(t, withWhen(storeKey+"  issuer:\n    when: auth.method == \"oauth\"\n"), map[string]map[string]string{"client": nil}, catalog.Answers{})
+			require.NoError(t, err)
+
+			_, previewErr := selection.Preview()
+
+			require.NoError(t, previewErr)
+			require.Equal(t, []string{"auth.method", "client.store-key"}, questionsOf(selection))
+		})
+
+		for when, applies := range map[string]bool{`starter.region == "us"`: true, `starter.region == "eu"`: false, `mode == "fast"`: true, `mode == "slow"`: false} {
+			t.Run("a when of an option reads a starter option, and an option of its own feature that has no when: "+when, func(t *testing.T) {
+				options := "  mode:\n    default: fast\n  store-key:\n    values: [\"true\", \"false\"]\n    default: \"false\"\n    when: '" + when + "'\n"
+
+				selection, err := selectWithWhen(t, withWhen(options), map[string]map[string]string{"client": nil}, catalog.Answers{})
+
+				require.NoError(t, err)
+				require.Equal(t, applies, slices.Contains(questionsOf(selection), "client.store-key"))
+			})
+		}
+
+		for name, test := range map[string]struct{ options, when string }{
+			"an option of its own feature that has a when":       {"  mode:\n    default: fast\n    when: auth.method == \"api-key\"\n", `mode == "fast"`},
+			"a name that is no option":                           {"", `level == "high"`},
+			"an option that a need does not declare":             {"", `auth.scope == "read"`},
+			"an option of a feature that is not a need":          {"", `pusher.mode == "fast"`},
+			"an option of a need of a need":                      {"", `base.mode == "fast"`},
+			"a starter option that the starter does not declare": {"", `starter.zone == "a"`},
+		} {
+			t.Run("a when of an option that reads "+name+" stops, and the message names the option, the feature and the when", func(t *testing.T) {
+				files := withWhen(test.options + "  store-key:\n    default: \"false\"\n    when: '" + test.when + "'\n")
+				files["features/auth/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [api]\nneeds: [base]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\n")}
+				files["features/base/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Base.\ntargets: [api]\noptions:\n  mode:\n    default: fast\n")}
+				files["features/pusher/feature.yml"] = &fstest.MapFile{Data: []byte("summary: Pusher.\ntargets: [api]\noptions:\n  mode:\n    default: fast\n")}
+
+				_, err := selectWithWhen(t, files, map[string]map[string]string{"client": nil, "pusher": nil}, catalog.Answers{})
+
+				require.ErrorContains(t, err, "the when "+strconv.Quote(test.when)+" of the option store-key of the feature client: unknown name")
+			})
+		}
+
 	})
 
 	t.Run("feature names", func(t *testing.T) {

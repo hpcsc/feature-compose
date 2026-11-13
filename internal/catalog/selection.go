@@ -332,11 +332,16 @@ func (s Selection) option(featureName, reference string) (string, error) {
 
 func (s Selection) readable(featureName string) map[string]string {
 	reader := s.feature(featureName)
-	readable := reader.values.byReference("")
-	for _, needName := range reader.needs {
+	readable := s.readableOfNeedsAndStarter(reader.needs)
+	maps.Copy(readable, reader.values.byReference(""))
+	return readable
+}
+
+func (s Selection) readableOfNeedsAndStarter(needNames []string) map[string]string {
+	readable := s.starter.readable()
+	for _, needName := range needNames {
 		maps.Copy(readable, s.feature(needName).readableAsNeed())
 	}
-	maps.Copy(readable, s.starter.readable())
 	return readable
 }
 

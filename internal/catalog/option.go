@@ -49,6 +49,26 @@ func (o option) hasValues() bool {
 	return len(o.accepted) > 0
 }
 
+func (o option) hasWhen() bool {
+	return o.when.text != ""
+}
+
+func (o option) applies(declarer string, whenReads map[string]string) (bool, error) {
+	applies, err := o.when.trueFor(whenReads)
+	if err != nil {
+		return false, fmt.Errorf("the when %q of the option %s of %s: %w", o.when.text, o.name, declarer, err)
+	}
+	return applies, nil
+}
+
+func (o option) refusal(declarer, value, source string, whenReads map[string]string) error {
+	var read []string
+	for _, reference := range o.when.references() {
+		read = append(read, fmt.Sprintf("%s is %q", reference, whenReads[reference]))
+	}
+	return fmt.Errorf("the option %s of %s applies only when %s, and %s, but %s gives it %q", o.name, declarer, o.when.text, strings.Join(read, " and "), source, value)
+}
+
 type options struct {
 	declarer string
 	declared map[string]option
@@ -62,7 +82,7 @@ func (o options) references(prefix string) map[string]bool {
 	return references
 }
 
-func (o options) withDefaults(given map[string]string, setByNeeds valuesSetByNeeds, answered map[string]string, name string) (optionValues, error) {
+func (o options) withDefaults(given map[string]string, setByNeeds valuesSetByNeeds, answered map[string]string, name string, ofNeedsAndStarter map[string]string) (optionValues, error) {
 	if err := o.check(given); err != nil {
 		return optionValues{}, err
 	}
@@ -70,16 +90,18 @@ func (o options) withDefaults(given map[string]string, setByNeeds valuesSetByNee
 		return optionValues{}, err
 	}
 	values := optionValues{
-		byName:   make(map[string]string, len(o.declared)),
-		given:    make(map[string]bool, len(given)),
-		needOf:   map[string][]string{},
-		answered: make(map[string]bool, len(answered)),
-		defaults: make(map[string]string, len(o.declared)),
+		byName:      make(map[string]string, len(o.declared)),
+		given:       make(map[string]bool, len(given)),
+		needOf:      map[string][]string{},
+		answered:    make(map[string]bool, len(answered)),
+		defaults:    make(map[string]string, len(o.declared)),
+		notApplying: map[string]bool{},
 	}
-	for _, optionName := range slices.Sorted(maps.Keys(o.declared)) {
-		defaultValue, err := Selection{name: name}.render("the default of the option "+optionName+" of "+o.declarer, o.declared[optionName].defaultValue, defaultDelimiters, "")
+	choose := func(optionName string, whenReads map[string]string) error {
+		declared := o.declared[optionName]
+		defaultValue, err := Selection{name: name}.render("the default of the option "+optionName+" of "+o.declarer, declared.defaultValue, defaultDelimiters, "")
 		if err != nil {
-			return optionValues{}, err
+			return err
 		}
 		values.defaults[optionName] = defaultValue
 		givenValue, isGiven := given[optionName]
@@ -87,11 +109,25 @@ func (o options) withDefaults(given map[string]string, setByNeeds valuesSetByNee
 		answeredValue, isAnswered := answered[optionName]
 		if isGiven {
 			if err := setByNeeds.checkGiven(optionName, givenValue); err != nil {
-				return optionValues{}, err
+				return err
 			}
 		}
 		if needsSet {
 			values.needOf[optionName] = needOf
+		}
+		applies, err := declared.applies(o.declarer, whenReads)
+		if err != nil {
+			return err
+		}
+		if !applies {
+			switch {
+			case isGiven && givenValue != defaultValue:
+				return declared.refusal(o.declarer, givenValue, "the command line", whenReads)
+			case needsSet && valueOfNeeds != defaultValue:
+				return declared.refusal(o.declarer, valueOfNeeds, "the need of "+strings.Join(needOf, ", "), whenReads)
+			}
+			values.notApplying[optionName] = true
+			isAnswered = false
 		}
 		switch {
 		case isGiven:
@@ -104,6 +140,20 @@ func (o options) withDefaults(given map[string]string, setByNeeds valuesSetByNee
 			values.answered[optionName] = true
 		default:
 			values.byName[optionName] = defaultValue
+		}
+		return nil
+	}
+	withoutWhen, withWhen := o.splitByWhen()
+	for _, optionName := range withoutWhen {
+		if err := choose(optionName, nil); err != nil {
+			return optionValues{}, err
+		}
+	}
+	whenReads := maps.Clone(ofNeedsAndStarter)
+	maps.Copy(whenReads, values.byName)
+	for _, optionName := range withWhen {
+		if err := choose(optionName, whenReads); err != nil {
+			return optionValues{}, err
 		}
 	}
 	return values, nil
@@ -125,9 +175,23 @@ func (o options) check(values map[string]string) error {
 	return nil
 }
 
+func (o options) splitByWhen() (withoutWhen, withWhen []string) {
+	for _, optionName := range slices.Sorted(maps.Keys(o.declared)) {
+		if o.declared[optionName].hasWhen() {
+			withWhen = append(withWhen, optionName)
+		} else {
+			withoutWhen = append(withoutWhen, optionName)
+		}
+	}
+	return withoutWhen, withWhen
+}
+
 func (o options) questions(featureName string, values optionValues) []Question {
 	var questions []Question
 	for _, optionName := range slices.Sorted(maps.Keys(o.declared)) {
+		if values.notApplying[optionName] {
+			continue
+		}
 		questions = append(questions, Question{
 			Feature:  featureName,
 			Option:   optionName,

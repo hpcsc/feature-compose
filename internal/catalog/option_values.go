@@ -8,11 +8,12 @@ import (
 )
 
 type optionValues struct {
-	byName   map[string]string
-	given    map[string]bool
-	needOf   map[string][]string
-	answered map[string]bool
-	defaults map[string]string
+	byName      map[string]string
+	given       map[string]bool
+	needOf      map[string][]string
+	answered    map[string]bool
+	defaults    map[string]string
+	notApplying map[string]bool
 }
 
 func (o optionValues) byReference(prefix string) map[string]string {
@@ -42,7 +43,7 @@ func (o optionValues) withoutValue() []string {
 }
 
 func (o optionValues) missing(optionName string) bool {
-	return o.byName[optionName] == "" && o.defaults[optionName] == ""
+	return !o.notApplying[optionName] && o.byName[optionName] == "" && o.defaults[optionName] == ""
 }
 
 func (o optionValues) source(optionName string) string {

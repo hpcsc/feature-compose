@@ -84,7 +84,7 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 			return Selection{}, err
 		}
 	}
-	starterValues, err := s.options.withDefaults(given, valuesSetByNeeds{}, answers.StarterValues, name)
+	starterValues, err := s.options.withDefaults(given, valuesSetByNeeds{}, answers.StarterValues, name, map[string]string{})
 	if err != nil {
 		return Selection{}, err
 	}
@@ -99,14 +99,14 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	if err != nil {
 		return Selection{}, err
 	}
-	features := make([]selectedFeature, 0, len(selected))
+	selection := Selection{folders: s.folders, name: name, starter: selectedStarter{name: s.name, options: s.options, values: starterValues}}
 	for _, f := range selected {
-		values, err := f.options.withDefaults(givenByFeature[f.name], setByNeeds[f.name], answers.FeatureValues[f.name], name)
+		values, err := f.options.withDefaults(givenByFeature[f.name], setByNeeds[f.name], answers.FeatureValues[f.name], name, selection.readableOfNeedsAndStarter(f.needs))
 		if err != nil {
 			return Selection{}, err
 		}
 		_, isGiven := givenByFeature[f.name]
-		features = append(features, selectedFeature{
+		selection.features = append(selection.features, selectedFeature{
 			name:     f.name,
 			given:    isGiven,
 			answered: slices.Contains(answers.Features, f.name),
@@ -124,14 +124,8 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	if err != nil {
 		return Selection{}, err
 	}
-	return Selection{
-		folders:         s.folders,
-		name:            name,
-		starter:         selectedStarter{name: s.name, options: s.options, values: starterValues},
-		features:        features,
-		templates:       templates,
-		extensionPoints: extensionPoints,
-	}, nil
+	selection.templates, selection.extensionPoints = templates, extensionPoints
+	return selection, nil
 }
 
 func (s Starter) FeatureNames() ([]string, error) {

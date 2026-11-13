@@ -158,13 +158,12 @@ key", as `storedKey()` of the preset calls it. `options`, `values`, `given` and 
 1. **The `when` of an option is a field of the option in `feature.yml`** (Task 1), with the expression language of a
    files entry. The read of the feature parses it. A `when` that does not parse is one mistake of `check` for each
    option, and `new` stops on the first one, as US-009 did for a files entry.
-2. **The `when` of an option reads the options of the needs of its feature, as `<need>.<option>`, and the starter
-   options, as `starter.<option>`** (Tasks 2 and 3). It does not read an option of its own feature. Rule 5 lets a
-   template read the options of its own feature, but the values of one feature are computed together, so a `when`
-   that reads its own feature needs an order of the options and a check of cycles (an option that reads itself), which
-   no story asks for. The needs come before the feature (rule 8), so their values exist. In `check`, a starter option
-   counts only when each target declares it, as for a files entry, and a read of an option of the own feature is a
-   mistake. The other choice: an option can read the options of its own feature that have no `when`.
+2. **The `when` of an option reads the options of the needs of its feature, as `<need>.<option>`, the starter
+   options, as `starter.<option>`, and the options of its own feature that have no `when`, by name** (Tasks 2 and 3).
+   It does not read an option of its own feature that has a `when`, so the `when` expressions of one feature form no
+   cycle (an option that reads itself). The needs come before the feature (rule 8), so their values exist. In `check`, a starter option
+   counts only when each target declares it, as for a files entry, and a read of an option of the own feature that has
+   a `when` is a mistake.
 3. **A `when` on an option of `starter.yml` stops the read of the starter** (Task 1), so `new`, `--dry-run` and
    `check` stop with a message that names the `starter.yml` and the option. `OptionDefinition` is the JSON of `show`
    for both, so each option of a starter has `"when": ""`, as each text with no value has.
@@ -315,49 +314,49 @@ stops `Select` before any file, and the message says when the option applies (de
 only while its `when` is true, and the tree changes after each answer (decision 6).
 
 **Acceptance Criteria:**
-- [ ] In a catalog of the test where `client` needs `auth` (`method` with `values: [api-key, oauth]`,
+- [x] In a catalog of the test where `client` needs `auth` (`method` with `values: [api-key, oauth]`,
   `default: api-key`) and `client` has `store-key` (`values: [true, false]`, `default: false`,
   `when: auth.method == "api-key"`): with `auth.method` at `api-key` from the default, a flag or an answer,
   `Selection.Questions` holds the question of `store-key`, and `--feature client:store-key=true` gives the templates
   `true` with the source `command line`.
-- [ ] With `auth.method` at `oauth` from a flag or an answer, `Selection.Questions` holds no question of `store-key`,
+- [x] With `auth.method` at `oauth` from a flag or an answer, `Selection.Questions` holds no question of `store-key`,
   the templates of `client` read `false`, and the preview prints `client.store-key: false (default)`.
-- [ ] With `oauth`, an answer `true` for `store-key` is not used: the value is `false` with the source `default`, and
+- [x] With `oauth`, an answer `true` for `store-key` is not used: the value is `false` with the source `default`, and
   `Selection.Arguments` names no `store-key`. With `api-key` again, the answer gives `true` with the source
   `answered`.
-- [ ] With `oauth`, `--feature client:store-key=true` stops `Select`. The message names the option `store-key`, the
+- [x] With `oauth`, `--feature client:store-key=true` stops `Select`. The message names the option `store-key`, the
   feature `client`, the `when` `auth.method == "api-key"`, `auth.method` with the value `"oauth"`, and the command
   line with the value `"true"`. `--feature client:store-key=false` does not stop, and its source is `command line`.
-- [ ] With `oauth`, a selected feature whose need sets `store-key: "true"` of `client` stops `Select`, and the message
+- [x] With `oauth`, a selected feature whose need sets `store-key: "true"` of `client` stops `Select`, and the message
   names that need. A need that sets `"false"` does not stop.
-- [ ] An option that does not apply and has no default is not missing: `Select` and `Selection.Preview` do not stop on
+- [x] An option that does not apply and has no default is not missing: `Select` and `Selection.Preview` do not stop on
   it, and `Selection.Questions` holds no question for it.
-- [ ] A `when` of an option that reads `starter.<option>` reads the value of the starter option. A `when` that reads a
+- [x] A `when` of an option that reads `starter.<option>` reads the value of the starter option. A `when` that reads a
   name that it cannot read (decision 2) stops `Select` with a message that names the option, the feature and the
   `when`. The tests take one name of each form of the expression language: a name with no prefix (an option of its own
   feature), `<feature>.<option>` (of a need of a need, of a feature that is not a need, and of an option that a need
   does not declare), and `starter.<option>` (of an option that the starter does not declare).
-- [ ] A feature with no option with `when` gives the same values, questions, preview and files as before: the tests
+- [x] A feature with no option with `when` gives the same values, questions, preview and files as before: the tests
   of the groups `starter` and `combinations` of `TestCatalog` and of `TestSelection` pass with their expected values
   unchanged.
-- [ ] `Catalog.Combinations` of the catalog of the test holds `api --feature client:store-key=true` and
+- [x] `Catalog.Combinations` of the catalog of the test holds `api --feature client:store-key=true` and
   `api --feature auth:method=oauth --feature client:store-key=false`, no combination gives `store-key=true` with
   `auth:method=oauth`, and `Select` of each combination does not stop (decision 9).
-- [ ] `feature-compose new` with `--feature client:store-key=true --feature auth:method=oauth`, with `--no-prompt` and
+- [x] `feature-compose new` with `--feature client:store-key=true --feature auth:method=oauth`, with `--no-prompt` and
   with `--dry-run`, in both orders of the flags, stops with the message, prints nothing, and makes no output folder.
   In a terminal, it stops before the form starts and writes nothing.
-- [ ] The form (`TestModel` with that catalog): with `--feature client`, the tree shows the row `store-key  false`
+- [x] The form (`TestModel` with that catalog): with `--feature client`, the tree shows the row `store-key  false`
   under `client` while `auth.method` is `api-key`. After Enter at `method` and the choice `oauth`, the tree has no row
   of `store-key`; after `api-key` again, the row shows again, with the value that the developer kept. The preview of
   `w` with `oauth` prints `client.store-key: false (default)`. With `--feature client:store-key=true`, the choice
   `oauth` for `method` leaves `method  api-key`, and the details show the message of `Select`.
-- [ ] `docs/catalog.md`, "Options": the table has the row `when`, and the text says what a `when` of an option reads
+- [x] `docs/catalog.md`, "Options": the table has the row `when`, and the text says what a `when` of an option reads
   (decision 2), that the option has its default and no question while its `when` is false, and that a flag or a need
   with another value then stops `new`, with an example. `docs/commands.md`: the source `default` of the preview
   covers an option whose `when` is false; the stop of `--dry-run` lists the flag of an option that does not apply;
   "Answer the Questions in a TUI" says that the tree shows an option only while its `when` is true, and that a kept
   value comes back when the `when` is true again.
-- [ ] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass, and
+- [x] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass, and
   `Catalog.Check` on `catalog/` gives no mistake.
 
 **Affected Files/Modules:**
@@ -422,8 +421,8 @@ names the feature, the option, the `when`, the reference and the references that
 
 **Acceptance Criteria:**
 - [ ] A `when` of an option that reads a reference that it cannot read (decision 2) is a mistake. The tests take one
-  reference of each form that the expression language gives: a name with no prefix (an option of its own feature, also
-  the option itself, and a name that is no option); `<feature>.<option>` (of an option that a need does not declare,
+  reference of each form that the expression language gives: a name with no prefix (an option of its own feature that
+  has a `when`, also the option itself, and a name that is no option); `<feature>.<option>` (of an option that a need does not declare,
   of a feature that is not in `needs`, and of a need of a need); and `starter.<option>` (of an option that no target
   declares). The message names the feature, the option, the `when` as written, the reference, and the references
   that the `when` of an option can read.
@@ -431,7 +430,8 @@ names the feature, the option, the `when`, the reference and the references that
   message names each target that does not declare it.
 - [ ] Each reference in the `when` is checked: on both sides of `&&` and `||`, under `!`, in parentheses, in a
   comparison and as a bare name. A `when` that reads one such reference two times gives one mistake.
-- [ ] A `when` that reads only options of the needs and starter options that each target declares is not a mistake.
+- [ ] A `when` that reads only options of the needs, starter options that each target declares, and options of its
+  own feature that have no `when` is not a mistake.
   A `when` that does not parse gives only its mistake of Task 1.
 - [ ] The mistake comes one time for the feature, also with two targets, after the reads of the `when` of the files
   entries and before the reads of the templates, in the order of the option names (decision 8).

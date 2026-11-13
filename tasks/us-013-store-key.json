@@ -48,7 +48,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Ask an option only while its `when` is true, and stop a flag that gives it another value",
       "language": "Go",
       "testable": true,

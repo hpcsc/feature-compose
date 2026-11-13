@@ -1216,6 +1216,80 @@ files:
 			}, mistakes)
 		})
 
+		t.Run("a path of the repo that the starter and a feature, or two features, write is one mistake for each pair of owners after the other mistakes of the starter, and the message names the starter, the path and both owners", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth": "targets: [service]\nfiles:\n  - path: files/\n",
+				"cli":  "targets: [service]\nfiles:\n  - path: files/\n",
+				"x":    "targets: [service]\nneeds: [y]\n",
+				"y":    "targets: [service]\nneeds: [x]\n",
+			})
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code, import]\n  api.routes:\n    file: go/routes.go\n    item: [path]\n")}
+			files["starters/service/files/go/main.go"] = &fstest.MapFile{Data: []byte(`{{ option "auth.method" }}` + "\n")}
+			files["starters/service/files/go/go.mod.tmpl"] = &fstest.MapFile{Data: []byte("module example.com/service\n")}
+			files["starters/service/files/go/README.md"] = &fstest.MapFile{Data: []byte("# Service\n")}
+			files["features/auth/files/go/go.mod"] = &fstest.MapFile{Data: []byte("module example.com/auth\n")}
+			files["features/auth/files/go/README.md"] = &fstest.MapFile{Data: []byte("# Auth\n")}
+			files["features/auth/files/go/internal/shared.go"] = &fstest.MapFile{Data: []byte("package internal\n")}
+			files["features/cli/files/go/README.md"] = &fstest.MapFile{Data: []byte("# CLI\n")}
+			files["features/cli/files/go/internal/shared.go"] = &fstest.MapFile{Data: []byte("package internal\n")}
+			files["features/cli/files/go/internal/cli.go"] = &fstest.MapFile{Data: []byte("package internal\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				"the starter service: the needs of the features form a cycle: x needs y needs x",
+				`the starter service: the template go/main.go reads "auth.method", which the starter cannot read: it can read no option`,
+				`the starter service: the file "go/routes.go" of the extension point "api.routes" does not exist`,
+				"the starter service: the starter and the feature auth both write README.md",
+				"the starter service: the starter and the feature cli both write README.md",
+				"the starter service: the feature auth and the feature cli both write README.md",
+				"the starter service: the starter and the feature auth both write go.mod",
+				"the starter service: the feature auth and the feature cli both write internal/shared.go",
+			}, mistakes)
+		})
+
+		t.Run("two templates of one owner that write one path are not a mistake, and the templates of each files entry count whatever its when", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth": "targets: [service]\noptions:\n  method:\n    values: [api-key, oauth]\n    default: api-key\nfiles:\n  - path: files/api-key/\n    when: method == \"api-key\"\n  - path: files/oauth/\n    when: method == \"oauth\"\n",
+				"cli":  "targets: [service]\noptions:\n  mode:\n    values: [fast]\n    default: fast\nfiles:\n  - path: files/slow/\n    when: mode == \"slow\"\n",
+			})
+			files["features/auth/files/api-key/go/config.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+			files["features/auth/files/oauth/go/config.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+			files["features/cli/files/slow/go/config.go"] = &fstest.MapFile{Data: []byte("package cli\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"the starter service: the feature auth and the feature cli both write config.go"}, mistakes)
+		})
+
+		t.Run("two folders whose paths lead to one path give one path of the repo, and two features with no target in common or a template in no folder are not compared", func(t *testing.T) {
+			files := withWorker(withFeatures(map[string]string{
+				"a":    "targets: [service]\nfiles:\n  - path: files/\n",
+				"b":    "targets: [worker]\nfiles:\n  - path: files/\n",
+				"c":    "targets: [service]\nfiles:\n  - path: files/\n",
+				"d":    "targets: [service]\nfiles:\n  - path: files/\n",
+				"docs": "targets: [service]\nfiles:\n  - path: files/\n",
+			}))
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n  docs:\n    path: ./guide/..\n")}
+			files["starters/service/files/go/README.md"] = &fstest.MapFile{Data: []byte("# Service\n")}
+			files["features/a/files/go/x.go"] = &fstest.MapFile{Data: []byte("package x\n")}
+			files["features/b/files/go/x.go"] = &fstest.MapFile{Data: []byte("package x\n")}
+			files["features/c/files/NOTES.md"] = &fstest.MapFile{Data: []byte("c\n")}
+			files["features/d/files/NOTES.md"] = &fstest.MapFile{Data: []byte("d\n")}
+			files["features/docs/files/docs/README.md"] = &fstest.MapFile{Data: []byte("# Docs\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				"the starter service: the template NOTES.md of the files entry files/ of the feature c is not in a folder",
+				"the starter service: the template NOTES.md of the files entry files/ of the feature d is not in a folder",
+				"the starter service: the starter and the feature docs both write README.md",
+			}, mistakes)
+		})
+
 		t.Run("the catalog of this repo has no mistake", func(t *testing.T) {
 			mistakes, err := repoCatalog().Check()
 

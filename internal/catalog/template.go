@@ -81,6 +81,10 @@ func (t template) pathWithoutTmpl() string {
 	return strings.TrimSuffix(t.catalogPath, ".tmpl")
 }
 
+func (t template) pathBeforeRender() string {
+	return path.Join(t.folder.path, t.pathInFolder)
+}
+
 func (t template) descriptionInOwner() string {
 	if t.entry == "" {
 		return "the template " + t.catalogPath

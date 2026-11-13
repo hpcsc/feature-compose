@@ -473,26 +473,26 @@ compares the paths before the render. Each path and each pair of owners is one m
 path and both owners.
 
 **Acceptance Criteria:**
-- [ ] A path that the starter and a feature that targets it both write is a mistake. The message names the starter,
+- [x] A path that the starter and a feature that targets it both write is a mistake. The message names the starter,
   the path and both owners. A path that two features that target the starter both write is a mistake too.
-- [ ] The path is the path in the repo: the path of the folder joined with the path in the folder, without `.tmpl`.
+- [x] The path is the path in the repo: the path of the folder joined with the path in the folder, without `.tmpl`.
   `go.mod.tmpl` of the starter and `go.mod` of a feature write one path, and so do two folders whose paths lead to
   one path.
-- [ ] The templates of each files entry count, whatever its `when`.
-- [ ] Two templates of one owner that write one path are not a mistake, as the files entries `api-key` and `oauth` of
+- [x] The templates of each files entry count, whatever its `when`.
+- [x] Two templates of one owner that write one path are not a mistake, as the files entries `api-key` and `oauth` of
   `api-auth` write `internal/auth/config.go`.
-- [ ] Two features that write one path but have no target in common are not a mistake.
-- [ ] Two owners that write many paths give one mistake for each path; three owners of one path give one mistake for
+- [x] Two features that write one path but have no target in common are not a mistake.
+- [x] Two owners that write many paths give one mistake for each path; three owners of one path give one mistake for
   each pair of them. The mistakes come in a fixed order, after the cycles of the starter (decision 9).
-- [ ] A template that is not in a folder of the starter is not in the comparison; US-006 reports it.
-- [ ] The mistakes of US-006 and Tasks 1 to 4 are still found, and `Catalog.Check` on `catalog/` gives no mistake.
-- [ ] `feature-compose check` prints the mistake.
-- [ ] `e2e/tests/check.test.ts`: `check` on a scratch catalog whose starter and feature write one path exits with 1,
+- [x] A template that is not in a folder of the starter is not in the comparison; US-006 reports it.
+- [x] The mistakes of US-006 and Tasks 1 to 4 are still found, and `Catalog.Check` on `catalog/` gives no mistake.
+- [x] `feature-compose check` prints the mistake.
+- [x] `e2e/tests/check.test.ts`: `check` on a scratch catalog whose starter and feature write one path exits with 1,
   and its line names the path and both owners. The test of the catalog of this repo still exits with 0. Both pass on
   the host.
-- [ ] `docs/commands.md` "Check the Catalog" has a row for the mistake, and the rule of one owner in
+- [x] `docs/commands.md` "Check the Catalog" has a row for the mistake, and the rule of one owner in
   `docs/catalog.md:42-43` says that `check` finds two owners of one path.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `internal/catalog/starter.go` — the paths that two owners write, among the starter and the features that target it

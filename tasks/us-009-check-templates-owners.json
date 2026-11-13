@@ -162,7 +162,7 @@
     },
     {
       "n": 5,
-      "done": false,
+      "done": true,
       "title": "Find two owners that write one path of the repo",
       "language": "Go",
       "testable": true,

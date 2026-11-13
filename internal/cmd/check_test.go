@@ -169,6 +169,16 @@ the feature cli: the file "go/cli.go" of the extension point "cli.commands" does
 `, printed)
 		})
 
+		t.Run("prints each path that two owners write", func(t *testing.T) {
+			files := withFeatures(map[string]string{"auth": "targets: [service]\nfiles:\n  - path: files/\n"})
+			files["features/auth/files/go/server.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+
+			printed, err := runCheck(t, files)
+
+			require.EqualError(t, err, "the catalog has 1 mistake")
+			require.Equal(t, "the starter service: the starter and the feature auth both write server.go\n", printed)
+		})
+
 		t.Run("--catalog checks the catalog in that folder, also with no config file", func(t *testing.T) {
 			catalogDir := t.TempDir()
 			for path, contents := range map[string]string{

@@ -285,8 +285,9 @@ is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each
 ## Check the Catalog
 
 `feature-compose check` finds each feature of the catalog that does not fit its targets or its needs, each
-template that reads an option that it cannot read or that does not parse, and each extension point whose file does
-not render its items, so that a mistake in the catalog stops before a developer runs `new`. It reads the catalog folder that the config file
+template that reads an option that it cannot read or that does not parse, each extension point whose file does not
+render its items, and each path that two owners write, so that a mistake in the catalog stops before a developer
+runs `new`. It reads the catalog folder that the config file
 names, and checks each feature against each starter that its `targets` name. `--catalog <folder>` checks the
 catalog in that folder, and `check` then does not read the config file. A `--catalog` path that is not a folder
 stops `check`, and the message names the path.
@@ -319,21 +320,32 @@ feature-compose check --catalog ./catalog
 | A template does not parse with its delimiters and the template functions of `new`. The message gives the error of the parse. | `the feature cli: the template go/cli.go of the files entry files/ does not parse: template: go/cli.go:1: function "nope" not defined` |
 | The `file` of an extension point is not a template of its declarer, or the extension point names no file. A template whose path is the `file` with `.tmpl` after it is the file. The file of an extension point of a feature can be in any files entry of the feature. | `the starter service: the file "go/config.go" of the extension point "api.config" does not exist` |
 | The file of an extension point does not call `items` with the name of the extension point, also when it calls `items` for another extension point or calls only `unique` for it. A feature that has the file in two files entries must call `items` in each copy, and the message names the files entry of a copy that does not. A file that does not parse gives only the mistake of the parse. | `the feature cli: the template go/cli.go of the files entry files/ does not call items "cli.commands"` |
+| Two owners write one path of the repo: the starter and a feature that targets it, or two features that target it. The path is the path of the folder joined with the path of the template in the folder, without `.tmpl`, before the render. `check` reads each files entry, also one whose `when` is false. Two templates of one owner are not a mistake. Each pair of owners of a path is one mistake. | `the starter service: the starter and the feature auth both write go.mod` |
 
 Each message names the feature, the starter, and the extension point, the folder or the need that is wrong. A
 feature with two targets gives one mistake for each target that it does not fit. A mistake that is not about one
 target, for example a `when` that does not parse, comes one time and names no starter. A wrong need of a need is a
 mistake of the feature that has the need, not of the features that need that feature.
 
-`check` prints each mistake on its own line to stdout. The mistakes of each starter come first, in the order of the
-starters, the features, the extension points and the items, the cycles of each starter come after its features,
-and the reads and then the parse mistakes of its templates come after its cycles, then the files of its extension
-points, in the order of their names. Then the mistakes of each feature come, in the order of the features: its
-targets with different item fields, then its `when` expressions that do not parse, then the options that its
-`when` expressions read and cannot read, then the options that its templates read and cannot read, then its
-templates that do not parse, each in the order of the files entries, then the files of its extension points, in the
-order of their names. Then `check` writes the number of the mistakes to stderr, for example
-`the catalog has 2 mistakes`, and exits with the status 1. With no mistake, it prints
+`check` prints each mistake on its own line to stdout, in this order:
+
+1. The mistakes of each starter, in the order of the starters:
+   - The mistakes of each feature that targets it, in the order of the features, the extension points and the
+     items.
+   - The cycles of the needs.
+   - The options that its templates read and cannot read, then its templates that do not parse.
+   - The files of its extension points, in the order of their names.
+   - The paths that two owners write, in the order of the paths.
+2. The mistakes of each feature, in the order of the features:
+   - Its targets with different item fields.
+   - Its `when` expressions that do not parse.
+   - The options that its `when` expressions read and cannot read.
+   - The options that its templates read and cannot read, then its templates that do not parse.
+   - The files of its extension points, in the order of their names.
+
+The mistakes of the `when` expressions and the templates of a feature come in the order of its files entries.
+Then `check` writes the number of the mistakes to stderr, for example `the catalog has 2 mistakes`, and exits
+with the status 1. With no mistake, it prints
 `The catalog has no mistakes.` and exits with the status 0. A catalog that `check` cannot read, for example a
 `starter.yml` that is not valid YAML, stops `check` with the message that `new` and `show` give, and the exit
 status is 1.

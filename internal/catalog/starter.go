@@ -185,6 +185,7 @@ func (s Starter) mistakes(catalogFeatures map[string]feature) []string {
 	for _, name := range slices.Sorted(maps.Keys(s.extensionPoints)) {
 		mistakes = append(mistakes, s.extensionPoints[name].fileMistakes(s.templates)...)
 	}
+	mistakes = append(mistakes, s.ownerMistakes()...)
 	for i, mistake := range mistakes {
 		mistakes[i] = "the starter " + s.name + ": " + mistake
 	}
@@ -243,6 +244,33 @@ func (s Starter) templateMistakes() []string {
 		reads = append(reads, templateReads...)
 	}
 	return append(reads, parseMistakes...)
+}
+
+func (s Starter) ownerMistakes() []string {
+	templates := slices.Clone(s.templates)
+	for _, featureName := range slices.Sorted(maps.Keys(s.features)) {
+		for _, t := range s.features[featureName].templates {
+			if placed, err := t.place(s.folders); err == nil {
+				templates = append(templates, placed)
+			}
+		}
+	}
+	owners := map[string][]string{}
+	for _, t := range templates {
+		if !slices.Contains(owners[t.pathBeforeRender()], t.owner) {
+			owners[t.pathBeforeRender()] = append(owners[t.pathBeforeRender()], t.owner)
+		}
+	}
+	var mistakes []string
+	for _, ownedPath := range slices.Sorted(maps.Keys(owners)) {
+		pathOwners := owners[ownedPath]
+		for i, first := range pathOwners {
+			for _, second := range pathOwners[i+1:] {
+				mistakes = append(mistakes, fmt.Sprintf("%s and %s both write %s", first, second, ownedPath))
+			}
+		}
+	}
+	return mistakes
 }
 
 func (s Starter) cycleMistakes() []string {

@@ -64,4 +64,18 @@ describe('feature-compose check', () => {
     )
     expect(result.stderr).toBe('the catalog has 1 mistake\n')
   })
+
+  it('names the path and both owners of a path that the starter and a feature write, and exits with 1', async () => {
+    const catalogDir = scratchDir()
+    writeFile(join(catalogDir, 'starters', 'service', 'starter.yml'), 'folders:\n  go:\n    path: .\n')
+    writeFile(join(catalogDir, 'starters', 'service', 'files', 'go', 'go.mod.tmpl'), 'module example.com/service\n')
+    writeFile(join(catalogDir, 'features', 'auth', 'feature.yml'), 'targets: [service]\nfiles:\n  - path: files/\n')
+    writeFile(join(catalogDir, 'features', 'auth', 'files', 'go', 'go.mod'), 'module example.com/auth\n')
+
+    const result = await runCli(scratchDir(), ['check', '--catalog', catalogDir])
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toBe('the starter service: the starter and the feature auth both write go.mod\n')
+    expect(result.stderr).toBe('the catalog has 1 mistake\n')
+  })
 })

@@ -1,0 +1,66 @@
+design: planned
+types:
+  - name: Starter
+    package: internal/catalog
+    change: changed
+    does: one starter of the catalog, which each selection of a repo starts from, with the combinations that CI makes of it
+    owns:
+      - each other value of an option with values of a feature that a feature needs gives one combination of the feature with that need at that value; each other option with values of the need has the value that the need of the feature sets, else its default
+      - a value of an option that the need of the feature sets gives no such combination, and a need of a need gives none
+      - the name of each combination is the arguments of new that make the same repo, and Select of each combination does not stop
+    fields: [name, options, folders, templates, features, otherFeatureNames, extensionPoints]
+    methods: [Select, FeatureNames, combinations]
+functions: []
+words:
+  - concept: a repo that task test:combinations makes from a starter, its features and the values of their options, named by the arguments of new
+    word: combination
+    not: [variant, permutation, matrix entry, case]
+  - concept: the JWT that the CLI gets from the issuer and sends after Bearer with the method oauth, which MY_SERVICE_TOKEN can also give
+    word: access token
+    not: [bearer token, jwt, api token, token string]
+  - concept: the token of a login with which the CLI gets a new access token from the issuer
+    word: refresh token
+    not: [offline token, renewal token, long-lived token]
+  - concept: the access token, the refresh token, the token type, the expiry and the account of one login, as the store keeps them
+    word: tokens
+    not: [session, grant, login data, token set]
+  - concept: the step of auth login in which the user proves at the issuer who they are and the CLI gets tokens, in a browser or with a device code
+    word: log in
+    not: [sign in, sign on, authenticate, authorize]
+  - concept: the get of a new access token with the refresh token when the stored access token expires
+    word: refresh
+    not: [renew, reissue, rotate, extend]
+  - concept: the request of auth logout that tells the issuer to stop a token
+    word: revoke
+    not: [invalidate, cancel, expire]
+  - concept: the macOS Keychain, the Windows Credential Manager or the Linux Secret Service, which the CLI reaches through go-keyring
+    word: OS credential store
+    not: [keychain, keyring, vault, secret store]
+  - concept: the place where the CLI keeps the tokens of each API host, the OS credential store or else credentials.json
+    word: store
+    not: [cache, vault, credential file, token store]
+  - concept: the server that signs the access tokens and publishes discovery, named by its URL in a setting of the repo
+    word: issuer
+    not: [provider, IdP, authority, authorization server]
+  - concept: the value that the aud claim of an access token must hold, which names the API; the CLI sends it with each login
+    word: audience
+    not: [resource, client ID, scope, API identifier]
+  - concept: the ID of the OAuth client of the CLI at the issuer
+    word: client ID
+    not: [app ID, application ID, client key]
+  - concept: the base URL of the API that the CLI calls, under whose host the store keeps the tokens
+    word: API URL
+    not: [endpoint, server URL, host]
+  - concept: a value of the config of a written repo that can change with no new render, an environment variable of the API or an empty constant of internal/credential that an environment variable replaces, for example the issuer URL, the client ID, the audience and the API URL
+    word: setting
+    not: [option, flag, parameter, config value]
+  - concept: an issuer that a test starts on 127.0.0.1, which serves discovery, the signing keys and the endpoints of a login, and signs tokens with a key of the test
+    word: test issuer
+    not: [fake issuer, mock issuer, stub issuer]
+  - concept: the login in which the CLI opens the authorization URL of the issuer in a browser and gets the code on 127.0.0.1, with PKCE
+    word: browser login
+    not: [auth code flow, web login, PKCE flow, redirect login]
+  - concept: the login in which the CLI shows a verification URL and a user code, and the user logs in on another device
+    word: device code login
+    not: [device flow, device grant, headless login]
+dependencies: []

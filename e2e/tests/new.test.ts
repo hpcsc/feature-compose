@@ -352,7 +352,7 @@ describe('feature-compose new', () => {
   }
 
   it(
-    'makes a repo with cli-auth, which also selects cli and api-auth, passes its unit tests, shows where the API key comes from, and calls its API with the key',
+    'makes a repo with cli-auth, which also selects cli and api-auth, whose go.mod requires no module of the method oauth, passes its unit tests, shows where the API key comes from, and calls its API with the key',
     async () => {
       const dir = scratchDir()
       const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
@@ -366,6 +366,12 @@ describe('feature-compose new', () => {
         `version: ${buildTag()}\nstarter: go-event-sourcing-service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\n` +
           'features:\n  api-auth:\n    method: api-key\n  cli: {}\n  cli-auth: {}\nrequested: [cli-auth]\n',
       )
+      const requires: Array<{ module: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['cli-auth'].add_to['gomod.requires']
+      expect(requires.map((item) => item.module).sort()).toEqual(['github.com/cli/browser', 'github.com/zalando/go-keyring', 'golang.org/x/oauth2'])
+      const goMod = readFileSync(join(repo, 'go.mod'), 'utf8')
+      for (const { module } of requires) {
+        expect(goMod, `go mod tidy removes ${module}, which only the files of the method oauth import`).not.toContain(module)
+      }
       const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
       expect(unformatted).toMatchObject({ status: 0, stdout: '' })
       const build = await runProgram(repo, 'go', ['build', '-o', 'bin/my-service', './cmd/my-service'], env)

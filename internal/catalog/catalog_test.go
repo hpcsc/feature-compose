@@ -2204,7 +2204,43 @@ files:
 			return filesIn(t, output)
 		}
 
-		t.Run("cli-auth adds its files to the repo with cli and api-auth, and only the root command of the CLI changes, which lists auth after version and update", func(t *testing.T) {
+		writtenWithCLIAuthMethod := func(t *testing.T, method string) map[string]string {
+			t.Helper()
+			files := catalogOnDisk(t)
+			cliAuth := string(files["features/cli-auth/feature.yml"].Data)
+			require.Contains(t, cliAuth, "  api-auth:\n    method: api-key\n")
+			files["features/cli-auth/feature.yml"] = &fstest.MapFile{Data: []byte(strings.Replace(cliAuth, "  api-auth:\n    method: api-key\n", "  api-auth:\n", 1))}
+			starter, err := catalog.New(files).Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil, "api-auth": {"method": method}}, catalog.Answers{})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+			require.NoError(t, selection.Write(output))
+			return filesIn(t, output)
+		}
+
+		addedAndChangedByCLIAuth := func(t *testing.T, method string) (map[string]string, []string) {
+			t.Helper()
+			withoutCLIAuth := writtenWithFeatures(t, map[string]map[string]string{"cli": nil, "api-auth": {"method": method}})
+			withCLIAuth := writtenWithCLIAuthMethod(t, method)
+			for path := range withoutCLIAuth {
+				require.Contains(t, withCLIAuth, path, "cli-auth removes "+path)
+			}
+			added := map[string]string{}
+			var changed []string
+			for path, contents := range withCLIAuth {
+				before, ok := withoutCLIAuth[path]
+				switch {
+				case !ok:
+					added[path] = contents
+				case before != contents:
+					changed = append(changed, path)
+				}
+			}
+			return added, changed
+		}
+
+		t.Run("cli-auth adds its files to the repo with cli and api-auth, and only the root command of the CLI, which lists auth after version and update, and go.mod change", func(t *testing.T) {
 			withoutCLIAuth := writtenWithFeatures(t, withoutValues("cli", "api-auth"))
 
 			withCLIAuth := writtenWithFeatures(t, withoutValues("cli-auth"))
@@ -2225,13 +2261,107 @@ files:
 				"internal/credential/credential_test.go", "internal/cli/auth.go", "e2e/tests/auth.test.ts", "docs/cli-auth.md",
 				"internal/apiclient/client.go", "internal/apiclient/client_test.go",
 			}, slices.Collect(maps.Keys(added)))
-			require.Equal(t, []string{"internal/cli/root.go"}, changed)
+			require.ElementsMatch(t, []string{"internal/cli/root.go", "go.mod"}, changed)
 			require.Len(t, withCLIAuth, len(withoutCLIAuth)+len(added))
 			require.Contains(t, withCLIAuth["internal/cli/root.go"], "\t\t\tnewVersionCommand(),\n\t\t\tnewUpdateCommand(),\n\t\t\tnewAuthCommand(),\n\t\t},")
 		})
 
 		t.Run("cli-auth alone, and cli-auth with cli and api-auth, give the same files", func(t *testing.T) {
 			require.Equal(t, writtenWithFeatures(t, withoutValues("cli-auth")), writtenWithFeatures(t, withoutValues("cli-auth", "cli", "api-auth")))
+		})
+
+		t.Run("with the method api-key, cli-auth writes the same files when its need sets no method", func(t *testing.T) {
+			require.Equal(t, writtenWithFeatures(t, withoutValues("cli-auth")), writtenWithCLIAuthMethod(t, "api-key"))
+		})
+
+		t.Run("with the method oauth of api-auth, cli-auth adds the files of oauth and of the store, and only the root command of the CLI, which lists auth after version and update, and go.mod change", func(t *testing.T) {
+			added, changed := addedAndChangedByCLIAuth(t, "oauth")
+
+			require.ElementsMatch(t, []string{
+				"internal/credential/credential.go", "internal/credential/command.go", "internal/credential/config.go", "internal/credential/credential_test.go",
+				"internal/credential/issuer.go", "internal/credential/oauth_setting.go", "internal/credential/login.go", "internal/credential/login_test.go",
+				"internal/credential/tokens.go", "internal/credential/tokens_test.go", "internal/credential/test_issuer_test.go", "internal/credential/test_api_test.go",
+				"internal/credential/store.go", "internal/credential/store_test.go", "internal/credential/api_url.go", "internal/credential/api_url_test.go",
+				"internal/cli/auth.go", "e2e/tests/auth.test.ts", "docs/cli-auth.md", "internal/apiclient/client.go", "internal/apiclient/client_test.go",
+			}, slices.Collect(maps.Keys(added)))
+			require.ElementsMatch(t, []string{"internal/cli/root.go", "go.mod"}, changed)
+			require.Contains(t, writtenWithCLIAuthMethod(t, "oauth")["internal/cli/root.go"], "\t\t\tnewVersionCommand(),\n\t\t\tnewUpdateCommand(),\n\t\t\tnewAuthCommand(),\n\t\t},")
+		})
+
+		t.Run("with the method api-key, no file that cli-auth adds names an issuer, an audience, OAuth, a refresh, a keyring, the credential store or auth login, and no Go file imports a module of the method oauth", func(t *testing.T) {
+			added, _ := addedAndChangedByCLIAuth(t, "api-key")
+			oauthAdded, _ := addedAndChangedByCLIAuth(t, "oauth")
+			words := []string{"issuer", "audience", "oauth", "refresh", "keyring", "credential store", "auth login"}
+			for _, word := range words {
+				require.True(t, slices.ContainsFunc(slices.Collect(maps.Values(oauthAdded)), func(contents string) bool {
+					return strings.Contains(strings.ToLower(contents), word)
+				}), word)
+			}
+
+			for path, contents := range added {
+				for _, word := range words {
+					require.NotContains(t, strings.ToLower(contents), word, path)
+				}
+			}
+			for path, contents := range writtenWithCLIAuthMethod(t, "api-key") {
+				if !strings.HasSuffix(path, ".go") {
+					continue
+				}
+				parsed, err := parser.ParseFile(token.NewFileSet(), path, contents, parser.ImportsOnly)
+				require.NoError(t, err, path)
+				for _, imported := range parsed.Imports {
+					for _, module := range []string{"golang.org/x/oauth2", "github.com/zalando/go-keyring", "github.com/cli/browser"} {
+						require.NotContains(t, imported.Path.Value, module, path)
+					}
+				}
+			}
+		})
+
+		t.Run("with each method, go.mod of the selection requires a version of each module that a Go file of cli-auth imports, other than the standard library and the module of the repo", func(t *testing.T) {
+			for _, method := range []string{"api-key", "oauth"} {
+				added, _ := addedAndChangedByCLIAuth(t, method)
+				required := slices.Collect(maps.Keys(requiredModulesOf(t, writtenWithCLIAuthMethod(t, method)["go.mod"])))
+
+				var imported []string
+				for path, contents := range added {
+					if !strings.HasSuffix(path, ".go") {
+						continue
+					}
+					parsed, err := parser.ParseFile(token.NewFileSet(), path, contents, parser.ImportsOnly)
+					require.NoError(t, err, path)
+					for _, spec := range parsed.Imports {
+						importPath, err := strconv.Unquote(spec.Path.Value)
+						require.NoError(t, err)
+						if strings.Contains(strings.Split(importPath, "/")[0], ".") && !strings.HasPrefix(importPath, "github.com/hpcsc/my-service/") {
+							imported = append(imported, importPath)
+						}
+					}
+				}
+				require.Contains(t, imported, "github.com/urfave/cli/v3", method)
+				if method == "oauth" {
+					require.Subset(t, imported, []string{"golang.org/x/oauth2", "github.com/zalando/go-keyring", "github.com/cli/browser"}, method)
+				}
+				majorVersion := regexp.MustCompile(`^/v([2-9]|[1-9][0-9]+)(/|$)`)
+				for _, importPath := range imported {
+					require.True(t, slices.ContainsFunc(required, func(module string) bool {
+						rest, ok := strings.CutPrefix(importPath, module)
+						return ok && (rest == "" || strings.HasPrefix(rest, "/")) && !majorVersion.MatchString(rest)
+					}), method+": "+importPath)
+				}
+			}
+		})
+
+		t.Run("with the method oauth, the issuer URL, the client ID, the audience and the API URL are empty constants", func(t *testing.T) {
+			files := writtenWithCLIAuthMethod(t, "oauth")
+
+			for path, constants := range map[string][]string{
+				"internal/credential/oauth_setting.go": {"issuerURL", "clientID", "audience"},
+				"internal/credential/api_url.go":       {"apiURL"},
+			} {
+				for _, constant := range constants {
+					require.Regexp(t, `(?m)^\t`+constant+` += ""$`, files[path], path)
+				}
+			}
 		})
 
 		t.Run("cli-auth has no option, so a value of method for it stops, and the message says that it has no option", func(t *testing.T) {
@@ -2243,34 +2373,42 @@ files:
 			require.ErrorContains(t, err, `unknown option "method": the feature cli-auth has no option`)
 		})
 
-		t.Run("the files of a repo with cli-auth hold no value of scaffold", func(t *testing.T) {
-			files := writtenWithFeatures(t, withoutValues("cli-auth"))
+		t.Run("the files of a repo with cli-auth hold no value of scaffold, with each method", func(t *testing.T) {
+			for _, method := range []string{"api-key", "oauth"} {
+				files := writtenWithCLIAuthMethod(t, method)
 
-			for path, contents := range files {
-				for _, value := range []string{".Scaffold.", ".Computed.", "go-cli-project", "GO_CLI_PROJECT", "zzsentinel", "<no value>"} {
-					require.NotContains(t, contents, value, path)
+				for path, contents := range files {
+					for _, value := range []string{".Scaffold.", ".Computed.", "go-cli-project", "GO_CLI_PROJECT", "zzsentinel", "<no value>"} {
+						require.NotContains(t, contents, value, method+": "+path)
+					}
 				}
 			}
 		})
 
-		t.Run("the Go files of cli-auth import only its own packages and cli, and only a test imports internal/auth of api-auth", func(t *testing.T) {
-			files := writtenWithFeatures(t, withoutValues("cli-auth"))
-
-			for _, path := range []string{
-				"internal/credential/credential.go", "internal/credential/command.go", "internal/credential/config.go", "internal/credential/credential_test.go",
-				"internal/cli/auth.go", "internal/apiclient/client.go", "internal/apiclient/client_test.go",
-			} {
-				allowed := `^internal/(credential|cli|apiclient)$`
-				if strings.HasSuffix(path, "_test.go") {
-					allowed = `^internal/(credential|cli|apiclient|auth)$`
+		t.Run("with each method, the Go files of cli-auth import only its own packages and cli, and only a test imports internal/auth of api-auth", func(t *testing.T) {
+			for _, method := range []string{"api-key", "oauth"} {
+				added, _ := addedAndChangedByCLIAuth(t, method)
+				var goFiles []string
+				for path := range added {
+					if strings.HasSuffix(path, ".go") {
+						goFiles = append(goFiles, path)
+					}
 				}
-				parsed, err := parser.ParseFile(token.NewFileSet(), path, files[path], parser.ImportsOnly)
-				require.NoError(t, err, path)
-				for _, imported := range parsed.Imports {
-					importPath, err := strconv.Unquote(imported.Path.Value)
-					require.NoError(t, err)
-					if inModule, ok := strings.CutPrefix(importPath, "github.com/hpcsc/my-service/"); ok {
-						require.Regexp(t, allowed, inModule, path+" imports "+importPath)
+				require.Subset(t, goFiles, []string{"internal/credential/credential.go", "internal/cli/auth.go", "internal/apiclient/client.go", "internal/apiclient/client_test.go"}, method)
+
+				for _, path := range goFiles {
+					allowed := `^internal/(credential|cli|apiclient)$`
+					if strings.HasSuffix(path, "_test.go") {
+						allowed = `^internal/(credential|cli|apiclient|auth)$`
+					}
+					parsed, err := parser.ParseFile(token.NewFileSet(), path, added[path], parser.ImportsOnly)
+					require.NoError(t, err, path)
+					for _, imported := range parsed.Imports {
+						importPath, err := strconv.Unquote(imported.Path.Value)
+						require.NoError(t, err)
+						if inModule, ok := strings.CutPrefix(importPath, "github.com/hpcsc/my-service/"); ok {
+							require.Regexp(t, allowed, inModule, method+": "+path+" imports "+importPath)
+						}
 					}
 				}
 			}
@@ -2294,6 +2432,34 @@ files:
 			}
 		})
 
+		t.Run("with the method oauth, the docs of cli-auth name the token, the commands of auth, the settings with their constants and variables, the audience of the API and the API URL of the client, and only paths that the repo has", func(t *testing.T) {
+			files := writtenWithCLIAuthMethod(t, "oauth")
+			docs := files["docs/cli-auth.md"]
+
+			for _, part := range []string{
+				"MY_SERVICE_TOKEN", "credentialCommand", "my-service auth login", "my-service auth login --device", "my-service auth status",
+				"my-service auth token", "my-service auth logout", "Authorization: Bearer <token>", "the method `oauth`",
+				"the CLI follows the method of the API", "[api-auth.md](api-auth.md)",
+				"| `issuerURL` | `internal/credential/oauth_setting.go` | `MY_SERVICE_OAUTH_ISSUER_URL` |",
+				"| `clientID` | `internal/credential/oauth_setting.go` | `MY_SERVICE_OAUTH_CLIENT_ID` |",
+				"| `audience` | `internal/credential/oauth_setting.go` | `MY_SERVICE_OAUTH_AUDIENCE` |",
+				"| `apiURL` | `internal/credential/api_url.go` | `MY_SERVICE_API_URL` |",
+				"`OAUTH_AUDIENCE` of the API", "the parameter `audience`", "http://127.0.0.1/callback", "apiclient.New(apiURL.String())",
+				"MY_SERVICE_CREDENTIAL_STORE=file", "credentials.json",
+			} {
+				require.Contains(t, docs, part)
+			}
+			module := regexp.MustCompile(`^[a-z0-9-]+(\.[a-z0-9-]+)+/`)
+			for _, path := range regexp.MustCompile("`([A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+)`").FindAllStringSubmatch(docs, -1) {
+				if module.MatchString(path[1]) {
+					continue
+				}
+				require.True(t, slices.ContainsFunc(slices.Collect(maps.Keys(files)), func(written string) bool {
+					return written == path[1] || strings.HasPrefix(written, path[1]+"/")
+				}), path[1])
+			}
+		})
+
 		t.Run("the docs, the README and the Taskfiles of a repo name each route of its API under /api, and do not name GET / alone", func(t *testing.T) {
 			_, starterAlone := writtenStarter(t, nil)
 			routePattern := regexp.MustCompile(`route\.(?:Public|Protected)\("[A-Z]+", "([^"]+)"`)
@@ -2305,6 +2471,7 @@ files:
 				"api-auth with the method api-key": writtenWithAPIAuth(t, nil, map[string]string{"method": "api-key"}),
 				"api-auth with the method oauth":   writtenWithAPIAuth(t, nil, map[string]string{"method": "oauth"}),
 				"cli-auth":                         writtenWithFeatures(t, withoutValues("cli-auth")),
+				"cli-auth with the method oauth":   writtenWithCLIAuthMethod(t, "oauth"),
 				"process-manager":                  writtenWithProcessManager(t),
 			} {
 				var routes []string
@@ -2342,24 +2509,6 @@ files:
 				require.Contains(t, routes, "/accounts", name)
 				require.Empty(t, withoutPrefix, name)
 			}
-		})
-
-		t.Run("the docs of cli-auth name the method that api-auth has in the selection", func(t *testing.T) {
-			files := catalogOnDisk(t)
-			apiAuth := string(files["features/api-auth/feature.yml"].Data)
-			require.Contains(t, apiAuth, "values: [api-key, oauth]")
-			files["features/api-auth/feature.yml"] = &fstest.MapFile{Data: []byte(strings.Replace(apiAuth, "values: [api-key, oauth]", "values: [api-key, oauth, zzmethod]", 1))}
-			cliAuth := string(files["features/cli-auth/feature.yml"].Data)
-			require.Contains(t, cliAuth, "method: api-key")
-			files["features/cli-auth/feature.yml"] = &fstest.MapFile{Data: []byte(strings.Replace(cliAuth, "method: api-key", "method: zzmethod", 1))}
-			starter, err := catalog.New(files).Starter("go-event-sourcing-service")
-			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil}, catalog.Answers{})
-			require.NoError(t, err)
-			output := filepath.Join(t.TempDir(), "my-service")
-			require.NoError(t, selection.Write(output))
-
-			require.Contains(t, filesIn(t, output)["docs/cli-auth.md"], "the method `zzmethod`")
 		})
 
 		t.Run("the need of cli-auth sets the method api-key of api-auth, and the preview names the need as its source", func(t *testing.T) {

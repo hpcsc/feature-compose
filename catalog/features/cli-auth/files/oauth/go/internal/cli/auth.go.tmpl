@@ -1,0 +1,100 @@
+package cli
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"{{ option "starter.module" }}/internal/credential"
+	"github.com/urfave/cli/v3"
+)
+
+func newAuthCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "auth",
+		Usage: "log in, log out, or show the login",
+		Commands: []*cli.Command{
+			{
+				Name:   "status",
+				Usage:  "show where the token comes from, but not the token",
+				Action: authStatus,
+			},
+			{
+				Name:  "login",
+				Usage: "log in with OAuth and store the tokens",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{Name: "device", Usage: "log in with a code on another device, in place of a browser on this machine"},
+				},
+				Action: authLogin,
+			},
+			{
+				Name:   "logout",
+				Usage:  "revoke the refresh token and remove the stored tokens",
+				Action: authLogout,
+			},
+			{
+				Name:   "token",
+				Usage:  "print the access token, for scripts",
+				Action: authToken,
+			},
+		},
+	}
+}
+
+func authStatus(ctx context.Context, cmd *cli.Command) error {
+	found, err := credential.Resolve(ctx)
+	if err != nil {
+		return err
+	}
+	out := cmd.Root().Writer
+	_, err = fmt.Fprintf(out, "The token comes from %s.\n", found.Source)
+	if err == nil && found.Account != "" {
+		_, err = fmt.Fprintf(out, "Account: %s\n", found.Account)
+	}
+	if err == nil && !found.Expiry.IsZero() {
+		_, err = fmt.Fprintf(out, "Expires: %s\n", found.Expiry.Local().Format(time.RFC3339))
+	}
+	return err
+}
+
+func authLogin(ctx context.Context, cmd *cli.Command) error {
+	tokens, source, err := credential.Login(ctx, credential.LoginOptions{
+		Device: cmd.Bool("device") || !credential.BrowserAvailable(),
+		Out:    cmd.Root().ErrWriter,
+	})
+	if err != nil {
+		return err
+	}
+	if tokens.Account == "" {
+		_, err = fmt.Fprintf(cmd.Root().Writer, "Logged in. The tokens are in %s.\n", source)
+		return err
+	}
+	_, err = fmt.Fprintf(cmd.Root().Writer, "Logged in as %s. The tokens are in %s.\n", tokens.Account, source)
+	return err
+}
+
+func authLogout(ctx context.Context, cmd *cli.Command) error {
+	host, err := credential.APIHost()
+	if err != nil {
+		return err
+	}
+	removed, err := credential.Logout(ctx, cmd.Root().ErrWriter)
+	if err != nil {
+		return err
+	}
+	if !removed {
+		_, err = fmt.Fprintf(cmd.Root().Writer, "No tokens for %s are stored.\n", host)
+		return err
+	}
+	_, err = fmt.Fprintf(cmd.Root().Writer, "Removed the tokens for %s.\n", host)
+	return err
+}
+
+func authToken(ctx context.Context, cmd *cli.Command) error {
+	found, err := credential.Resolve(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(cmd.Root().Writer, found.Value)
+	return err
+}

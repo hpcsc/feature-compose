@@ -7,7 +7,20 @@ needs:
 
 files:
   - path: files/common/
+  - path: files/api-key/
+    when: api-auth.method == "api-key"
+  - path: files/oauth/
+    when: api-auth.method == "oauth"
+  - path: files/store/
+    when: api-auth.method == "oauth"
 
 add_to:
   cli.commands:
     - code: newAuthCommand()
+  gomod.requires:
+    - module: github.com/cli/browser
+      version: v1.3.0
+    - module: github.com/zalando/go-keyring
+      version: v0.2.8
+    - module: golang.org/x/oauth2
+      version: v0.38.0

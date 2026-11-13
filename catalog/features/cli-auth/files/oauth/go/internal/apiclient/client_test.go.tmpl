@@ -1,0 +1,204 @@
+//go:build unit
+
+package apiclient_test
+
+import (
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"io"
+	"math/big"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"{{ option "starter.module" }}/internal/apiclient"
+	"{{ option "starter.module" }}/internal/auth"
+	"{{ option "starter.module" }}/internal/credential"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	variable         = "{{ upper (snake .Name) }}_TOKEN"
+	audienceOfTheAPI = "the-api-of-the-test"
+	signingKeyID     = "test"
+)
+
+type testIssuer struct {
+	t          *testing.T
+	url        string
+	signingKey *rsa.PrivateKey
+}
+
+func newTestIssuer(t *testing.T) testIssuer {
+	t.Helper()
+	signingKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	started := testIssuer{t: t, signingKey: signingKey}
+	mux := http.NewServeMux()
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	started.url = server.URL
+	mux.HandleFunc("GET /.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"issuer": started.url, "jwks_uri": started.url + "/signing-keys"})
+	})
+	mux.HandleFunc("GET /signing-keys", func(w http.ResponseWriter, _ *http.Request) {
+		public := signingKey.PublicKey
+		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{
+			{
+				"kty": "RSA", "kid": signingKeyID, "use": "sig", "alg": "RS256",
+				"n": base64.RawURLEncoding.EncodeToString(public.N.Bytes()),
+				"e": base64.RawURLEncoding.EncodeToString(big.NewInt(int64(public.E)).Bytes()),
+			},
+		}})
+	})
+	return started
+}
+
+func (i testIssuer) token(audience string) string {
+	encoded := func(value any) string {
+		text, err := json.Marshal(value)
+		require.NoError(i.t, err)
+		return base64.RawURLEncoding.EncodeToString(text)
+	}
+	content := encoded(map[string]string{"alg": "RS256", "typ": "JWT", "kid": signingKeyID}) + "." +
+		encoded(map[string]any{"iss": i.url, "aud": audience, "sub": "user-1", "exp": time.Now().Add(time.Hour).Unix(), "jti": rand.Text()})
+	sum := sha256.Sum256([]byte(content))
+	signature, err := rsa.SignPKCS1v15(rand.Reader, i.signingKey, crypto.SHA256, sum[:])
+	require.NoError(i.t, err)
+	return content + "." + base64.RawURLEncoding.EncodeToString(signature)
+}
+
+type testAPI struct {
+	url            string
+	requests       int
+	authorizations [][]string
+}
+
+func startedAPI(t *testing.T, issuer testIssuer) *testAPI {
+	t.Helper()
+	started := &testAPI{}
+	protected := auth.Middleware(auth.Config{IssuerURL: auth.IssuerURL(issuer.url), Audience: audienceOfTheAPI})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started.authorizations = append(started.authorizations, r.Header.Values("Authorization"))
+		status, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/status/"))
+		if err != nil {
+			status = http.StatusOK
+		}
+		w.WriteHeader(status)
+		_, _ = io.WriteString(w, "the answer of the handler")
+	}))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started.requests++
+		protected.ServeHTTP(w, r)
+	}))
+	t.Cleanup(server.Close)
+	started.url = server.URL
+	return started
+}
+
+func isolate(t *testing.T) string {
+	t.Helper()
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", home)
+	t.Setenv(variable, "")
+	t.Setenv("{{ upper (snake .Name) }}_API_URL", "https://api.example.test")
+	t.Setenv("{{ upper (snake .Name) }}_CREDENTIAL_STORE", "file")
+	return filepath.Join(home, "{{ kebab .Name }}")
+}
+
+func bodyOf(t *testing.T, response *http.Response) string {
+	t.Helper()
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	return string(body)
+}
+
+func TestClient(t *testing.T) {
+	t.Run("do", func(t *testing.T) {
+		t.Run("with a token of the issuer for the audience of the API, the call gets the answer of the handler, and sends the token in one Authorization header", func(t *testing.T) {
+			isolate(t)
+			issuer := newTestIssuer(t)
+			token := issuer.token(audienceOfTheAPI)
+			t.Setenv(variable, token)
+			started := startedAPI(t, issuer)
+
+			response, err := apiclient.New(started.url).Do(t.Context(), http.MethodPost, "/accounts", nil)
+
+			require.NoError(t, err)
+			require.Equal(t, []any{http.StatusOK, "the answer of the handler"}, []any{response.StatusCode, bodyOf(t, response)})
+			require.Equal(t, [][]string{
+				{"Bearer " + token},
+			}, started.authorizations)
+		})
+
+		t.Run("the client keeps no token: when the variable changes between two calls, the second call sends the new token", func(t *testing.T) {
+			isolate(t)
+			issuer := newTestIssuer(t)
+			first, second := issuer.token(audienceOfTheAPI), issuer.token(audienceOfTheAPI)
+			started := startedAPI(t, issuer)
+			client := apiclient.New(started.url)
+
+			for _, token := range []string{first, second} {
+				t.Setenv(variable, token)
+				response, err := client.Do(t.Context(), http.MethodGet, "/accounts/1", nil)
+				require.NoError(t, err)
+				response.Body.Close()
+			}
+
+			require.Equal(t, [][]string{
+				{"Bearer " + first},
+				{"Bearer " + second},
+			}, started.authorizations)
+		})
+
+		for _, status := range []int{http.StatusBadRequest, http.StatusForbidden, http.StatusNotFound} {
+			t.Run("the answer "+strconv.Itoa(status)+" of the API goes to the caller as the API gave it", func(t *testing.T) {
+				isolate(t)
+				issuer := newTestIssuer(t)
+				t.Setenv(variable, issuer.token(audienceOfTheAPI))
+				started := startedAPI(t, issuer)
+
+				response, err := apiclient.New(started.url).Do(t.Context(), http.MethodGet, "/status/"+strconv.Itoa(status), nil)
+
+				require.NoError(t, err)
+				require.Equal(t, []any{status, "the answer of the handler"}, []any{response.StatusCode, bodyOf(t, response)})
+			})
+		}
+
+		t.Run("a token for another audience fails the call, and the message names the source of the token and auth login", func(t *testing.T) {
+			isolate(t)
+			issuer := newTestIssuer(t)
+			t.Setenv(variable, issuer.token("another-api"))
+			started := startedAPI(t, issuer)
+
+			response, err := apiclient.New(started.url).Do(t.Context(), http.MethodPost, "/accounts", nil)
+
+			require.Nil(t, response)
+			require.ErrorIs(t, err, credential.ErrRefused)
+			require.ErrorContains(t, err, `the API refused the token from `+variable+`: run "{{ kebab .Name }} auth login"`)
+			require.Equal(t, 1, started.requests)
+			require.Empty(t, started.authorizations)
+		})
+
+		t.Run("with no token, the call fails before a request reaches the API, and the error says how to give the token", func(t *testing.T) {
+			isolate(t)
+			started := startedAPI(t, newTestIssuer(t))
+
+			_, err := apiclient.New(started.url).Do(t.Context(), http.MethodPost, "/accounts", nil)
+
+			require.ErrorIs(t, err, credential.ErrMissing)
+			require.ErrorContains(t, err, `run "{{ kebab .Name }} auth login"`)
+			require.ErrorContains(t, err, variable)
+			require.ErrorContains(t, err, "credentialCommand")
+			require.Equal(t, 0, started.requests)
+		})
+	})
+}

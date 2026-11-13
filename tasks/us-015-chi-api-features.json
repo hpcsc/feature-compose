@@ -152,7 +152,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Make `cli` target `chi-api` through the extension points of the tasks, the tools, CI, `go.mod` and `.gitignore`",
       "language": "Go",
       "testable": true,

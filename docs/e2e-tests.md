@@ -79,7 +79,7 @@ tests keep the original binary.
 
 ## The full run of `new`
 
-Thirteen tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
+Fourteen tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
 first makes the repo from the starter alone:
 
 1. `feature-compose new go my-tool --no-prompt` makes the repo. Its `after_render` commands run `go mod tidy`,
@@ -120,7 +120,7 @@ The second adds `--feature cli`, and makes a CLI in its own repo:
    path under `dist/` or `e2e/node_modules/`, which the snapshot and the `npm install` of step 6 made. So the
    `.gitignore` of the repo has the patterns of `cli`.
 
-Three make a repo from the starter `chi-api`. The first makes the repo from the starter alone:
+Four make a repo from the starter `chi-api`. The first makes the repo from the starter alone:
 
 1. `feature-compose new chi-api my-api --no-prompt` makes the repo. Its `after_render` commands run
    `go mod tidy`, which downloads the modules of the repo.
@@ -152,6 +152,17 @@ The third adds `--feature api-auth:method=oauth`. The test starts a test issuer,
 `go-event-sourcing-service` with the method `oauth` does, and the API with `OAUTH_AUDIENCE` set to `my-api`.
 `POST /api/users` gets 401 with `WWW-Authenticate: Bearer` with no `Authorization` header and with a token for
 another audience, and it gets the answer 400 of the handler with a token for `my-api`.
+
+The fourth adds `--feature cli`, and checks that the feature fits the starter:
+
+1. `gofmt -l .` lists no file, and `go build ./...` builds the API and the CLI.
+2. `task test:unit` stops with the exit status 0. The output of gotestsum shows that the tests of the CLI
+   under `internal/cli` and of the API ran and passed.
+3. `task build` builds `bin/my-api`, and `task cli -- --help` runs the CLI from the source. Each prints only
+   the commands `version`, `update` and `help`.
+4. `task --dry api:run` prints `go run ./cmd/api`. So the task of the API stays the task of the starter.
+5. `task --list-all` names each task that `.github/workflows/ci.yml` calls, `test:unit` and `test:e2e` among
+   them. So the job `e2e` of `cli` calls a task that the repo has.
 
 The other eight make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
 

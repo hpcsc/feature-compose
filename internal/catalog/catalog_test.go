@@ -2322,10 +2322,10 @@ files:
 			return output, filesIn(t, output)
 		}
 
-		t.Run("cli adds each of its files at its path to each of its targets, go among them, and of the files of the target it changes only the file of each extension point that it adds items to", func(t *testing.T) {
+		t.Run("cli adds each of its files at its path to each of its targets, chi-api and go among them, and of the files of the target it changes only the file of each extension point that it adds items to", func(t *testing.T) {
 			targets := targetsOf(t, "cli")
 
-			require.Contains(t, targets, "go")
+			require.Subset(t, targets, []string{"chi-api", "go"})
 			for _, starterName := range targets {
 				added, changed, removed := changesBy(t, starterName, nil, withoutValues("cli"))
 
@@ -2905,6 +2905,7 @@ files:
 
 		t.Run("with no item, mise.toml and .gitignore of each target of cli end with the last line of the starter", func(t *testing.T) {
 			for starterName, lastLines := range map[string][2]string{
+				"chi-api":                   {`"go:golang.org/x/vuln/cmd/govulncheck" = "1.8.0"` + "\n", "go.work\nbin\n.idea\n"},
 				"go":                        {`"go:golang.org/x/vuln/cmd/govulncheck" = "1.8.0"` + "\n", "go.work\nbin\n.idea\n"},
 				"go-event-sourcing-service": {`"go:golang.org/x/vuln/cmd/govulncheck" = "1.8.0"` + "\n", "tmp\ntags\nbin\n"},
 			} {
@@ -2950,6 +2951,7 @@ files:
 		t.Run("with no item, go.mod of each target of cli holds only the lines of the starter", func(t *testing.T) {
 			require.Equal(t, "module github.com/hpcsc/my-tool\n\ngo 1.27.1\n\nrequire github.com/stretchr/testify v1.12.1\n", writtenTarget(t, "go", nil, nil)["go.mod"])
 			require.Contains(t, writtenTarget(t, "go-event-sourcing-service", nil, nil)["go.mod"], "\tgithub.com/unrolled/render v1.8.1\n)\n\nrequire (\n")
+			require.Contains(t, writtenTarget(t, "chi-api", nil, nil)["go.mod"], "\tgithub.com/unrolled/render v1.8.1\n)\n\nrequire (\n")
 		})
 
 		t.Run("with no item, ci.yml of each target of cli has only the jobs of the starter and ends with the last line of the starter", func(t *testing.T) {
@@ -2957,6 +2959,7 @@ files:
 				jobs     []string
 				lastLine string
 			}{
+				"chi-api":                   {[]string{"test"}, "        run: task test:vulnerabilities\n"},
 				"go":                        {[]string{"test"}, "        run: task test:vulnerabilities\n"},
 				"go-event-sourcing-service": {[]string{"test", "build"}, "        run: task ${{ matrix.app }}:docker:build\n"},
 			} {
@@ -3195,20 +3198,22 @@ files:
 			require.NotContains(t, lines, "Bearer")
 		})
 
-		t.Run("a repo named api with cli stops the write, because the starter and cli both write cmd/api/main.go", func(t *testing.T) {
-			starter, err := repoCatalog().Starter("go-event-sourcing-service")
-			require.NoError(t, err)
-			selection, err := starter.Select("api", nil, withoutValues("cli"), catalog.Answers{})
-			require.NoError(t, err)
-			output := filepath.Join(t.TempDir(), "api")
+		for _, starterName := range []string{"chi-api", "go-event-sourcing-service"} {
+			t.Run("a repo of "+starterName+" named api with cli stops the write, because the starter and cli both write cmd/api/main.go", func(t *testing.T) {
+				starter, err := repoCatalog().Starter(starterName)
+				require.NoError(t, err)
+				selection, err := starter.Select("api", nil, withoutValues("cli"), catalog.Answers{})
+				require.NoError(t, err)
+				output := filepath.Join(t.TempDir(), "api")
 
-			err = selection.Write(output)
+				err = selection.Write(output)
 
-			require.ErrorContains(t, err, "of the starter")
-			require.ErrorContains(t, err, "of the feature cli")
-			require.ErrorContains(t, err, "both write cmd/api/main.go")
-			require.NoDirExists(t, output)
-		})
+				require.ErrorContains(t, err, "of the starter")
+				require.ErrorContains(t, err, "of the feature cli")
+				require.ErrorContains(t, err, "both write cmd/api/main.go")
+				require.NoDirExists(t, output)
+			})
+		}
 
 		t.Run("hooks/pre-push and the scripts can be run", func(t *testing.T) {
 			output, _ := writtenStarter(t, nil)
@@ -3341,35 +3346,6 @@ files:
 			require.Contains(t, files["Dockerfile"], "FROM golang:1.27.1 ")
 		})
 
-		t.Run("go.mod of chi-api requires a version of each module that a Go file of the repo imports, other than the standard library and the module of the repo", func(t *testing.T) {
-			_, files := writtenChiAPI(t, nil)
-			required := slices.Collect(maps.Keys(requiredModulesOf(t, files["go.mod"])))
-
-			var imported []string
-			for path, contents := range files {
-				if !strings.HasSuffix(path, ".go") {
-					continue
-				}
-				parsed, err := parser.ParseFile(token.NewFileSet(), path, contents, parser.ImportsOnly)
-				require.NoError(t, err, path)
-				for _, spec := range parsed.Imports {
-					importPath, err := strconv.Unquote(spec.Path.Value)
-					require.NoError(t, err)
-					if strings.Contains(strings.Split(importPath, "/")[0], ".") && !strings.HasPrefix(importPath, "github.com/hpcsc/my-api/") {
-						imported = append(imported, importPath)
-					}
-				}
-			}
-			require.Subset(t, imported, []string{"github.com/go-chi/chi/v5", "github.com/caarlos0/env/v6", "github.com/gookit/validate", "github.com/unrolled/render", "github.com/stretchr/testify/require"})
-			majorVersion := regexp.MustCompile(`^/v([2-9]|[1-9][0-9]+)(/|$)`)
-			for _, importPath := range imported {
-				require.True(t, slices.ContainsFunc(required, func(module string) bool {
-					rest, ok := strings.CutPrefix(importPath, module)
-					return ok && (rest == "" || strings.HasPrefix(rest, "/")) && !majorVersion.MatchString(rest)
-				}), importPath)
-			}
-		})
-
 		t.Run("given values for the module and the Go version replace the defaults in each file of chi-api", func(t *testing.T) {
 			_, files := writtenChiAPI(t, map[string]string{"module": "github.com/acme/ledger", "go-version": "1.28.0"})
 
@@ -3385,6 +3361,12 @@ files:
 				require.NotContains(t, contents, "github.com/hpcsc/my-api", path)
 				require.NotContains(t, contents, "1.27.1", path)
 			}
+		})
+
+		t.Run("with no item, the Taskfile of chi-api includes only the tests and the tasks of the API", func(t *testing.T) {
+			_, files := writtenChiAPI(t, nil)
+
+			require.Contains(t, files["Taskfile.yml"], "includes:\n  test: Taskfile.test.yml\n  api: Taskfile.api.yml\n\ntasks:\n")
 		})
 
 		t.Run("the Taskfiles and the workflow of chi-api keep the template syntax of Task and of GitHub Actions", func(t *testing.T) {

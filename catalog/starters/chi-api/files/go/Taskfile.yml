@@ -3,6 +3,11 @@ version: '3'
 includes:
   test: Taskfile.test.yml
   api: Taskfile.api.yml
+[[- range items "taskfile.flat_includes" ]]
+  [[ .name ]]:
+    taskfile: [[ .taskfile ]]
+    flatten: true
+[[- end ]]
 
 tasks:
   hook:setup:

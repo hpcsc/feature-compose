@@ -1,5 +1,5 @@
 summary: A command line program with releases from GoReleaser, and a command that updates it.
-targets: [go, go-event-sourcing-service]
+targets: [chi-api, go, go-event-sourcing-service]
 
 files:
   - path: files/

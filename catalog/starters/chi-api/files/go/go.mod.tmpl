@@ -8,6 +8,9 @@ require (
 	github.com/gookit/validate v1.6.0
 	github.com/stretchr/testify v1.12.1
 	github.com/unrolled/render v1.8.1
+{{- range items "gomod.requires" }}
+	{{ .module }} {{ .version }}
+{{- end }}
 )
 
 require (

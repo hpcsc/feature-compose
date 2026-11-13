@@ -835,6 +835,38 @@ describe('feature-compose new', () => {
     15 * 60 * 1000,
   )
 
+  it(
+    'makes a repo from chi-api with cli that builds, passes the unit tests of the API and of the CLI, builds and runs the CLI with its tasks, whose task api:run still starts the API, and that has each task that its CI workflow calls',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'chi-api', 'my-api', '--feature', 'cli', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      const repo = join(dir, 'my-api')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      const build = await runProgram(repo, 'go', ['build', './...'], env)
+      expect(build.status, build.stdout + build.stderr).toBe(0)
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      expect(passedPackages(unit.stdout)).toEqual(
+        expect.arrayContaining(['internal/cli', 'internal/cli/release', 'internal/cli/version', 'internal/cli/progress', 'internal/use_cases', 'internal/use_cases/user']),
+      )
+      expect(await commandsOfTheBuiltCLI(repo, 'my-api', env)).toEqual(['version', 'update', 'help, h'])
+      expect(await commandsOfTheCLIFromTheSource(repo, env)).toEqual(['version', 'update', 'help, h'])
+      const run = await runProgram(repo, 'task', ['--dry', 'api:run'], env)
+      expect(run.status, run.stdout + run.stderr).toBe(0)
+      expect(run.stdout + run.stderr).toContain('go run ./cmd/api')
+      const list = await runProgram(repo, 'task', ['--list-all'], env)
+      const calledByCI = tasksCalledBy(repo, '.github/workflows/ci.yml')
+      expect(calledByCI).toEqual(expect.arrayContaining(['test:unit', 'test:e2e']))
+      expect(tasksIn(list.stdout)).toEqual(expect.arrayContaining(calledByCI))
+    },
+    15 * 60 * 1000,
+  )
+
   it('a SIGTERM during the folder commands stops the commands too, and new ends with an error', async () => {
     const dir = scratchDir()
     const proxy = await silentGoProxy()

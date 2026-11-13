@@ -524,35 +524,35 @@ CLI builds, its tasks sit beside the tasks of the API with no name in common, an
 the API and of the CLI.
 
 **Acceptance Criteria:**
-- [ ] `catalog/starters/chi-api/starter.yml` declares `taskfile.flat_includes`, `mise.tools`, `ci.jobs`,
+- [x] `catalog/starters/chi-api/starter.yml` declares `taskfile.flat_includes`, `mise.tools`, `ci.jobs`,
   `gomod.requires` and `gitignore.patterns` with the summaries, the files and the item fields of
   `catalog/starters/go/starter.yml`.
-- [ ] The `targets` of `catalog/features/cli/feature.yml` name `chi-api`, `go` and `go-event-sourcing-service`, and
+- [x] The `targets` of `catalog/features/cli/feature.yml` name `chi-api`, `go` and `go-event-sourcing-service`, and
   no other line of the file changes.
-- [ ] The tests of the group `embedded` that take the targets of `cli` from its `feature.yml` pass with `chi-api`: the
+- [x] The tests of the group `embedded` that take the targets of `cli` from its `feature.yml` pass with `chi-api`: the
   files that `cli` adds to each target, and the same files with the same contents for each two targets, with no
   given values and with a given module and Go version; the docs of `cli`, which name only tasks and paths of each
   target; the tasks of `Taskfile.cli.yml` beside the tasks of the target, with no name in common; the tools of
   `mise.toml`; the patterns of `.gitignore`; a version in `go.mod` of each module that a Go file imports; and the
   jobs of `ci.yml`, whose `needs` each name a job of the workflow.
-- [ ] Each test of the group `embedded` that names the targets of `cli` in a list of its own also names `chi-api`:
+- [x] Each test of the group `embedded` that names the targets of `cli` in a list of its own also names `chi-api`:
   with no item, `ci.yml` of `chi-api` has only the job `test` and ends with the last line of the starter, and
   `go.mod` holds only the lines of the starter.
-- [ ] A `chi-api` repo named `api` with `cli` stops the write before the first file, because the starter and `cli`
+- [x] A `chi-api` repo named `api` with `cli` stops the write before the first file, because the starter and `cli`
   both write `cmd/api/main.go`, as a `go-event-sourcing-service` repo does.
-- [ ] `e2e/tests/new.test.ts`: `feature-compose new chi-api my-api --feature cli --no-prompt` exits with 0. In
+- [x] `e2e/tests/new.test.ts`: `feature-compose new chi-api my-api --feature cli --no-prompt` exits with 0. In
   `./my-api`, `gofmt -l .` lists no file, `go build ./...` exits with 0, and `task test:unit` exits with 0 and its
   lines that start with `✓` name `internal/cli`, `internal/cli/release`, `internal/cli/version`,
   `internal/cli/progress` and `internal/use_cases/user`. The CLI that `task build` builds, and the CLI that
   `task cli -- --help` runs from the source, list only the commands `version`, `update` and `help`.
   `task --dry api:run` prints `go run ./cmd/api`, so the task of the API stays the starter's. `task --list-all`
   names each task that `.github/workflows/ci.yml` calls, `test:unit` and `test:e2e` among them.
-- [ ] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass. `task test:combinations`
+- [x] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass. `task test:combinations`
   passes, and its output names `chi-api --feature cli`.
-- [ ] The e2e tests of `show` pass, and the two tests that read the whole tree see its last line.
-- [ ] `README.md` of this repo gives `chi-api`, `go` and `go-event-sourcing-service` as the targets of `cli`.
+- [x] The e2e tests of `show` pass, and the two tests that read the whole tree see its last line.
+- [x] `README.md` of this repo gives `chi-api`, `go` and `go-event-sourcing-service` as the targets of `cli`.
   `docs/e2e-tests.md` tells the full run of `chi-api` with `cli`.
-- [ ] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass, and
+- [x] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass, and
   the e2e tests of `new`, `show` and `check` pass on the host.
 
 **Affected Files/Modules:**

@@ -114,6 +114,44 @@ describe('feature-compose new', () => {
   )
 
   it(
+    'makes a repo from chi-api that is formatted, builds, passes the unit tests of each package with tests, has api:run and each task that its CI workflow and its hook call and no task of cli, and whose API serves its routes under /api and checks no credential',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'chi-api', 'my-api', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      const repo = join(dir, 'my-api')
+      expect(readFileSync(join(repo, 'go.mod'), 'utf8')).toContain('module github.com/hpcsc/my-api\n')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      const build = await runProgram(repo, 'go', ['build', './...'], env)
+      expect(build.status, build.stdout + build.stderr).toBe(0)
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      const testedPackages = foldersWithTests(repo, 'internal')
+      expect(testedPackages).toEqual(expect.arrayContaining(['internal/use_cases', 'internal/use_cases/user']))
+      expect(passedPackages(unit.stdout).sort()).toEqual(testedPackages.sort())
+      const list = await runProgram(repo, 'task', ['--list-all'], env)
+      expect(list.status, list.stdout + list.stderr).toBe(0)
+      const called = ['.github/workflows/ci.yml', 'scripts/libs/git-hook-prepush.sh'].flatMap((path) => tasksCalledBy(repo, path))
+      expect(called).toContain('test:unit')
+      expect(tasksIn(list.stdout)).toEqual(expect.arrayContaining(['api:run', ...called]))
+      for (const name of ['build', 'cli', 'release:local', 'test:e2e', 'test:e2e:local']) {
+        expect(tasksIn(list.stdout)).not.toContain(name)
+      }
+      const api = await startedApi(repo, env)
+      expect((await fetch(`${api}/`)).status).toBe(200)
+      const withNoCredential = await createUser(api)
+      expect(withNoCredential.status).toBe(400)
+      expect(await withNoCredential.json()).toMatchObject({ successful: false })
+      expect((await createUser(new URL(api).origin)).status).toBe(404)
+    },
+    15 * 60 * 1000,
+  )
+
+  it(
     'makes a CLI repo from go with cli whose go.mod gives the modules of the CLI the versions of cli, also with no proxy, that has each task that its CI workflow calls, builds, passes the unit tests of the starter and of the CLI, builds and runs the CLI with its tasks, passes its end-to-end tests with task test:e2e:local, whose snapshot from task release:local has the archives and the checksums that update and the installer download, and whose git status shows no file of the snapshot or of the packages of e2e',
     async () => {
       const dir = scratchDir()
@@ -949,6 +987,8 @@ describe('feature-compose new in a terminal', () => {
       await session.press('enter')
       await session.waitForText('name     my-service')
       await pressed(session, ['j', 'enter'])
+      await session.waitForText('A Go HTTP API with chi, whose routes are under /api.')
+      await session.press('j')
       await session.waitForText('A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow.')
       await session.press('j')
       await session.waitForText('A Go service with an event store, an HTTP API, and a catchup process.')
@@ -1272,6 +1312,14 @@ function openAccount(api: string, authorization?: string, origin?: string): Prom
   return fetch(`${api}/accounts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}), ...(origin ? { Origin: origin } : {}) },
+    body: '{}',
+  })
+}
+
+function createUser(api: string, authorization?: string): Promise<Response> {
+  return fetch(`${api}/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: authorization } : {}) },
     body: '{}',
   })
 }

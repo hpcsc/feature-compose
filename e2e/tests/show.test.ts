@@ -41,7 +41,7 @@ describe('feature-compose show', () => {
 
     expect(result.status).not.toBe(0)
     expect(result.stdout).toBe('')
-    expect(result.stderr).toContain('unknown starter "no-such-starter": the catalog has go, go-event-sourcing-service')
+    expect(result.stderr).toContain('unknown starter "no-such-starter": the catalog has chi-api, go, go-event-sourcing-service')
     expect(readdirSync(dir)).toEqual([])
   })
 })
@@ -49,13 +49,13 @@ describe('feature-compose show', () => {
 describe('feature-compose show in a terminal', () => {
   const rowsOfTheWholeTree = 60
 
-  it('opens the tree with each starter open and the details of the first starter, go, and filters it with /', async () => {
+  it('opens the tree with each starter open and the details of the first starter, chi-api, and filters it with /', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show'], {}, rowsOfTheWholeTree)
 
-    await session.waitForText('A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow.', { timeout: 15_000 })
+    await session.waitForText('A Go HTTP API with chi, whose routes are under /api.', { timeout: 15_000 })
     const screen = await session.text()
-    for (const part of ['╭─ Catalog ', '╭─ go ─', '▾ go-event-sourcing-service', '├─ ▾ features', '│  ├─ api-auth', '│  ├─ cli-auth', '│  └─ process-manager', '└─ ▾ extension points', '├─ api.middleware', '├─ cli.commands', '└─ use_cases.handlers', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
+    for (const part of ['╭─ Catalog ', '╭─ chi-api ─', '▾ go', '▾ go-event-sourcing-service', '├─ ▾ features', '│  ├─ api-auth', '│  ├─ cli-auth', '│  └─ process-manager', '└─ ▾ extension points', '├─ api.middleware', '├─ cli.commands', '└─ use_cases.handlers', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
       expect(screen).toContain(part)
     }
     await session.press('/')
@@ -152,7 +152,7 @@ describe('feature-compose show in a terminal', () => {
 
     await session.waitForText(/EXIT:[1-9]/, { timeout: 15_000 })
     const screen = await session.text()
-    expect(screen).toContain('unknown starter "no-such-starter": the catalog has go, go-event-sourcing-service')
+    expect(screen).toContain('unknown starter "no-such-starter": the catalog has chi-api, go, go-event-sourcing-service')
     expect(screen).not.toContain('╭─ Catalog')
   })
 })

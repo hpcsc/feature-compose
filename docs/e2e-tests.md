@@ -79,7 +79,7 @@ tests keep the original binary.
 
 ## The full run of `new`
 
-Ten tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
+Eleven tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
 first makes the repo from the starter alone:
 
 1. `feature-compose new go my-tool --no-prompt` makes the repo. Its `after_render` commands run `go mod tidy`,
@@ -119,6 +119,21 @@ The second adds `--feature cli`, and makes a CLI in its own repo:
 9. The test runs `git init` in the repo. `git status --porcelain --untracked-files=all` lists `go.mod`, and no
    path under `dist/` or `e2e/node_modules/`, which the snapshot and the `npm install` of step 6 made. So the
    `.gitignore` of the repo has the patterns of `cli`.
+
+One makes a repo from the starter `chi-api`:
+
+1. `feature-compose new chi-api my-api --no-prompt` makes the repo. Its `after_render` commands run
+   `go mod tidy`, which downloads the modules of the repo.
+2. `gofmt -l .` lists no file, and `go build ./...` builds.
+3. `task test:unit` stops with the exit status 0, and the output of gotestsum shows that the tests of each package
+   under `internal` that has a test file ran and passed. The test takes the packages from the folders of the
+   repo.
+4. `task --list-all` names `api:run`, and each task that `.github/workflows/ci.yml` and
+   `scripts/libs/git-hook-prepush.sh` of the repo call. It names no task `build`, `cli`, `release:local`,
+   `test:e2e` or `test:e2e:local`, because these tasks come from `cli`.
+5. The test starts the API of the repo. `GET /api/` gets 200, and `POST /api/users` with the body `{}` and no
+   `Authorization` header gets the answer 400 of the handler. The API of a repo without `api-auth` accepts each
+   request. Each route of the API is under `/api`, so `POST /users` gets 404.
 
 The other eight make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
 

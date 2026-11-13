@@ -1,0 +1,72 @@
+package server
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"{{ option "starter.module" }}/internal/config"
+	apiMiddleware "{{ option "starter.module" }}/internal/middleware"
+	"{{ option "starter.module" }}/internal/middleware/request"
+	"{{ option "starter.module" }}/internal/use_cases"
+)
+
+func New(cfg *config.Config, logger *slog.Logger) *Server {
+	return &Server{
+		cfg: cfg,
+		httpServer: &http.Server{
+			Addr:    fmt.Sprintf(":%s", cfg.Port),
+			Handler: newHandler(logger),
+		},
+		logger: logger,
+	}
+}
+
+func newHandler(logger *slog.Logger) http.Handler {
+	r := chi.NewRouter()
+
+	r.Use(apiMiddleware.RequestLogger(logger, request.NewRealClock(), nil))
+
+	r.Use(middleware.Recoverer)
+
+	use_cases.Register(r, nil, logger)
+
+	return r
+}
+
+type Server struct {
+	cfg        *config.Config
+	httpServer *http.Server
+	logger     *slog.Logger
+}
+
+func (s *Server) Start() {
+	s.logger.Info(fmt.Sprintf("listening at %v", s.httpServer.Addr))
+	if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		s.logger.Error(fmt.Sprintf("failed to start server: %v", err))
+	}
+}
+
+func (s *Server) Shutdown() {
+	withTimeoutCtx, cancelTimeout := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelTimeout()
+
+	go func() {
+		<-withTimeoutCtx.Done()
+		if errors.Is(withTimeoutCtx.Err(), context.DeadlineExceeded) {
+			s.logger.Error("graceful shutdown timed out")
+		}
+	}()
+
+	s.httpServer.SetKeepAlivesEnabled(false)
+	if err := s.httpServer.Shutdown(withTimeoutCtx); err != nil {
+		s.logger.Error(fmt.Sprintf("failed to gracefully shutdown server: %v", err))
+	} else {
+		s.logger.Info("server shutdown")
+	}
+}

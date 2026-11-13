@@ -1,0 +1,2 @@
+design: none
+reason: the story changes no Go code of the tool; its Go code is in .go.tmpl files of the catalog (the starter chi-api, with config.Config, the server and its protectedMiddleware, and Register with the routes under /api), which clerk design does not read, and the only Go file of the module that changes is the test internal/catalog/catalog_test.go; the names of the template code are in the decisions of tasks/us-015-chi-api-features.md

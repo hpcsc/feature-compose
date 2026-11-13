@@ -1,0 +1,94 @@
+//go:build unit
+
+package use_cases_test
+
+import (
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"{{ option "starter.module" }}/internal/use_cases"
+	"github.com/stretchr/testify/require"
+)
+
+func TestRegister(t *testing.T) {
+	refusingRouter := func(t *testing.T) chi.Router {
+		t.Helper()
+		refuse := func(http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusTeapot)
+			})
+		}
+		router := chi.NewRouter()
+		use_cases.Register(router, []func(http.Handler) http.Handler{refuse}, slog.New(slog.DiscardHandler))
+		return router
+	}
+	statusOf := func(t *testing.T, router chi.Router, method, path string) int {
+		t.Helper()
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(method, path, strings.NewReader("{}")))
+		return recorder.Code
+	}
+	servedRoutes := func(t *testing.T, router chi.Router) [][2]string {
+		t.Helper()
+		var routes [][2]string
+		require.NoError(t, chi.Walk(router, func(method, pattern string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+			routes = append(routes, [2]string{method, pattern})
+			return nil
+		}))
+		return routes
+	}
+
+	t.Run("routes", func(t *testing.T) {
+		t.Run("a request to the public route reaches its handler, and a request to the user route goes through the middleware of the protected routes", func(t *testing.T) {
+			router := refusingRouter(t)
+
+			statuses := map[string]int{
+				"GET /api/":       statusOf(t, router, "GET", "/api/"),
+				"POST /api/users": statusOf(t, router, "POST", "/api/users"),
+			}
+
+			require.Equal(t, map[string]int{
+				"GET /api/":       http.StatusOK,
+				"POST /api/users": http.StatusTeapot,
+			}, statuses)
+		})
+
+		t.Run("each route that Register serves is under /api", func(t *testing.T) {
+			served := servedRoutes(t, refusingRouter(t))
+
+			require.Subset(t, served, [][2]string{
+				{"GET", "/api/"},
+				{"POST", "/api/users"},
+			})
+			for _, r := range served {
+				require.True(t, strings.HasPrefix(r[1], "/api/"), r[1])
+			}
+		})
+
+		t.Run("a request to the path of each route without /api gets 404 and does not reach the middleware of the protected routes", func(t *testing.T) {
+			router := refusingRouter(t)
+			served := servedRoutes(t, router)
+
+			require.Subset(t, served, [][2]string{
+				{"POST", "/api/users"},
+			})
+			for _, r := range served {
+				withoutPrefix := strings.TrimPrefix(r[1], "/api")
+				require.Equal(t, http.StatusNotFound, statusOf(t, router, r[0], withoutPrefix), r[0]+" "+withoutPrefix)
+			}
+		})
+
+		t.Run("with no middleware for the protected routes, a request to a protected route gets to its handler", func(t *testing.T) {
+			router := chi.NewRouter()
+			use_cases.Register(router, nil, slog.New(slog.DiscardHandler))
+
+			status := statusOf(t, router, "POST", "/api/users")
+
+			require.Equal(t, http.StatusBadRequest, status)
+		})
+	})
+}

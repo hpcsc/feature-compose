@@ -51,7 +51,7 @@ copier, can update a repo.
 | Concept | Meaning | Example in this repo |
 | --- | --- | --- |
 | Catalog | A folder that holds the starters and the features. You can keep your own catalog. | `catalog/` |
-| Starter | The files that a new repo of one kind starts from. Each repo has one starter. | `go`, `go-event-sourcing-service` |
+| Starter | The files that a new repo of one kind starts from. Each repo has one starter. | `chi-api`, `go`, `go-event-sourcing-service` |
 | Feature | A part that you can add to a repo. It adds files, and it adds items to extension points. | `cli`, `api-auth`, `cli-auth`, `process-manager` |
 | Target | A starter that a feature works with. Each feature names its targets. | `cli` targets `go` and `go-event-sourcing-service` |
 | Need | A feature that another feature cannot work without. The tool selects it for you. | `cli-auth` needs `cli` and `api-auth` |
@@ -133,6 +133,7 @@ After the form, it also prints the command that makes the same repo again.
 
 | Starter | What the repo gets |
 | --- | --- |
+| `chi-api` | A Go HTTP API with chi, whose routes are under `/api`, with an example of a public route and of a protected route |
 | `go` | A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow |
 | `go-event-sourcing-service` | A Go service with an event store, an HTTP API, and a catchup process |
 

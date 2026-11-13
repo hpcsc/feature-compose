@@ -2748,17 +2748,23 @@ files:
 			apiVariable := regexp.MustCompile(`(?m)^\s+API: (\S+)$`)
 			rootAlone := regexp.MustCompile("GET /(?:[\\s`'\")|,.]|$)")
 
-			for name, files := range map[string]map[string]string{
-				"the starter alone":                starterAlone,
-				"api-auth with the method api-key": writtenWithAPIAuth(t, nil, map[string]string{"method": "api-key"}),
-				"api-auth with the method oauth":   writtenWithAPIAuth(t, nil, map[string]string{"method": "oauth"}),
-				"cli-auth":                         writtenWithFeatures(t, withoutValues("cli-auth")),
-				"cli-auth with the method oauth":   writtenWithCLIAuthVariant(t, "oauth"),
-				"process-manager":                  writtenWithProcessManager(t),
+			type repo struct {
+				files        map[string]string
+				exampleRoute string
+			}
+			for name, written := range map[string]repo{
+				"the starter alone":                {starterAlone, "/accounts"},
+				"api-auth with the method api-key": {writtenWithAPIAuth(t, nil, map[string]string{"method": "api-key"}), "/accounts"},
+				"api-auth with the method oauth":   {writtenWithAPIAuth(t, nil, map[string]string{"method": "oauth"}), "/accounts"},
+				"cli-auth":                         {writtenWithFeatures(t, withoutValues("cli-auth")), "/accounts"},
+				"cli-auth with the method oauth":   {writtenWithCLIAuthVariant(t, "oauth"), "/accounts"},
+				"process-manager":                  {writtenWithProcessManager(t), "/accounts"},
+				"chi-api alone":                    {writtenTarget(t, "chi-api", nil, nil), "/users"},
 			} {
+				files := written.files
 				var routes []string
 				for path, contents := range files {
-					if strings.HasPrefix(path, "internal/api/use_cases/") && strings.HasSuffix(path, ".go") {
+					if regexp.MustCompile(`^internal/(?:api/)?use_cases/.*\.go$`).MatchString(path) {
 						for _, match := range routePattern.FindAllStringSubmatch(contents, -1) {
 							if match[1] != "/" {
 								routes = append(routes, match[1])
@@ -2788,7 +2794,7 @@ files:
 					}
 				}
 
-				require.Contains(t, routes, "/accounts", name)
+				require.Contains(t, routes, written.exampleRoute, name)
 				require.Empty(t, withoutPrefix, name)
 			}
 		})
@@ -3273,6 +3279,156 @@ files:
 			}
 			for _, path := range regexp.MustCompile("`([A-Za-z0-9_-]*[./][A-Za-z0-9_./-]*)`").FindAllStringSubmatch(readme, -1) {
 				if path[1] == "github.com/hpcsc/my-tool" {
+					continue
+				}
+				require.True(t, slices.ContainsFunc(slices.Collect(maps.Keys(files)), func(file string) bool {
+					return file == path[1] || strings.HasPrefix(file, path[1]+"/")
+				}), path[1])
+			}
+			tasks := tasksOf(t, files)
+			for _, task := range regexp.MustCompile(`task ([a-z0-9:-]+)`).FindAllStringSubmatch(readme, -1) {
+				require.Contains(t, tasks, task[1])
+			}
+		})
+
+		writtenChiAPI := func(t *testing.T, given map[string]string) (string, map[string]string) {
+			t.Helper()
+			starter, err := repoCatalog().Starter("chi-api")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-api", given, nil, catalog.Answers{})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-api")
+			require.NoError(t, selection.Write(output))
+			return output, filesIn(t, output)
+		}
+
+		t.Run("the starter chi-api writes an HTTP API in cmd/api with its config, server, middleware, routes and example use cases, the tasks, the tools, the Dockerfile, the CI workflow and the pre-push hook, and no other file", func(t *testing.T) {
+			_, files := writtenChiAPI(t, nil)
+
+			require.ElementsMatch(t, []string{
+				"go.mod", ".gitignore", "mise.toml", "Taskfile.yml", "Taskfile.api.yml", "Taskfile.test.yml", "Dockerfile", ".github/workflows/ci.yml",
+				"hooks/pre-push", "scripts/libs/git-hook-prepush.sh", "README.md",
+				"cmd/api/main.go", "internal/config/config.go", "internal/server/server.go",
+				"internal/middleware/request_logger.go", "internal/middleware/request_logger_test.go",
+				"internal/middleware/request/clock.go", "internal/middleware/request/clock_fake.go", "internal/middleware/request/clock_real.go",
+				"internal/middleware/request/log_entry.go", "internal/middleware/request/route_matcher.go", "internal/middleware/request/route_matcher_test.go",
+				"internal/response/response.go", "internal/response/response_test.go", "internal/route/routable.go", "internal/route/route.go",
+				"internal/test/common.go", "internal/test/fake_log_handler.go",
+				"internal/use_cases/register.go", "internal/use_cases/register_test.go", "internal/use_cases/root/handler.go",
+				"internal/use_cases/user/handler.go", "internal/use_cases/user/handler_test.go", "internal/use_cases/user/post_request.go",
+			}, slices.Collect(maps.Keys(files)))
+			require.Contains(t, files["go.mod"], "module github.com/hpcsc/my-api\n")
+			require.Contains(t, files["go.mod"], "go 1.27.1\n")
+			require.Contains(t, files["mise.toml"], `go = "1.27.1"`)
+			require.Contains(t, files["Dockerfile"], "FROM golang:1.27.1 ")
+		})
+
+		t.Run("go.mod of chi-api requires a version of each module that a Go file of the repo imports, other than the standard library and the module of the repo", func(t *testing.T) {
+			_, files := writtenChiAPI(t, nil)
+			required := slices.Collect(maps.Keys(requiredModulesOf(t, files["go.mod"])))
+
+			var imported []string
+			for path, contents := range files {
+				if !strings.HasSuffix(path, ".go") {
+					continue
+				}
+				parsed, err := parser.ParseFile(token.NewFileSet(), path, contents, parser.ImportsOnly)
+				require.NoError(t, err, path)
+				for _, spec := range parsed.Imports {
+					importPath, err := strconv.Unquote(spec.Path.Value)
+					require.NoError(t, err)
+					if strings.Contains(strings.Split(importPath, "/")[0], ".") && !strings.HasPrefix(importPath, "github.com/hpcsc/my-api/") {
+						imported = append(imported, importPath)
+					}
+				}
+			}
+			require.Subset(t, imported, []string{"github.com/go-chi/chi/v5", "github.com/caarlos0/env/v6", "github.com/gookit/validate", "github.com/unrolled/render", "github.com/stretchr/testify/require"})
+			majorVersion := regexp.MustCompile(`^/v([2-9]|[1-9][0-9]+)(/|$)`)
+			for _, importPath := range imported {
+				require.True(t, slices.ContainsFunc(required, func(module string) bool {
+					rest, ok := strings.CutPrefix(importPath, module)
+					return ok && (rest == "" || strings.HasPrefix(rest, "/")) && !majorVersion.MatchString(rest)
+				}), importPath)
+			}
+		})
+
+		t.Run("given values for the module and the Go version replace the defaults in each file of chi-api", func(t *testing.T) {
+			_, files := writtenChiAPI(t, map[string]string{"module": "github.com/acme/ledger", "go-version": "1.28.0"})
+
+			require.Contains(t, files["go.mod"], "module github.com/acme/ledger\n")
+			require.Contains(t, files["go.mod"], "go 1.28.0\n")
+			require.Contains(t, files["mise.toml"], `go = "1.28.0"`)
+			require.Contains(t, files["Dockerfile"], "FROM golang:1.28.0 ")
+			require.Contains(t, files["Dockerfile"], "-X 'github.com/acme/ledger/internal/use_cases/root.Version=${VERSION}'")
+			require.Contains(t, files["Taskfile.api.yml"], "-X 'github.com/acme/ledger/internal/use_cases/root.Version=${VERSION}'")
+			require.Contains(t, files["cmd/api/main.go"], `"github.com/acme/ledger/internal/server"`)
+			require.Contains(t, files["README.md"], "`github.com/acme/ledger`")
+			for path, contents := range files {
+				require.NotContains(t, contents, "github.com/hpcsc/my-api", path)
+				require.NotContains(t, contents, "1.27.1", path)
+			}
+		})
+
+		t.Run("the Taskfiles and the workflow of chi-api keep the template syntax of Task and of GitHub Actions", func(t *testing.T) {
+			_, files := writtenChiAPI(t, nil)
+
+			require.Contains(t, files["Taskfile.test.yml"], "{{.CLI_ARGS}}")
+			require.Contains(t, files["Taskfile.api.yml"], `-t my-api-api:{{ default "latest" .TAG }}`)
+			require.Contains(t, files[".github/workflows/ci.yml"], "${{ secrets.GITHUB_TOKEN }}")
+		})
+
+		t.Run("no file of chi-api holds a value of scaffold", func(t *testing.T) {
+			_, files := writtenChiAPI(t, nil)
+
+			for path, contents := range files {
+				for _, value := range []string{".Scaffold.", ".ProjectKebab", "<no value>", "zzsentinel"} {
+					require.NotContains(t, contents, value, path)
+				}
+			}
+		})
+
+		t.Run("hooks/pre-push and the script of the hook of chi-api can be run", func(t *testing.T) {
+			output, _ := writtenChiAPI(t, nil)
+
+			for _, path := range []string{"hooks/pre-push", "scripts/libs/git-hook-prepush.sh"} {
+				require.Equal(t, 0o755&^umask(), modeOf(t, filepath.Join(output, path)), path)
+			}
+		})
+
+		t.Run("chi-api has no shared-token check: no token file, and no file reads, sets, sends or describes a token", func(t *testing.T) {
+			_, files := writtenChiAPI(t, nil)
+
+			for _, path := range []string{"internal/middleware/auth.go", "internal/middleware/auth_test.go", "internal/middleware/testdata/valid-token", "local/token"} {
+				require.NotContains(t, files, path)
+			}
+			for path, contents := range files {
+				withoutGitHubToken := strings.NewReplacer("github_token", "", "GITHUB_TOKEN", "").Replace(contents)
+				for _, word := range []string{"token", "bearer", "authorization"} {
+					require.NotContains(t, strings.ToLower(withoutGitHubToken), word, path)
+				}
+			}
+		})
+
+		t.Run("chi-api has the tasks of the API, the tests and the hook, and no task of cli", func(t *testing.T) {
+			_, files := writtenChiAPI(t, nil)
+			tasks := tasksOf(t, files)
+
+			require.Subset(t, tasks, []string{"api:run", "api:build", "api:docker:build", "api:docker:run", "test:unit", "test:shellcheck", "test:vulnerabilities", "hook:setup", "hook:validate-go-changes"})
+			for _, name := range []string{"build", "cli", "release:local", "test:e2e", "test:e2e:local"} {
+				require.NotContains(t, tasks, name)
+			}
+		})
+
+		t.Run("the README of chi-api names the module, the install of the tools, the run of the API with a setting, the unit tests and the hook, and only paths and tasks that the repo has", func(t *testing.T) {
+			_, files := writtenChiAPI(t, nil)
+			readme := files["README.md"]
+
+			require.True(t, strings.HasPrefix(readme, "# my-api\n"))
+			for _, part := range []string{"`github.com/hpcsc/my-api`", "mise install", "task api:run", "PORT=8080 task api:run", "task test:unit", "task hook:setup"} {
+				require.Contains(t, readme, part)
+			}
+			for _, path := range regexp.MustCompile("`([A-Za-z0-9_-]*[./][A-Za-z0-9_./-]*)`").FindAllStringSubmatch(readme, -1) {
+				if path[1] == "github.com/hpcsc/my-api" || strings.HasPrefix(path[1], "route.") {
 					continue
 				}
 				require.True(t, slices.ContainsFunc(slices.Collect(maps.Keys(files)), func(file string) bool {

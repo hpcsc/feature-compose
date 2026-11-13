@@ -1,0 +1,51 @@
+package use_cases
+
+import (
+	"fmt"
+	"log/slog"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"{{ option "starter.module" }}/internal/route"
+	"{{ option "starter.module" }}/internal/use_cases/root"
+	"{{ option "starter.module" }}/internal/use_cases/user"
+)
+
+func Register(router chi.Router, protectedMiddleware []func(http.Handler) http.Handler, logger *slog.Logger) {
+	var publicRoutes, protectedRoutes []*route.Route
+	for _, r := range allRoutes() {
+		if r.IsPublic() {
+			publicRoutes = append(publicRoutes, r)
+		} else if r.IsProtected() {
+			protectedRoutes = append(protectedRoutes, r)
+		}
+	}
+
+	router.Route("/api", func(api chi.Router) {
+		for _, r := range publicRoutes {
+			api.MethodFunc(r.Method, r.Pattern, r.Handler)
+			logger.Info(fmt.Sprintf("registered public route %s /api%s", r.Method, r.Pattern))
+		}
+
+		api.Group(func(protected chi.Router) {
+			protected.Use(protectedMiddleware...)
+			for _, r := range protectedRoutes {
+				protected.MethodFunc(r.Method, r.Pattern, r.Handler)
+				logger.Info(fmt.Sprintf("registered protected route %s /api%s", r.Method, r.Pattern))
+			}
+		})
+	})
+}
+
+func allRoutes() []*route.Route {
+	routables := []route.Routable{
+		root.NewHandler(),
+		user.NewHandler(),
+	}
+
+	var routes []*route.Route
+	for _, r := range routables {
+		routes = append(routes, r.Routes()...)
+	}
+	return routes
+}

@@ -1,0 +1,28 @@
+version: '3'
+
+tasks:
+  run:
+    cmds:
+      - go run ./cmd/api
+
+  build:
+    cmds:
+      - mkdir -p ./bin
+      - go build --ldflags "-extldflags -static -X '[[ option "starter.module" ]]/internal/use_cases/root.Version=${VERSION}'" -o ./bin/api ./cmd/api
+    env:
+      CGO_ENABLED: '0'
+      VERSION: ${VERSION:-main}
+
+  docker:build:
+    cmds:
+      - |
+        docker build \
+          -t [[ kebab .Name ]]-api:{{ default "latest" .TAG }} \
+          --build-arg=VERSION=$(git rev-parse HEAD 2>/dev/null || echo main) \
+          .
+
+  docker:run:
+    deps:
+      - docker:build
+    cmds:
+      - docker run -it -p 3333:3333 --rm [[ kebab .Name ]]-api:{{ default "latest" .TAG }}

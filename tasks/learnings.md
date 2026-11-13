@@ -65,10 +65,10 @@
 
 ## Fold the fixes of an audit round hunk by hunk
 - Type: pattern
-- Recorded: 2026-11-11
-- Observed: us-018-form
-- Learning: A fix that changes code of several task commits is split by the commit that last changed each hunk, each part a fixup of that commit, built from the fixed tip and checked against the work tree before the rebase; only a part whose fold conflicts stays its own commit, with a message that says what it fixes, never inside another task's commit. A story that grows one bubbletea model over many tasks (US-018: internal/form/draft.go, model.go and model_test.go in six of nine commits) or moves tests between t.Run groups makes clerk fixup replay conflict; then build the task commits with git commit-tree: apply each fix as an exact string replacement to the file of each commit from its target task on (an earlier form of the old text, for example a field that a later task made a method, needs its own pair), gofmt, check that the last tree equals the work tree, and test each changed commit.
-- Apply when: folding the fixes of an audit round or a design check, most of all in internal/form/, in the umbrella test files of internal/catalog/, or when clerk fixup mark comes back ambiguous
+- Recorded: 2026-11-13
+- Observed: us-009-check-templates-owners
+- Learning: A fix that changes code of several task commits is split by the commit that last changed each hunk, each part a fixup of that commit, built from the fixed tip and checked against the work tree before the rebase; only a part whose fold conflicts stays its own commit, with a message that says what it fixes, never inside another task's commit. A story that grows one bubbletea model over many tasks (US-018: internal/form/draft.go, model.go and model_test.go in six of nine commits) or moves tests between t.Run groups makes clerk fixup replay conflict; then build the task commits with git commit-tree: apply each fix as an exact string replacement to the file of each commit from its target task on (an earlier form of the old text, for example a field that a later task made a method, needs its own pair), gofmt, check that the last tree equals the work tree, and test each changed commit. US-009 folded two audit rounds this way with no conflict, renames over four commits included, as regex replacements of each snapshot: apply the spec to the work tree first, so that clerk mutants --base HEAD reads only the lines of the fixes; keep the mode of each blob from git ls-tree (Taskfile.test.yml is 100755, and a 100644 blob gives another tree); write the spec to a file, not a here-doc, when the Go test text holds three quotes; and change the message of each task whose behaviour a fix changes.
+- Apply when: folding the fixes of an audit round or a design check, most of all in internal/form/, in the umbrella test files of internal/catalog/, when a fix renames a name that several task commits use, or when clerk fixup mark comes back ambiguous
 
 ## A struct that a template function returns has exported fields in the design
 - Type: constraint
@@ -419,3 +419,17 @@
 - Observed: us-022-cli-tasks-ci
 - Learning: actionlint and act are not installed, and the permission check refuses go run of a module that it must download, so a written GitHub workflow gets only the YAML checks of TestCatalog here. In US-022 the verification of the release jobs planned actionlint, and it did not run.
 - Apply when: a breakdown plans actionlint, act or another tool fetched at run time as the check of a GitHub workflow
+
+## A walk of the text/template parse tree is routine, and its cost is the test positions
+- Type: pattern
+- Recorded: 2026-11-13
+- Observed: task 3 — us-009-check-templates-owners
+- Learning: Task 3 of US-009 (planned as low certainty) walked the text/template/parse trees of each template for the calls of option and went green on the first try. The cost was 12 live mutants, which only a test killed that has a call in a later command of a pipeline, a call in a chain, a call whose first argument is not a name, a call with an unquoted argument, and four defines out of name order (Template.Templates gives the defines in map order, so the walk sorts them). Plan such a walk as medium certainty, and put those positions in its first test.
+- Apply when: decomposing or building a task that reads the parse tree of the templates of the catalog, for example to find the calls of option, items or unique
+
+## The audit renames a new name of internal/catalog that borrows a word or reads as a question
+- Type: recurring-finding
+- Recorded: 2026-11-13
+- Observed: task 3 — us-009-check-templates-owners
+- Learning: Round 1 of US-009 raised four new names: parseTree (text/template/parse owns tree), template.name (name is an identifier in the package, and the method gave a phrase), unreadable (reads as a bool, and returned text) and unparsedWhens (held messages, not whens); round 2 raised pathInRepo (the path before the render). The renames touched four task commits, so they needed a rebuild of the branch. Grade each new name at its call site against naming.md before clerk finish of the task that adds it.
+- Apply when: adding a type, a method or a field to internal/catalog, most of all one that wraps a type of the standard library or returns the text of a message

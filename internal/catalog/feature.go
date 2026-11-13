@@ -10,15 +10,16 @@ import (
 )
 
 type feature struct {
-	name            string
-	targets         []string
-	templates       []template
-	rules           []delimitersRule
-	options         options
-	extensionPoints map[string]extensionPoint
-	addTo           map[string][]map[string]string
-	needs           []string
-	needValues      map[string]map[string]string
+	name              string
+	targets           []string
+	templates         []template
+	rules             []delimitersRule
+	options           options
+	extensionPoints   map[string]extensionPoint
+	addTo             map[string][]map[string]string
+	needs             []string
+	needValues        map[string]map[string]string
+	whenParseMistakes []string
 }
 
 func readFeature(fsys fs.FS, featureName string) (feature, error) {
@@ -41,6 +42,9 @@ func readFeatureFor(fsys fs.FS, featureName, starterName string) (feature, bool,
 	if err != nil {
 		return feature{}, false, err
 	}
+	if len(f.whenParseMistakes) > 0 {
+		return feature{}, false, fmt.Errorf("read %s: %s", featureYMLPath(featureName), f.whenParseMistakes[0])
+	}
 	return f, true, nil
 }
 
@@ -56,6 +60,7 @@ func newFeature(fsys fs.FS, featureName string, parsed featureYML) (feature, err
 		rules = append(rules, rule)
 	}
 	var templates []template
+	var whenParseMistakes []string
 	for _, entry := range parsed.Files {
 		entryRoot := path.Join(root, entry.Path)
 		if !strings.HasPrefix(entryRoot, root+"/") {
@@ -69,7 +74,7 @@ func newFeature(fsys fs.FS, featureName string, parsed featureYML) (feature, err
 		if entry.When != "" {
 			when, err = newExpression(entry.When)
 			if err != nil {
-				return feature{}, fmt.Errorf("read %s: the when %q of the files entry %q: %w", ymlPath, entry.When, entry.Path, err)
+				whenParseMistakes = append(whenParseMistakes, fmt.Sprintf("the when %q of the files entry %q: %s", entry.When, entry.Path, err))
 			}
 		}
 		for i := range read {
@@ -92,6 +97,7 @@ func newFeature(fsys fs.FS, featureName string, parsed featureYML) (feature, err
 	return feature{
 		name: featureName, targets: parsed.Targets, templates: templates, rules: rules, options: declaredOptions,
 		extensionPoints: extensionPoints, addTo: parsed.AddTo, needs: parsed.needNames, needValues: parsed.Needs,
+		whenParseMistakes: whenParseMistakes,
 	}, nil
 }
 
@@ -133,6 +139,14 @@ func (f feature) needMistakes(starterName string, catalogFeatures map[string]fea
 				mistakes = append(mistakes, fmt.Sprintf("the need of the feature %s: %s", f.name, err))
 			}
 		}
+	}
+	return mistakes
+}
+
+func (f feature) mistakes(starters []Starter) []string {
+	mistakes := f.itemFieldsMistakes(starters)
+	for _, mistake := range f.whenParseMistakes {
+		mistakes = append(mistakes, "the feature "+f.name+": "+mistake)
 	}
 	return mistakes
 }

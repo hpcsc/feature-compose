@@ -311,15 +311,18 @@ feature-compose check --catalog ./catalog
 | A need does not target each target of the feature. | `the starter worker: the feature auth needs cli, which does not target the starter` |
 | A need sets a value that its option does not have: a value that is not one of the values of the option or does not match its pattern, or an option that the needed feature does not declare. Each wrong value is one mistake, also in a target that the need does not target. | `the starter service: the need of the feature cli-auth: the feature api-auth: the value "basic" of the option method is not one of its values: api-key, oauth` |
 | The needs of the features of a starter form a cycle. The message names each feature of the cycle in the order of the needs, and no feature that only needs a feature of the cycle. Each feature that is in a cycle is in at least one message, also when two cycles share it. A cycle gives one mistake for each starter whose features hold it. | `the starter service: the needs of the features form a cycle: app needs base needs app` |
+| The `when` of a files entry does not parse. Each such files entry is one mistake of the feature, also when the feature has two targets, and `check` still finds the other mistakes of the feature. `new` stops on the first one. | `the feature auth: the when "method ==" of the files entry "files/": method == needs a quoted value after it` |
 
 Each message names the feature, the starter, and the extension point, the folder or the need that is wrong. A
-feature with two targets gives one mistake for each target that it does not fit. A wrong need of a need is a
+feature with two targets gives one mistake for each target that it does not fit. A mistake that is not about one
+target, for example a `when` that does not parse, comes one time and names no starter. A wrong need of a need is a
 mistake of the feature that has the need, not of the features that need that feature.
 
 `check` prints each mistake on its own line to stdout. The mistakes of each starter come first, in the order of the
 starters, the features, the extension points and the items, and the cycles of each starter come after its
-features. The mistakes of targets with different item fields come last. Then `check` writes the number of the
-mistakes to stderr, for example
+features. Then the mistakes of each feature come, in the order of the features: its targets with different item
+fields, then its `when` expressions that do not parse, in the order of the files entries. Then `check` writes the
+number of the mistakes to stderr, for example
 `the catalog has 2 mistakes`, and exits with the status 1. With no mistake, it prints
 `The catalog has no mistakes.` and exits with the status 0. A catalog that `check` cannot read, for example a
 `starter.yml` that is not valid YAML, stops `check` with the message that `new` and `show` give, and the exit

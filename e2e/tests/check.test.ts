@@ -32,4 +32,20 @@ describe('feature-compose check', () => {
     )
     expect(result.stderr).toBe('the catalog has 1 mistake\n')
   })
+
+  it('names the feature, the files entry and the when of a when that does not parse, and exits with 1', async () => {
+    const catalogDir = scratchDir()
+    writeFile(join(catalogDir, 'starters', 'service', 'starter.yml'), 'folders:\n  go:\n    path: .\n')
+    writeFile(join(catalogDir, 'starters', 'service', 'files', 'go', 'main.go'), 'package main\n')
+    writeFile(join(catalogDir, 'features', 'auth', 'feature.yml'), "targets: [service]\nfiles:\n  - path: files/\n    when: 'method =='\n")
+    writeFile(join(catalogDir, 'features', 'auth', 'files', 'go', 'auth.go'), 'package auth\n')
+
+    const result = await runCli(scratchDir(), ['check', '--catalog', catalogDir])
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toBe(
+      'the feature auth: the when "method ==" of the files entry "files/": method == needs a quoted value after it\n',
+    )
+    expect(result.stderr).toBe('the catalog has 1 mistake\n')
+  })
 })

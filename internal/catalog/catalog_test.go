@@ -790,6 +790,62 @@ files:
 			}, mistakes)
 		})
 
+		t.Run("each files entry whose when does not parse is one mistake of the feature, also with two targets, after its item fields mistakes, and the message names the feature, the files entry, the when and why", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth": `targets: [service, worker]
+options:
+  method:
+    default: api-key
+add_to:
+  api.middleware:
+    - code: auth.Middleware
+      import: internal/auth
+files:
+  - path: files/api-key/
+    when: method == api-key
+  - path: files/common/
+  - path: files/oauth/
+    when: '(method == "oauth"'
+`,
+				"cli": "targets: [service]\nfiles:\n  - path: files/\n    when: 'a &&'\n",
+			})
+			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n")}
+			files["starters/worker/files/go/server.go"] = &fstest.MapFile{Data: []byte("package server\n")}
+			files["features/auth/files/api-key/go/keys.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+			files["features/auth/files/common/go/auth.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+			files["features/auth/files/oauth/go/tokens.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte("package cli\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the starter worker: the item 1 that the feature auth adds to the extension point "api.middleware" has the fields [code, import], but the extension point declares the fields [code]`,
+				`the feature auth adds to the extension point "api.middleware", which its targets declare with different item fields: [code, import] in the starter service, [code] in the starter worker`,
+				`the feature auth: the when "method == api-key" of the files entry "files/api-key/": method == needs a quoted value after it`,
+				`the feature auth: the when "(method == \"oauth\"" of the files entry "files/oauth/": a ( has no closing )`,
+				`the feature cli: the when "a &&" of the files entry "files/": the expression ends where a name is expected`,
+			}, mistakes)
+		})
+
+		t.Run("a feature with a when that does not parse still gives its other mistakes, also of the files of that entry, and the other features give theirs", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth":  "targets: [service]\nneeds: [vault]\nfiles:\n  - path: files/\n    when: 'method ||'\n",
+				"tools": "targets: [service]\nadd_to:\n  cli.commands:\n    - code: newToolsCommand()\n",
+			})
+			files["features/auth/files/web/index.html"] = &fstest.MapFile{Data: []byte("<html></html>\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				"the starter service: the feature auth adds files to the folder web, which the starter does not have",
+				"the starter service: the feature auth needs vault, which is not a feature of the catalog",
+				`the starter service: the feature tools adds to the extension point "cli.commands", which the starter, the feature and its needs do not declare`,
+				`the feature auth: the when "method ||" of the files entry "files/": the expression ends where a name is expected`,
+			}, mistakes)
+		})
+
 		t.Run("the catalog of this repo has no mistake", func(t *testing.T) {
 			mistakes, err := repoCatalog().Check()
 

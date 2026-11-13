@@ -1,0 +1,108 @@
+design: planned
+types:
+  - name: Catalog
+    package: internal/catalog
+    change: changed
+    does: finds a starter by name with the features that target it, lists the combinations that CI makes a repo from, reads the definitions, and checks the catalog for the mistakes that section 14 of the proposal lists
+    owns:
+      - Check gives the mistakes of each starter first, in the order of the starters, and then the mistakes of each feature, in the order of the features, so two calls on one catalog give the same list
+      - a when that does not parse, a template that does not parse, a read that rule 5 does not allow, an extension point whose file is missing or does not call items, and a path that two owners write are mistakes of Check, and do not stop it
+      - Check reads each starter and each feature of the catalog one time, and parses each template one time
+    fields: [fsys]
+    methods: [Starter, Combinations, Definitions, Check]
+  - name: Starter
+    package: internal/catalog
+    change: changed
+    does: one starter of the catalog with the features that target it, which each selection of a repo starts from and whose features check checks against it
+    owns:
+      - a template of the starter reads only starter.<option> of an option that the starter declares, and each other reference is one mistake that names the starter, the template and the reference
+      - a template of the starter that does not parse is one mistake that names the template and the error of the parse
+      - the file of each extension point that the starter declares is a template of the starter, and its parse tree calls items with the name of the extension point
+      - each path of the repo that two owners write, among the starter and the features that target it, is one mistake for each pair of owners, which names the path and both owners; two templates of one owner are not a mistake
+      - the new mistakes of the starter come after its cycles, and each mistake of the starter names the starter
+    fields: [name, options, folders, templates, features, otherFeatureNames, extensionPoints]
+    methods: [Select, FeatureNames, mistakes]
+  - name: feature
+    package: internal/catalog
+    change: changed
+    does: one feature.yml with its targets, its templates, its options, its needs with the values that they set, the extension points that it declares, the items that it adds, and each when of its files entries that does not parse
+    owns:
+      - the read of a feature goes on past a when that does not parse and keeps it; the read of a feature for one starter, which new uses, stops on it with the message that new gives
+      - each when that does not parse is one mistake of the feature, which names the feature, the files entry, the when and why it does not parse
+      - readable gives the references that the feature can read under rule 5 - each option that it declares by its name, <need>.<option> of each feature that it names in needs, and starter.<option> of an option that each of its targets that is a starter of the catalog declares
+      - each reference that a when or a template of the feature reads and that is not readable is one mistake for each when or template, which names it, the reference and the feature, and for a starter option each target that does not declare it
+      - a template of the feature that does not parse is one mistake that names the template, the feature and the error of the parse
+      - the file of each extension point that the feature declares is a template of the feature, in any files entry, and its parse tree calls items with the name of the extension point
+      - the mistakes of a feature come one time, whatever its targets, after its item fields mistakes
+    fields: [name, targets, templates, rules, options, extensionPoints, addTo, needs, needValues, unparsedWhens]
+    methods: [placedIn, targetsStarter, needMistakes, itemFieldsMistakes, readable, readMistakes, addsToOneExtensionPointWith]
+  - name: template
+    package: internal/catalog
+    change: changed
+    does: one file of a starter or a feature in the catalog, which a selection renders into the repo and check parses
+    owns:
+      - a template has the delimiters of the first delimiters rule of its owner whose glob matches its catalog path, whatever the starter, so check parses a template of a feature with the delimiters that new renders it with
+      - the parse tree of a template holds its path, with the default delimiters, and its contents, with its delimiters
+      - the path in the repo of a template, before the render, is the path of its folder joined with its path in the folder, without .tmpl
+    fields: [catalogPath, owner, featureName, folder, pathInFolder, contents, delimiters, entry, when]
+    methods: [place, render, description, parseTree]
+  - name: parseTree
+    package: internal/catalog
+    change: new
+    does: the text/template parse trees of the path and the contents of one template, which give the quoted text that each call of one template function passes as its first argument
+    owns:
+      - a call counts wherever it is - in an action, in the pipeline, the body and the else of if, range and with, in a define, and as a parenthesized argument of another function
+      - a call whose first argument is not a quoted text gives nothing
+      - a template parses with the template functions of the render, so each template that new renders parses, and a template that does not parse gives the error of the parse
+    fields: [trees]
+    methods: [arguments]
+  - name: expression
+    package: internal/catalog
+    change: changed
+    does: the parsed when of a files entry, which holds or does not hold for the option values that its feature can read
+    owns:
+      - references gives each name that the expression reads, one time each, also under !, &&, || and parentheses, and in a comparison
+    fields: [text, operator, name, value, operands]
+    methods: [trueFor, references]
+  - name: extensionPoint
+    package: internal/catalog
+    change: changed
+    does: a named list of items in one file of its declarer, which features add items to
+    owns:
+      - its file names a template of its declarer by the catalog path of the template without .tmpl, and a file that no template of the declarer has is one mistake
+      - a file whose parse tree does not call items with the name of the extension point is one mistake, also when it calls items for another extension point or calls only unique for it
+    fields: [name, declarer, file, itemFields, items]
+    methods: [add, hasItemFields, checkItem, values, fileMistakes]
+  - name: Selection
+    package: internal/catalog
+    change: changed
+    does: one repo that new makes, from a starter, its features with the values of their options, a name and the values of the starter options
+    owns:
+      - render and the parse of check take the template functions from one map, so a template function that new renders with is never a parse mistake of check
+    fields: [folders, name, starter, features, templates, extensionPoints]
+    methods: [Write, Preview, Questions, funcs]
+functions: []
+words:
+  - concept: the name of an option as a template passes it to option or a when reads it - method for an option of the feature, api-auth.method for an option of a need, starter.module for an option of the starter
+    word: reference
+    not: [option name, option path, key, qualified name, identifier]
+  - concept: the references that a feature or a starter can read under rule 5
+    word: readable
+    not: [allowed, permitted, visible, accessible, in scope]
+  - concept: a call of option in a template, or a name in a when, which uses a reference
+    word: read
+    not: [access, use, lookup, dependency]
+  - concept: the result of the parse of a template by text/template, which check walks for the calls of option and items
+    word: parse tree
+    not: [AST, syntax tree, node tree, nodes]
+  - concept: a when of a files entry that does not parse
+    word: unparsed when
+    not: [invalid when, bad when, broken expression, malformed when]
+  - concept: the starter, or the one feature, whose template writes a path of the repo
+    word: owner
+    not: [writer, author, source, creator, declarer]
+  - concept: the template that renders the items of an extension point, which the field file of extension_points names
+    word: file
+    not: [host file, target, renderer, output file]
+dependencies:
+  - internal/cmd -> internal/catalog

@@ -111,6 +111,21 @@ the feature auth adds to the extension point "api.middleware", which its targets
 `, printed)
 		})
 
+		t.Run("prints each when that does not parse with the other mistakes", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth":  "targets: [service]\nfiles:\n  - path: files/\n    when: 'method =='\n",
+				"tools": "targets: [service]\nadd_to:\n  cli.commands:\n    - code: newToolsCommand()\n",
+			})
+			files["features/auth/files/go/auth.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+
+			printed, err := runCheck(t, files)
+
+			require.EqualError(t, err, "the catalog has 2 mistakes")
+			require.Equal(t, `the starter service: the feature tools adds to the extension point "cli.commands", which the starter, the feature and its needs do not declare
+the feature auth: the when "method ==" of the files entry "files/": method == needs a quoted value after it
+`, printed)
+		})
+
 		t.Run("--catalog checks the catalog in that folder, also with no config file", func(t *testing.T) {
 			catalogDir := t.TempDir()
 			for path, contents := range map[string]string{

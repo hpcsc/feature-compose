@@ -1,0 +1,197 @@
+{
+  "story": "Check the templates and the owners of files",
+  "story_id": "feature-compose/US-009",
+  "tasks_file": "tasks/us-009-check-templates-owners.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Report a `when` that does not parse as a mistake of the feature, and go on",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/catalog/feature.go:68-74",
+        "internal/catalog/feature.go:32-45",
+        "internal/catalog/catalog.go:105-107",
+        "internal/catalog/feature.go:140-168",
+        "internal/catalog/catalog_test.go:235-262",
+        "internal/cmd/check_test.go:83-112",
+        "e2e/tests/check.test.ts:19-34",
+        "docs/commands.md:301-327",
+        "tasks/learnings.md:318-324",
+        "tasks/learnings.md:185-191",
+        "tasks/learnings.md:304-310",
+        "tasks/learnings.md:290-296",
+        "tasks/learnings.md:59-65"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "internal/catalog/feature.go",
+        "internal/catalog/catalog.go",
+        "internal/catalog/catalog_test.go",
+        "internal/cmd/check_test.go",
+        "e2e/tests/check.test.ts",
+        "docs/commands.md"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Find a `when` that reads an option that rule 5 does not allow",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1",
+        "internal/catalog/selection.go:293-301",
+        "internal/catalog/selection.go:282-291",
+        "internal/catalog/expression.go:59-62",
+        "internal/catalog/expression.go:38-70",
+        "internal/catalog/feature.go:114-138",
+        "internal/catalog/feature.go:140-168",
+        "internal/catalog/option.go:51-54",
+        "internal/catalog/catalog_test.go:648-664",
+        "tasks/learnings.md:311-317",
+        "tasks/learnings.md:206-212",
+        "tasks/learnings.md:199-205",
+        "tasks/learnings.md:136-142",
+        "tasks/learnings.md:185-191",
+        "tasks/learnings.md:304-310"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "internal/catalog/expression.go",
+        "internal/catalog/feature.go",
+        "internal/catalog/catalog.go",
+        "internal/catalog/catalog_test.go",
+        "internal/cmd/check_test.go",
+        "docs/commands.md"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Find a template that reads an option that rule 5 does not allow, in its parse tree",
+      "language": "Go",
+      "testable": true,
+      "certainty": "low",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:2",
+        "internal/catalog/selection.go:257-269",
+        "internal/catalog/template.go:48-63",
+        "internal/catalog/delimiters_rule.go:14-27",
+        "internal/catalog/starter.go:47-66",
+        "internal/catalog/feature.go:47-57",
+        "internal/catalog/template.go:79-84",
+        "internal/catalog/catalog_test.go:907-913",
+        "internal/catalog/catalog_test.go:1648-1654",
+        "docs/catalog.md:266-284",
+        "tasks/learnings.md:17-23",
+        "tasks/learnings.md:80-86",
+        "tasks/learnings.md:150-156",
+        "tasks/learnings.md:213-219",
+        "tasks/learnings.md:318-324",
+        "tasks/learnings.md:136-142",
+        "tasks/learnings.md:185-191",
+        "tasks/learnings.md:304-310",
+        "tasks/learnings.md:59-65"
+      ],
+      "depends_on": [
+        2
+      ],
+      "affected_files": [
+        "internal/catalog/parse_tree.go",
+        "internal/catalog/template.go",
+        "internal/catalog/selection.go",
+        "internal/catalog/feature.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/catalog.go",
+        "internal/catalog/catalog_test.go",
+        "internal/cmd/check.go",
+        "internal/cmd/check_test.go",
+        "internal/cmd/root_test.go",
+        "e2e/tests/check.test.ts",
+        "docs/commands.md",
+        "docs/catalog.md",
+        "Taskfile.test.yml"
+      ]
+    },
+    {
+      "n": 4,
+      "done": false,
+      "title": "Find an extension point whose `file` does not exist or does not call `items` for it",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:3",
+        "internal/catalog/definitions.go:159-163",
+        "internal/catalog/starter.go:67-70",
+        "internal/catalog/feature.go:88-91",
+        "internal/catalog/extension_point.go:10-15",
+        "internal/catalog/template.go:74-77",
+        "internal/catalog/catalog_test.go:354-366",
+        "internal/cmd/check_test.go:29-38",
+        "docs/catalog.md:187-264",
+        "tasks/learnings.md:318-324",
+        "tasks/learnings.md:311-317",
+        "tasks/learnings.md:136-142",
+        "tasks/learnings.md:185-191",
+        "tasks/learnings.md:304-310"
+      ],
+      "depends_on": [
+        3
+      ],
+      "affected_files": [
+        "internal/catalog/extension_point.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/feature.go",
+        "internal/catalog/catalog.go",
+        "internal/catalog/catalog_test.go",
+        "internal/cmd/check_test.go",
+        "docs/commands.md",
+        "docs/catalog.md"
+      ]
+    },
+    {
+      "n": 5,
+      "done": false,
+      "title": "Find two owners that write one path of the repo",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/catalog/selection.go:207-227",
+        "internal/catalog/starter.go:208-225",
+        "internal/catalog/template.go:86-101",
+        "internal/catalog/starter.go:227-244",
+        "internal/catalog/catalog_test.go:489-513",
+        "e2e/tests/check.test.ts:19-34",
+        "tasks/learnings.md:136-142",
+        "tasks/learnings.md:199-205",
+        "tasks/learnings.md:185-191",
+        "tasks/learnings.md:304-310",
+        "tasks/learnings.md:59-65"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "internal/catalog/starter.go",
+        "internal/catalog/template.go",
+        "internal/catalog/catalog_test.go",
+        "internal/cmd/check_test.go",
+        "e2e/tests/check.test.ts",
+        "docs/commands.md",
+        "docs/catalog.md"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-009-check-templates-owners.design.yaml"
+}

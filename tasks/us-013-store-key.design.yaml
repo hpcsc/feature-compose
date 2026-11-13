@@ -1,0 +1,81 @@
+design: planned
+types:
+  - name: OptionDefinition
+    package: internal/catalog
+    change: changed
+    does: the fields of one option as starter.yml or feature.yml writes them, which show prints as JSON and in the details of its TUI
+    owns:
+      - the when of an option is the text that feature.yml writes, and "" for an option with no when and for each option of a starter, so the JSON of show holds no null
+    fields: [Default, Pattern, Values, When]
+    methods: [filled]
+  - name: option
+    package: internal/catalog
+    change: changed
+    does: one question of a starter or a feature, with the values that it accepts and the when that tells whether it applies
+    owns:
+      - an option with no when applies in each selection
+      - an option with a when applies only while the when is true for the values of the needs of its feature and of the starter
+    fields: [name, defaultValue, pattern, accepted, when]
+    methods: [check, applies]
+  - name: options
+    package: internal/catalog
+    change: changed
+    does: the options that one starter or one feature declares, which give the values of a selection and its questions
+    owns:
+      - an option that does not apply has its default and no question, and a value that the form kept for it is not used
+      - a flag or a need that gives an option that does not apply another value than its default stops the selection, and the message names the option, the feature, the when as written, the value of each option that the when reads, and the source of the value
+      - a flag or a need that gives an option that does not apply its default is accepted
+    fields: [declarer, declared]
+    methods: [withDefaults, questions, check]
+  - name: optionValues
+    package: internal/catalog
+    change: changed
+    does: the values of the options of one selected starter or feature, each with its source
+    owns:
+      - an option that does not apply is never missing, also with an empty default
+      - an option that does not apply has the source default, or command line when a flag gives it its default
+    fields: [byName, given, needOf, answered, defaults, notApplying]
+    methods: [missing, source, lines]
+  - name: feature
+    package: internal/catalog
+    change: changed
+    does: one feature.yml with its targets, its templates, its options and their when, its needs, and each when of its files entries and its options that does not parse
+    owns:
+      - the when of each option parses at the read; a when that does not parse is one mistake of the feature that names the option, the when and why, and the read of the feature for one starter stops on it
+      - the when of an option reads only <need>.<option> of each feature in its needs and starter.<option> of an option that each target declares; each other reference is one mistake that names the feature, the option, the when and the reference
+      - the mistakes of the when of the options come after those of the files entries, in the order of the option names
+    fields: [name, targets, templates, options, needs, needValues, whenParseMistakes]
+    methods: [readable, readMistakes, whyCannotRead]
+  - name: Starter
+    package: internal/catalog
+    change: changed
+    does: one starter of the catalog with the features that target it, which each selection of a repo starts from
+    owns:
+      - Select gives the when of each option of a selected feature the values of the needs of that feature and of the starter, so a need has its values before the feature that needs it
+      - an option of starter.yml with a when stops the read of the starter, and the message names the starter.yml and the option
+    fields: [name, options, folders, templates, features, otherFeatureNames, extensionPoints]
+    methods: [Select, combinations]
+functions: []
+words:
+  - concept: the expression of an option in feature.yml, in the language of the when of a files entry; the tool asks the option only while it is true
+    word: when
+    not: [condition, guard, predicate, visibility, rule]
+  - concept: an option whose when is false - the tool asks no question for it, it has its default, and a flag or a need cannot give it another value
+    word: does not apply
+    not: [hidden, inactive, disabled, skipped, suppressed, irrelevant]
+  - concept: the option of cli-auth with which the CLI of the method api-key keeps its API key in the store
+    word: store-key
+    not: [stored, keep-key, save-key, keychain]
+  - concept: the API key that auth login keeps in the store under the host of the API URL, which the CLI sends after the environment variable and before the output of credentialCommand
+    word: stored key
+    not: [saved key, cached key, persisted key, remembered key]
+  - concept: the place where the CLI keeps a credential for each API host, the OS credential store or else credentials.json
+    word: store
+    not: [cache, vault, keychain, credential file, key store]
+  - concept: the macOS Keychain, the Windows Credential Manager or the Linux Secret Service, which the CLI reaches through go-keyring
+    word: OS credential store
+    not: [keychain, keyring, vault, secret store]
+  - concept: the base URL of the API that the CLI calls, under whose host the store keeps the stored key
+    word: API URL
+    not: [endpoint, server URL, host]
+dependencies: []

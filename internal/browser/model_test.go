@@ -340,6 +340,26 @@ Extension points that it adds items to
   api.middleware`, detailsOf(pressed(opened(browser.New(definitions())), "j", "j")))
 		})
 
+		t.Run("an option with a when shows the when after its default and its values, and an option with no when shows no when", func(t *testing.T) {
+			withWhen := definitions()
+			auth := withWhen.Features["auth"]
+			auth.Options = map[string]catalog.OptionDefinition{
+				"method":    {Default: "api-key", Values: []string{"api-key", "oauth"}},
+				"store-key": {Default: "false", Values: []string{"true", "false"}, When: `method == "api-key"`},
+			}
+			withWhen.Features["auth"] = auth
+
+			details := detailsOf(pressed(opened(browser.New(withWhen)), "j", "j"))
+
+			require.Contains(t, details, `Options
+  method     default  api-key
+             values   api-key, oauth
+  store-key  default  false
+             values   true, false
+             when     method == "api-key"
+`)
+		})
+
 		t.Run("a feature with no need, option or added item says none for each, and shows the summary and the item fields of the extension points that it declares", func(t *testing.T) {
 			require.Equal(t, `A command line program.
 

@@ -31,7 +31,11 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature, ot
 		return Starter{}, err
 	}
 	declaredOptions := options{declarer: "the starter " + starterName, declared: make(map[string]option, len(parsed.Options))}
-	for optionName, declared := range parsed.Options {
+	for _, optionName := range slices.Sorted(maps.Keys(parsed.Options)) {
+		declared := parsed.Options[optionName]
+		if declared.When != "" {
+			return Starter{}, fmt.Errorf("read %s: the option %s has a when, and only an option of a feature can have a when", ymlPath, optionName)
+		}
 		declaredOptions.declared[optionName], err = newOption(optionName, declared.Default, declared.Pattern, declared.Values)
 		if err != nil {
 			return Starter{}, fmt.Errorf("read %s: %w", ymlPath, err)

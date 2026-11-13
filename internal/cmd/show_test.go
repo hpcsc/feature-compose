@@ -83,7 +83,7 @@ add_to:
       import: internal/auth
 `)},
 			"features/cli/feature.yml": &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [worker, api]\n")},
-			"features/log/feature.yml": &fstest.MapFile{Data: []byte("summary: Logs.\ntargets: [api]\noptions:\n  level:\n    default: info\n")},
+			"features/log/feature.yml": &fstest.MapFile{Data: []byte("summary: Logs.\ntargets: [api]\noptions:\n  level:\n    default: info\n    when: 'starter.region == \"eu\"'\n")},
 		}
 	}
 	const workerAndCLI = `
@@ -102,8 +102,8 @@ add_to:
 						"summary": "An API.",
 						"folders": {"go": {"path": ".", "after_render": ["go mod tidy", "gofmt -w ."], "test": ["task test:unit"]}},
 						"options": {
-							"region": {"default": "us", "pattern": "", "values": ["us", "eu"]},
-							"module": {"default": "example.com/{{ .Name }}", "pattern": "^[a-z./]+$", "values": []}
+							"region": {"default": "us", "pattern": "", "values": ["us", "eu"], "when": ""},
+							"module": {"default": "example.com/{{ .Name }}", "pattern": "^[a-z./]+$", "values": [], "when": ""}
 						},
 						"extension_points": {"api.middleware": {"summary": "A middleware.", "file": "go/server.go", "item": ["code", "import"]}}
 					},`+workerAndCLI+`
@@ -113,11 +113,11 @@ add_to:
 						"summary": "Auth.",
 						"targets": ["api"],
 						"needs": {"cli": {}, "log": {"level": "debug"}},
-						"options": {"method": {"default": "api-key", "pattern": "", "values": ["oauth", "api-key"]}},
+						"options": {"method": {"default": "api-key", "pattern": "", "values": ["oauth", "api-key"], "when": ""}},
 						"extension_points": {"auth.checks": {"summary": "A check.", "file": "go/auth.go", "item": ["code"]}},
 						"add_to": {"api.middleware": [{"code": "auth.Middleware", "import": "internal/auth"}]}
 					},`+cliJSON+`,
-					"log": {"summary": "Logs.", "targets": ["api"], "needs": {}, "options": {"level": {"default": "info", "pattern": "", "values": []}}, "extension_points": {}, "add_to": {}}
+					"log": {"summary": "Logs.", "targets": ["api"], "needs": {}, "options": {"level": {"default": "info", "pattern": "", "values": [], "when": "starter.region == \"eu\""}}, "extension_points": {}, "add_to": {}}
 				}
 			}`, printed)
 		})

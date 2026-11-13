@@ -49,6 +49,19 @@ describe('feature-compose check', () => {
     expect(result.stderr).toBe('the catalog has 1 mistake\n')
   })
 
+  it('names the feature, the option and the when of a when of an option that does not parse, and exits with 1', async () => {
+    const catalogDir = scratchDir()
+    writeFile(join(catalogDir, 'starters', 'service', 'starter.yml'), 'folders:\n  go:\n    path: .\n')
+    writeFile(join(catalogDir, 'starters', 'service', 'files', 'go', 'main.go'), 'package main\n')
+    writeFile(join(catalogDir, 'features', 'auth', 'feature.yml'), "targets: [service]\noptions:\n  store-key:\n    default: 'false'\n    when: 'method =='\n")
+
+    const result = await runCli(scratchDir(), ['check', '--catalog', catalogDir])
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toBe('the feature auth: the when "method ==" of the option "store-key": method == needs a quoted value after it\n')
+    expect(result.stderr).toBe('the catalog has 1 mistake\n')
+  })
+
   it('names the template, the option and the feature of a template that reads a starter option that its target does not declare, and exits with 1', async () => {
     const catalogDir = scratchDir()
     writeFile(join(catalogDir, 'starters', 'service', 'starter.yml'), 'folders:\n  go:\n    path: .\n')

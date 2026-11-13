@@ -87,12 +87,19 @@ func newFeature(fsys fs.FS, featureName string, parsed featureYML) (feature, err
 		templates = append(templates, read...)
 	}
 	declaredOptions := options{declarer: "the feature " + featureName, declared: make(map[string]option, len(parsed.Options))}
-	for optionName, declared := range parsed.Options {
-		var err error
-		declaredOptions.declared[optionName], err = newOption(optionName, declared.Default, declared.Pattern, declared.Values)
+	for _, optionName := range slices.Sorted(maps.Keys(parsed.Options)) {
+		declared := parsed.Options[optionName]
+		read, err := newOption(optionName, declared.Default, declared.Pattern, declared.Values)
 		if err != nil {
 			return feature{}, fmt.Errorf("read %s: %w", ymlPath, err)
 		}
+		if declared.When != "" {
+			read.when, err = newExpression(declared.When)
+			if err != nil {
+				whenParseMistakes = append(whenParseMistakes, fmt.Sprintf("the when %q of the option %q: %s", declared.When, optionName, err))
+			}
+		}
+		declaredOptions.declared[optionName] = read
 	}
 	extensionPoints := make(map[string]extensionPoint, len(parsed.ExtensionPoints))
 	for name, declared := range parsed.ExtensionPoints {

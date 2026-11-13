@@ -23,6 +23,7 @@ type OptionDefinition struct {
 	Default string   `json:"default" yaml:"default"`
 	Pattern string   `json:"pattern" yaml:"pattern"`
 	Values  []string `json:"values" yaml:"values"`
+	When    string   `json:"when" yaml:"when"`
 }
 
 func (o OptionDefinition) filled() OptionDefinition {

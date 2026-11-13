@@ -129,6 +129,9 @@ func optionsSection(options map[string]catalog.OptionDefinition) screen.Section 
 		if option.Pattern != "" {
 			fields = append(fields, screen.Field{Label: "pattern", Values: []string{option.Pattern}})
 		}
+		if option.When != "" {
+			fields = append(fields, screen.Field{Label: "when", Values: []string{option.When}})
+		}
 		s.Entries = append(s.Entries, screen.Entry{Name: name, Fields: fields})
 	}
 	return s

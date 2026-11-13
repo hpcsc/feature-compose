@@ -129,6 +129,20 @@ the feature auth: the when "method ==" of the files entry "files/": method == ne
 `, printed)
 		})
 
+		t.Run("prints each when of an option that does not parse with the other mistakes", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth":  "targets: [service]\noptions:\n  store-key:\n    default: \"false\"\n    when: 'method =='\n",
+				"tools": "targets: [service]\nadd_to:\n  cli.commands:\n    - code: newToolsCommand()\n",
+			})
+
+			printed, err := runCheck(t, files)
+
+			require.EqualError(t, err, "the catalog has 2 mistakes")
+			require.Equal(t, `the starter service: the feature tools adds to the extension point "cli.commands", which the starter, the feature and its needs do not declare
+the feature auth: the when "method ==" of the option "store-key": method == needs a quoted value after it
+`, printed)
+		})
+
 		t.Run("prints each reference that a when reads and the feature cannot read", func(t *testing.T) {
 			files := withFeatures(map[string]string{
 				"auth": "targets: [service]\noptions:\n  method:\n    default: api-key\nfiles:\n  - path: files/\n    when: 'method == \"oauth\" && starter.region == \"eu\"'\n",

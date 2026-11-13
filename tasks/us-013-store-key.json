@@ -1,0 +1,221 @@
+{
+  "story": "Keep the API key in the credential store",
+  "story_id": "feature-compose/US-013",
+  "tasks_file": "tasks/us-013-store-key.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Read the `when` of an option of a feature, find one that does not parse, and show it",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "internal/catalog/feature.go:77-83",
+        "internal/catalog/feature.go:32-48",
+        "internal/catalog/feature.go:150-160",
+        "internal/catalog/starter.go:33-39",
+        "internal/catalog/definitions.go:22-31",
+        "internal/browser/details.go:121-135",
+        "internal/catalog/catalog_test.go:235-262",
+        "internal/catalog/catalog_test.go:302-352",
+        "internal/catalog/catalog_test.go:808-858",
+        "internal/cmd/show_test.go:95-121",
+        "internal/browser/model_test.go:256-276",
+        "internal/cmd/check_test.go:117-131",
+        "e2e/tests/check.test.ts:36-51",
+        "tasks/learnings.md:185-190",
+        "tasks/learnings.md:304-309",
+        "tasks/learnings.md:318-323",
+        "tasks/learnings.md:290-295",
+        "tasks/learnings.md:59-64"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "internal/catalog/definitions.go",
+        "internal/catalog/option.go",
+        "internal/catalog/feature.go",
+        "internal/catalog/starter.go",
+        "internal/browser/details.go",
+        "internal/catalog/catalog_test.go",
+        "internal/cmd/show_test.go",
+        "internal/cmd/check_test.go",
+        "internal/browser/model_test.go",
+        "e2e/tests/check.test.ts",
+        "docs/commands.md"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Ask an option only while its `when` is true, and stop a flag that gives it another value",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/catalog/option.go:64-109",
+        "internal/catalog/values_set_by_needs.go:41-48",
+        "internal/catalog/option.go:127-145",
+        "internal/catalog/option_values.go:34-61",
+        "internal/catalog/starter.go:77-131",
+        "internal/catalog/selection.go:333-341",
+        "internal/catalog/expression.go:38-70",
+        "internal/catalog/catalog_test.go:3269-3299",
+        "internal/cmd/new_test.go:975-993",
+        "internal/cmd/new_test.go:818-829",
+        "internal/form/model_test.go:44-52",
+        "internal/form/model_test.go:344-349",
+        "internal/form/model_test.go:583-589",
+        "tasks/learnings.md:206-211",
+        "tasks/learnings.md:136-141",
+        "tasks/learnings.md:199-204",
+        "tasks/learnings.md:269-274",
+        "tasks/learnings.md:213-218",
+        "tasks/learnings.md:430-435",
+        "tasks/learnings.md:220-225",
+        "tasks/learnings.md:290-295"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "internal/catalog/option.go",
+        "internal/catalog/option_values.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/catalog_test.go",
+        "internal/catalog/selection_test.go",
+        "internal/cmd/new_test.go",
+        "internal/form/model_test.go",
+        "docs/catalog.md",
+        "docs/commands.md"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Find a `when` of an option that reads an option that it cannot read",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/catalog/feature.go:162-183",
+        "internal/catalog/feature.go:185-217",
+        "internal/catalog/expression.go:72-85",
+        "internal/catalog/catalog_test.go:862-906",
+        "internal/cmd/check_test.go:132-144",
+        "task:1",
+        "tasks/learnings.md:311-316",
+        "tasks/learnings.md:136-141",
+        "tasks/learnings.md:185-190",
+        "tasks/learnings.md:304-309",
+        "tasks/learnings.md:430-435"
+      ],
+      "depends_on": [
+        1,
+        2
+      ],
+      "affected_files": [
+        "internal/catalog/feature.go",
+        "internal/catalog/catalog_test.go",
+        "internal/cmd/check_test.go",
+        "docs/commands.md"
+      ]
+    },
+    {
+      "n": 4,
+      "done": false,
+      "title": "Give `cli-auth` the option `store-key`, which the tool asks only with the method `api-key`",
+      "language": "TypeScript",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "catalog/features/api-auth/feature.yml:1-14",
+        "task:2",
+        "internal/catalog/catalog_test.go:1974-1990",
+        "internal/catalog/catalog_test.go:3373-3383",
+        "internal/catalog/catalog_test.go:3269-3299",
+        "e2e/tests/new.test.ts:332-363",
+        "e2e/tests/new.test.ts:520-550",
+        "e2e/tests/new.test.ts:774-800",
+        "e2e/tests/new.test.ts:364-380",
+        "e2e/tests/show.test.ts:6-19",
+        "tasks/learnings.md:451-456",
+        "tasks/learnings.md:444-449",
+        "tasks/learnings.md:346-351",
+        "tasks/learnings.md:227-232",
+        "tasks/learnings.md:59-64"
+      ],
+      "depends_on": [
+        2
+      ],
+      "affected_files": [
+        "catalog/features/cli-auth/feature.yml",
+        "internal/catalog/catalog_test.go",
+        "e2e/tests/new.test.ts",
+        "e2e/tests/show.test.ts",
+        "docs/catalog.md",
+        "docs/commands.md"
+      ]
+    },
+    {
+      "n": 5,
+      "done": false,
+      "title": "Keep the API key in the OS credential store with `store-key=true`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "task:4",
+        "catalog/features/cli-auth/files/store/go/internal/credential/store.go.tmpl:19",
+        "catalog/features/cli-auth/files/oauth/go/internal/credential/credential.go.tmpl:28-54",
+        "catalog/features/cli-auth/files/oauth/go/e2e/tests/auth.test.ts:1-40",
+        "catalog/features/cli-auth/files/api-key/go/internal/apiclient/client_test.go.tmpl:1-70",
+        "catalog/features/cli/feature.yml:16-22",
+        "internal/catalog/catalog_test.go:2240-2330",
+        "internal/catalog/catalog_test.go:2409-2466",
+        "e2e/tests/new.test.ts:364-423",
+        "e2e/tests/new.test.ts:425-452",
+        "docs/e2e-tests.md",
+        "tasks/learnings.md:24-29",
+        "tasks/learnings.md:10-15",
+        "tasks/learnings.md:157-162",
+        "tasks/learnings.md:122-127",
+        "tasks/learnings.md:458-463",
+        "tasks/learnings.md:87-92",
+        "tasks/learnings.md:129-134",
+        "tasks/learnings.md:367-372",
+        "tasks/learnings.md:479-484",
+        "tasks/learnings.md:94-99",
+        "tasks/learnings.md:374-379",
+        "tasks/learnings.md:31-36",
+        "tasks/learnings.md:38-43",
+        "tasks/learnings.md:52-57",
+        "tasks/learnings.md:108-113",
+        "tasks/learnings.md:381-386"
+      ],
+      "depends_on": [
+        4
+      ],
+      "affected_files": [
+        "catalog/features/cli-auth/feature.yml",
+        "catalog/features/cli-auth/files/api-key/go/internal/credential/credential.go.tmpl",
+        "catalog/features/cli-auth/files/api-key/go/internal/credential/credential_test.go.tmpl",
+        "catalog/features/cli-auth/files/api-key/go/internal/cli/auth.go.tmpl",
+        "catalog/features/cli-auth/files/api-key/go/internal/apiclient/client_test.go.tmpl",
+        "catalog/features/cli-auth/files/api-key/go/e2e/tests/auth.test.ts",
+        "catalog/features/cli-auth/files/api-key/go/docs/cli-auth.md",
+        "internal/catalog/catalog_test.go",
+        "e2e/tests/new.test.ts",
+        "README.md",
+        "docs/catalog.md",
+        "docs/e2e-tests.md"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-013-store-key.design.yaml"
+}

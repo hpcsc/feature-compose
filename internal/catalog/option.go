@@ -13,6 +13,7 @@ type option struct {
 	defaultValue string
 	pattern      *regexp.Regexp
 	accepted     []string
+	when         expression
 }
 
 func newOption(name, defaultValue, pattern string, accepted []string) (option, error) {

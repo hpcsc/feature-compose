@@ -284,7 +284,7 @@ The right pane shows these details:
 | --- | --- |
 | A starter | Its summary, its folders with their commands, and its options with their defaults and their values or patterns. |
 | The group of the features | Each feature that targets the starter, with its summary. |
-| A feature | Its summary, its needs, its options, and the extension points that it declares or adds items to. |
+| A feature | Its summary, its needs, its options with their defaults, their values or patterns, and their `when`, and the extension points that it declares or adds items to. |
 | The group of the extension points | Each extension point of the starter and of its features, with its item fields and its declarer, for example `cli.commands` of `cli`. |
 | An extension point | Its summary, its file, its item fields, its declarer, and the features that add items to it. |
 
@@ -303,6 +303,7 @@ is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each
 | `starters.<name>.options.<name>.default` | The default of the option, as the file writes it, for example `github.com/hpcsc/{{ .Name }}`. |
 | `starters.<name>.options.<name>.pattern` | The regular expression that a value must match, or `""`. |
 | `starters.<name>.options.<name>.values` | The values that the option accepts, or `[]` for any value. |
+| `starters.<name>.options.<name>.when` | Always `""`. Only an option of a feature can have a `when`, and a starter option with a `when` stops the read of the starter. |
 | `starters.<name>.extension_points.<name>.summary` | The contract of an item of the extension point. |
 | `starters.<name>.extension_points.<name>.file` | The file that renders the items. |
 | `starters.<name>.extension_points.<name>.item` | The fields of each item. |
@@ -312,6 +313,7 @@ is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each
 | `features.<name>.options.<name>.default` | The default of the option, as the file writes it. |
 | `features.<name>.options.<name>.pattern` | The regular expression that a value must match, or `""`. |
 | `features.<name>.options.<name>.values` | The values that the option accepts, or `[]` for any value. |
+| `features.<name>.options.<name>.when` | The expression that decides when the option applies, as the file writes it, or `""` for an option that always applies. |
 | `features.<name>.extension_points.<name>.summary` | The contract of an item of an extension point that the feature declares. |
 | `features.<name>.extension_points.<name>.file` | The file of the feature that renders the items. |
 | `features.<name>.extension_points.<name>.item` | The fields of each item. |
@@ -349,6 +351,7 @@ feature-compose check --catalog ./catalog
 | A need sets a value that its option does not have: a value that is not one of the values of the option or does not match its pattern, or an option that the needed feature does not declare. Each wrong value is one mistake, also in a target that the need does not target. | `the starter service: the need of the feature client: the feature auth: the value "basic" of the option method is not one of its values: api-key, oauth` |
 | The needs of the features of a starter form a cycle. The message names each feature of the cycle in the order of the needs, and no feature that only needs a feature of the cycle. Each feature that is in a cycle is in at least one message, also when two cycles share it. A cycle gives one mistake for each starter whose features hold it. | `the starter service: the needs of the features form a cycle: app needs base needs app` |
 | The `when` of a files entry does not parse. Each such files entry is one mistake of the feature, also when the feature has two targets, and `check` still finds the other mistakes of the feature. `new` stops on the first one. | `the feature auth: the when "method ==" of the files entry "files/": method == needs a quoted value after it` |
+| The `when` of an option does not parse. Each such option is one mistake of the feature, also when the feature has two targets. `new` stops on the first one. | `the feature auth: the when "method ==" of the option "store-key": method == needs a quoted value after it` |
 | A `when` reads an option that the feature cannot read. A feature reads its own options by name, the options of each feature in its `needs` as `<need>.<option>`, and `starter.<option>` for an option that each of its targets declares. A need of a need does not count. Each reference that a `when` cannot read is one mistake. For a starter option, the message names each target that does not declare it. | `the feature cli: the when "starter.region == \"eu\"" of the files entry "files/" reads "starter.region", which the starter worker does not declare` |
 | A template of a feature calls `option` with an option that the feature cannot read, by the rule of the row above. `check` reads the parse tree of the path of each template, with `{{ }}`, and of its contents, with the delimiters of the feature, so it also checks a template whose `when` is false in each repo of CI. Only a call with a quoted option counts, also as a parenthesized argument or in a `define`. Each option is one mistake for each template. | `the feature cli: the template go/cli.go of the files entry files/ reads "starter.region", which the starter worker does not declare` |
 | A template of the starter calls `option` with an option other than `starter.<option>` of an option that the starter declares. | `the starter service: the template go/main.go reads "cli.mode", which the starter cannot read: it can read starter.go-version, starter.module` |
@@ -373,12 +376,13 @@ mistake of the feature that has the need, not of the features that need that fea
    - The paths that two owners write, in the order of the paths.
 2. The mistakes of each feature, in the order of the features:
    - Its targets with different item fields.
-   - Its `when` expressions that do not parse.
+   - Its `when` expressions that do not parse: those of its files entries, then those of its options.
    - The options that its `when` expressions read and cannot read.
    - The options that its templates read and cannot read, then its templates that do not parse.
    - The files of its extension points, in the order of their names.
 
-The mistakes of the `when` expressions and the templates of a feature come in the order of its files entries.
+The mistakes of the `when` expressions and the templates of a feature come in the order of its files entries, and
+the mistakes of the `when` of its options in the order of the option names.
 Then `check` writes the number of the mistakes to stderr, for example `the catalog has 2 mistakes`, and exits
 with the status 1. With no mistake, it prints
 `The catalog has no mistakes.` and exits with the status 0. A catalog that `check` cannot read, for example a

@@ -232,7 +232,7 @@ func TestCatalog(t *testing.T) {
 			})
 		}
 
-		for when, message := range map[string]string{
+		whensThatDoNotParse := map[string]string{
 			`method ==`:          `method == needs a quoted value after it`,
 			`method == oauth`:    `method == needs a quoted value after it`,
 			`method = "oauth"`:   `"=" is not a part of an expression`,
@@ -245,7 +245,8 @@ func TestCatalog(t *testing.T) {
 			`"oauth"`:            `"oauth" is where a name is expected`,
 			`()`:                 `) is where a name is expected`,
 			`method == "oauth`:   `the value "oauth has no closing quote`,
-		} {
+		}
+		for when, message := range whensThatDoNotParse {
 			t.Run("a when that does not parse stops, and the message names the feature.yml, the files entry, the when and why: "+when, func(t *testing.T) {
 				files := fstest.MapFS{
 					"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
@@ -261,6 +262,49 @@ func TestCatalog(t *testing.T) {
 				require.ErrorContains(t, err, strconv.Quote(when)+` of the files entry "files/": `+message)
 			})
 		}
+
+		for when, message := range whensThatDoNotParse {
+			t.Run("a when of an option that does not parse stops, and the message names the feature.yml, the option, the when and why: "+when, func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")},
+					"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+					"features/cli/feature.yml":          &fstest.MapFile{Data: []byte("targets: [service]\noptions:\n  store-key:\n    values: [\"true\", \"false\"]\n    default: \"false\"\n    when: '" + when + "'\n")},
+				}
+
+				_, err := catalog.New(files).Starter("service")
+
+				require.ErrorContains(t, err, "features/cli/feature.yml")
+				require.ErrorContains(t, err, strconv.Quote(when)+` of the option "store-key": `+message)
+			})
+		}
+
+		t.Run("of two options of a starter with a when, the message names the first in the order of the names", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("options:\n  zone:\n    default: a\n    when: 'module == \"x\"'\n  region:\n    default: us\n    when: 'module == \"x\"'\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			}
+
+			for range 5 {
+				_, err := catalog.New(files).Starter("service")
+
+				require.ErrorContains(t, err, "the option region has a when")
+			}
+		})
+
+		t.Run("an option of a starter with a when stops the read of the starter and the check, and the message names the starter.yml and the option", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("options:\n  region:\n    default: us\n    when: 'module == \"x\"'\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+			}
+
+			_, starterErr := catalog.New(files).Starter("service")
+			_, checkErr := catalog.New(files).Check()
+
+			for _, err := range []error{starterErr, checkErr} {
+				require.ErrorContains(t, err, "starters/service/starter.yml")
+				require.ErrorContains(t, err, "the option region has a when, and only an option of a feature can have a when")
+			}
+		})
 
 		t.Run("a file directly in the features folder is not a feature", func(t *testing.T) {
 			files := fstest.MapFS{
@@ -319,7 +363,7 @@ func TestCatalog(t *testing.T) {
 				"starters/bare/starter.yml":   &fstest.MapFile{Data: []byte("summary: Bare.\n")},
 				"features/auth/feature.yml":   &fstest.MapFile{Data: []byte("needs:\n  bare:\n  listed:\n    mode: fast\noptions:\n  method:\n    default: api-key\nextension_points:\n  auth.checks:\n    file: go/auth.go\nadd_to:\n  api.middleware:\n  api.config:\n")},
 				"features/bare/feature.yml":   &fstest.MapFile{Data: []byte("summary: Bare.\nneeds:\n")},
-				"features/listed/feature.yml": &fstest.MapFile{Data: []byte("needs: [auth, bare]\noptions:\n  mode:\n    default: slow\n")},
+				"features/listed/feature.yml": &fstest.MapFile{Data: []byte("needs: [auth, bare]\noptions:\n  mode:\n    default: slow\n    when: 'auth.method == \"api-key\"'\n")},
 			}
 			definitions, err := catalog.New(files).Definitions()
 			require.NoError(t, err)
@@ -332,7 +376,7 @@ func TestCatalog(t *testing.T) {
 					"api": {
 						"summary": "",
 						"folders": {"go": {"path": ".", "after_render": [], "test": []}, "web": {"path": "web", "after_render": [], "test": []}},
-						"options": {"module": {"default": "x", "pattern": "", "values": []}, "region": {"default": "us", "pattern": "", "values": []}},
+						"options": {"module": {"default": "x", "pattern": "", "values": [], "when": ""}, "region": {"default": "us", "pattern": "", "values": [], "when": ""}},
 						"extension_points": {"api.middleware": {"summary": "", "file": "go/server.go", "item": []}, "api.config": {"summary": "", "file": "go/config.go", "item": []}}
 					},
 					"bare": {"summary": "Bare.", "folders": {}, "options": {}, "extension_points": {}}
@@ -340,12 +384,12 @@ func TestCatalog(t *testing.T) {
 				"features": {
 					"auth": {
 						"summary": "", "targets": [], "needs": {"bare": {}, "listed": {"mode": "fast"}},
-						"options": {"method": {"default": "api-key", "pattern": "", "values": []}},
+						"options": {"method": {"default": "api-key", "pattern": "", "values": [], "when": ""}},
 						"extension_points": {"auth.checks": {"summary": "", "file": "go/auth.go", "item": []}},
 						"add_to": {"api.middleware": [], "api.config": []}
 					},
 					"bare": {"summary": "Bare.", "targets": [], "needs": {}, "options": {}, "extension_points": {}, "add_to": {}},
-					"listed": {"summary": "", "targets": [], "needs": {"auth": {}, "bare": {}}, "options": {"mode": {"default": "slow", "pattern": "", "values": []}}, "extension_points": {}, "add_to": {}}
+					"listed": {"summary": "", "targets": [], "needs": {"auth": {}, "bare": {}}, "options": {"mode": {"default": "slow", "pattern": "", "values": [], "when": "auth.method == \"api-key\""}}, "extension_points": {}, "add_to": {}}
 				}
 			}`, string(encoded))
 		})
@@ -840,6 +884,37 @@ files:
 				`the feature auth: the when "method == api-key" of the files entry "files/api-key/": method == needs a quoted value after it`,
 				`the feature auth: the when "(method == \"oauth\"" of the files entry "files/oauth/": a ( has no closing )`,
 				`the feature cli: the when "a &&" of the files entry "files/": the expression ends where a name is expected`,
+			}, mistakes)
+		})
+
+		t.Run("each option whose when does not parse is one mistake of the feature, also with two targets, after the when of the files entries, in the order of the option names", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth": `targets: [service, worker]
+options:
+  scope:
+    default: read
+    when: 'a ||'
+  method:
+    default: api-key
+    when: method == api-key
+files:
+  - path: files/
+    when: '(method == "oauth"'
+`,
+				"cli": "targets: [service]\noptions:\n  level:\n    default: info\n    when: '!'\n",
+			})
+			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")}
+			files["starters/worker/files/go/main.go"] = &fstest.MapFile{Data: []byte("package main\n")}
+			files["features/auth/files/go/auth.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the feature auth: the when "(method == \"oauth\"" of the files entry "files/": a ( has no closing )`,
+				`the feature auth: the when "method == api-key" of the option "method": method == needs a quoted value after it`,
+				`the feature auth: the when "a ||" of the option "scope": the expression ends where a name is expected`,
+				`the feature cli: the when "!" of the option "level": the expression ends where a name is expected`,
 			}, mistakes)
 		})
 

@@ -433,3 +433,24 @@
 - Observed: task 3 — us-009-check-templates-owners
 - Learning: Round 1 of US-009 raised four new names: parseTree (text/template/parse owns tree), template.name (name is an identifier in the package, and the method gave a phrase), unreadable (reads as a bool, and returned text) and unparsedWhens (held messages, not whens); round 2 raised pathInRepo (the path before the render). The renames touched four task commits, so they needed a rebuild of the branch. Grade each new name at its call site against naming.md before clerk finish of the task that adds it.
 - Apply when: adding a type, a method or a field to internal/catalog, most of all one that wraps a type of the standard library or returns the text of a message
+
+## A new step of new goes inside one method of Selection
+- Type: pattern
+- Recorded: 2026-11-13
+- Observed: task 1 — us-011-record-selection
+- Learning: US-011 planned Selection.WriteSelectionFile as an exported step that internal/cmd/new.go called after Write and RunAfterRender, while Preview already listed the file; the audit raised it as a call sequence that cmd must keep, and the fix Selection.MakeRepo(ctx, output, version) (Write, then RunAfterRender, then the selection file) cost a rebuild of all three task commits. Write and RunAfterRender stayed exported for their own tests, so the about 60 tests of Write did not change, which was the reason of the breakdown for a separate step.
+- Apply when: planning a story that adds a step to what new does with a selection, for example git init, a hook or another file that the tool writes itself, or a command such as add that writes a repo from a Selection
+
+## A file that new writes into every repo changes each whole-map test of TestNewCommand
+- Type: pattern
+- Recorded: 2026-11-13
+- Observed: task 1,2 — us-011-record-selection
+- Learning: About 16 tests of TestNewCommand, the root test of new, and the tests that compare the repo of new with the repo of a Selection compare the whole map of the written files, so each file that new adds to every repo changes all of them; US-011 split the keys of .feature-compose.yml over two tasks, so each of those expected texts changed two times. Give the whole contents of such a file to one task, and keep the common text of the file in one variable of the test.
+- Apply when: decomposing a story that makes new write a new file into every repo, or adds keys to .feature-compose.yml
+
+## The YAML encoder of go.yaml.in/yaml/v3 writes empty values as {} and [] and quotes text that reads as another type
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: task 1 — us-011-record-selection
+- Learning: With yaml.NewEncoder and SetIndent(2), go.yaml.in/yaml/v3 writes a nil or empty map as {}, a nil or empty list as [], the keys of a map in the order of the names, and quotes 1.28, true, on, ~ and the empty text so that each reads back as text; SetIndent(1) writes the same bytes as SetIndent(2), so clerk mutants reports its INTEGER_DECREMENT as an equivalent mutant. A key null in starter.yml or feature.yml is a null key, so an option cannot have the name null.
+- Apply when: writing or reading .feature-compose.yml or another YAML file that the tool writes, or naming an option in a test fixture of the catalog

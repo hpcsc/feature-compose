@@ -377,10 +377,10 @@ describe('feature-compose new', () => {
           'features:\n  api-auth:\n    method: api-key\n  cli: {}\n  cli-auth:\n    store-key: "false"\nrequested: [cli-auth]\n',
       )
       const requires: Array<{ module: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['cli-auth'].add_to['gomod.requires']
-      expect(requires.map((item) => item.module).sort()).toEqual(['github.com/cli/browser', 'github.com/zalando/go-keyring', 'golang.org/x/oauth2'])
+      expect(requires.map((item) => item.module).sort()).toEqual(['github.com/cli/browser', 'github.com/zalando/go-keyring', 'golang.org/x/oauth2', 'golang.org/x/term'])
       const goMod = readFileSync(join(repo, 'go.mod'), 'utf8')
       for (const { module } of requires) {
-        expect(goMod, `go mod tidy removes ${module}, which only the files of the method oauth import`).not.toContain(module)
+        expect(goMod, `go mod tidy removes ${module}, which only the files of the method oauth and of the stored key import`).not.toContain(module)
       }
       const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
       expect(unformatted).toMatchObject({ status: 0, stdout: '' })
@@ -423,6 +423,61 @@ describe('feature-compose new', () => {
   )
 
   it(
+    'makes a repo with cli-auth:store-key=true that passes its unit and end-to-end tests, whose CLI stores the API key with auth login and sends it to its API, while the variable still comes first, and removes it with auth logout',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth:store-key=true', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      const repo = join(dir, 'my-service')
+      expect(readFileSync(join(repo, '.feature-compose.yml'), 'utf8')).toContain('  cli-auth:\n    store-key: "true"\n')
+      const requires: Array<{ module: string; version: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['cli-auth'].add_to['gomod.requires']
+      const goMod = readFileSync(join(repo, 'go.mod'), 'utf8')
+      for (const { module, version } of requires) {
+        const required = new RegExp(`^\\s*(?:require )?${module.replaceAll('.', '\\.')} ${version.replaceAll('.', '\\.')}$`, 'm')
+        if (['github.com/zalando/go-keyring', 'golang.org/x/term'].includes(module)) {
+          expect(goMod, module).toMatch(required)
+        } else {
+          expect(goMod, module).not.toContain(module)
+        }
+      }
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      const build = await runProgram(repo, 'go', ['build', '-o', 'bin/my-service', './cmd/my-service'], env)
+      expect(build.status, build.stdout + build.stderr).toBe(0)
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      expect(passedPackages(unit.stdout)).toEqual(expect.arrayContaining(['internal/credential', 'internal/apiclient', 'internal/auth', 'internal/cli']))
+      const e2e = await runProgram(repo, 'task', ['test:e2e:local'], { ...env, NO_COLOR: '1' })
+      expect(e2e.status, e2e.stdout + e2e.stderr).toBe(0)
+      expect(e2e.stdout).toMatch(/✓ tests\/auth\.test\.ts /)
+
+      const key = 'the-key-of-the-e2e-test'
+      const api = await startedApi(repo, { ...env, API_KEY_HASHES: createHash('sha256').update(key).digest('hex') })
+      const cli = join(repo, 'bin', 'my-service')
+      const call = await builtCall(repo, env)
+      const settings = { ...env, XDG_CONFIG_HOME: scratchDir(), MY_SERVICE_API_KEY: '', MY_SERVICE_API_URL: api, MY_SERVICE_CREDENTIAL_STORE: 'file' }
+
+      const login = await runProgram(repo, 'sh', ['-c', `printf '%s' '${key}' | '${cli}' auth login`], settings)
+
+      expect(login.status, login.stdout + login.stderr).toBe(0)
+      const withStoredKey = await runProgram(repo, call, [api], settings)
+      expect(withStoredKey, 'POST /api/accounts with {} gets the answer 400 of the handler, so the API accepted the stored key').toMatchObject({ status: 0, stdout: '400\n' })
+      const withVariable = await runProgram(repo, call, [api], { ...settings, MY_SERVICE_API_KEY: 'an-unknown-key' })
+      expect(withVariable.status).not.toBe(0)
+      expect(withVariable.stdout).toContain('the API refused the API key from MY_SERVICE_API_KEY')
+      const logout = await runProgram(repo, cli, ['auth', 'logout'], settings)
+      expect(logout.status, logout.stdout + logout.stderr).toBe(0)
+      const afterLogout = await runProgram(repo, call, [api], settings)
+      expect(afterLogout.status).not.toBe(0)
+      expect(afterLogout.stdout).toContain('run "my-service auth login"')
+    },
+    15 * 60 * 1000,
+  )
+
+  it(
     'makes a repo with cli-auth and api-auth:method=oauth that passes its unit and end-to-end tests, whose CLI logs in at the issuer for the audience of the API, and whose API accepts the token that the CLI gets, also after a refresh',
     async () => {
       const dir = scratchDir()
@@ -442,11 +497,12 @@ describe('feature-compose new', () => {
       expect(unit.status, unit.stdout + unit.stderr).toBe(0)
       expect(passedPackages(unit.stdout)).toEqual(expect.arrayContaining(['internal/credential', 'internal/apiclient', 'internal/auth', 'internal/cli']))
       const requires: Array<{ module: string; version: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['cli-auth'].add_to['gomod.requires']
-      expect(requires.map((item) => item.module).sort()).toEqual(['github.com/cli/browser', 'github.com/zalando/go-keyring', 'golang.org/x/oauth2'])
+      expect(requires.map((item) => item.module).sort()).toEqual(['github.com/cli/browser', 'github.com/zalando/go-keyring', 'golang.org/x/oauth2', 'golang.org/x/term'])
       const goMod = readFileSync(join(repo, 'go.mod'), 'utf8')
-      for (const { module, version } of requires) {
+      for (const { module, version } of requires.filter((item) => item.module !== 'golang.org/x/term')) {
         expect(goMod, module).toMatch(new RegExp(`^\\s*(?:require )?${module.replaceAll('.', '\\.')} ${version.replaceAll('.', '\\.')}$`, 'm'))
       }
+      expect(goMod, 'go mod tidy removes golang.org/x/term, which only the files of the stored key import').not.toContain('golang.org/x/term')
       const e2e = await runProgram(repo, 'task', ['test:e2e:local'], { ...env, NO_COLOR: '1' })
       expect(e2e.status, e2e.stdout + e2e.stderr).toBe(0)
       expect(e2e.stdout).toMatch(/✓ tests\/auth\.test\.ts /)

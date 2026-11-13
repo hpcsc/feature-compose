@@ -79,7 +79,7 @@ tests keep the original binary.
 
 ## The full run of `new`
 
-Nine tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
+Ten tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
 first makes the repo from the starter alone:
 
 1. `feature-compose new go my-tool --no-prompt` makes the repo. Its `after_render` commands run `go mod tidy`,
@@ -120,7 +120,7 @@ The second adds `--feature cli`, and makes a CLI in its own repo:
    path under `dist/` or `e2e/node_modules/`, which the snapshot and the `npm install` of step 6 made. So the
    `.gitignore` of the repo has the patterns of `cli`.
 
-The other seven make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
+The other eight make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
 
 1. `feature-compose new go-event-sourcing-service my-service --no-prompt` makes the repo. Its `after_render`
    commands run `go mod tidy`, which downloads the modules of the repo.
@@ -197,15 +197,31 @@ The next adds only `--feature cli-auth`, which needs `cli` and `api-auth`:
    `apiclient.New` with the base URL of the API, which ends with `/api`, and `Do` with `POST /accounts`. With
    the key of the test, the program prints the answer 400 of the handler. With an unknown key and with no key,
    it stops with the messages of the CLI.
-5. The `go.mod` of the repo requires none of the modules of the method `oauth` of `cli-auth`, which `show`
-   lists in its `gomod.requires`.
+5. The `go.mod` of the repo requires none of the modules that `show` lists in the `gomod.requires` of `cli-auth`: the
+   modules of the method `oauth` and of the stored key.
+
+The next adds `--feature cli-auth:store-key=true`, so the CLI keeps its API key in the OS credential store:
+
+1. `.feature-compose.yml` holds `store-key: "true"`. The `go.mod` of the repo requires `github.com/zalando/go-keyring`
+   and `golang.org/x/term` at the versions of their items, and no other module of the `gomod.requires` of `cli-auth`.
+2. `gofmt -l .` lists no file, and the CLI builds. `task test:unit` stops with the exit status 0, and the tests of
+   `internal/credential`, `internal/apiclient`, `internal/auth` and `internal/cli` ran and passed.
+   `task test:e2e:local` of the repo passes, with `tests/auth.test.ts` among the files that passed.
+3. The test starts the API with the hash of a key of the test. `auth login` of the built CLI reads the key on stdin,
+   with the API URL of the API and `MY_SERVICE_CREDENTIAL_STORE=file`. The program of the test then calls
+   `POST /api/accounts` with no `MY_SERVICE_API_KEY` and prints the answer 400 of the handler, so the API accepted
+   the stored key. With `MY_SERVICE_API_KEY` of an unknown key, the call stops with a message that names the
+   variable, so the variable still comes first. After `auth logout`, the call stops, and the message tells the user
+   to run `my-service auth login`.
 
 The next adds `--feature cli-auth --feature api-auth:method=oauth`, so the CLI logs in at an issuer:
 
 1. `new` prints `cli: needed by cli-auth`, and `.feature-compose.yml` holds `api-auth` with `method: oauth`.
 2. `gofmt -l .` lists no file, and the CLI builds. `task test:unit` stops with the exit status 0, and the
    tests of `internal/credential`, `internal/apiclient`, `internal/auth` and `internal/cli` ran and passed.
-   The `go.mod` of the repo requires each module of the `gomod.requires` of `cli-auth` at its version.
+   The `go.mod` of the repo requires `golang.org/x/oauth2`, `github.com/zalando/go-keyring` and
+   `github.com/cli/browser` at the versions of their items of `gomod.requires`, and not `golang.org/x/term`, which only
+   the files of the stored key import.
 3. `task test:e2e:local` of the repo stops with the exit status 0, with `tests/auth.test.ts` among the files that
    passed. These tests run `auth status`, `auth login`, `auth token` and `auth logout` against a test issuer of
    their own.

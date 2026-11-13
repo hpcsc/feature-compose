@@ -1,23 +1,51 @@
+{{- $stored := eq (option "store-key") "true" -}}
 package cli
 
 import (
 	"context"
+{{- if $stored }}
+	"errors"
+{{- end }}
 	"fmt"
+{{- if $stored }}
+	"io"
+	"os"
+	"strings"
+{{- end }}
 
 	"{{ option "starter.module" }}/internal/credential"
 	"github.com/urfave/cli/v3"
+{{- if $stored }}
+	"golang.org/x/term"
+{{- end }}
 )
 
 func newAuthCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "auth",
+		{{- if $stored }}
+		Usage: "store, remove, or show the API key",
+		{{- else }}
 		Usage: "show where the API key comes from",
+		{{- end }}
 		Commands: []*cli.Command{
 			{
 				Name:   "status",
 				Usage:  "show where the API key comes from, but not the API key",
 				Action: authStatus,
 			},
+{{- if $stored }}
+			{
+				Name:   "login",
+				Usage:  "store the API key, which it reads from the terminal or from stdin",
+				Action: authLogin,
+			},
+			{
+				Name:   "logout",
+				Usage:  "remove the stored API key",
+				Action: authLogout,
+			},
+{{- end }}
 		},
 	}
 }
@@ -31,3 +59,68 @@ func authStatus(ctx context.Context, cmd *cli.Command) error {
 	_, err = fmt.Fprintf(out, "The API key comes from %s.\n", found.Source)
 	return err
 }
+{{- if $stored }}
+
+func authLogin(_ context.Context, cmd *cli.Command) error {
+	host, err := credential.APIHost()
+	if err != nil {
+		return err
+	}
+	key, err := readAPIKey(cmd)
+	if err != nil {
+		return err
+	}
+	store, err := credential.NewStore()
+	if err != nil {
+		return err
+	}
+	source, err := store.Set(host, key)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(cmd.Root().Writer, "Stored the API key for %s in %s.\n", host, source)
+	return err
+}
+
+func readAPIKey(cmd *cli.Command) (string, error) {
+	in := cmd.Root().Reader
+	var text []byte
+	var err error
+	if file, ok := in.(*os.File); ok && term.IsTerminal(int(file.Fd())) {
+		_, _ = fmt.Fprint(cmd.Root().ErrWriter, "Paste the API key: ")
+		text, err = term.ReadPassword(int(file.Fd()))
+		_, _ = fmt.Fprintln(cmd.Root().ErrWriter)
+	} else {
+		text, err = io.ReadAll(in)
+	}
+	if err != nil {
+		return "", err
+	}
+	key := strings.TrimSpace(string(text))
+	if key == "" {
+		return "", errors.New("no API key: paste it, or send it on stdin")
+	}
+	return key, nil
+}
+
+func authLogout(_ context.Context, cmd *cli.Command) error {
+	host, err := credential.APIHost()
+	if err != nil {
+		return err
+	}
+	store, err := credential.NewStore()
+	if err != nil {
+		return err
+	}
+	removed, err := store.Delete(host)
+	if err != nil {
+		return err
+	}
+	if !removed {
+		_, err = fmt.Fprintf(cmd.Root().Writer, "No API key for %s is stored.\n", host)
+		return err
+	}
+	_, err = fmt.Fprintf(cmd.Root().Writer, "Removed the API key for %s.\n", host)
+	return err
+}
+{{- end }}

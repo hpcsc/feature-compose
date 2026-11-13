@@ -34,15 +34,18 @@ export interface Result {
 }
 
 // runCli does not block, so a fake server in this process can still answer the
-// requests the CLI makes.
+// requests the CLI makes. With no input, stdin stays open, so a CLI that reads
+// stdin does not end.
 export function runCli(
   cwd: string,
   args: string[] = [],
   env: Record<string, string> = {},
   executable = getExecutablePath(),
+  input?: string,
 ): Promise<Result> {
   return new Promise((done, fail) => {
     const child = spawn(executable, args, { cwd, env: { ...process.env, ...env } })
+    if (input !== undefined) child.stdin.end(input)
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', (chunk) => (stdout += chunk))

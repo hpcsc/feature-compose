@@ -131,7 +131,7 @@ files:
   - path: files/oauth/
     when: api-auth.method == "oauth"
   - path: files/store/
-    when: api-auth.method == "oauth"
+    when: api-auth.method == "oauth" || store-key
 
 add_to:
   cli.commands:

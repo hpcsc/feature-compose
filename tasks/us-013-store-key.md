@@ -200,9 +200,11 @@ key", as `storedKey()` of the preset calls it. `options`, `values`, `given` and 
     six files whose texts are mostly the same.
 11. **`files/store/` gets `when: api-auth.method == "oauth" || store-key`** (Task 5), as `PROPOSAL.md:210-211` writes
     it. Its files do not change.
-12. **`golang.org/x/term` `v0.42.0` is an item of `gomod.requires`** (Task 5), because `auth login` of the stored key
-    reads the key from the terminal with it. `v0.42.0` requires the `golang.org/x/sys v0.43.0` of the starter, so a
-    repo with the stored key changes the version of no other module; `v0.48.0` requires `v0.50.0`.
+12. **`golang.org/x/term` `v0.29.0` is an item of `gomod.requires`** (Task 5), because `auth login` of the stored key
+    reads the key from the terminal with it. `v0.29.0` is the version that the module graph of the starter already
+    selects, so `go mod tidy` removes the item from a repo where no file imports it, and the `go.mod` of a repo with
+    `api-key` or `oauth` and no stored key does not change. A higher version, for example `v0.42.0`, stays in each
+    `go.mod` as an indirect requirement.
 13. **The messages of the stored key name `auth login`** (Task 5): `ErrMissing`, as the preset does, and
     `Credential.Refused`, which the catalog adds, for example
     `the API refused the API key from the OS credential store: run "my-service auth login"`. As in the preset, the
@@ -571,24 +573,24 @@ output of `credentialCommand`. `auth logout` removes the stored key, and `auth s
 of `gomod.requires` (decision 12). With `store-key=false`, the repo is the same as today, with no code for the store.
 
 **Acceptance Criteria:**
-- [ ] `catalog/features/cli-auth/feature.yml` has `files/store/` with `when: api-auth.method == "oauth" || store-key`,
-  the item `golang.org/x/term` `v0.42.0` of `gomod.requires`, and a `summary` that names the stored API key.
+- [x] `catalog/features/cli-auth/feature.yml` has `files/store/` with `when: api-auth.method == "oauth" || store-key`,
+  the item `golang.org/x/term` `v0.29.0` of `gomod.requires`, and a `summary` that names the stored API key.
   `task test:catalog` finds no mistake.
-- [ ] With `store-key=false`, the files that `cli-auth` writes with `api-key` and their contents are the same as
+- [x] With `store-key=false`, the files that `cli-auth` writes with `api-key` and their contents are the same as
   today: the tests of `cli-auth` in `TestCatalog` with `api-key` (the files at
   `internal/catalog/catalog_test.go:2276-2300`, the words at `internal/catalog/catalog_test.go:2324-2351`, the docs at
   `internal/catalog/catalog_test.go:2450-2466`) pass with their expected values unchanged. No file holds `keyring`,
   `credential store` or `auth login`, and no Go file imports `github.com/zalando/go-keyring` or `golang.org/x/term`.
-- [ ] With `store-key=true`, the files that `cli-auth` adds are those of `files/common/`, `files/api-key/` and
+- [x] With `store-key=true`, the files that `cli-auth` adds are those of `files/common/`, `files/api-key/` and
   `files/store/` (`store.go`, `store_test.go`, `api_url.go`, `api_url_test.go`), none of `files/oauth/`, and only
   `internal/cli/root.go` and `go.mod` of the starter, `cli` and `api-auth` change. No file holds `issuer`,
   `audience`, `oauth` or `refresh` (in any case), and no Go file imports `golang.org/x/oauth2` or
   `github.com/cli/browser`.
-- [ ] With `store-key=true`, no written file holds `.Scaffold.`, `.Computed.`, `go-cli-project`, `GO_CLI_PROJECT`,
+- [x] With `store-key=true`, no written file holds `.Scaffold.`, `.Computed.`, `go-cli-project`, `GO_CLI_PROJECT`,
   `zzsentinel` or `<no value>`; the Go files of `cli-auth` import only its own packages and `cli`, and only a test
   imports `internal/auth` of `api-auth`; the `go.mod` of the selection requires a version of each module outside the
   standard library that a Go file of `cli-auth` imports.
-- [ ] A repo with `store-key=true`, from the built binary with `--feature cli-auth:store-key=true --no-prompt`, passes
+- [x] A repo with `store-key=true`, from the built binary with `--feature cli-auth:store-key=true --no-prompt`, passes
   `gofmt -l .` with no file, `go build ./...`, and `task test:unit` with `internal/credential`, `internal/apiclient`,
   `internal/auth` and `internal/cli` among the packages that passed. Its unit tests show:
   - **resolve:** `MY_SERVICE_API_KEY` comes first, then the stored key of the host of the API URL, then the output of
@@ -599,20 +601,20 @@ of `gomod.requires` (decision 12). With `store-key=false`, the repo is the same 
   - **API client:** a key stored for the host of the API reaches the handler behind `auth.Middleware` of `api-auth`
     with `api-key` through `apiclient.Do`; `MY_SERVICE_API_KEY` wins over the stored key; a stored key that the API
     does not know fails the call, and the message names the source of the key and `my-service auth login`.
-- [ ] With `store-key=true`, the root command lists `auth` after `version` and `update`, and `auth` has `status`,
+- [x] With `store-key=true`, the root command lists `auth` after `version` and `update`, and `auth` has `status`,
   `login` and `logout`, and no `token`. `auth status` never prints the key. The CLI has no flag for a key.
-- [ ] With `store-key=true`, `e2e/tests/auth.test.ts` of the written repo, with `MY_SERVICE_CREDENTIAL_STORE=file`:
+- [x] With `store-key=true`, `e2e/tests/auth.test.ts` of the written repo, with `MY_SERVICE_CREDENTIAL_STORE=file`:
   `auth login` stores the key that it reads from stdin in `credentials.json` with the mode `0600`, and `auth status`
   then names that file; `MY_SERVICE_API_KEY` wins over the stored key; a key stored for another host is not given;
   `auth logout` removes the key, and with no stored key it says that none is stored; with no source, the message
   names `my-service auth login`. `task test:e2e:local` of the written repo passes on the host with
   `tests/auth.test.ts` among the files that passed.
-- [ ] With `store-key=true`, `docs/cli-auth.md` names the method `api-key` and tells a user how to store the key with
+- [x] With `store-key=true`, `docs/cli-auth.md` names the method `api-key` and tells a user how to store the key with
   `auth login` (in the terminal, or on stdin), what `auth status` and `auth logout` do, where the key is, and the order
   of `MY_SERVICE_API_KEY`, the stored key and `credentialCommand`. It tells a developer the setting of the API URL
   with its constant and its variable, how a command gives the API client `credential.APIURL()`, the store and its
   limits (`tasks/learnings.md:458-463`), and the tests. It names only files that the repo has.
-- [ ] An e2e full run, `new go-event-sourcing-service my-service --feature cli-auth:store-key=true --no-prompt`:
+- [x] An e2e full run, `new go-event-sourcing-service my-service --feature cli-auth:store-key=true --no-prompt`:
   - ends with the exit status 0, and writes `.feature-compose.yml` with `cli-auth:\n    store-key: "true"`;
   - gives a `go.mod` that requires `github.com/zalando/go-keyring` and `golang.org/x/term` at the versions of their
     items, read from the JSON of `show`, and neither `golang.org/x/oauth2` nor `github.com/cli/browser`;
@@ -627,13 +629,13 @@ of `gomod.requires` (decision 12). With `store-key=false`, the repo is the same 
   - with `MY_SERVICE_API_KEY` of a key that the API does not know, the call fails and the message names
     `MY_SERVICE_API_KEY`, so the variable still comes first;
   - runs `auth logout`, which ends with 0, and the next call fails with a message that names `my-service auth login`.
-- [ ] The full run of `cli-auth` with `api-key` checks that the `go.mod` of the repo requires none of
+- [x] The full run of `cli-auth` with `api-key` checks that the `go.mod` of the repo requires none of
   `github.com/zalando/go-keyring`, `golang.org/x/term`, `golang.org/x/oauth2` and `github.com/cli/browser`. The full
   run of `oauth` checks the modules that its Go files import, at the versions of their items, and passes.
-- [ ] `README.md`: the table of the features says that `cli-auth` can keep the API key in the OS credential store with
+- [x] `README.md`: the table of the features says that `cli-auth` can keep the API key in the OS credential store with
   `store-key`. `docs/catalog.md` shows `files/store/` with its `when` in the `feature.yml` of `cli-auth`.
   `docs/e2e-tests.md` tells the full run of the stored key.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, `task test:catalog` finds no mistake,
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, `task test:catalog` finds no mistake,
   `task test:combinations` passes with `go-event-sourcing-service --feature cli-auth:store-key=true` among the
   combinations, and the e2e tests of `new`, `show` and `check` pass.
 

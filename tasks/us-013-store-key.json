@@ -163,7 +163,7 @@
     },
     {
       "n": 5,
-      "done": false,
+      "done": true,
       "title": "Keep the API key in the OS credential store with `store-key=true`",
       "language": "Go",
       "testable": true,

@@ -1,3 +1,4 @@
+{{- $stored := eq (option "store-key") "true" -}}
 //go:build unit
 
 package apiclient_test
@@ -65,6 +66,10 @@ func isolate(t *testing.T) string {
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", home)
 	t.Setenv(variable, "")
+{{- if $stored }}
+	t.Setenv("{{ upper (snake .Name) }}_API_URL", "https://api.example.test")
+	t.Setenv("{{ upper (snake .Name) }}_CREDENTIAL_STORE", "file")
+{{- end }}
 	return filepath.Join(home, "{{ kebab .Name }}")
 }
 
@@ -213,6 +218,48 @@ func TestClient(t *testing.T) {
 			require.ErrorContains(t, err, "the API refused the API key from "+variable+": set "+variable)
 		})
 
+{{ if $stored -}}
+		t.Run("a key stored for the host of the API reaches the handler, and {{ upper (snake .Name) }}_API_KEY wins over it", func(t *testing.T) {
+			isolate(t)
+			started := startedAPI(t)
+			t.Setenv("{{ upper (snake .Name) }}_API_URL", started.url)
+			store, err := credential.NewStore()
+			require.NoError(t, err)
+			_, err = store.Set(strings.TrimPrefix(started.url, "http://"), knownKey)
+			require.NoError(t, err)
+			client := apiclient.New(started.url)
+
+			stored, err := client.Do(t.Context(), http.MethodGet, "/accounts/1", nil)
+			require.NoError(t, err)
+			stored.Body.Close()
+			t.Setenv(variable, otherKey)
+			fromVariable, err := client.Do(t.Context(), http.MethodGet, "/accounts/1", nil)
+			require.NoError(t, err)
+			fromVariable.Body.Close()
+
+			require.Equal(t, [][]string{
+				{"Bearer " + knownKey},
+				{"Bearer " + otherKey},
+			}, started.authorizations)
+		})
+
+		t.Run("a stored key that the API does not know fails the call, and the message names the source of the key and auth login", func(t *testing.T) {
+			dir := isolate(t)
+			started := startedAPI(t)
+			t.Setenv("{{ upper (snake .Name) }}_API_URL", started.url)
+			store, err := credential.NewStore()
+			require.NoError(t, err)
+			_, err = store.Set(strings.TrimPrefix(started.url, "http://"), "a-key-that-the-api-does-not-know")
+			require.NoError(t, err)
+
+			response, err := apiclient.New(started.url).Do(t.Context(), http.MethodPost, "/accounts", nil)
+
+			require.Nil(t, response)
+			require.ErrorIs(t, err, credential.ErrRefused)
+			require.ErrorContains(t, err, "the API refused the API key from "+filepath.Join(dir, "credentials.json")+`: run "{{ kebab .Name }} auth login"`)
+		})
+
+{{ end -}}
 		t.Run("with no key, the call fails before a request reaches the API, and the error says how to give the key", func(t *testing.T) {
 			isolate(t)
 			started := startedAPI(t)

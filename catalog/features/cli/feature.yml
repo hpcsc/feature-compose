@@ -4,6 +4,11 @@ targets: [go, go-event-sourcing-service]
 files:
   - path: files/
 
+add_to:
+  taskfile.flat_includes:
+    - name: cli
+      taskfile: Taskfile.cli.yml
+
 extension_points:
   cli.commands:
     summary: An expression of type *cli.Command.
@@ -12,5 +17,8 @@ extension_points:
 
 delimiters:
   - glob: go/.goreleaser.yaml
+    left: "[["
+    right: "]]"
+  - glob: go/Taskfile.cli.yml
     left: "[["
     right: "]]"

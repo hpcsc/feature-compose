@@ -1,0 +1,234 @@
+{
+  "story": "Build, test and release the CLI with the tasks and the CI of the repo",
+  "story_id": "feature-compose/US-022",
+  "tasks_file": "tasks/us-022-cli-tasks-ci.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Build, run and snapshot the CLI with `task build`, `task cli` and `task release:local`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "catalog/starters/go-event-sourcing-service/files/go/Taskfile.yml:3-10",
+        "catalog/starters/go-event-sourcing-service/starter.yml:67-70",
+        "catalog/features/process-manager/feature.yml:91-93",
+        "catalog/features/cli/feature.yml:13-16",
+        "Taskfile.yml:7-17",
+        "Taskfile.release.yml:1-6",
+        "internal/catalog/catalog_test.go:1071-1107",
+        "internal/catalog/catalog_test.go:1229-1240",
+        "internal/catalog/catalog_test.go:1528-1584",
+        "internal/catalog/catalog_test.go:1848-1859",
+        "internal/catalog/catalog_test.go:2223-2242",
+        "e2e/tests/new.test.ts:82-109",
+        "e2e/tests/new.test.ts:111-152",
+        "e2e/tests/new.test.ts:443-467",
+        "e2e/tests/show.test.ts:48-66",
+        "docs/e2e-tests.md:80-110",
+        "tasks/learnings.md:16-21",
+        "tasks/learnings.md:30-35",
+        "tasks/learnings.md:37-42",
+        "tasks/learnings.md:58-63",
+        "tasks/learnings.md:127-132",
+        "tasks/learnings.md:362-367",
+        "tasks/learnings.md:285-290",
+        "tasks/learnings.md:341-346"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "catalog/starters/go/starter.yml",
+        "catalog/starters/go/files/go/Taskfile.yml",
+        "catalog/starters/go-event-sourcing-service/starter.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/Taskfile.yml",
+        "catalog/features/cli/feature.yml",
+        "catalog/features/cli/files/go/Taskfile.cli.yml",
+        "catalog/features/cli/files/go/docs/cli.md",
+        "internal/catalog/catalog_test.go",
+        "e2e/tests/new.test.ts",
+        "e2e/tests/show.test.ts",
+        "docs/e2e-tests.md"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Run the end-to-end tests of the CLI with `task test:e2e` and `task test:e2e:local`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1",
+        "Taskfile.test.yml:3-4",
+        "Taskfile.test.yml:21-33",
+        "catalog/features/cli/files/go/docs/cli.md:73-90",
+        "catalog/features/cli/files/go/docs/e2e-tests.md:78-87",
+        "catalog/features/cli/files/go/e2e/Dockerfile",
+        "internal/catalog/catalog_test.go:1607-1619",
+        "e2e/tests/new.test.ts:111-152",
+        "e2e/tests/new.test.ts:930-933",
+        "e2e/Dockerfile:17-35",
+        "docs/e2e-tests.md:80-110",
+        "tasks/learnings.md:51-56",
+        "tasks/learnings.md:58-63",
+        "tasks/learnings.md:127-132",
+        "tasks/learnings.md:362-367"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/features/cli/files/go/Taskfile.cli.yml",
+        "catalog/features/cli/files/go/docs/cli.md",
+        "catalog/features/cli/files/go/docs/e2e-tests.md",
+        "internal/catalog/catalog_test.go",
+        "e2e/tests/new.test.ts",
+        "docs/e2e-tests.md"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Install GoReleaser and Node with `mise install`, and keep `dist/` and `e2e/node_modules/` out of git",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1",
+        "catalog/starters/go-event-sourcing-service/files/go/docker-compose.local.yml:30-32",
+        "catalog/starters/go-event-sourcing-service/starter.yml:75-78",
+        "catalog/features/process-manager/feature.yml:96-104",
+        "mise.toml:1-7",
+        ".gitignore:22-27",
+        "internal/catalog/catalog_test.go:1229-1240",
+        "e2e/tests/new.test.ts:111-152",
+        "tasks/learnings.md:37-42",
+        "tasks/learnings.md:127-132"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/starters/go/starter.yml",
+        "catalog/starters/go-event-sourcing-service/starter.yml",
+        "catalog/starters/go/files/go/mise.toml",
+        "catalog/starters/go-event-sourcing-service/files/go/mise.toml",
+        "catalog/starters/go/files/go/.gitignore",
+        "catalog/starters/go-event-sourcing-service/files/go/.gitignore",
+        "catalog/features/cli/feature.yml",
+        "internal/catalog/catalog_test.go",
+        "e2e/tests/new.test.ts",
+        "e2e/tests/show.test.ts",
+        "docs/e2e-tests.md"
+      ]
+    },
+    {
+      "n": 4,
+      "done": false,
+      "title": "Fix the version of each module that the CLI imports in `go.mod`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1",
+        "catalog/starters/go-event-sourcing-service/files/go/go.mod.tmpl:5-13",
+        "catalog/starters/go/files/go/go.mod.tmpl:1-5",
+        "catalog/starters/go-event-sourcing-service/files/go/docker-compose.local.yml:30-32",
+        "go.mod:5-16",
+        "internal/catalog/catalog_test.go:1452-1471",
+        "internal/catalog/catalog_test.go:1717-1738",
+        "e2e/tests/new.test.ts:469-494",
+        "e2e/tests/new.test.ts:195-200",
+        "tasks/learnings.md:58-63",
+        "tasks/learnings.md:127-132"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/starters/go/starter.yml",
+        "catalog/starters/go-event-sourcing-service/starter.yml",
+        "catalog/starters/go/files/go/go.mod.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/go.mod.tmpl",
+        "catalog/features/cli/feature.yml",
+        "internal/catalog/catalog_test.go",
+        "e2e/tests/new.test.ts",
+        "e2e/tests/show.test.ts",
+        "docs/e2e-tests.md"
+      ]
+    },
+    {
+      "n": 5,
+      "done": false,
+      "title": "Add the extension point `ci.jobs`, and run the end-to-end tests of the CLI in the CI workflow",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:2",
+        "catalog/starters/go-event-sourcing-service/files/go/docker-compose.local.yml:33-36",
+        "catalog/starters/go-event-sourcing-service/files/go/Taskfile.api.yml:64-67",
+        "catalog/starters/go-event-sourcing-service/starter.yml:79-82",
+        "catalog/features/process-manager/feature.yml:105-109",
+        ".github/workflows/ci.yml:62-74",
+        "internal/catalog/catalog_test.go:1198-1216",
+        "internal/catalog/catalog_test.go:1229-1240",
+        "e2e/tests/new.test.ts:82-109",
+        "docs/catalog.md:187-231",
+        "PROPOSAL.md:544-571",
+        "tasks/learnings.md:16-21",
+        "tasks/learnings.md:127-132"
+      ],
+      "depends_on": [
+        2
+      ],
+      "affected_files": [
+        "catalog/starters/go/starter.yml",
+        "catalog/starters/go-event-sourcing-service/starter.yml",
+        "catalog/starters/go/files/go/.github/workflows/ci.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/.github/workflows/ci.yml",
+        "catalog/features/cli/feature.yml",
+        "catalog/features/cli/files/go/docs/e2e-tests.md",
+        "internal/catalog/catalog_test.go",
+        "e2e/tests/new.test.ts",
+        "e2e/tests/show.test.ts",
+        "docs/catalog.md",
+        "PROPOSAL.md"
+      ]
+    },
+    {
+      "n": 6,
+      "done": false,
+      "title": "Publish a release for each version tag and a prerelease for each push to `main`, after the tests pass",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "task:5",
+        ".github/workflows/release.yml:1-45",
+        ".github/workflows/prerelease.yml:1-66",
+        "catalog/features/cli/files/go/.goreleaser.yaml:18-38",
+        "catalog/features/cli/files/go/docs/cli.md:58-71",
+        "internal/catalog/catalog_test.go:1198-1216",
+        "e2e/tests/new.test.ts:111-152",
+        "tasks/learnings.md:30-35"
+      ],
+      "depends_on": [
+        5
+      ],
+      "affected_files": [
+        "catalog/features/cli/feature.yml",
+        "catalog/features/cli/files/go/docs/cli.md",
+        "internal/catalog/catalog_test.go"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-022-cli-tasks-ci.design.yaml"
+}

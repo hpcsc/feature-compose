@@ -14,6 +14,12 @@ folders:
     after_render: [go mod tidy, gofmt -w .]
     test: [task test:unit]
 
+extension_points:
+  taskfile.flat_includes:
+    summary: A Taskfile of a feature that Taskfile.yml includes with flatten, so that its tasks keep their own names. name is the key of the include, and taskfile is its path in the repo. A task name of the Taskfile must not be a task name of the starter.
+    file: go/Taskfile.yml
+    item: [name, taskfile]
+
 delimiters:
   - glob: "go/**/Taskfile*.yml"
     left: "[["

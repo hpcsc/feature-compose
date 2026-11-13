@@ -88,20 +88,24 @@ first makes the repo from the starter alone:
 3. `task test:unit` stops with the exit status 0, and the output of gotestsum shows that the tests of the example
    package `internal/greeting` ran and passed.
 4. `task --list-all` names each task that `.github/workflows/ci.yml` and `scripts/libs/git-hook-prepush.sh` of the
-   repo call. The test takes the names from the two files.
+   repo call. The test takes the names from the two files. It names no task `build`, `cli` or `release:local`,
+   because these tasks come from `cli`.
 
 The second adds `--feature cli`, and makes a CLI in its own repo:
 
 1. `gofmt -l .` lists no file, and `go build ./...` builds.
 2. `task test:unit` stops with the exit status 0. The output of gotestsum shows that the tests of
    `internal/greeting` and of each package under `internal/cli` that has a test file ran and passed.
-3. `go run ./cmd/my-tool` with no command prints the commands of the CLI, which are only `version`, `update`
-   and `help`.
-4. `goreleaser release --snapshot --clean` makes a snapshot of the repo. For each `goos` and `goarch` of the
+3. `task build` builds `bin/my-tool`. With no command, it prints the commands of the CLI, which are only
+   `version`, `update` and `help`. `task cli -- --help` runs the CLI from the source and prints the same
+   commands.
+4. `task --list-all` names each task that the `docs/cli.md` of the repo names, and the doc names `build`, `cli`
+   and `release:local`.
+5. `task release:local` makes a GoReleaser snapshot of the repo. For each `goos` and `goarch` of the
    `.goreleaser.yaml` of the repo, `dist/` has the archive `my-tool-<goos>-<goarch>.tar.gz`, the name that
    `update` and `scripts/install.sh` download. `dist/checksums.txt` has the SHA-256 of each archive, which the
    test calculates from the file.
-5. The binary in the archive for the platform of the test prints the tag of the snapshot for `version`. So the
+6. The binary in the archive for the platform of the test prints the tag of the snapshot for `version`. So the
    ldflag of `.goreleaser.yaml` sets the version.
 
 The other six make a repo from `go-event-sourcing-service`. The first makes the repo from the starter alone:
@@ -109,8 +113,8 @@ The other six make a repo from `go-event-sourcing-service`. The first makes the 
 1. `feature-compose new go-event-sourcing-service my-service --no-prompt` makes the repo. Its `after_render`
    commands run `go mod tidy`, which downloads the modules of the repo.
 2. `gofmt -l .` lists no file.
-3. `task --list` and `task test:unit` stop with the exit status 0. `task test:unit` runs gotestsum, and
-   gotestsum runs `go test -race`, which needs a C compiler.
+3. `task --list-all` names `run`, and no task `build`, `cli` or `release:local`. `task test:unit` stops with
+   the exit status 0. It runs gotestsum, and gotestsum runs `go test -race`, which needs a C compiler.
 4. The test starts the API of the repo. `GET /api/` gets 200, and `POST /api/accounts` with no `Authorization`
    header gets the answer 400 of the handler. The API of a repo without `api-auth` accepts each request. Each
    route of the API is under `/api`, so `POST /accounts` gets 404.
@@ -158,8 +162,11 @@ The next adds `--feature cli`, and checks that the feature fits the starter:
 2. `task test:unit` stops with the exit status 0. The output of gotestsum shows that the tests of the CLI
    under `internal/cli` and of the service ran and passed. A package whose tests the build tags exclude does
    not count.
-3. `go run ./cmd/my-service` with no command prints the commands of the CLI, which are only `version`,
-   `update` and `help`, and reads no input.
+3. `task build` builds `bin/my-service`. With no command, it prints the commands of the CLI, which are only
+   `version`, `update` and `help`, and reads no input. `task cli -- --help` runs the CLI from the source and
+   prints the same commands.
+4. `task --dry run` prints the `tmuxp load` of the starter. So `task run` still starts the service, and the
+   tasks of `cli` keep names that the starter does not use.
 
 The next adds only `--feature cli-auth`, which needs `cli` and `api-auth`:
 

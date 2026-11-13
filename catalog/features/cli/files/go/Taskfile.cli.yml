@@ -1,0 +1,17 @@
+version: '3'
+
+tasks:
+  build:
+    cmds:
+      - mkdir -p ./bin
+      - go build -o ./bin/[[ kebab .Name ]] ./cmd/[[ kebab .Name ]]
+    env:
+      CGO_ENABLED: '0'
+
+  cli:
+    cmds:
+      - go run ./cmd/[[ kebab .Name ]] {{.CLI_ARGS}}
+
+  release:local:
+    cmds:
+      - goreleaser release --snapshot --clean

@@ -41,7 +41,7 @@ describe('feature-compose new', () => {
   })
 
   it(
-    'makes a repo from go-event-sourcing-service that is formatted and passes its unit tests',
+    'makes a repo from go-event-sourcing-service that is formatted, passes its unit tests, and has no task of cli',
     async () => {
       const dir = scratchDir()
       // the new repo has its own mise.toml, and mise refuses a config that nobody trusted. mise compares
@@ -56,8 +56,12 @@ describe('feature-compose new', () => {
       expect(existsSync(join(repo, 'go.sum'))).toBe(true)
       const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
       expect(unformatted).toMatchObject({ status: 0, stdout: '' })
-      const list = await runProgram(repo, 'task', ['--list'], env)
+      const list = await runProgram(repo, 'task', ['--list-all'], env)
       expect(list.status, list.stdout + list.stderr).toBe(0)
+      expect(tasksIn(list.stdout)).toContain('run')
+      for (const name of ['build', 'cli', 'release:local']) {
+        expect(tasksIn(list.stdout)).not.toContain(name)
+      }
       const unit = await runProgram(repo, 'task', ['test:unit'], env)
       expect(unit.status, unit.stdout + unit.stderr).toBe(0)
       const api = await startedApi(repo, env)
@@ -80,7 +84,7 @@ describe('feature-compose new', () => {
   )
 
   it(
-    'makes a repo from go that is formatted, builds, passes the unit tests of its example package, and has each task that its CI workflow and its hook call',
+    'makes a repo from go that is formatted, builds, passes the unit tests of its example package, has each task that its CI workflow and its hook call, and has no task of cli',
     async () => {
       const dir = scratchDir()
       const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
@@ -104,12 +108,15 @@ describe('feature-compose new', () => {
       )
       expect(called).toContain('test:unit')
       expect(tasksIn(list.stdout)).toEqual(expect.arrayContaining(called))
+      for (const name of ['build', 'cli', 'release:local']) {
+        expect(tasksIn(list.stdout)).not.toContain(name)
+      }
     },
     15 * 60 * 1000,
   )
 
   it(
-    'makes a CLI repo from go with cli that builds, passes the unit tests of the starter and of the CLI, runs the CLI, and whose GoReleaser snapshot has the archives and the checksums that update and the installer download',
+    'makes a CLI repo from go with cli that builds, passes the unit tests of the starter and of the CLI, builds and runs the CLI with its tasks, and whose snapshot from task release:local has the archives and the checksums that update and the installer download',
     async () => {
       const dir = scratchDir()
       const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
@@ -127,11 +134,14 @@ describe('feature-compose new', () => {
       const testedCLIPackages = foldersWithTests(repo, 'internal/cli')
       expect(testedCLIPackages).toContain('internal/cli')
       expect(passedPackages(unit.stdout)).toEqual(expect.arrayContaining(['internal/greeting', ...testedCLIPackages]))
-      const cli = await runProgram(repo, 'go', ['run', './cmd/my-tool'], env)
-      expect(cli.status, cli.stdout + cli.stderr).toBe(0)
-      expect(commandsIn(cli.stdout)).toEqual(['version', 'update', 'help, h'])
+      expect(await commandsOfTheBuiltCLI(repo, 'my-tool', env)).toEqual(['version', 'update', 'help, h'])
+      expect(await commandsOfTheCLIFromTheSource(repo, env)).toEqual(['version', 'update', 'help, h'])
+      const list = await runProgram(repo, 'task', ['--list-all'], env)
+      const named = [...readFileSync(join(repo, 'docs', 'cli.md'), 'utf8').matchAll(/(?:^|`)task ([a-z0-9:_-]+)/gm)].map((match) => match[1])
+      expect(named).toEqual(expect.arrayContaining(['build', 'cli', 'release:local']))
+      expect(tasksIn(list.stdout)).toEqual(expect.arrayContaining(named))
 
-      const snapshot = await runProgram(repo, 'goreleaser', ['release', '--snapshot', '--clean'], env)
+      const snapshot = await runProgram(repo, 'task', ['release:local'], env)
 
       expect(snapshot.status, snapshot.stdout + snapshot.stderr).toBe(0)
       const config = readFileSync(join(repo, '.goreleaser.yaml'), 'utf8')
@@ -441,7 +451,7 @@ describe('feature-compose new', () => {
   })
 
   it(
-    'makes a repo with cli that builds, passes the unit tests of the service and of the CLI, and runs the CLI',
+    'makes a repo with cli that builds, passes the unit tests of the service and of the CLI, builds and runs the CLI with its tasks, and whose task run still starts the service',
     async () => {
       const dir = scratchDir()
       const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
@@ -459,9 +469,11 @@ describe('feature-compose new', () => {
       expect(passedPackages(unit.stdout)).toEqual(
         expect.arrayContaining(['internal/cli', 'internal/cli/release', 'internal/cli/version', 'internal/cli/progress', 'internal/use_cases/account', 'internal/domain/projection']),
       )
-      const cli = await runProgram(repo, 'go', ['run', './cmd/my-service'], env)
-      expect(cli.status, cli.stdout + cli.stderr).toBe(0)
-      expect(commandsIn(cli.stdout)).toEqual(['version', 'update', 'help, h'])
+      expect(await commandsOfTheBuiltCLI(repo, 'my-service', env)).toEqual(['version', 'update', 'help, h'])
+      expect(await commandsOfTheCLIFromTheSource(repo, env)).toEqual(['version', 'update', 'help, h'])
+      const run = await runProgram(repo, 'task', ['--dry', 'run'], env)
+      expect(run.status, run.stdout + run.stderr).toBe(0)
+      expect(run.stdout + run.stderr).toContain('tmuxp load -a .tmuxp.yaml')
     },
     15 * 60 * 1000,
   )
@@ -972,6 +984,20 @@ function detailsPaneOf(screen: string): string {
     .map((line) => (line.split('││')[1] ?? '').replace(/│\s*$/, '').trim())
     .join(' ')
     .replace(/\s+/g, ' ')
+}
+
+async function commandsOfTheBuiltCLI(repo: string, name: string, env: Record<string, string>): Promise<string[]> {
+  const build = await runProgram(repo, 'task', ['build'], env)
+  expect(build.status, build.stdout + build.stderr).toBe(0)
+  const help = await runProgram(repo, join(repo, 'bin', name), [], env)
+  expect(help.status, help.stdout + help.stderr).toBe(0)
+  return commandsIn(help.stdout)
+}
+
+async function commandsOfTheCLIFromTheSource(repo: string, env: Record<string, string>): Promise<string[]> {
+  const help = await runProgram(repo, 'task', ['cli', '--', '--help'], env)
+  expect(help.status, help.stdout + help.stderr).toBe(0)
+  return commandsIn(help.stdout)
 }
 
 function commandsIn(help: string): string[] {

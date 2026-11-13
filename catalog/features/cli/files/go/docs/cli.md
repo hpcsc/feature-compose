@@ -28,8 +28,8 @@ machine.
 ## Build
 
 ```shell
-CGO_ENABLED=0 go build -o ./bin/{{ kebab .Name }} ./cmd/{{ kebab .Name }}    # build ./bin/{{ kebab .Name }}
-go run ./cmd/{{ kebab .Name }} --help                          # run the CLI from the source
+task build             # build ./bin/{{ kebab .Name }}
+task cli -- --help     # run the CLI from the source, with the arguments after --
 ```
 
 ## Version and update
@@ -59,7 +59,7 @@ replace it unless you add `--force`.
 
 GoReleaser builds the releases from `.goreleaser.yaml`.
 
-- Make a snapshot build under `./dist`: `goreleaser release --snapshot --clean`
+- Make a snapshot build under `./dist`: `task release:local`
 - Publish a release: tag the commit, then run GoReleaser with a `GITHUB_TOKEN` that can write releases.
 
 ```shell

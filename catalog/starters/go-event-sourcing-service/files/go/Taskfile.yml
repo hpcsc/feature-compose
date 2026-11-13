@@ -8,6 +8,11 @@ includes:
 [[- range items "taskfile.includes" ]]
   [[ .name ]]: [[ .taskfile ]]
 [[- end ]]
+[[- range items "taskfile.flat_includes" ]]
+  [[ .name ]]:
+    taskfile: [[ .taskfile ]]
+    flatten: true
+[[- end ]]
 
 tasks:
   test:shellcheck:

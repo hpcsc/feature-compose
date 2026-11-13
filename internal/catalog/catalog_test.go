@@ -1525,38 +1525,59 @@ files:
 			return definitions.Features["cli"].Targets
 		}
 
-		addedByCLI := func(t *testing.T, starterName string, given map[string]string) map[string]string {
+		writtenTarget := func(t *testing.T, starterName string, given map[string]string, features map[string]map[string]string) map[string]string {
 			t.Helper()
-			written := func(features map[string]map[string]string) map[string]string {
-				starter, err := repoCatalog().Starter(starterName)
-				require.NoError(t, err)
-				selection, err := starter.Select("my-tool", given, features, catalog.Answers{})
-				require.NoError(t, err)
-				output := filepath.Join(t.TempDir(), "my-tool")
-				require.NoError(t, selection.Write(output))
-				return filesIn(t, output)
-			}
-			withoutCLI := written(nil)
-			withCLI := written(withoutValues("cli"))
-			added := map[string]string{}
-			for path, contents := range withCLI {
-				if before, ok := withoutCLI[path]; ok {
-					require.Equal(t, before, contents, starterName+": "+path)
-				} else {
-					added[path] = contents
-				}
-			}
-			require.Len(t, withCLI, len(withoutCLI)+len(added), starterName)
-			return added
+			starter, err := repoCatalog().Starter(starterName)
+			require.NoError(t, err)
+			selection, err := starter.Select("my-tool", given, features, catalog.Answers{})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-tool")
+			require.NoError(t, selection.Write(output))
+			return filesIn(t, output)
 		}
 
-		t.Run("cli adds each of its files at its path to each of its targets, go among them, and the files of the target stay as without cli", func(t *testing.T) {
+		extensionPointFilesOfCLI := func(t *testing.T, starterName string) []string {
+			t.Helper()
+			definitions, err := repoCatalog().Definitions()
+			require.NoError(t, err)
+			var files []string
+			for name := range definitions.Features["cli"].AddTo {
+				files = append(files, strings.TrimPrefix(definitions.Starters[starterName].ExtensionPoints[name].File, "go/"))
+			}
+			return slices.Compact(slices.Sorted(slices.Values(files)))
+		}
+
+		changesByCLI := func(t *testing.T, starterName string, given map[string]string) (added map[string]string, changed []string, removed []string) {
+			t.Helper()
+			withoutCLI := writtenTarget(t, starterName, given, nil)
+			withCLI := writtenTarget(t, starterName, given, withoutValues("cli"))
+			added = map[string]string{}
+			for path, contents := range withCLI {
+				before, ok := withoutCLI[path]
+				switch {
+				case !ok:
+					added[path] = contents
+				case before != contents:
+					changed = append(changed, path)
+				}
+			}
+			for path := range withoutCLI {
+				if _, ok := withCLI[path]; !ok {
+					removed = append(removed, path)
+				}
+			}
+			return added, changed, removed
+		}
+
+		t.Run("cli adds each of its files at its path to each of its targets, go among them, and of the files of the target it changes only the file of each extension point that it adds items to", func(t *testing.T) {
 			targets := targetsOfCLI(t)
 
 			require.Contains(t, targets, "go")
 			for _, starterName := range targets {
+				added, changed, removed := changesByCLI(t, starterName, nil)
+
 				require.ElementsMatch(t, []string{
-					".dockerignore", ".goreleaser.yaml", "scripts/install.sh",
+					".dockerignore", ".goreleaser.yaml", "scripts/install.sh", "Taskfile.cli.yml",
 					"cmd/my-tool/main.go",
 					"internal/cli/adapter.go", "internal/cli/adapter_test.go", "internal/cli/root.go", "internal/cli/update.go",
 					"internal/cli/progress/line.go", "internal/cli/progress/line_test.go",
@@ -1565,7 +1586,10 @@ files:
 					"docs/cli.md", "docs/e2e-tests.md",
 					"e2e/Dockerfile", "e2e/package.json", "e2e/testUtils.ts", "e2e/tsconfig.json", "e2e/vitest.config.ts",
 					"e2e/tests/cli.test.ts", "e2e/tests/update.test.ts",
-				}, slices.Collect(maps.Keys(addedByCLI(t, starterName, nil))), starterName)
+				}, slices.Collect(maps.Keys(added)), starterName)
+				require.Contains(t, changed, "Taskfile.yml", starterName)
+				require.ElementsMatch(t, extensionPointFilesOfCLI(t, starterName), changed, starterName)
+				require.Empty(t, removed, starterName)
 			}
 		})
 
@@ -1576,10 +1600,11 @@ files:
 			t.Run("cli adds the same files with the same contents to each two of its targets, "+name, func(t *testing.T) {
 				targets := targetsOfCLI(t)
 				require.GreaterOrEqual(t, len(targets), 2)
-				first := addedByCLI(t, targets[0], given)
+				first, _, _ := changesByCLI(t, targets[0], given)
 
 				for _, starterName := range targets[1:] {
-					require.Equal(t, first, addedByCLI(t, starterName, given), targets[0]+" and "+starterName)
+					added, _, _ := changesByCLI(t, starterName, given)
+					require.Equal(t, first, added, targets[0]+" and "+starterName)
 				}
 			})
 		}
@@ -1845,17 +1870,46 @@ files:
 			}
 		})
 
-		t.Run("the docs of cli name no task or workflow that a repo of any target of cli lacks", func(t *testing.T) {
+		t.Run("the docs of cli name the tasks build, cli and release:local, and each task that they name is a task of each target of cli", func(t *testing.T) {
 			for _, starterName := range targetsOfCLI(t) {
-				added := addedByCLI(t, starterName, nil)
+				files := writtenTarget(t, starterName, nil, withoutValues("cli"))
 
+				var named []string
 				for _, path := range []string{"docs/cli.md", "docs/e2e-tests.md"} {
-					require.Contains(t, added, path, starterName)
-					for _, missing := range []string{"task ", "Taskfile", ".github/workflows", "release:local"} {
-						require.NotContains(t, added[path], missing, starterName+": "+path)
+					require.Contains(t, files, path, starterName)
+					for _, match := range regexp.MustCompile("(?m)(?:^|`)task ([a-z0-9:_-]+)").FindAllStringSubmatch(files[path], -1) {
+						named = append(named, match[1])
 					}
 				}
+				require.Subset(t, named, []string{"build", "cli", "release:local"}, starterName)
+				require.Subset(t, tasksOf(t, files), named, starterName)
 			}
+		})
+
+		t.Run("with cli, each target has the tasks of Taskfile.cli.yml, build, cli and release:local among them, and without cli it has none of them", func(t *testing.T) {
+			for _, starterName := range targetsOfCLI(t) {
+				withCLI := writtenTarget(t, starterName, nil, withoutValues("cli"))
+				withoutCLI := tasksOf(t, writtenTarget(t, starterName, nil, nil))
+
+				cliTasks := slices.Collect(maps.Keys(parsedYAML(t, withCLI["Taskfile.cli.yml"])["tasks"].(map[string]any)))
+				require.Subset(t, cliTasks, []string{"build", "cli", "release:local"}, starterName)
+				for _, name := range cliTasks {
+					require.NotContains(t, withoutCLI, name, starterName)
+				}
+				require.ElementsMatch(t, append(withoutCLI, cliTasks...), tasksOf(t, withCLI), starterName)
+			}
+		})
+
+		t.Run("Taskfile.cli.yml builds the CLI into bin with the kebab-case name of the repo, runs it from the source with the arguments of task, and makes a GoReleaser snapshot", func(t *testing.T) {
+			_, files := writtenWithCLI(t, "MyService.v2", nil)
+
+			tasks := parsedYAML(t, files["Taskfile.cli.yml"])["tasks"].(map[string]any)
+			require.Equal(t, map[string]any{
+				"cmds": []any{"mkdir -p ./bin", "go build -o ./bin/my-service-v2 ./cmd/my-service-v2"},
+				"env":  map[string]any{"CGO_ENABLED": "0"},
+			}, tasks["build"])
+			require.Equal(t, map[string]any{"cmds": []any{"go run ./cmd/my-service-v2 {{.CLI_ARGS}}"}}, tasks["cli"])
+			require.Equal(t, map[string]any{"cmds": []any{"goreleaser release --snapshot --clean"}}, tasks["release:local"])
 		})
 
 		for module, repository := range map[string][2]string{
@@ -1998,6 +2052,12 @@ files:
 
 			require.Contains(t, files["Taskfile.test.yml"], "{{.CLI_ARGS}}")
 			require.Contains(t, files[".github/workflows/ci.yml"], "${{ secrets.GITHUB_TOKEN }}")
+		})
+
+		t.Run("with no item, the Taskfile of go includes only the tests of the starter", func(t *testing.T) {
+			_, files := writtenGo(t, nil)
+
+			require.Contains(t, files["Taskfile.yml"], "includes:\n  test: Taskfile.test.yml\n\ntasks:\n")
 		})
 
 		t.Run("no file of go holds a value of scaffold", func(t *testing.T) {
@@ -2222,20 +2282,33 @@ files:
 
 func tasksOf(t *testing.T, files map[string]string) []string {
 	t.Helper()
+	type include struct {
+		Taskfile string `yaml:"taskfile"`
+		Flatten  bool   `yaml:"flatten"`
+	}
 	type taskfile struct {
-		Includes map[string]string    `yaml:"includes"`
+		Includes map[string]yaml.Node `yaml:"includes"`
 		Tasks    map[string]yaml.Node `yaml:"tasks"`
 	}
 	read := func(path string) taskfile {
 		var parsed taskfile
+		require.Contains(t, files, path)
 		require.NoError(t, yaml.Unmarshal([]byte(files[path]), &parsed), path)
 		return parsed
 	}
 	root := read("Taskfile.yml")
 	tasks := slices.Collect(maps.Keys(root.Tasks))
-	for namespace, path := range root.Includes {
-		for name := range read(path).Tasks {
-			tasks = append(tasks, namespace+":"+name)
+	for namespace, node := range root.Includes {
+		included := include{Taskfile: node.Value}
+		if node.Kind == yaml.MappingNode {
+			require.NoError(t, node.Decode(&included), namespace)
+		}
+		prefix := namespace + ":"
+		if included.Flatten {
+			prefix = ""
+		}
+		for name := range read(included.Taskfile).Tasks {
+			tasks = append(tasks, prefix+name)
 		}
 	}
 	return tasks

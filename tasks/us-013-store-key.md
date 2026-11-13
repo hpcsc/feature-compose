@@ -484,37 +484,37 @@ for it with `oauth`, and stops `--feature cli-auth:store-key=true` with `method=
 of `cli-auth` reads `store-key` yet; Task 5 gives it its files.
 
 **Acceptance Criteria:**
-- [ ] `feature-compose show --output json` prints `features["cli-auth"].options` as
+- [x] `feature-compose show --output json` prints `features["cli-auth"].options` as
   `{"store-key": {"default": "false", "pattern": "", "values": ["true", "false"], "when": "api-auth.method == \"api-key\""}}`
   (`e2e/tests/show.test.ts`).
-- [ ] `Selection.Questions` of a selection of the catalog of this repo with `cli-auth`: with `api-key`, the questions
+- [x] `Selection.Questions` of a selection of the catalog of this repo with `cli-auth`: with `api-key`, the questions
   of the features are `api-auth.method` and `cli-auth.store-key`; with `oauth`, only `api-auth.method`
   (`internal/catalog/catalog_test.go:1974-1990`).
-- [ ] A value of `method` for `cli-auth` stops `Select`, and the message lists `store-key` as the option of
+- [x] A value of `method` for `cli-auth` stops `Select`, and the message lists `store-key` as the option of
   `cli-auth` (`internal/catalog/catalog_test.go:2400-2407`).
-- [ ] `Catalog.Combinations` of the catalog of this repo holds `go-event-sourcing-service --feature cli-auth:store-key=false`,
+- [x] `Catalog.Combinations` of the catalog of this repo holds `go-event-sourcing-service --feature cli-auth:store-key=false`,
   `go-event-sourcing-service --feature cli-auth:store-key=true` and
   `go-event-sourcing-service --feature api-auth:method=oauth --feature cli-auth:store-key=false`; no combination holds
   both `api-auth:method=oauth` and `cli-auth:store-key=true`; and `Select` of each combination of the catalog of this
   repo does not stop.
-- [ ] `new go-event-sourcing-service my-service --feature cli-auth:store-key=true --feature api-auth:method=oauth`,
+- [x] `new go-event-sourcing-service my-service --feature cli-auth:store-key=true --feature api-auth:method=oauth`,
   with `--no-prompt` and with `--dry-run`, exits with a status that is not 0, makes no folder, and the message names
   `store-key`, `api-auth.method == "api-key"` and `api-auth.method` with `"oauth"`. In a terminal, it stops before the
   form starts.
-- [ ] `--dry-run --feature cli-auth` prints `cli-auth.store-key: false (default)`; with `api-auth:method=oauth` too it
+- [x] `--dry-run --feature cli-auth` prints `cli-auth.store-key: false (default)`; with `api-auth:method=oauth` too it
   prints `cli-auth.store-key: false (default)`; `--dry-run --feature cli-auth:store-key=true` prints
   `cli-auth.store-key: true (command line)` and `api-auth.method: api-key (default)`.
-- [ ] The e2e tests of the form: with `--feature cli-auth`, the row `store-key  false` is under `cli-auth`; after Enter
+- [x] The e2e tests of the form: with `--feature cli-auth`, the row `store-key  false` is under `cli-auth`; after Enter
   at `method` and the choice `oauth`, the tree has no row of `store-key`; after `api-key` again, the row shows again;
   the preview of `w` with `oauth` prints `cli-auth.store-key: false (default)`. The other form tests pass with the new
   row.
-- [ ] The full runs of `cli-auth` with `api-key` and with `oauth` write `.feature-compose.yml` with
+- [x] The full runs of `cli-auth` with `api-key` and with `oauth` write `.feature-compose.yml` with
   `cli-auth:\n    store-key: "false"` and pass.
-- [ ] `docs/catalog.md`: the `feature.yml` of `cli-auth` shows the option `store-key` with its `when`, and "Needs"
+- [x] `docs/catalog.md`: the `feature.yml` of `cli-auth` shows the option `store-key` with its `when`, and "Needs"
   says that `cli-auth` asks `store-key` only with `api-key`. `docs/commands.md`: the examples of the preview and of
   the form of `cli-auth` show `cli-auth.store-key`, and the stop of a flag of an option that does not apply has the
   example of `store-key` with `oauth`.
-- [ ] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass,
+- [x] `go build ./...`, `go vet ./...`, `go vet -tags combinations ./internal/catalog/` and `task test:unit` pass,
   `task test:catalog` finds no mistake, and the e2e tests of `new`, `show` and `check` pass.
 
 **Affected Files/Modules:**

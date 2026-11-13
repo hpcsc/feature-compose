@@ -118,6 +118,12 @@ summary: The CLI sends the credential that the API asks for, in the method of ap
 targets: [go-event-sourcing-service]
 needs: [cli, api-auth]
 
+options:
+  store-key:
+    values: ["true", "false"]
+    default: "false"
+    when: api-auth.method == "api-key"
+
 files:
   - path: files/common/
   - path: files/api-key/
@@ -216,8 +222,9 @@ Then `new` stops when a flag gives `auth.method` another value, and the form doe
 
 A feature that works with each value reads the option of its need in place of a value in its need. `cli-auth`
 needs `api-auth` with no value, and the `when` of its files entries reads `api-auth.method`. So the CLI uses the
-method of the API: the tool asks for `method` one time, as the option of `api-auth`, and `cli-auth` has no
-question of its own.
+method of the API: the tool asks for `method` one time, as the option of `api-auth`. The `when` of the option
+`store-key` of `cli-auth` also reads `api-auth.method`, so the tool asks for `store-key` only with the method
+`api-key`.
 
 ## Files for One Value of an Option
 

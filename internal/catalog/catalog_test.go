@@ -2149,8 +2149,11 @@ files:
 			}
 		})
 
-		for _, method := range []string{"api-key", "oauth"} {
-			t.Run("with the method "+method+", the questions of a selection with cli-auth hold no question of cli-auth, and method of api-auth is its only question of a feature", func(t *testing.T) {
+		for method, expected := range map[string][]string{
+			"api-key": {"api-auth.method=api-key", "cli-auth.store-key=false"},
+			"oauth":   {"api-auth.method=oauth"},
+		} {
+			t.Run("with the method "+method+", the questions of a selection with cli-auth hold method of api-auth, and store-key of cli-auth only with api-key", func(t *testing.T) {
 				starter, err := repoCatalog().Starter("go-event-sourcing-service")
 				require.NoError(t, err)
 				selection, err := starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": nil, "api-auth": {"method": method}}, catalog.Answers{})
@@ -2163,7 +2166,7 @@ files:
 					}
 				}
 
-				require.Equal(t, []string{"api-auth.method=" + method}, featureQuestions)
+				require.Equal(t, expected, featureQuestions)
 			})
 		}
 
@@ -2575,13 +2578,22 @@ files:
 			}
 		})
 
-		t.Run("cli-auth has no option, so a value of method for it stops, and the message says that it has no option", func(t *testing.T) {
+		t.Run("a value of method for cli-auth stops, and the message lists store-key as the option of cli-auth", func(t *testing.T) {
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
 
 			_, err = starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": {"method": "api-key"}}, catalog.Answers{})
 
-			require.ErrorContains(t, err, `unknown option "method": the feature cli-auth has no option`)
+			require.ErrorContains(t, err, `unknown option "method": the options of the feature cli-auth are store-key`)
+		})
+
+		t.Run("store-key=true of cli-auth with the method oauth of api-auth stops, and the message says that store-key applies only to the method api-key", func(t *testing.T) {
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+
+			_, err = starter.Select("my-service", nil, map[string]map[string]string{"cli-auth": {"store-key": "true"}, "api-auth": {"method": "oauth"}}, catalog.Answers{})
+
+			require.EqualError(t, err, `the option store-key of the feature cli-auth applies only when api-auth.method == "api-key", and api-auth.method is "oauth", but the command line gives it "true"`)
 		})
 
 		t.Run("the files of a repo with cli-auth hold no value of scaffold, with each method", func(t *testing.T) {
@@ -3577,16 +3589,26 @@ files:
 			}
 		})
 
-		t.Run("the catalog of this repo gives the combination of cli-auth with the method oauth of api-auth", func(t *testing.T) {
+		t.Run("the catalog of this repo gives cli-auth with each value of store-key and with the method oauth, no combination of store-key=true with oauth, and Select takes each combination", func(t *testing.T) {
 			combinations, err := repoCatalog().Combinations()
 			require.NoError(t, err)
 			var names []string
 			for _, combination := range combinations {
+				starter, err := repoCatalog().Starter(combination.StarterName)
+				require.NoError(t, err)
+				_, err = starter.Select("my-service", combination.StarterValues, combination.FeatureValues, catalog.Answers{})
+				require.NoError(t, err, combination.String())
 				names = append(names, combination.String())
 			}
 
-			require.Contains(t, names, "go-event-sourcing-service --feature cli-auth")
-			require.Contains(t, names, "go-event-sourcing-service --feature api-auth:method=oauth --feature cli-auth")
+			require.Subset(t, names, []string{
+				"go-event-sourcing-service --feature cli-auth:store-key=false",
+				"go-event-sourcing-service --feature cli-auth:store-key=true",
+				"go-event-sourcing-service --feature api-auth:method=oauth --feature cli-auth:store-key=false",
+			})
+			for _, name := range names {
+				require.False(t, strings.Contains(name, "api-auth:method=oauth") && strings.Contains(name, "store-key=true"), name)
+			}
 		})
 
 		for _, failing := range []string{"starters", "starters/api/starter.yml", "features", "features/cli/feature.yml"} {

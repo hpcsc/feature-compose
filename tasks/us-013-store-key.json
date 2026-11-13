@@ -126,7 +126,7 @@
     },
     {
       "n": 4,
-      "done": false,
+      "done": true,
       "title": "Give `cli-auth` the option `store-key`, which the tool asks only with the method `api-key`",
       "language": "TypeScript",
       "testable": true,

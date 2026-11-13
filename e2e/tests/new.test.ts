@@ -374,7 +374,7 @@ describe('feature-compose new', () => {
       const repo = join(dir, 'my-service')
       expect(readFileSync(join(repo, '.feature-compose.yml'), 'utf8')).toBe(
         `version: ${buildTag()}\nstarter: go-event-sourcing-service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\n` +
-          'features:\n  api-auth:\n    method: api-key\n  cli: {}\n  cli-auth: {}\nrequested: [cli-auth]\n',
+          'features:\n  api-auth:\n    method: api-key\n  cli: {}\n  cli-auth:\n    store-key: "false"\nrequested: [cli-auth]\n',
       )
       const requires: Array<{ module: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['cli-auth'].add_to['gomod.requires']
       expect(requires.map((item) => item.module).sort()).toEqual(['github.com/cli/browser', 'github.com/zalando/go-keyring', 'golang.org/x/oauth2'])
@@ -433,7 +433,7 @@ describe('feature-compose new', () => {
       expect(made.status, made.stdout + made.stderr).toBe(0)
       expect(made.stdout).toBe('cli: needed by cli-auth\nMade my-service from the starter go-event-sourcing-service.\n')
       const repo = join(dir, 'my-service')
-      expect(readFileSync(join(repo, '.feature-compose.yml'), 'utf8')).toContain('features:\n  api-auth:\n    method: oauth\n  cli: {}\n  cli-auth: {}\n')
+      expect(readFileSync(join(repo, '.feature-compose.yml'), 'utf8')).toContain('features:\n  api-auth:\n    method: oauth\n  cli: {}\n  cli-auth:\n    store-key: "false"\n')
       const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
       expect(unformatted).toMatchObject({ status: 0, stdout: '' })
       const build = await runProgram(repo, 'go', ['build', '-o', 'bin/my-service', './cmd/my-service'], env)
@@ -524,6 +524,7 @@ describe('feature-compose new', () => {
 
     expect(result.status, result.stderr).toBe(0)
     expect(result.stdout).toContain('Features:\n  api-auth: needed by cli-auth\n  cli: needed by cli-auth\n  cli-auth: command line\n\n')
+    expect(result.stdout).toContain('  cli-auth.store-key: false (default)\n')
     expect(result.stdout).toContain('  internal/credential/credential.go: the feature cli-auth\n')
     expect(result.stdout).not.toContain('internal/credential/login.go')
     expect(readdirSync(dir)).toEqual([])
@@ -540,6 +541,7 @@ describe('feature-compose new', () => {
       '  cli: needed by cli-auth\n',
       '  cli-auth: command line\n',
       '  api-auth.method: oauth (command line)\n',
+      '  cli-auth.store-key: false (default)\n',
       '  internal/credential/login.go: the feature cli-auth\n',
       '  internal/credential/store.go: the feature cli-auth\n',
     ]) {
@@ -554,9 +556,35 @@ describe('feature-compose new', () => {
     const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--option', 'go-version=1.28', '--feature', 'cli-auth', '--dry-run'])
 
     expect(result.status, result.stderr).toBe(0)
-    expect(result.stdout).toContain('Options:\n  starter.go-version: 1.28 (command line)\n  starter.module: github.com/hpcsc/my-service (default)\n  api-auth.method: api-key (default)\n\n')
+    expect(result.stdout).toContain(
+      'Options:\n  starter.go-version: 1.28 (command line)\n  starter.module: github.com/hpcsc/my-service (default)\n  api-auth.method: api-key (default)\n  cli-auth.store-key: false (default)\n\n',
+    )
     expect(readdirSync(dir)).toEqual([])
   })
+
+  it('--dry-run of cli-auth:store-key=true names store-key from the command line and the default method api-key, and writes nothing', async () => {
+    const dir = scratchDir()
+
+    const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth:store-key=true', '--dry-run'])
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toContain('  api-auth.method: api-key (default)\n  cli-auth.store-key: true (command line)\n')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  for (const flag of ['--no-prompt', '--dry-run']) {
+    it(`cli-auth:store-key=true with api-auth:method=oauth stops new ${flag}, says that store-key applies only to the method api-key, and makes no folder`, async () => {
+      const dir = scratchDir()
+
+      const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth:store-key=true', '--feature', 'api-auth:method=oauth', flag])
+
+      expect(result.status).not.toBe(0)
+      expect(result.stdout + result.stderr).toContain(
+        'the option store-key of the feature cli-auth applies only when api-auth.method == "api-key", and api-auth.method is "oauth", but the command line gives it "true"',
+      )
+      expect(readdirSync(dir)).toEqual([])
+    })
+  }
 
   for (const [name, args] of [
     ['an unknown feature', ['--feature', 'no-such-feature']],
@@ -766,6 +794,29 @@ describe('feature-compose new in a terminal', () => {
     const selected = await session.text()
     expect(selected).toContain('[x] cli-auth')
     expect(selected).not.toContain('two values')
+    await session.press('q')
+    await session.waitForText('EXIT:1')
+    expect(readdirSync(dir)).toEqual([])
+  })
+
+  it('with --feature cli-auth, the tree shows store-key under cli-auth with api-key, hides it after the answer oauth, whose preview gives store-key its default, and shows it again after api-key', async () => {
+    const dir = scratchDir()
+    const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth'])
+
+    await session.waitForText('store-key  false', { timeout: 15_000 })
+    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'enter'])
+    await session.waitForText('▌api-key')
+    await pressed(session, ['j', 'enter'])
+    await session.waitForText('method  oauth')
+    expect(await session.text()).not.toContain('store-key')
+    await session.press('w')
+    await session.waitForText('Write the repo?')
+    expect(await session.text()).toContain('cli-auth.store-key: false (default)')
+    await session.press('escape')
+    await session.waitForText('method  oauth')
+    await pressed(session, ['enter', 'k', 'enter'])
+    await session.waitForText('store-key  false')
+    expect(await session.text()).toContain('method  api-key')
     await session.press('q')
     await session.waitForText('EXIT:1')
     expect(readdirSync(dir)).toEqual([])

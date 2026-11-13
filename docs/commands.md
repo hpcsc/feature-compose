@@ -46,7 +46,8 @@ features:
   api-auth:
     method: api-key
   cli: {}
-  cli-auth: {}
+  cli-auth:
+    store-key: "false"
 requested: [cli-auth]
 ```
 
@@ -83,6 +84,7 @@ Options:
   starter.go-version: 1.28 (command line)
   starter.module: github.com/hpcsc/my-service (default)
   api-auth.method: api-key (default)
+  cli-auth.store-key: false (default)
 
 Files:
   .dockerignore: the feature cli
@@ -120,7 +122,10 @@ the feature whose template writes the file, or `feature-compose` for the selecti
 Before it prints, `--dry-run` does the same checks as `new`. A selection that stops `new`, for example an unknown
 feature, a feature that does not target the starter, a value that does not match its pattern, a flag that gives an
 option another value than a need sets, or a flag that gives another value than its default to an option whose `when`
-is false, stops `--dry-run` with the same message, and `--dry-run` then prints nothing.
+is false, stops `--dry-run` with the same message, and `--dry-run` then prints nothing. For example,
+`--feature cli-auth:store-key=true --feature api-auth:method=oauth` stops with `the option store-key of the feature
+cli-auth applies only when api-auth.method == "api-key", and api-auth.method is "oauth", but the command line gives it
+"true"`.
 The message of a feature that does not target the starter names the feature and the starter, and lists the features
 that target the starter, for example `the feature api-auth does not target the starter go: the features that target
 the starter go are cli`. The message of a flag against a need
@@ -148,7 +153,9 @@ pane shows the details of the selected row. You can change any answer in any ord
 │    ├─ ▾ [x] api-auth  needed by cli-auth ││                                                                │
 │    │  └─   method  api-key               ││                                                                │
 │    ├─   [x] cli  needed by cli-auth      ││                                                                │
-│    └─   [x] cli-auth  fixed              ││                                                                │
+│    ├─ ▾ [x] cli-auth  fixed              ││                                                                │
+│    │  └─   store-key  false              ││                                                                │
+│    └─   [ ] process-manager              ││                                                                │
 ╰──────────────────────────────────────────╯╰────────────────────────────────────────────────────────────────╯
  j/k move • l open • h close • space select • w write • ctrl+d/u scroll details • q quit
 ```

@@ -103,9 +103,7 @@ describe('feature-compose new', () => {
       expect(passedPackages(unit.stdout)).toEqual(['internal/greeting'])
       const list = await runProgram(repo, 'task', ['--list-all'], env)
       expect(list.status, list.stdout + list.stderr).toBe(0)
-      const called = ['.github/workflows/ci.yml', 'scripts/libs/git-hook-prepush.sh'].flatMap((path) =>
-        [...readFileSync(join(repo, path), 'utf8').matchAll(/^\s*(?:run: )?task ([a-z0-9:-]+)/gm)].map((match) => match[1]),
-      )
+      const called = ['.github/workflows/ci.yml', 'scripts/libs/git-hook-prepush.sh'].flatMap((path) => tasksCalledBy(repo, path))
       expect(called).toContain('test:unit')
       expect(tasksIn(list.stdout)).toEqual(expect.arrayContaining(called))
       for (const name of ['build', 'cli', 'release:local', 'test:e2e', 'test:e2e:local']) {
@@ -116,7 +114,7 @@ describe('feature-compose new', () => {
   )
 
   it(
-    'makes a CLI repo from go with cli whose go.mod gives the modules of the CLI the versions of cli, also with no proxy, that builds, passes the unit tests of the starter and of the CLI, builds and runs the CLI with its tasks, passes its end-to-end tests with task test:e2e:local, whose snapshot from task release:local has the archives and the checksums that update and the installer download, and whose git status shows no file of the snapshot or of the packages of e2e',
+    'makes a CLI repo from go with cli whose go.mod gives the modules of the CLI the versions of cli, also with no proxy, that has each task that its CI workflow calls, builds, passes the unit tests of the starter and of the CLI, builds and runs the CLI with its tasks, passes its end-to-end tests with task test:e2e:local, whose snapshot from task release:local has the archives and the checksums that update and the installer download, and whose git status shows no file of the snapshot or of the packages of e2e',
     async () => {
       const dir = scratchDir()
       const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
@@ -154,6 +152,9 @@ describe('feature-compose new', () => {
       const named = [...readFileSync(join(repo, 'docs', 'cli.md'), 'utf8').matchAll(/(?:^|`)task ([a-z0-9:_-]+)/gm)].map((match) => match[1])
       expect(named).toEqual(expect.arrayContaining(['build', 'cli', 'release:local', 'test:e2e', 'test:e2e:local']))
       expect(tasksIn(list.stdout)).toEqual(expect.arrayContaining(named))
+      const calledByCI = tasksCalledBy(repo, '.github/workflows/ci.yml')
+      expect(calledByCI).toEqual(expect.arrayContaining(['test:unit', 'test:e2e']))
+      expect(tasksIn(list.stdout)).toEqual(expect.arrayContaining(calledByCI))
       const e2eTests = readdirSync(join(repo, 'e2e', 'tests'))
       expect(e2eTests).toContain('cli.test.ts')
       const e2e = await runProgram(repo, 'task', ['test:e2e:local'], { ...env, NO_COLOR: '1' })
@@ -482,7 +483,7 @@ describe('feature-compose new', () => {
   })
 
   it(
-    'makes a repo with cli that builds, passes the unit tests of the service and of the CLI, builds and runs the CLI with its tasks, and whose task run still starts the service',
+    'makes a repo with cli that builds, passes the unit tests of the service and of the CLI, builds and runs the CLI with its tasks, whose task run still starts the service, and that has each task that its CI workflow calls',
     async () => {
       const dir = scratchDir()
       const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
@@ -505,6 +506,10 @@ describe('feature-compose new', () => {
       const run = await runProgram(repo, 'task', ['--dry', 'run'], env)
       expect(run.status, run.stdout + run.stderr).toBe(0)
       expect(run.stdout + run.stderr).toContain('tmuxp load -a .tmuxp.yaml')
+      const list = await runProgram(repo, 'task', ['--list-all'], env)
+      const calledByCI = tasksCalledBy(repo, '.github/workflows/ci.yml')
+      expect(calledByCI).toEqual(expect.arrayContaining(['test:unit', 'test:e2e']))
+      expect(tasksIn(list.stdout)).toEqual(expect.arrayContaining(calledByCI))
     },
     15 * 60 * 1000,
   )
@@ -1000,6 +1005,10 @@ function checksumsIn(checksums: string): Record<string, string> {
 
 function sha256Of(path: string): string {
   return createHash('sha256').update(readFileSync(path)).digest('hex')
+}
+
+function tasksCalledBy(repo: string, path: string): string[] {
+  return [...readFileSync(join(repo, path), 'utf8').matchAll(/^\s*(?:run: )?task ([a-z0-9:-]+)/gm)].map((match) => match[1])
 }
 
 function tasksIn(list: string): string[] {

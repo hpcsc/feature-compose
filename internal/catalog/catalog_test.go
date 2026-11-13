@@ -1981,6 +1981,49 @@ files:
 			require.Contains(t, writtenTarget(t, "go-event-sourcing-service", nil, nil)["go.mod"], "\tgithub.com/unrolled/render v1.8.1\n)\n\nrequire (\n")
 		})
 
+		t.Run("with no item, ci.yml of each target of cli has only the jobs of the starter and ends with the last line of the starter", func(t *testing.T) {
+			for starterName, expected := range map[string]struct {
+				jobs     []string
+				lastLine string
+			}{
+				"go":                        {[]string{"test"}, "        run: task test:vulnerabilities\n"},
+				"go-event-sourcing-service": {[]string{"test", "build"}, "        run: task ${{ matrix.app }}:docker:build\n"},
+			} {
+				workflow := writtenTarget(t, starterName, nil, nil)[".github/workflows/ci.yml"]
+
+				require.ElementsMatch(t, expected.jobs, slices.Collect(maps.Keys(parsedYAML(t, workflow)["jobs"].(map[string]any))), starterName)
+				require.True(t, strings.HasSuffix(workflow, expected.lastLine), starterName+": "+workflow)
+			}
+		})
+
+		t.Run("with cli, ci.yml of each target keeps the triggers, the permissions and the jobs of the starter, and has the job e2e, which runs task test:e2e", func(t *testing.T) {
+			for _, starterName := range targetsOfCLI(t) {
+				withoutCLI := parsedYAML(t, writtenTarget(t, starterName, nil, nil)[".github/workflows/ci.yml"])
+				withCLI := parsedYAML(t, writtenTarget(t, starterName, nil, withoutValues("cli"))[".github/workflows/ci.yml"])
+
+				require.Equal(t, withoutCLI["on"], withCLI["on"], starterName)
+				require.Equal(t, withoutCLI["permissions"], withCLI["permissions"], starterName)
+				jobs := withCLI["jobs"].(map[string]any)
+				require.Contains(t, withoutCLI["jobs"], "test", starterName)
+				for name, job := range withoutCLI["jobs"].(map[string]any) {
+					require.Equal(t, job, jobs[name], starterName+": "+name)
+				}
+				var runs []any
+				for _, step := range jobs["e2e"].(map[string]any)["steps"].([]any) {
+					runs = append(runs, step.(map[string]any)["run"])
+				}
+				require.Contains(t, runs, "task test:e2e", starterName)
+			}
+		})
+
+		t.Run("the jobs that cli adds to ci.yml of each target keep the template syntax of GitHub Actions", func(t *testing.T) {
+			for _, starterName := range targetsOfCLI(t) {
+				workflow := writtenTarget(t, starterName, nil, withoutValues("cli"))[".github/workflows/ci.yml"]
+
+				require.Contains(t, workflow, "repo-token: ${{ secrets.GITHUB_TOKEN }}", starterName)
+			}
+		})
+
 		t.Run("Taskfile.cli.yml builds the CLI into bin with the kebab-case name of the repo, runs it from the source with the arguments of task, makes a GoReleaser snapshot, and runs the end-to-end tests in Docker and with Node against a binary of the tag v0.1.0", func(t *testing.T) {
 			_, files := writtenWithCLI(t, "MyService.v2", nil)
 

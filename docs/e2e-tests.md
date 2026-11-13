@@ -105,7 +105,8 @@ The second adds `--feature cli`, and makes a CLI in its own repo:
    `version`, `update` and `help`. `task cli -- --help` runs the CLI from the source and prints the same
    commands.
 5. `task --list-all` names each task that the `docs/cli.md` of the repo names, and the doc names `build`, `cli`,
-   `release:local`, `test:e2e` and `test:e2e:local`.
+   `release:local`, `test:e2e` and `test:e2e:local`. It also names each task that `.github/workflows/ci.yml`
+   calls, `test:unit` and `test:e2e` among them, so the job `e2e` of `cli` calls a task that the repo has.
 6. `task test:e2e:local` builds the CLI with the tag `v0.1.0`, installs the packages of `e2e/` with npm, and
    runs the end-to-end tests of the repo with vitest. It stops with the exit status 0, and its output shows
    each test file in `e2e/tests` of the repo as passed. The test takes the names from the folder.
@@ -178,6 +179,8 @@ The next adds `--feature cli`, and checks that the feature fits the starter:
    prints the same commands.
 4. `task --dry run` prints the `tmuxp load` of the starter. So `task run` still starts the service, and the
    tasks of `cli` keep names that the starter does not use.
+5. `task --list-all` names each task that `.github/workflows/ci.yml` calls, `test:unit` and `test:e2e` among
+   them.
 
 The next adds only `--feature cli-auth`, which needs `cli` and `api-auth`:
 

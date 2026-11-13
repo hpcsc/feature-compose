@@ -29,3 +29,7 @@ jobs:
 
       - name: Run vulnerabilities check
         run: task test:vulnerabilities
+[[- range items "ci.jobs" ]]
+
+[[ indent 2 .text ]]
+[[- end ]]

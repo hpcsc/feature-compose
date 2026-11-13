@@ -45,3 +45,7 @@ jobs:
 
       - name: Build
         run: task ${{ matrix.app }}:docker:build
+[[- range items "ci.jobs" ]]
+
+[[ indent 2 .text ]]
+[[- end ]]

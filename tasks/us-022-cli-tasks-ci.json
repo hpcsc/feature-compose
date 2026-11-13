@@ -164,7 +164,7 @@
     },
     {
       "n": 5,
-      "done": false,
+      "done": true,
       "title": "Add the extension point `ci.jobs`, and run the end-to-end tests of the CLI in the CI workflow",
       "language": "Go",
       "testable": true,

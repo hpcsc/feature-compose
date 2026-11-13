@@ -76,6 +76,10 @@ extension_points:
     summary: A tool that mise install installs, with the name that mise.toml gives it and a fixed version.
     file: go/mise.toml
     item: [name, version]
+  ci.jobs:
+    summary: A job of the CI workflow, as YAML with the job name at the left edge. needs can name test, the job of the starter that runs its tests. The workflow runs on each push, with the permissions of the starter, so a job that writes sets its own permissions.
+    file: go/.github/workflows/ci.yml
+    item: [text]
   gomod.requires:
     summary: A module that the Go code of a feature imports and that the starter does not require, with a fixed version, so that go mod tidy takes no latest version.
     file: go/go.mod

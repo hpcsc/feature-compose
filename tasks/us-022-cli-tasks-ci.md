@@ -557,25 +557,25 @@ stay as the starter gives them. The docs of `cli` tell that CI runs the end-to-e
 `PROPOSAL.md` give the answer to open question 3 of the proposal (open question 1 of this breakdown).
 
 **Acceptance Criteria:**
-- [ ] The `starter.yml` of each target of `cli` declares `ci.jobs` with the file `go/.github/workflows/ci.yml`, the
+- [x] The `starter.yml` of each target of `cli` declares `ci.jobs` with the file `go/.github/workflows/ci.yml`, the
   item field `[text]`, and a summary that says that an item is a CI job as YAML with the job name at the left edge,
   and that `needs` can name `test`, the job of the starter that runs its tests.
-- [ ] `TestCatalog`: without an item, `ci.yml` of each starter holds only the lines of the starter, and its jobs are
+- [x] `TestCatalog`: without an item, `ci.yml` of each starter holds only the lines of the starter, and its jobs are
   the jobs of the starter.
-- [ ] `TestCatalog`: for each target with `cli`, `ci.yml` parses as YAML; its `on`, its `permissions` and each job of
+- [x] `TestCatalog`: for each target with `cli`, `ci.yml` parses as YAML; its `on`, its `permissions` and each job of
   the starter are the same as without `cli`; it has the job `e2e`, whose steps run `task test:e2e`; and its text
   keeps `${{ secrets.GITHUB_TOKEN }}`.
-- [ ] `e2e/tests/new.test.ts`, the runs of `go` with `cli` and of `go-event-sourcing-service` with `cli`:
+- [x] `e2e/tests/new.test.ts`, the runs of `go` with `cli` and of `go-event-sourcing-service` with `cli`:
   `task --list-all` names each task that the written `.github/workflows/ci.yml` calls, taken from the file, and
   `test:e2e` is among them.
-- [ ] `docs/e2e-tests.md` of `cli` tells that the job `e2e` of `.github/workflows/ci.yml` runs `task test:e2e` on each
+- [x] `docs/e2e-tests.md` of `cli` tells that the job `e2e` of `.github/workflows/ci.yml` runs `task test:e2e` on each
   push, and has no sentence that says that no workflow runs the tests.
-- [ ] `docs/catalog.md`, in "Extension Points", tells that an item can hold a block of YAML, which the file writes
+- [x] `docs/catalog.md`, in "Extension Points", tells that an item can hold a block of YAML, which the file writes
   with `indent`, with `ci.jobs` as the example. `PROPOSAL.md` has a decision that a feature adds a job to the CI
   workflow of a starter with an item of `ci.jobs`, and open question 3 names that decision as its answer.
-- [ ] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass, and
+- [x] `TestCatalog` "the catalog of this repo has no mistake" and the e2e test of `check` pass, and
   `task test:combinations` passes.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new`, `show` and `check` pass
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and the e2e tests of `new`, `show` and `check` pass
   on the host.
 
 **Affected Files/Modules:**

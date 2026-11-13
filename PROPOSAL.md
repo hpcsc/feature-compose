@@ -557,6 +557,7 @@ files. `repo-templates` stays until each template that moves has its replacement
 | D10 | The tool uses Go and `text/template`. | The starters are in Go, and `text/template` is in the standard library. |
 | D11 | `add` comes in phase 3. | The three-way merge is the largest part of the tool. |
 | D12 | The TUI of `new` is one form with the look and the keys of `show`, and both TUIs use Bubble Tea and Bubbles. | A developer sees the whole selection and changes any answer in any order, and learns one set of keys for the two TUIs. huh asks one group of questions at a time, and its look and its keys differ from those of `show`. |
+| D13 | A feature adds a job to the CI workflow of a starter with an item of the extension point `ci.jobs`, a block of YAML that the workflow writes with `indent`. | The job can name a job of the starter in `needs`, for example a release after the tests. The workflow keeps the triggers and the permissions of the starter, and each job sets the permissions that it needs. A workflow file for each feature cannot name a job of another workflow in `needs`, so a release job copies the test steps of the starter, or calls the workflow of the starter, which then needs `workflow_call` and a change to its triggers that an item cannot make. |
 
 ## 19. Open Questions
 
@@ -566,6 +567,6 @@ files. `repo-templates` stays until each template that moves has its replacement
 2. **Must `cli-auth` work without `api-auth`?** `go-cli-auth` now supports a CLI that calls an API from
    another company. If `cli-auth` keeps this, it needs its own `method` option when the repo has no
    `api-auth`.
-3. **How does a feature add a job to a CI workflow?** An item that holds YAML needs a function that sets its
-   indent. The other choice is one workflow file for each feature.
+3. **How does a feature add a job to a CI workflow?** Decision D13 answers it: with an item of `ci.jobs`, which
+   the workflow writes with `indent`. The other choice was one workflow file for each feature.
 4. **Is phase 3 necessary?** If you add features only when you make a repo, the tool needs no merge.

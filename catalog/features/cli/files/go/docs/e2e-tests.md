@@ -104,7 +104,8 @@ flowchart LR
 runs `npm ci` when `e2e/package-lock.json` is in the repository, and `npm install` when it is not. Commit
 the lock file, so every run installs the same packages.
 
-No workflow of this repo runs these tests yet.
+The job `e2e` of `.github/workflows/ci.yml` runs `task test:e2e` on each push, next to the job `test` of the
+repo.
 
 ## How to write a new test
 

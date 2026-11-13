@@ -226,6 +226,39 @@ func protectedMiddleware(cfg *api.Config) []func(http.Handler) http.Handler {
 - A feature can add items only to an extension point that the starter, the feature, or one of its needs
   declares.
 
+An item can hold a block of YAML, for example a job of a CI workflow. The feature writes the block with each
+key at the left edge, and the file of the extension point sets the indent with `indent`:
+
+```yaml
+add_to:
+  ci.jobs:
+    - text: |-
+        e2e:
+          runs-on: ubuntu-latest
+          steps:
+            - uses: actions/checkout@v7
+            - name: Run E2E Test
+              run: task test:e2e
+```
+
+```yaml
+jobs:
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Unit Test
+        run: task test:unit
+[[- range items "ci.jobs" ]]
+
+[[ indent 2 .text ]]
+[[- end ]]
+```
+
+So a feature adds a job to the CI workflow of the starter, and the workflow keeps its triggers and its
+permissions. A job of an item can name the jobs of the starter in `needs`. The workflow uses the delimiters
+`[[` `]]`, because GitHub Actions uses `${{ }}`.
+
 The `summary` of an extension point is a contract that the tool cannot check. A test of each combination of
 the catalog checks it: [Build, Test and Release feature-compose](development.md) tells how this repo does
 this.

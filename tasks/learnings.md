@@ -93,10 +93,10 @@
 
 ## New Go code of a feature costs proof, not construction
 - Type: pattern
-- Recorded: 2026-11-09
-- Observed: task 6 — us-003-api-keys
-- Learning: The task that added api-auth, with a new Go package and no precedent, was called low certainty and went green on the first attempt. Its cost was the proof: a written repo, a list of breaks by hand, and an e2e run that starts the API. A breakdown can call the code of such a feature medium, and plan the proof as part of the task.
-- Apply when: decomposing a story that adds a feature with new Go code to the catalog
+- Recorded: 2026-11-14
+- Observed: us-021-push-events-to-websocket-clients
+- Learning: The task that added api-auth (US-003), with a new Go package and no precedent, was called low certainty and went green on the first attempt; so did Task 3 of US-021, the first NATS JetStream code of the catalog. The cost was the proof: a written repo, breaks by hand, integration tests with Docker, and for US-021 three design checks and two audit rounds. A breakdown can call the code of such a feature medium, and plan the proof as part of the task.
+- Apply when: decomposing a story that adds a feature with new Go code to the catalog, or a client of an outside system such as NATS
 
 ## env v6 reads a config field through UnmarshalText
 - Type: constraint
@@ -234,9 +234,9 @@
 ## The shell refuses > onto a file that exists
 - Type: constraint
 - Recorded: 2026-11-14
-- Observed: us-020-publish-service-images
-- Learning: The zsh of this machine sets noclobber, so cat > file or cmd > file onto a file that exists fails and the next commands run with the old content; write with >| or with python, and note that mk is an alias and sed is GNU sed (sed -i with no suffix). rm is rm -i and waits for an answer, so use /bin/rm -f, and a local variable named path in a zsh function replaces PATH, so name it file.
-- Apply when: writing or rewriting a file with a shell redirect, removing a file, or naming a shell function or its variables, in a command of a run
+- Observed: us-021-push-events-to-websocket-clients
+- Learning: The zsh of this machine sets noclobber, so cat > file or cmd > file onto a file that exists fails and the next commands run with the old content; write with >| or with python, and note that mk is an alias and sed is GNU sed (sed -i with no suffix). rm is rm -i and waits for an answer, so use /bin/rm -f, and a local variable named path in a zsh function replaces PATH, so name it file. zsh does not split an unquoted variable into words, so a loop that passes $flags gives '--feature push' as one argument; write ${=flags}.
+- Apply when: writing or rewriting a file with a shell redirect, removing a file, naming a shell function or its variables, or passing a variable of several words as arguments, in a command of a run
 
 ## A criterion that a breakdown defers needs a story that names it
 - Type: pattern
@@ -394,10 +394,10 @@
 
 ## The open tree of show must fit rowsOfTheWholeTree
 - Type: constraint
-- Recorded: 2026-11-13
-- Observed: us-022-cli-tasks-ci
-- Learning: Each extension point of a starter is one line of the open tree of show, and two tests of e2e/tests/show.test.ts read the whole tree, so they open the terminal with rowsOfTheWholeTree (60) rows and the other screen tests keep 40. After US-022 the tree of go (6 points) and go-event-sourcing-service (22 points) needs about 43 rows; in US-022 the tree passed 40 rows at Task 4 and the two tests lost their last line.
-- Apply when: adding extension points to a starter or adding a starter to catalog/, for example in US-015, US-020 or US-021
+- Recorded: 2026-11-14
+- Observed: us-021-push-events-to-websocket-clients
+- Learning: Each extension point of each starter is one line of the open tree of show, and the tree lists all three starters, chi-api, go and go-event-sourcing-service. Two tests of e2e/tests/show.test.ts read the whole tree with rowsOfTheWholeTree rows, and the other screen tests keep 40. After US-021 the tree needs about 68 rows and rowsOfTheWholeTree is 72; the breakdown of US-021 counted only two starters, and the two tests lost their last lines at Task 3.
+- Apply when: adding extension points to a starter or adding a starter to catalog/, or estimating the rows of the tree of show in a breakdown
 
 ## Compare a ported CI job with its source by its parsed steps
 - Type: pattern
@@ -566,3 +566,24 @@
 - Observed: task 1 — us-020-publish-service-images
 - Learning: The job build of go-event-sourcing-service ran task <app>:docker:build, which gives --build-arg=VERSION=$(git rev-parse HEAD); the job publish of the template calls docker/build-push-action with no build-args, so each published image reported the version main until the audit raised it as a gap. Read the task that the old job ran and give the new step the same arguments and environment, here build-args: VERSION=${{ github.sha }}.
 - Apply when: porting a CI job of repo-templates that replaces a job of a starter or a feature that runs a task of the repo, for example a build, a release or a publish
+
+## clerk finish of the last task refuses each planned type that a .go.tmpl declares
+- Type: constraint
+- Recorded: 2026-11-14
+- Observed: task 4 — us-021-push-events-to-websocket-clients
+- Learning: clerk design reads only .go files, so at the last task each type of the planned design that a .go.tmpl of the catalog declares comes back as design-absent-type, and each clerk design note turns into a design check of its own. In US-021 nine such notes made nine checks; the run gave each note the path of its template, checked each declaration with grep, and kept reviewer agents for the real design changes.
+- Apply when: decomposing a story whose planned design names types of the templates of a starter or a feature, or finishing its last task
+
+## The CI of feature-compose runs the unit tests of a written repo, and its own CI runs the integration tests
+- Type: convention
+- Recorded: 2026-11-14
+- Observed: us-021-push-events-to-websocket-clients
+- Learning: When a story says that a repo of each value builds and passes its tests in the CI of feature-compose, the job combinations runs the after_render commands and task test:unit of each combination; the integration tests of the written repo, with Postgres or NATS, run in the CI of that repo and by hand in the run. The user accepted this reading in US-021.
+- Apply when: decomposing a story whose criterion says that the CI of feature-compose makes a repo of each option value and passes its tests
+
+## A route that a browser calls without CORS takes its origins from OriginsToAllow
+- Type: convention
+- Recorded: 2026-11-14
+- Observed: task 1 — us-021-push-events-to-websocket-clients
+- Learning: The audit of US-021 found that the WebSocket route of push accepted each origin, as the template did, so a page of any site could read the events through the browser of a user. The route accepts a page only when its full origin is in middleware.OriginsToAllow(cfg.AllowedOrigins), the list and the defaults of the CORS middleware, or is the origin of the API, and it accepts a client with no Origin header.
+- Apply when: a feature adds a route that a browser opens without a CORS request, for example a WebSocket, a server-sent event stream or a download

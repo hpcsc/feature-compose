@@ -233,10 +233,10 @@
 
 ## The shell refuses > onto a file that exists
 - Type: constraint
-- Recorded: 2026-11-10
-- Observed: us-012-tui
-- Learning: The zsh of this machine sets noclobber, so cat > file or cmd > file onto a file that exists fails and the next commands run with the old content; write with >| or with python, and note that mk is an alias and sed is GNU sed (sed -i with no suffix).
-- Apply when: writing or rewriting a file with a shell redirect, or naming a shell function, in a command of a run
+- Recorded: 2026-11-14
+- Observed: us-020-publish-service-images
+- Learning: The zsh of this machine sets noclobber, so cat > file or cmd > file onto a file that exists fails and the next commands run with the old content; write with >| or with python, and note that mk is an alias and sed is GNU sed (sed -i with no suffix). rm is rm -i and waits for an answer, so use /bin/rm -f, and a local variable named path in a zsh function replaces PATH, so name it file.
+- Apply when: writing or rewriting a file with a shell redirect, removing a file, or naming a shell function or its variables, in a command of a run
 
 ## A criterion that a breakdown defers needs a story that names it
 - Type: pattern
@@ -387,10 +387,10 @@
 
 ## A job-level concurrency group does not keep the push order of a CI workflow
 - Type: constraint
-- Recorded: 2026-11-13
-- Observed: us-022-cli-tasks-ci
-- Learning: A job that an item of ci.jobs adds joins its concurrency group when its needs finish, not in push order, so a publish job on main can publish an older commit after a newer one, and a newly queued job cancels the pending job of a newer commit. The prerelease job of cli reads the head of main with git ls-remote --exit-code and publishes nothing when the head is not GITHUB_SHA; the go-cli template had a workflow-level group, which an item cannot add.
-- Apply when: adding a job that publishes on main or on a tag to ci.jobs, for example the images of US-020, or porting a workflow whose concurrency group covers the whole workflow into an item
+- Recorded: 2026-11-14
+- Observed: us-020-publish-service-images
+- Learning: A job that an item of ci.jobs adds joins its concurrency group when its needs finish, not in push order, so a publish job on main can publish an older commit after a newer one, and a newly queued job cancels the pending job of a newer commit. A workflow-level group, which only a starter's own ci.yml can add, keeps the order of pushes but not of a re-run: a re-run keeps its GITHUB_SHA. In US-020 the breakdown planned only a workflow-level group for the images, the audit showed that a re-run moved latest back, and the job publish got a step that compares git ls-remote --exit-code origin refs/heads/main with GITHUB_SHA and gives only the tags main and latest enable= on its output, so an older commit still publishes its short-SHA tag; the prerelease job of cli publishes nothing when the head is not GITHUB_SHA.
+- Apply when: adding or planning a job that publishes on main or on a tag, in ci.jobs or in the ci.yml of a starter, for example the images of go-event-sourcing-service, or porting a workflow whose concurrency group covers the whole workflow into an item
 
 ## The open tree of show must fit rowsOfTheWholeTree
 - Type: constraint
@@ -464,10 +464,10 @@
 
 ## A fold that conflicts goes to the first task commit that holds the old text of each hunk
 - Type: pattern
-- Recorded: 2026-11-13
-- Observed: us-013-store-key
-- Learning: When clerk fixup replay conflicts in a file that several task commits change (internal/catalog/catalog_test.go in US-008 and US-013), fold the other files with clerk fixup first, then split the diff of that file against HEAD into hunks with difflib and three lines of context, give each hunk to the first task commit whose file holds its old text exactly once (and check that each later commit holds it too), and rebuild the commits with git commit-tree, checking that the last tree equals the work tree and running the tests of each earlier commit in a git worktree. A hunk that only renames a name, for example the loop variable method to variant, can have old text that is older than the declaration of the new name in another hunk; then it goes to an earlier task, and the earlier commits do not build. Give such a hunk the task of the declaration (in US-013 a rule word=task), and build and test each earlier commit before the push.
-- Apply when: folding the fixes of an audit round when clerk fixup replay conflicts, most of all in the umbrella test files of internal/catalog
+- Recorded: 2026-11-14
+- Observed: us-020-publish-service-images
+- Learning: When clerk fixup replay conflicts in a file that several task commits change (internal/catalog/catalog_test.go in US-008 and US-013), fold the other files with clerk fixup first, then split the diff of that file against HEAD into hunks with difflib and three lines of context, give each hunk to the first task commit whose file holds its old text exactly once (and check that each later commit holds it too), and rebuild the commits with git commit-tree, checking that the last tree equals the work tree and running the tests of each earlier commit in a git worktree. A hunk that only renames a name, for example the loop variable method to variant, can have old text that is older than the declaration of the new name in another hunk; then it goes to an earlier task, and the earlier commits do not build. Give such a hunk the task of the declaration (in US-013 a rule word=task), and build and test each earlier commit before the push. A hunk whose context lines hold text that a later task added cannot go to its own task: split that file with no context lines (in US-020 a README fix of Task 1 beside a paragraph of Task 3).
+- Apply when: folding the fixes of an audit round when clerk fixup replay conflicts, or before it when a fix touches a file that several task commits change, most of all the umbrella test files of internal/catalog and a README of a starter
 
 ## clerk fixup mark refuses a new file as new work
 - Type: constraint
@@ -538,3 +538,31 @@
 - Observed: us-015-chi-api-features
 - Learning: The e2e tests (CATALOG_DIR=../catalog) and task test:combinations read the files of catalog/ from disk while they run, and a backup file beside the broken file is a file of the catalog too. In US-015 a break script that kept its backup as <file>.orig made every test of the file list of chi-api fail, and breaks during an e2e run changed what that run read, so the run had to repeat. Keep the backups outside catalog/, and run no break while an e2e run or test:combinations runs.
 - Apply when: proving a test of the catalog with breaks by hand, or running breaks, e2e tests and test:combinations at the same time
+
+## A shell step in a file of a starter with the delimiters [[ ]] cannot hold [[
+- Type: constraint
+- Recorded: 2026-11-14
+- Observed: task 1 — us-020-publish-service-images
+- Learning: The starters parse .github/** and Taskfile*.yml with the delimiters [[ ]], so a POSIX class such as ${head%%[[:space:]]*} or a bash [[ ]] test in such a file stops the render with parse template: ...: expected :=. The text of an item of ci.jobs is not parsed, so a script that works in feature.yml of cli breaks when it moves into the ci.yml of a starter; in US-020 the head check of publish uses cut -f1 instead.
+- Apply when: writing a shell step or a task command in .github/** or a Taskfile of a starter, or moving a script from an item of a feature into a file of a starter
+
+## A run step with no shell key runs with bash -e and no pipefail
+- Type: constraint
+- Recorded: 2026-11-14
+- Observed: task 1 — us-020-publish-service-images
+- Learning: GitHub Actions runs a run step with no shell key as bash -e {0}, and only shell: bash gives bash --noprofile --norc -eo pipefail {0}, so a pipe hides the failure of its first command. In US-020 round 2 of the audit found that head=$(git ls-remote --exit-code ... | cut -f1) passed when git failed, and that the test ran the step with pipefail, which CI did not use. Give a step with a pipe shell: bash, and run it in the test with the command of the shell that the step names.
+- Apply when: writing a run step of a workflow in the catalog, or a test that runs the script of a workflow step
+
+## A stub on PATH must refuse what the real tool refuses
+- Type: recurring-finding
+- Recorded: 2026-11-14
+- Observed: us-020-publish-service-images
+- Learning: In US-020 the stub shellcheck of the test of test:shellcheck exited 0 for a file that does not exist, so shellcheck -S error ./*.sh with no root script read as a pass, although shellcheck exits 2 for a missing file and 3 with no file; round 2 then found a stub git that answered only one exact argument line, so a rewrite with the same result failed the test. Make a stub fail as the real tool fails for a missing file or no input, and match its arguments by what they name, not by one exact line.
+- Apply when: writing a test that runs a written script, a task command or a workflow step with stubs of tools on PATH
+
+## A ported job that replaces a task call keeps what the task passed
+- Type: pattern
+- Recorded: 2026-11-14
+- Observed: task 1 — us-020-publish-service-images
+- Learning: The job build of go-event-sourcing-service ran task <app>:docker:build, which gives --build-arg=VERSION=$(git rev-parse HEAD); the job publish of the template calls docker/build-push-action with no build-args, so each published image reported the version main until the audit raised it as a gap. Read the task that the old job ran and give the new step the same arguments and environment, here build-args: VERSION=${{ github.sha }}.
+- Apply when: porting a CI job of repo-templates that replaces a job of a starter or a feature that runs a task of the repo, for example a build, a release or a publish

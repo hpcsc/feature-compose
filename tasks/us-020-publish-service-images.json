@@ -1,0 +1,129 @@
+{
+  "story": "Publish the images of a service repo from CI",
+  "story_id": "feature-compose/US-020",
+  "tasks_file": "tasks/us-020-publish-service-images.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Publish the images of the API and of catchup from CI on `main` and on tags, after the tests, with only the permissions that each job needs",
+      "language": "Go",
+      "testable": true,
+      "certainty": "low",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "internal/catalog/catalog_test.go:3081-3119",
+        "internal/catalog/catalog_test.go:3061-3079",
+        "internal/catalog/catalog_test.go:3025-3039",
+        "internal/catalog/catalog_test.go:2975-2989",
+        "internal/catalog/catalog_test.go:2991-3009",
+        "internal/catalog/catalog_test.go:2029-2045",
+        "internal/catalog/catalog_test.go:1597-1603",
+        "internal/catalog/catalog_test.go:1605-1614",
+        "catalog/starters/go/files/go/.github/workflows/ci.yml:1-35",
+        "catalog/features/cli/feature.yml:39-73",
+        ".github/workflows/prerelease.yml:10-13",
+        "catalog/starters/go-event-sourcing-service/starter.yml:104-110",
+        "catalog/starters/go-event-sourcing-service/files/go/README.md:90-98",
+        "tasks/learnings.md:402-407",
+        "tasks/learnings.md:388-393",
+        "tasks/learnings.md:416-421",
+        "tasks/learnings.md:31-36",
+        "tasks/learnings.md:129-134",
+        "tasks/learnings.md:367-372",
+        "tasks/learnings.md:535-540",
+        "tasks/learnings.md:290-295",
+        "tasks/learnings.md:59-64"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "catalog/starters/go-event-sourcing-service/files/go/.github/workflows/ci.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/README.md",
+        "internal/catalog/catalog_test.go"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Keep `.env.*` files, `.git` and build output out of the build of each image",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "task:1",
+        "catalog/features/cli/files/go/.dockerignore:1-4",
+        "catalog/starters/go-event-sourcing-service/files/go/Dockerfile.api:1-24",
+        "catalog/starters/go-event-sourcing-service/files/go/Dockerfile.catchup:1-24",
+        "internal/catalog/catalog_test.go:1586-1591",
+        "internal/catalog/catalog_test.go:2326-2345",
+        "internal/catalog/catalog_test.go:1405-1426",
+        "internal/catalog/catalog_test.go:1471-1476",
+        "tasks/learnings.md:360-365",
+        "tasks/learnings.md:129-134",
+        "tasks/learnings.md:367-372",
+        "tasks/learnings.md:535-540",
+        "tasks/learnings.md:31-36"
+      ],
+      "depends_on": [
+        1
+      ],
+      "affected_files": [
+        "catalog/starters/go-event-sourcing-service/files/go/Dockerfile.api.dockerignore",
+        "catalog/starters/go-event-sourcing-service/files/go/Dockerfile.catchup.dockerignore",
+        "internal/catalog/catalog_test.go"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Run the migrations with the SSL mode that `DB_SSLMODE` names, and with `disable` when it has no value",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "internal/catalog/catalog_test.go:3196-3216",
+        "internal/catalog/catalog_test.go:3236-3242",
+        "catalog/starters/go-event-sourcing-service/files/go/scripts/local/migrate/entrypoint.sh:31-35",
+        "catalog/starters/go-event-sourcing-service/files/go/README.md:110-126",
+        "tasks/learnings.md:3-8",
+        "tasks/learnings.md:122-127",
+        "tasks/learnings.md:360-365",
+        "tasks/learnings.md:87-92",
+        "tasks/learnings.md:129-134",
+        "tasks/learnings.md:367-372"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "catalog/starters/go-event-sourcing-service/files/go/scripts/local/migrate/entrypoint.sh",
+        "catalog/starters/go-event-sourcing-service/files/go/README.md",
+        "internal/catalog/catalog_test.go"
+      ]
+    },
+    {
+      "n": 4,
+      "done": false,
+      "title": "Check the shell scripts in the root folder of the repo with `task test:shellcheck`",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "catalog/starters/go-event-sourcing-service/files/go/Taskfile.yml:18-21",
+        "internal/catalog/catalog_test.go:3196-3216",
+        "internal/catalog/catalog_test.go:1881-1886",
+        "tasks/learnings.md:3-8",
+        "tasks/learnings.md:87-92",
+        "tasks/learnings.md:129-134",
+        "tasks/learnings.md:367-372"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "catalog/starters/go-event-sourcing-service/files/go/Taskfile.yml",
+        "internal/catalog/catalog_test.go"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-020-publish-service-images.design.yaml"
+}

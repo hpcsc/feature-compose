@@ -6,15 +6,26 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
 
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: 'go.mod'
 
       - name: Mise install
-        uses: jdx/mise-action@v3
+        uses: jdx/mise-action@v5
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -30,24 +41,65 @@ jobs:
       - name: Run vulnerabilities check
         run: task test:vulnerabilities
 
-  build:
+  publish:
     runs-on: ubuntu-latest
     needs:
       - test
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+      packages: write
     strategy:
       matrix:
         app: [api, catchup]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - name: Install Task
-        uses: arduino/setup-task@v2
+      # A re-run of an older run of main keeps its GITHUB_SHA, so main and latest move only for the head of main.
+      - name: Find whether the commit is the head of main
+        id: head
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          head=$(git ls-remote --exit-code origin refs/heads/main | cut -f1)
+          if [ "$head" = "$GITHUB_SHA" ]; then
+            echo "newest=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          version: 3.x
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          images: ghcr.io/${{ github.repository }}-${{ matrix.app }}
+          flavor: latest=false
+          tags: |
+            type=sha,prefix=
+            type=ref,event=branch,enable=${{ steps.head.outputs.newest == 'true' }}
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable=${{ steps.head.outputs.newest == 'true' }}
 
-      - name: Build
-        run: task ${{ matrix.app }}:docker:build
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.${{ matrix.app }}
+          push: true
+          build-args: VERSION=${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 [[- range items "ci.jobs" ]]
 
 [[ indent 2 .text ]]

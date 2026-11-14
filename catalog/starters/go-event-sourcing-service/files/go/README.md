@@ -97,6 +97,29 @@ task test:integration   # starts a separate Postgres on port 45433
 Unit tests have the `unit` build tag. Integration tests have the `integration` build tag and use the
 values in `.env.integration`.
 
+## Publish the Images
+
+The CI workflow publishes an image of the API and an image of catchup to the GitHub container registry of
+the repository. It publishes them on a push to `main` and on a push of a tag, after the tests pass.
+A push to another branch runs only the tests. The job logs in with the `GITHUB_TOKEN` of the run, so the
+repository needs no secret.
+
+| Image | Dockerfile |
+| --- | --- |
+| `ghcr.io/<owner>/<repository>-api` | `Dockerfile.api` |
+| `ghcr.io/<owner>/<repository>-catchup` | `Dockerfile.catchup` |
+
+The names are in lowercase. Each image has the short SHA of its commit as a tag, for example `4829f92`, and:
+
+- An image from the head of `main` also has the tags `main` and `latest`.
+- An image from a version tag, for example `v1.2.3`, also has the version as a tag, `1.2.3`.
+
+Only an image from `main` gets `latest`. The runs of one branch or one tag run one at a time, and only the
+image of the head of `main` gets the tags `main` and `latest`. A run of an older commit of `main`, for
+example a re-run of an older run, publishes its image with the short SHA only.
+When the tests of the newest commit of `main` fail, `main` and `latest` stay on an older image until a newer
+commit passes its tests.
+
 ## Replace the Example
 
 Replace the account example with your own domain:

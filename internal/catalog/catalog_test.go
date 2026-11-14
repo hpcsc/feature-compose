@@ -2979,7 +2979,7 @@ files:
 			}{
 				"chi-api":                   {[]string{"test"}, "        run: task test:vulnerabilities\n"},
 				"go":                        {[]string{"test"}, "        run: task test:vulnerabilities\n"},
-				"go-event-sourcing-service": {[]string{"test", "build"}, "        run: task ${{ matrix.app }}:docker:build\n"},
+				"go-event-sourcing-service": {[]string{"test", "publish"}, "          labels: ${{ steps.meta.outputs.labels }}\n"},
 			} {
 				workflow := writtenTarget(t, starterName, nil, nil)[".github/workflows/ci.yml"]
 
@@ -3115,6 +3115,248 @@ files:
 				}
 				require.Equal(t, prereleaseSteps, prerelease, starterName)
 				require.Equal(t, map[string]any{"group": "prerelease", "cancel-in-progress": false}, jobs["prerelease"].(map[string]any)["concurrency"], starterName)
+			}
+		})
+
+		publishJob := func(t *testing.T, jobs map[string]any) map[string]any {
+			t.Helper()
+			publish, ok := jobs["publish"].(map[string]any)
+			require.True(t, ok, jobs)
+			return publish
+		}
+
+		publishStep := func(t *testing.T, publish map[string]any, name string) map[string]any {
+			t.Helper()
+			for _, step := range publish["steps"].([]any) {
+				if step.(map[string]any)["name"] == name {
+					return step.(map[string]any)
+				}
+			}
+			require.Fail(t, "the job publish has no step "+name, publish)
+			return nil
+		}
+
+		t.Run("ci.yml of go-event-sourcing-service runs the job test on each push, and the job publish after test only for main and for a tag, with the tags of the short SHA and of the version, and main and latest only for the head of main, one run of a ref at a time", func(t *testing.T) {
+			workflow := parsedYAML(t, writtenTarget(t, "go-event-sourcing-service", nil, nil)[".github/workflows/ci.yml"])
+			jobs := workflow["jobs"].(map[string]any)
+			publish := publishJob(t, jobs)
+			meta := publishStep(t, publish, "Docker meta")["with"]
+
+			require.Equal(t, map[string]any{"push": map[string]any{}}, workflow["on"])
+			require.NotContains(t, jobs["test"], "if")
+			require.Equal(t, []any{"test"}, publish["needs"])
+			require.Equal(t, "github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')", publish["if"])
+			require.Equal(t, map[string]any{
+				"images": "ghcr.io/${{ github.repository }}-${{ matrix.app }}",
+				"flavor": "latest=false",
+				"tags":   "type=sha,prefix=\ntype=ref,event=branch,enable=${{ steps.head.outputs.newest == 'true' }}\ntype=semver,pattern={{version}}\ntype=raw,value=latest,enable=${{ steps.head.outputs.newest == 'true' }}\n",
+			}, meta)
+			headStep := maps.Clone(publishStep(t, publish, "Find whether the commit is the head of main"))
+			delete(headStep, "run")
+			require.Equal(t, map[string]any{"name": "Find whether the commit is the head of main", "id": "head", "if": "github.ref == 'refs/heads/main'", "shell": "bash"}, headStep)
+			require.Equal(t, map[string]any{"group": "${{ github.workflow }}-${{ github.ref }}", "cancel-in-progress": false}, workflow["concurrency"])
+		})
+
+		for name, head := range map[string]struct {
+			lsRemote string
+			fails    bool
+			outputs  string
+		}{
+			"when the commit of the run is the head of main, the step that finds the head of main writes newest=true to its outputs": {"printf '%s\\t%s\\n' 4829f92e0c5d1b7a3f6e8d9c2b1a0f9e8d7c6b5a refs/heads/main", false, "newest=true\n"},
+			"when main has a newer commit, the step that finds the head of main writes no output":                                    {"printf '%s\\t%s\\n' 9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b refs/heads/main", false, ""},
+			"when git ls-remote fails, the step that finds the head of main fails and writes no output":                              {"echo 'fatal: unable to access the remote' >&2; exit 128", true, ""},
+		} {
+			t.Run("in the job publish of go-event-sourcing-service, run with shell bash as GitHub Actions runs it, "+name, func(t *testing.T) {
+				publish := publishJob(t, parsedYAML(t, writtenTarget(t, "go-event-sourcing-service", nil, nil)[".github/workflows/ci.yml"])["jobs"].(map[string]any))
+				script := publishStep(t, publish, "Find whether the commit is the head of main")["run"].(string)
+				stubs := t.TempDir()
+				require.NoError(t, os.WriteFile(filepath.Join(stubs, "git"), []byte("#!/bin/sh\ncase \"$*\" in\n*ls-remote*main*) "+head.lsRemote+" ;;\n*) exit 2 ;;\nesac\n"), 0o755))
+				githubOutput := filepath.Join(t.TempDir(), "github-output")
+				require.NoError(t, os.WriteFile(githubOutput, nil, 0o644))
+				shell := exec.Command("bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", script)
+				shell.Env = append(os.Environ(),
+					"PATH="+stubs+string(os.PathListSeparator)+os.Getenv("PATH"),
+					"GITHUB_SHA=4829f92e0c5d1b7a3f6e8d9c2b1a0f9e8d7c6b5a", "GITHUB_OUTPUT="+githubOutput,
+				)
+
+				printed, err := shell.CombinedOutput()
+
+				require.Equal(t, head.fails, err != nil, string(printed))
+				written, readErr := os.ReadFile(githubOutput)
+				require.NoError(t, readErr)
+				require.Equal(t, head.outputs, string(written))
+			})
+		}
+
+		t.Run("the job publish of go-event-sourcing-service gives the build of each image the SHA of its commit as VERSION", func(t *testing.T) {
+			publish := publishJob(t, parsedYAML(t, writtenTarget(t, "go-event-sourcing-service", nil, nil)[".github/workflows/ci.yml"])["jobs"].(map[string]any))
+
+			require.Equal(t, "VERSION=${{ github.sha }}", publishStep(t, publish, "Build and publish")["with"].(map[string]any)["build-args"])
+		})
+
+		t.Run("the jobs test and publish of ci.yml of go-event-sourcing-service have the steps of the go-event-sourcing-service of repo-templates, apart from the step that finds the head of main, the flavor of Docker meta, the head of main in the tags main and latest, and the VERSION of the build", func(t *testing.T) {
+			upstream := parsedYAML(t, `name: CI
+
+on:
+  push: {}
+
+permissions:
+  contents: read
+
+jobs:
+
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Mise install
+        uses: jdx/mise-action@v5
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run shellcheck
+        run: task test:shellcheck
+
+      - name: Run Unit Test
+        run: task test:unit
+
+      - name: Run Integration Test
+        run: task test:integration
+
+      - name: Run vulnerabilities check
+        run: task test:vulnerabilities
+
+  publish:
+    runs-on: ubuntu-latest
+    needs:
+      - test
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        app: [api, catchup]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-${{ matrix.app }}
+          tags: |
+            type=sha,prefix=
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.${{ matrix.app }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+`)["jobs"].(map[string]any)
+			jobs := parsedYAML(t, writtenTarget(t, "go-event-sourcing-service", nil, nil)[".github/workflows/ci.yml"])["jobs"].(map[string]any)
+
+			for _, name := range []string{"test", "publish"} {
+				var steps []any
+				for _, written := range jobs[name].(map[string]any)["steps"].([]any) {
+					step := maps.Clone(written.(map[string]any))
+					switch step["name"] {
+					case "Find whether the commit is the head of main":
+						continue
+					case "Docker meta":
+						with := maps.Clone(step["with"].(map[string]any))
+						delete(with, "flavor")
+						with["tags"] = strings.NewReplacer(
+							"type=ref,event=branch,enable=${{ steps.head.outputs.newest == 'true' }}", "type=ref,event=branch",
+							"type=raw,value=latest,enable=${{ steps.head.outputs.newest == 'true' }}", "type=raw,value=latest,enable={{is_default_branch}}",
+						).Replace(with["tags"].(string))
+						step["with"] = with
+					case "Build and publish":
+						with := maps.Clone(step["with"].(map[string]any))
+						delete(with, "build-args")
+						step["with"] = with
+					}
+					steps = append(steps, step)
+				}
+				require.Equal(t, upstream[name].(map[string]any)["steps"], steps, name)
+			}
+		})
+
+		t.Run("for each app of the matrix of publish, a repo of go-event-sourcing-service has the Dockerfile of the app", func(t *testing.T) {
+			files := writtenTarget(t, "go-event-sourcing-service", nil, nil)
+			publish := publishJob(t, parsedYAML(t, files[".github/workflows/ci.yml"])["jobs"].(map[string]any))
+			apps := publish["strategy"].(map[string]any)["matrix"].(map[string]any)["app"].([]any)
+
+			require.Equal(t, []any{"api", "catchup"}, apps)
+			for _, app := range apps {
+				require.Contains(t, files, "Dockerfile."+app.(string))
+			}
+		})
+
+		t.Run("with each feature that targets go-event-sourcing-service, the workflow and the job test of ci.yml read the contents, and only the job publish writes the packages", func(t *testing.T) {
+			definitions, err := repoCatalog().Definitions()
+			require.NoError(t, err)
+			var featureNames []string
+			for name, feature := range definitions.Features {
+				if slices.Contains(feature.Targets, "go-event-sourcing-service") {
+					featureNames = append(featureNames, name)
+				}
+			}
+			workflow := parsedYAML(t, writtenTarget(t, "go-event-sourcing-service", nil, withoutValues(featureNames...))[".github/workflows/ci.yml"])
+			jobs := workflow["jobs"].(map[string]any)
+
+			require.Subset(t, slices.Collect(maps.Keys(jobs)), []string{"test", "publish", "e2e", "release", "prerelease"})
+			require.Equal(t, map[string]any{"contents": "read"}, workflow["permissions"])
+			require.Equal(t, map[string]any{"contents": "read"}, jobs["test"].(map[string]any)["permissions"])
+			require.Equal(t, map[string]any{"contents": "read", "packages": "write"}, publishJob(t, jobs)["permissions"])
+			for name, job := range jobs {
+				if name != "publish" {
+					permissions, _ := job.(map[string]any)["permissions"].(map[string]any)
+					require.NotContains(t, permissions, "packages", name)
+				}
+			}
+		})
+
+		t.Run("the README of go-event-sourcing-service tells that a push to main and a tag publish the images of the API and of catchup to the GitHub container registry after the tests, with their names and their tags", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+			readme := files["README.md"]
+			require.Contains(t, readme, "\n## Publish the Images\n")
+			section := readme[strings.Index(readme, "\n## Publish the Images\n"):strings.Index(readme, "\n## Replace the Example\n")]
+
+			for _, part := range []string{
+				"a push to `main`", "a push of a tag", "after the tests pass", "A push to another branch runs only the tests",
+				"GitHub container registry", "`ghcr.io/<owner>/<repository>-api`", "`ghcr.io/<owner>/<repository>-catchup`",
+				"short SHA", "`main` and `latest`", "`v1.2.3`", "`1.2.3`", "Only an image from `main` gets `latest`",
+				"a re-run of an older run", "publishes its image with the short SHA only", "When the tests of the newest commit of `main` fail",
+			} {
+				require.Contains(t, section, part)
 			}
 		})
 

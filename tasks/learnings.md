@@ -30,10 +30,10 @@
 
 ## The audit raises the old defects of ported template code
 - Type: recurring-finding
-- Recorded: 2026-11-12
-- Observed: this run
-- Learning: An audit round reads a ported starter or feature as new code and raises defects that the scaffold template already had: in US-001 eight of 29 findings, in US-017 two of seven, also with a brief that named the ported files. In US-017 the two (webhooks that check no signature, a gateway that blocks past its deadline) were runtime findings with executed evidence, so they earned another round by the severity rule. Decline them with the reason that the code is the template's, put any limit in the docs of the feature, and end the audit with clerk audit accept --early.
-- Apply when: auditing a branch that ports a starter or a feature from repo-templates
+- Recorded: 2026-11-13
+- Observed: us-015-chi-api-features
+- Learning: An audit round reads a ported starter or feature as new code and raises defects that the scaffold template or the starter it copies already had: in US-001 eight of 29 findings, in US-017 two of seven, in US-015 six of twelve, also with a brief that named the ported files. Runtime findings with executed evidence earn another round by the severity rule (in US-017 webhooks that check no signature; in US-015 a failed listen that blocks, no server timeouts and an unbounded body, which go-event-sourcing-service has too). Decline them with the reason that the code is the template's or the precedent's, tell the user which starters share the defect, and end the audit with clerk audit accept --early.
+- Apply when: auditing a branch that ports a starter or a feature from repo-templates, or a starter that copies the code of another starter
 
 ## MISE_TRUSTED_CONFIG_PATHS needs the real path on macOS
 - Type: constraint
@@ -114,10 +114,10 @@
 
 ## task run starts the local API with task api:run
 - Type: constraint
-- Recorded: 2026-11-09
-- Observed: task 6 — us-003-api-keys
-- Learning: In go-event-sourcing-service, task run loads .tmuxp.yaml, whose pane runs task api:run, which runs go run ./cmd/api with the env of Taskfile.api.yml; docker-compose.local.yml does not start that API. task passes the variables of the shell to its command. So a doc that tells how to give the local API a setting names task api:run, for example API_KEY_HASHES=<hash> task api:run.
-- Apply when: writing the docs of a feature that needs a setting of the API on the machine of a developer
+- Recorded: 2026-11-13
+- Observed: us-015-chi-api-features
+- Learning: Both API starters run the local API with task api:run, which passes the variables of the shell to the API: in go-event-sourcing-service task run also starts it in a pane of tmux, and chi-api has no task run. Since US-015 the docs of api-auth and cli-auth have one text for each target, which names task api:run, README.md and routes under /api, and not the pane, Taskfile.api.yml, .env.local or docker-compose.local.yml, which only go-event-sourcing-service has; TestCatalog checks that the docs of each target name only paths and tasks of that repo.
+- Apply when: writing the docs of a feature that needs a setting of the API, or adding a target to a feature whose docs name a file, a task or a route of one starter
 
 ## A test that reads an env variable must clear it first
 - Type: recurring-finding
@@ -345,10 +345,10 @@
 
 ## The e2e tests of show and of the form pick a starter by its place in the order of the names
 - Type: constraint
-- Recorded: 2026-11-12
-- Observed: task 1 — US-016 go starter
-- Learning: The TUI of show opens on the first starter in the order of the names, and the form of new lists the starters in that order, so its test presses j to reach a starter. A new starter that sorts first changes both: US-016 added go before go-event-sourcing-service and had to change the first test of show in a terminal, the test of show <starter> --output json, the unknown-starter messages, and the j presses of the form test with no argument (e2e/tests/show.test.ts, e2e/tests/new.test.ts). chi-api sorts before go.
-- Apply when: decomposing or building a story that adds a starter to catalog/, for example chi-api in US-015
+- Recorded: 2026-11-13
+- Observed: us-015-chi-api-features
+- Learning: The TUI of show opens on the first starter in the order of the names, and the form of new lists the starters in that order, so its test presses j to reach a starter. A new starter that sorts first changes both: US-016 added go and US-015 added chi-api, and each changed the first test of show in a terminal, the unknown-starter messages, and the j presses of the form test with no argument (e2e/tests/show.test.ts, e2e/tests/new.test.ts). The list of the form cuts a summary longer than its column with an ellipsis, so a summary that the test waits for must fit; US-015 made the summary of chi-api shorter.
+- Apply when: decomposing or building a story that adds a starter to catalog/, or changing the summary of a starter
 
 ## The scheduler test of go-event-sourcing-service can fail under load
 - Type: constraint
@@ -517,3 +517,24 @@
 - Observed: us-013-store-key
 - Learning: The tree of the form takes the options of each selected feature from Selection.Questions, and the draft runs Select again after each answer and each Space. In US-013 an option whose when is false got no question, and the form then hid and showed the row after each answer with no change in internal/form; a kept answer comes back when Select uses it again. A story that changes which questions a selection has needs tests of TestModel and of the e2e form, not code in internal/form.
 - Apply when: decomposing or building a story that changes which options a selection asks, when an option applies, or the source of a value
+
+## api-auth with the method oauth leaves the version of golang-jwt/jwt/v5 to go mod tidy
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: us-015-chi-api-features
+- Learning: internal/auth of api-auth with the method oauth imports github.com/golang-jwt/jwt/v5, but no item of gomod.requires gives it a version, so go mod tidy in after_render takes the latest version in each written repo of each target. US-015 found it when a test of go.mod over every Go file of a repo with api-auth of oauth failed; the test now reads only the files of cli-auth.
+- Apply when: writing a test that go.mod of a written repo requires a version of each module that its Go files import, with api-auth of the method oauth, or a story that pins the modules of api-auth
+
+## A test helper that renames the written repo can make a module prefix check pass with no check
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: us-015-chi-api-features
+- Learning: Tests of internal/catalog find the imports of the module with strings.CutPrefix or HasPrefix on github.com/hpcsc/<name>/, and the name comes from the helper that writes the repo (my-service, my-tool or my-api). In US-015 a helper of cli-auth changed from my-service to my-tool, and the check of the imports of cli-auth then matched no import and passed with no check; a break by hand that adds a forbidden import must fail it again.
+- Apply when: changing the repo name or the starter of a test helper in internal/catalog/catalog_test.go, or moving a test to another helper
+
+## A break of a catalog file changes what each run that reads catalog/ sees
+- Type: constraint
+- Recorded: 2026-11-13
+- Observed: us-015-chi-api-features
+- Learning: The e2e tests (CATALOG_DIR=../catalog) and task test:combinations read the files of catalog/ from disk while they run, and a backup file beside the broken file is a file of the catalog too. In US-015 a break script that kept its backup as <file>.orig made every test of the file list of chi-api fail, and breaks during an e2e run changed what that run read, so the run had to repeat. Keep the backups outside catalog/, and run no break while an e2e run or test:combinations runs.
+- Apply when: proving a test of the catalog with breaks by hand, or running breaks, e2e tests and test:combinations at the same time

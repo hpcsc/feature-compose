@@ -228,32 +228,44 @@ func (d draft) check(r row, value string) error {
 }
 
 func (d draft) nodes() []node {
-	nameMark := ""
+	var nameMarks []string
 	switch {
 	case d.nameGiven:
-		nameMark = "fixed"
+		nameMarks = []string{"fixed"}
 	case d.name == "":
-		nameMark = "missing"
+		nameMarks = []string{missingMark}
 	}
-	starterMark := ""
+	var starterMarks []string
 	switch {
 	case d.starterGiven:
-		starterMark = "fixed"
+		starterMarks = []string{"fixed"}
 	case d.starterName == "":
-		starterMark = "missing"
+		starterMarks = []string{missingMark}
 	}
 	return []node{
-		{row: row{kind: nameKind}, text: "name     " + d.name, mark: nameMark},
-		{row: row{kind: starterKind}, text: "starter  " + d.starterName, mark: starterMark, children: append(d.optionNodes(""), d.featureNodes()...)},
+		{row: row{kind: nameKind}, label: "name     ", text: d.name, textStyle: screen.PlainStyle, marks: nameMarks},
+		{row: row{kind: starterKind}, label: "starter  ", text: d.starterName, textStyle: screen.NameStyle, marks: starterMarks, children: d.groupNodes()},
 	}
+}
+
+func (d draft) groupNodes() []node {
+	var nodes []node
+	if options := d.optionNodes(""); len(options) > 0 {
+		nodes = append(nodes, node{row: row{kind: groupKind, group: optionsGroup}, text: string(optionsGroup), textStyle: screen.GroupStyle, children: options})
+	}
+	if features := d.featureNodes(); len(features) > 0 {
+		count := fmt.Sprintf("%d of %d", d.featureCount(), len(d.featureNames))
+		nodes = append(nodes, node{row: row{kind: groupKind, group: featuresGroup}, text: string(featuresGroup), textStyle: screen.GroupStyle, marks: []string{count}, children: features})
+	}
+	return nodes
 }
 
 func (d draft) featureNodes() []node {
 	nodes := make([]node, 0, len(d.featureNames))
 	for _, featureName := range d.featureNames {
-		box := "[ ] "
+		box, style := "[ ] ", screen.NotSelectedStyle
 		if d.selection.Holds(featureName) {
-			box = "[x] "
+			box, style = "[x] ", screen.NameStyle
 		}
 		var marks []string
 		if _, isGiven := d.givenByFeature[featureName]; isGiven {
@@ -262,7 +274,7 @@ func (d draft) featureNodes() []node {
 		if neededBy := d.selection.NeededBy(featureName); len(neededBy) > 0 {
 			marks = append(marks, "needed by "+strings.Join(neededBy, ", "))
 		}
-		nodes = append(nodes, node{row: row{kind: featureKind, feature: featureName}, text: box + featureName, mark: strings.Join(marks, ", "), children: d.optionNodes(featureName)})
+		nodes = append(nodes, node{row: row{kind: featureKind, feature: featureName}, text: box + featureName, textStyle: style, marks: marks, children: d.optionNodes(featureName)})
 	}
 	return nodes
 }
@@ -280,9 +292,9 @@ func (d draft) optionNodes(featureName string) []node {
 			marks = append(marks, "fixed")
 		}
 		if q.Missing {
-			marks = append(marks, "missing")
+			marks = append(marks, missingMark)
 		}
-		nodes = append(nodes, node{row: row{kind: optionKind, feature: featureName, option: q.Option}, text: fmt.Sprintf("%-*s  %s", widest, q.Option, q.Value), mark: strings.Join(marks, ", ")})
+		nodes = append(nodes, node{row: row{kind: optionKind, feature: featureName, option: q.Option}, label: fmt.Sprintf("%-*s  ", widest, q.Option), text: q.Value, textStyle: screen.PlainStyle, marks: marks})
 	}
 	return nodes
 }
@@ -331,6 +343,8 @@ func (d draft) details(r row, width int) (title, text string) {
 		return "name", d.nameDetails(width)
 	case starterKind:
 		return cmp.Or(d.starterName, "starter"), d.starterDetails(width)
+	case groupKind:
+		return string(r.group), d.groupDetails(r.group, width)
 	case featureKind:
 		return r.feature, d.featureDetails(r.feature, width)
 	case optionKind:
@@ -363,6 +377,27 @@ func (d draft) starterDetails(width int) string {
 		source = "command line"
 	}
 	return d.withSource(screen.Details(d.definitions.Starters[d.starterName].Summary, width), source, width)
+}
+
+func (d draft) groupDetails(g group, width int) string {
+	if g == optionsGroup {
+		var fields []screen.Field
+		for _, q := range d.questionsOf("") {
+			fields = append(fields, screen.Field{Label: q.Option, Values: []string{q.Value}})
+		}
+		return strings.Join(screen.Entry{Fields: fields}.Lines(width), "\n")
+	}
+	selected := screen.Section{Heading: "Selected", None: "none"}
+	notSelected := screen.Section{Heading: "Not selected", None: "none"}
+	for _, featureName := range d.featureNames {
+		entry := screen.Entry{Name: featureName, Summary: d.definitions.Features[featureName].Summary}
+		if d.selection.Holds(featureName) {
+			selected.Entries = append(selected.Entries, entry)
+		} else {
+			notSelected.Entries = append(notSelected.Entries, entry)
+		}
+	}
+	return screen.Details("", width, selected, notSelected)
 }
 
 func (d draft) featureDetails(featureName string, width int) string {

@@ -1027,7 +1027,7 @@ describe('feature-compose new in a terminal', () => {
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service'])
 
     await session.waitForText('[ ] cli-auth', { timeout: 15_000 })
-    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'j', 'space'])
+    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'j', 'j', 'j', 'space'])
     await session.waitForText('[x] cli  needed by cli-auth')
     expect(await session.text()).toContain('[x] api-auth  needed by cli-auth')
     await pressed(session, ['k', 'k', 'k', 'space'])
@@ -1051,7 +1051,7 @@ describe('feature-compose new in a terminal', () => {
     const session = await openCli(dir, ['new', 'service', 'my-service', '--feature', 'client'], { XDG_CONFIG_HOME: needValueHome() })
 
     await session.waitForText('method  api-key  fixed', { timeout: 15_000 })
-    await pressed(session, ['j', 'j', 'j'])
+    await pressed(session, ['j', 'j', 'j', 'j'])
     await session.waitForText('source   need of client')
     await session.press('enter')
     await session.waitForText('The option method is fixed')
@@ -1066,7 +1066,7 @@ describe('feature-compose new in a terminal', () => {
     const session = await openCli(dir, ['new', 'service', 'my-service', '--feature', 'auth:method=oauth'], { XDG_CONFIG_HOME: needValueHome() })
 
     await session.waitForText('method  oauth  fixed', { timeout: 15_000 })
-    await pressed(session, ['j', 'j', 'j', 'j', 'space'])
+    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'space'])
     await session.waitForText('two values')
     const refused = await session.text()
     expect(refused).toContain('[ ] client')
@@ -1081,7 +1081,7 @@ describe('feature-compose new in a terminal', () => {
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'api-auth:method=oauth'])
 
     await session.waitForText('method  oauth  fixed', { timeout: 15_000 })
-    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'j', 'j', 'space'])
+    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'j', 'j', 'j', 'j', 'space'])
     await session.waitForText('[x] cli  needed by cli-auth')
     const selected = await session.text()
     expect(selected).toContain('[x] cli-auth')
@@ -1096,7 +1096,7 @@ describe('feature-compose new in a terminal', () => {
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth'])
 
     await session.waitForText('store-key  false', { timeout: 15_000 })
-    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'enter'])
+    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'j', 'j', 'enter'])
     await session.waitForText('▌api-key')
     await pressed(session, ['j', 'enter'])
     await session.waitForText('method  oauth')
@@ -1120,7 +1120,7 @@ describe('feature-compose new in a terminal', () => {
 
     await session.waitForText('needed by cli-auth', { timeout: 15_000 })
     expect(await session.text()).toMatch(/method {2}api-key +││/)
-    await pressed(session, ['j', 'j', 'j', 'j', 'j'])
+    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'j', 'j'])
     await session.waitForText('source   default')
     await session.press('enter')
     await session.waitForText('▌api-key')
@@ -1146,7 +1146,7 @@ describe('feature-compose new in a terminal', () => {
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth'])
 
     await session.waitForText('go-version  1.27.1', { timeout: 15_000 })
-    await pressed(session, ['j', 'j', 'enter'])
+    await pressed(session, ['j', 'j', 'j', 'enter'])
     await session.waitForText('> 1.27.1')
     await pressed(session, Array(6).fill('backspace'))
     await session.type('1.20')
@@ -1192,9 +1192,9 @@ describe('feature-compose new in a terminal', () => {
       await session.waitForText('A Go service with an event store, an HTTP API, and a catchup process.')
       await session.press('enter')
       await session.waitForText('go-version  1.27.1')
-      await pressed(session, ['j', 'j'])
+      await pressed(session, ['j', 'j', 'j'])
       await session.waitForText('github.com/hpcsc/my-service')
-      await pressed(session, ['j', 'j', 'j', 'space', 'w'])
+      await pressed(session, ['j', 'j', 'j', 'j', 'space', 'w'])
       await session.waitForText('Write the repo?')
       await session.press('y')
       await session.waitForText('EXIT:0', { timeout: 14 * 60 * 1000 })

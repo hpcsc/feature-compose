@@ -3,34 +3,52 @@ package form
 import (
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/hpcsc/feature-compose/internal/screen"
 )
 
+const missingMark = "missing"
+
 type node struct {
 	row
-	text     string
-	mark     string
-	children []node
+	label     string
+	text      string
+	textStyle lipgloss.Style
+	marks     []string
+	children  []node
 }
 
 func (n node) canOpen() bool {
 	return len(n.children) > 0
 }
 
-func (n node) styledText() string {
-	if n.kind == starterKind {
-		return screen.NameStyle.Render(n.text)
-	}
-	return n.text
+func (n node) plain() string {
+	return n.withMarks(n.label+n.text, strings.Join(n.marks, ", "))
 }
 
-func (n node) withMark(text, mark string) string {
-	if n.mark == "" {
+func (n node) styled() string {
+	marks := make([]string, 0, len(n.marks))
+	for _, mark := range n.marks {
+		style := screen.MarkStyle
+		if mark == missingMark {
+			style = screen.ProblemStyle
+		}
+		marks = append(marks, style.Render(mark))
+	}
+	label := n.label
+	if label != "" {
+		label = screen.LabelStyle.Render(label)
+	}
+	return n.withMarks(label+n.textStyle.Render(n.text), strings.Join(marks, screen.MarkStyle.Render(", ")))
+}
+
+func (n node) withMarks(text, marks string) string {
+	if len(n.marks) == 0 {
 		return text
 	}
-	return text + "  " + mark
+	return text + "  " + marks
 }
 
 type treeRow struct {
@@ -43,11 +61,11 @@ func (r treeRow) line(selected bool, width int) string {
 	if selected {
 		return screen.SelectedRowLine(r.plain(), width)
 	}
-	return screen.RowLine(r.prefix, r.withMark(r.styledText(), screen.MarkStyle.Render(r.mark)), width)
+	return screen.RowLine(r.prefix, r.styled(), width)
 }
 
 func (r treeRow) plain() string {
-	return r.prefix + r.withMark(r.text, r.mark)
+	return r.prefix + r.node.plain()
 }
 
 type tree struct {

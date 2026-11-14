@@ -740,7 +740,7 @@ folders:
 			t.Chdir(t.TempDir())
 			output := filepath.Join(t.TempDir(), "my-service")
 
-			_, err := runInTerminal(t, withNeeds(), "Repo", "jjj wy", "service", "my-service", "--output-dir", output)
+			_, err := runInTerminal(t, withNeeds(), "Repo", "jjjj wy", "service", "my-service", "--output-dir", output)
 
 			require.NoError(t, err)
 			require.Equal(t, "version: v1.2.3\nstarter: service\nname: my-service\noptions: {}\nfeatures:\n  a: {}\n  b:\n    mode: fast\nrequested: [a]\n", filesIn(t, output)[".feature-compose.yml"])

@@ -12,8 +12,11 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/hpcsc/feature-compose/internal/catalog"
 	"github.com/hpcsc/feature-compose/internal/form"
+	"github.com/hpcsc/feature-compose/internal/screen"
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
 )
 
@@ -103,20 +106,20 @@ func TestModel(t *testing.T) {
 
 	t.Run("layout", func(t *testing.T) {
 		t.Run("the screen holds a title line with the count of the selected features, the tree pane, the details pane of the selected row, and the keys", func(t *testing.T) {
-			require.Equal(t, ` feature-compose new                                                           2 features
-╭─ Repo ───────────────────────────╮╭─ name ─────────────────────────────────────────────╮
-│ ▌  name     my-service  fixed    ││ value   my-service                                 │
-│  ▾ starter  service  fixed       ││ source  command line                               │
-│    ├─   [ ] beta                 ││                                                    │
-│    ├─   [x] zed  needed by alpha ││                                                    │
-│    ├─   [x] alpha  fixed         ││                                                    │
-│    └─   [ ] gamma                ││                                                    │
-│                                  ││                                                    │
-│                                  ││                                                    │
-│                                  ││                                                    │
-│                                  ││                                                    │
-╰──────────────────────────────────╯╰────────────────────────────────────────────────────╯
- j/k move • l open • h close • space select • w write • ctrl+d/u scroll details • q quit`, screenOf(opened(t, withNeeds(), "service", "my-service", withAlpha())))
+			require.Equal(t, ` feature-compose new                                                                     2 features
+╭─ Repo ──────────────────────────────╮╭─ name ────────────────────────────────────────────────────╮
+│ ▌  name     my-service  fixed       ││ value   my-service                                        │
+│  ▾ starter  service  fixed          ││ source  command line                                      │
+│    └─ ▾ features  2 of 4            ││                                                           │
+│       ├─   [ ] beta                 ││                                                           │
+│       ├─   [x] zed  needed by alpha ││                                                           │
+│       ├─   [x] alpha  fixed         ││                                                           │
+│       └─   [ ] gamma                ││                                                           │
+│                                     ││                                                           │
+│                                     ││                                                           │
+│                                     ││                                                           │
+╰─────────────────────────────────────╯╰───────────────────────────────────────────────────────────╯
+ j/k move • l open • h close • space select • w write • ctrl+d/u scroll details • q quit`, screenOf(sized(opened(t, withNeeds(), "service", "my-service", withAlpha()), 100, 14)))
 		})
 
 		t.Run("the title line counts one selected feature in the singular", func(t *testing.T) {
@@ -169,45 +172,49 @@ func TestModel(t *testing.T) {
 		}
 
 		t.Run("the tree pane is five columns wider than its widest row", func(t *testing.T) {
-			require.Equal(t, 42, treePaneWidthOf(sized(opened(t, withSummaries("A service.", "A feature."), "service", "my-service", nil), 120, 14)))
+			require.Equal(t, 45, treePaneWidthOf(sized(opened(t, withSummaries("A service.", "A feature."), "service", "my-service", nil), 120, 14)))
 		})
 
 		t.Run("a tree taller than its pane follows the selected row", func(t *testing.T) {
-			m := pressed(sized(opened(t, manyFeatures(12), "service", "my-service", nil), 90, 8), "j", "j", "j", "j", "j", "j")
+			m := pressed(sized(opened(t, manyFeatures(12), "service", "my-service", nil), 90, 8), "j", "j", "j", "j", "j", "j", "j")
 
-			require.Equal(t, []string{"   ├─   [ ] feature-01", "   ├─   [ ] feature-02", "   ├─   [ ] feature-03", "▌  ├─   [ ] feature-04"}, treeOf(m))
+			require.Equal(t, []string{"      ├─   [ ] feature-01", "      ├─   [ ] feature-02", "      ├─   [ ] feature-03", "▌     ├─   [ ] feature-04"}, treeOf(m))
 		})
 	})
 
 	t.Run("tree", func(t *testing.T) {
-		t.Run("a starter with one feature opens to show it", func(t *testing.T) {
-			require.Equal(t, []string{"▌  name     my-service  fixed", " ▾ starter  service  fixed", "   └─   [ ] a-feature-with-a-long-name"}, treeOf(sized(opened(t, withSummaries("A service.", "A feature."), "service", "my-service", nil), 120, 14)))
+		t.Run("a starter with one feature opens to show it in the group features", func(t *testing.T) {
+			require.Equal(t, []string{"▌  name     my-service  fixed", " ▾ starter  service  fixed", "   └─ ▾ features  0 of 1", "      └─   [ ] a-feature-with-a-long-name"}, treeOf(sized(opened(t, withSummaries("A service.", "A feature."), "service", "my-service", nil), 120, 14)))
 		})
 
 		t.Run("a tree scrolled down shows the selected row at its top when the selected row moves up past it", func(t *testing.T) {
-			m := pressed(sized(opened(t, manyFeatures(12), "service", "my-service", nil), 90, 8), "j", "j", "j", "j", "j", "j", "k", "k", "k", "k")
+			m := pressed(sized(opened(t, manyFeatures(12), "service", "my-service", nil), 90, 8), "j", "j", "j", "j", "j", "j", "j", "k", "k", "k", "k")
 
-			require.Equal(t, []string{"▌  ├─   [ ] feature-00", "   ├─   [ ] feature-01", "   ├─   [ ] feature-02", "   ├─   [ ] feature-03"}, treeOf(m))
+			require.Equal(t, []string{"▌     ├─   [ ] feature-00", "      ├─   [ ] feature-01", "      ├─   [ ] feature-02", "      ├─   [ ] feature-03"}, treeOf(m))
 		})
 
 		t.Run("a tree scrolled down shows its first row again when it is selected again", func(t *testing.T) {
-			m := pressed(sized(opened(t, manyFeatures(12), "service", "my-service", nil), 90, 8), "j", "j", "j", "j", "j", "j", "k", "k", "k", "k", "k", "k")
+			m := pressed(sized(opened(t, manyFeatures(12), "service", "my-service", nil), 90, 8), "j", "j", "j", "j", "j", "j", "j", "k", "k", "k", "k", "k", "k", "k")
 
-			require.Equal(t, []string{"▌  name     my-service  fixed", " ▾ starter  service  fixed", "   ├─   [ ] feature-00", "   ├─   [ ] feature-01"}, treeOf(m))
+			require.Equal(t, []string{"▌  name     my-service  fixed", " ▾ starter  service  fixed", "   └─ ▾ features  0 of 12", "      ├─   [ ] feature-00"}, treeOf(m))
 		})
 
 		t.Run("a tree scrolled down shows the name row again when the starter closes", func(t *testing.T) {
-			m := pressed(sized(opened(t, manyFeatures(12), "service", "my-service", nil), 90, 8), "j", "j", "j", "j", "j", "j", "h", "h")
+			m := pressed(sized(opened(t, manyFeatures(12), "service", "my-service", nil), 90, 8), "j", "j", "j", "j", "j", "j", "j", "h", "h", "h", "h")
 
 			require.Equal(t, []string{"   name     my-service  fixed", "▌▸ starter  service  fixed"}, treeOf(m))
 		})
 
-		t.Run("holds the name, then the open starter with each feature that targets it, each after the features that it needs, with a box that shows whether it is selected", func(t *testing.T) {
-			require.Equal(t, []string{"▌  name     my-service  fixed", " ▾ starter  service  fixed", "   ├─   [ ] beta", "   ├─   [x] zed  needed by alpha", "   ├─   [x] alpha  fixed", "   └─   [ ] gamma"}, treeOf(opened(t, withNeeds(), "service", "my-service", withAlpha())))
+		t.Run("holds the name, then the open starter with the group features, which holds each feature that targets the starter, each after the features that it needs, with a box that shows whether it is selected", func(t *testing.T) {
+			require.Equal(t, []string{"▌  name     my-service  fixed", " ▾ starter  service  fixed", "   └─ ▾ features  2 of 4", "      ├─   [ ] beta", "      ├─   [x] zed  needed by alpha", "      ├─   [x] alpha  fixed", "      └─   [ ] gamma"}, treeOf(sized(opened(t, withNeeds(), "service", "my-service", withAlpha()), 120, 14)))
+		})
+
+		t.Run("a starter with no option and no feature has no group", func(t *testing.T) {
+			require.Equal(t, []string{"▌  name     my-service  fixed", "   starter  service  fixed"}, treeOf(opened(t, manyFeatures(0), "service", "my-service", nil)))
 		})
 
 		t.Run("a feature of --feature that a selected feature needs shows both marks", func(t *testing.T) {
-			require.Equal(t, "   ├─   [x] zed  fixed, needed by alpha", treeOf(sized(opened(t, withNeeds(), "service", "my-service", map[string]map[string]string{"alpha": {}, "zed": {}}), 120, 14))[3])
+			require.Equal(t, "      ├─   [x] zed  fixed, needed by alpha", treeOf(sized(opened(t, withNeeds(), "service", "my-service", map[string]map[string]string{"alpha": {}, "zed": {}}), 120, 14))[4])
 		})
 
 		t.Run("with no argument, the name row and the starter row show that their answers are missing, and the tree has no feature", func(t *testing.T) {
@@ -215,13 +222,14 @@ func TestModel(t *testing.T) {
 		})
 
 		for keys, selected := range map[string]string{
-			"j":                  "▌▾ starter  service  fixed",
-			"j j":                "▌  ├─   [ ] beta",
-			"j j k":              "▌▾ starter  service  fixed",
-			"down down up":       "▌▾ starter  service  fixed",
-			"up k":               "▌  name     my-service  fixed",
-			"j j j j j":          "▌  └─   [ ] gamma",
-			"j j j j j j j down": "▌  └─   [ ] gamma",
+			"j":                    "▌▾ starter  service  fixed",
+			"j j":                  "▌  └─ ▾ features  2 of 4",
+			"j j j":                "▌     ├─   [ ] beta",
+			"j j k":                "▌▾ starter  service  fixed",
+			"down down up":         "▌▾ starter  service  fixed",
+			"up k":                 "▌  name     my-service  fixed",
+			"j j j j j j":          "▌     └─   [ ] gamma",
+			"j j j j j j j j down": "▌     └─   [ ] gamma",
 		} {
 			t.Run("j and k move the selected row by one row, as down and up do, and stop at the ends: "+keys, func(t *testing.T) {
 				require.Equal(t, selected, selectedRowOf(pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), strings.Fields(keys)...)))
@@ -229,17 +237,27 @@ func TestModel(t *testing.T) {
 		}
 
 		for _, open := range []string{"l", "right"} {
-			t.Run(open+" at the open starter selects its first feature", func(t *testing.T) {
-				require.Equal(t, "▌  ├─   [ ] beta", selectedRowOf(pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", open)))
+			t.Run(open+" at the open starter selects its first group", func(t *testing.T) {
+				require.Equal(t, "▌  └─ ▾ features  2 of 4", selectedRowOf(pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", open)))
+			})
+
+			t.Run(open+" at an open group selects its first feature", func(t *testing.T) {
+				require.Equal(t, "▌     ├─   [ ] beta", selectedRowOf(pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", open)))
 			})
 		}
 
 		for _, back := range []string{"h", "left", "esc"} {
-			t.Run(back+" at a feature selects the starter, which stays open", func(t *testing.T) {
-				m := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", back)
+			t.Run(back+" at a feature selects its group, which stays open", func(t *testing.T) {
+				m := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j", back)
 
-				require.Equal(t, "▌▾ starter  service  fixed", selectedRowOf(m))
+				require.Equal(t, "▌  └─ ▾ features  2 of 4", selectedRowOf(m))
 				require.Equal(t, withoutSelection(treeOf(opened(t, withNeeds(), "service", "my-service", withAlpha()))), withoutSelection(treeOf(m)))
+			})
+
+			t.Run(back+" at a closed group selects the starter, which stays open", func(t *testing.T) {
+				m := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", back, back)
+
+				require.Equal(t, []string{"   name     my-service  fixed", "▌▾ starter  service  fixed", "   └─ ▸ features  2 of 4"}, treeOf(m))
 			})
 
 			t.Run(back+" at the open starter closes it, and l opens it again", func(t *testing.T) {
@@ -258,8 +276,15 @@ func TestModel(t *testing.T) {
 		})
 
 		for _, open := range []string{"l", "enter"} {
+			t.Run("h closes an open group, and "+open+" opens it again", func(t *testing.T) {
+				closed := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "h")
+
+				require.Equal(t, []string{"   name     my-service  fixed", " ▾ starter  service  fixed", "▌  └─ ▸ features  2 of 4"}, treeOf(closed))
+				require.Equal(t, treeOf(pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j")), treeOf(pressed(closed, open)))
+			})
+
 			t.Run(open+" at a feature with no option changes nothing", func(t *testing.T) {
-				atFeature := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j")
+				atFeature := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j")
 
 				require.Equal(t, screenOf(atFeature), screenOf(pressed(atFeature, open)))
 			})
@@ -276,70 +301,70 @@ func TestModel(t *testing.T) {
 		}
 
 		t.Run("space at a feature that is not selected selects it with the source answered, and the count follows", func(t *testing.T) {
-			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "space")
+			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "j", "space")
 
-			require.Equal(t, "▌  ├─   [x] beta", selectedRowOf(m))
+			require.Equal(t, "▌     ├─   [x] beta", selectedRowOf(m))
 			require.Equal(t, "source  answered", lastLineOf(detailsOf(m)))
 			require.True(t, strings.HasSuffix(linesOf(m)[0], " 1 feature"), linesOf(m)[0])
 		})
 
 		t.Run("space at a feature also selects the features that it needs, each marked needed by", func(t *testing.T) {
-			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "j", "j", "space")
+			m := pressed(sized(opened(t, withNeeds(), "service", "my-service", nil), 120, 14), "j", "j", "j", "j", "j", "space")
 
-			require.Equal(t, []string{"   ├─   [ ] beta", "   ├─   [x] zed  needed by alpha", "▌  ├─   [x] alpha", "   └─   [ ] gamma"}, treeOf(m)[2:])
+			require.Equal(t, []string{"      ├─   [ ] beta", "      ├─   [x] zed  needed by alpha", "▌     ├─   [x] alpha", "      └─   [ ] gamma"}, treeOf(m)[3:])
 			require.True(t, strings.HasSuffix(linesOf(m)[0], " 2 features"), linesOf(m)[0])
 		})
 
 		t.Run("space at a feature that the developer selected clears it and each feature that only its needs selected", func(t *testing.T) {
-			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "j", "j", "space", "space")
+			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "j", "j", "j", "space", "space")
 
-			require.Equal(t, []string{"   ├─   [ ] beta", "   ├─   [ ] zed", "▌  ├─   [ ] alpha", "   └─   [ ] gamma"}, treeOf(m)[2:])
+			require.Equal(t, []string{"      ├─   [ ] beta", "      ├─   [ ] zed", "▌     ├─   [ ] alpha", "      └─   [ ] gamma"}, treeOf(m)[3:])
 		})
 
 		t.Run("a clear keeps a need that the developer selected before, with the source answered", func(t *testing.T) {
-			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "j", "space", "j", "space", "space", "k")
+			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "j", "j", "space", "j", "space", "space", "k")
 
-			require.Equal(t, []string{"   ├─   [ ] beta", "▌  ├─   [x] zed", "   ├─   [ ] alpha", "   └─   [ ] gamma"}, treeOf(m)[2:])
+			require.Equal(t, []string{"      ├─   [ ] beta", "▌     ├─   [x] zed", "      ├─   [ ] alpha", "      └─   [ ] gamma"}, treeOf(m)[3:])
 			require.Equal(t, "source  answered", lastLineOf(detailsOf(m)))
 		})
 
 		t.Run("a feature that the developer selected and that a selected feature needs shows both sources", func(t *testing.T) {
-			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "j", "space", "j", "space", "k")
+			m := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j", "j", "j", "space", "j", "space", "k")
 
 			require.Equal(t, "source  answered, needed by alpha", lastLineOf(detailsOf(m)))
 		})
 
 		for name, keys := range map[string][]string{
-			"selected only by the need":      {"j", "j", "j", "j", "space", "k", "space"},
-			"also selected by the developer": {"j", "j", "j", "space", "j", "space", "k", "space"},
+			"selected only by the need":      {"j", "j", "j", "j", "j", "space", "k", "space"},
+			"also selected by the developer": {"j", "j", "j", "j", "space", "j", "space", "k", "space"},
 		} {
 			t.Run("space at a feature that a selected feature needs changes nothing, and the details say which features need it: "+name, func(t *testing.T) {
-				m := pressed(opened(t, withNeeds(), "service", "my-service", nil), keys...)
+				m := pressed(sized(opened(t, withNeeds(), "service", "my-service", nil), 120, 14), keys...)
 
-				require.Equal(t, "▌  ├─   [x] zed  needed by alpha", selectedRowOf(m))
+				require.Equal(t, "▌     ├─   [x] zed  needed by alpha", selectedRowOf(m))
 				require.Equal(t, "zed stays selected: it is needed by alpha.", firstDetailsLineOf(m))
 			})
 		}
 
 		t.Run("space at a feature of --feature changes nothing, and the details say that the command line selects it", func(t *testing.T) {
-			m := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j", "space")
+			m := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j", "j", "space")
 
-			require.Equal(t, "▌  ├─   [x] alpha  fixed", selectedRowOf(m))
+			require.Equal(t, "▌     ├─   [x] alpha  fixed", selectedRowOf(m))
 			require.Equal(t, "alpha stays selected: --feature selects it.", firstDetailsLineOf(m))
 		})
 
 		t.Run("the developer can select more features next to a feature of --feature", func(t *testing.T) {
-			m := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j", "j", "space")
+			m := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j", "j", "j", "space")
 
-			require.Equal(t, "▌  └─   [x] gamma", selectedRowOf(m))
+			require.Equal(t, "▌     └─   [x] gamma", selectedRowOf(m))
 		})
 
 		for name, test := range map[string]struct {
 			keys    []string
 			message string
 		}{
-			"two features that declare one extension point": {[]string{"j", "j", "j", "space", "j", "space"}, `both declare the extension point "shared.point"`},
-			"a need that does not target the starter":       {[]string{"j", "j", "j", "j", "j", "space"}, `the feature r needs "missing", which is not a feature that targets the starter service`},
+			"two features that declare one extension point": {[]string{"j", "j", "j", "j", "space", "j", "space"}, `both declare the extension point "shared.point"`},
+			"a need that does not target the starter":       {[]string{"j", "j", "j", "j", "j", "j", "space"}, `the feature r needs "missing", which is not a feature that targets the starter service`},
 		} {
 			t.Run("space at a feature whose selection Select refuses leaves the row as it was, and the details show the message of Select: "+name, func(t *testing.T) {
 				m := pressed(opened(t, withSameExtensionPoint(), "service", "my-service", nil), test.keys...)
@@ -350,20 +375,20 @@ func TestModel(t *testing.T) {
 		}
 
 		t.Run("space at a feature whose need sets another value than a flag leaves the row as it was, and the details show the message that names both sources", func(t *testing.T) {
-			m := pressed(opened(t, withNeedValue(), "service", "my-service", map[string]map[string]string{"auth": {"method": "oauth"}}), "j", "j", "j", "j", "space")
+			m := pressed(sized(opened(t, withNeedValue(), "service", "my-service", map[string]map[string]string{"auth": {"method": "oauth"}}), 120, 14), "j", "j", "j", "j", "j", "space")
 
 			require.Contains(t, selectedRowOf(m), "[ ] cli-auth")
 			require.Contains(t, strings.Join(strings.Fields(detailsOf(m)), " "), `the option method of the feature auth has two values: "oauth" from the command line and "api-key" from the need of cli-auth`)
 		})
 
-		t.Run("space at the name row or at the starter row changes nothing", func(t *testing.T) {
+		t.Run("space at the name row, at the starter row or at a group row changes nothing", func(t *testing.T) {
 			m := opened(t, withNeeds(), "service", "my-service", nil)
 
-			require.Equal(t, []string{screenOf(m), screenOf(pressed(m, "j"))}, []string{screenOf(pressed(m, "space")), screenOf(pressed(m, "j", "space"))})
+			require.Equal(t, []string{screenOf(m), screenOf(pressed(m, "j")), screenOf(pressed(m, "j", "j"))}, []string{screenOf(pressed(m, "space")), screenOf(pressed(m, "j", "space")), screenOf(pressed(m, "j", "j", "space"))})
 		})
 
 		t.Run("the message of a space goes away at the next key", func(t *testing.T) {
-			m := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j", "space", "k", "j")
+			m := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j", "j", "space", "k", "j")
 
 			require.Equal(t, "Feature alpha.", firstDetailsLineOf(m))
 		})
@@ -376,16 +401,16 @@ func TestModel(t *testing.T) {
 			require.NoError(t, err)
 			return sized(m, 120, 20)
 		}
-		atAlpha := []string{"j", "j", "j", "j", "j", "j", "j"}
+		atAlpha := []string{"j", "j", "j", "j", "j", "j", "j", "j", "j"}
 
-		t.Run("under the starter, before the features, the tree shows each option of the starter in the order of the names with its value, and a feature that is not selected shows no option", func(t *testing.T) {
-			require.Equal(t, []string{"   ├─   module  example.com/my-service", "   ├─   region  us", "   ├─   zone      missing", "   ├─   [ ] beta", "   ├─   [ ] zed", "   ├─   [ ] alpha", "   └─   [ ] gamma"}, treeOf(openedWith(t, nil, nil))[2:])
+		t.Run("under the starter, the group options comes before the group features and shows each option of the starter in the order of the names with its value, and a feature that is not selected shows no option", func(t *testing.T) {
+			require.Equal(t, []string{"   ├─ ▾ options", "   │  ├─   module  example.com/my-service", "   │  ├─   region  us", "   │  └─   zone      missing", "   └─ ▾ features  0 of 4", "      ├─   [ ] beta", "      ├─   [ ] zed", "      ├─   [ ] alpha", "      └─   [ ] gamma"}, treeOf(openedWith(t, nil, nil))[2:])
 		})
 
 		t.Run("a space that selects a feature shows its options under it and those of its needs, the options of a need before those of the feature that needs it", func(t *testing.T) {
 			m := pressed(openedWith(t, nil, nil), append(atAlpha, "space")...)
 
-			require.Equal(t, []string{"   ├─   [ ] beta", "   ├─ ▾ [x] zed  needed by alpha", "   │  └─   level  low", "▌  ├─ ▾ [x] alpha", "   │  ├─   mode     fast", "   │  └─   timeout  30", "   └─   [ ] gamma"}, treeOf(m)[5:])
+			require.Equal(t, []string{"      ├─   [ ] beta", "      ├─ ▾ [x] zed  needed by alpha", "      │  └─   level  low", "▌     ├─ ▾ [x] alpha", "      │  ├─   mode     fast", "      │  └─   timeout  30", "      └─   [ ] gamma"}, treeOf(m)[7:])
 		})
 
 		t.Run("a space that clears a feature removes its options and those of its needs", func(t *testing.T) {
@@ -401,9 +426,9 @@ func TestModel(t *testing.T) {
 		})
 
 		t.Run("the options of the last feature have no line beside them", func(t *testing.T) {
-			m := pressed(openedWith(t, nil, nil), "j", "j", "j", "j", "j", "j", "j", "j", "space")
+			m := pressed(openedWith(t, nil, nil), "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "space")
 
-			require.Equal(t, []string{"▌  └─ ▾ [x] gamma", "      └─   tone  soft"}, treeOf(m)[9:])
+			require.Equal(t, []string{"▌     └─ ▾ [x] gamma", "         └─   tone  soft"}, treeOf(m)[11:])
 		})
 
 		t.Run("enter at the starter row keeps it selected", func(t *testing.T) {
@@ -414,7 +439,7 @@ func TestModel(t *testing.T) {
 			atZed := pressed(openedWith(t, nil, nil), append(atAlpha, "space", "k", "k")...)
 			closed := pressed(atZed, "h")
 
-			require.Equal(t, "▌  ├─ ▸ [x] zed  needed by alpha", selectedRowOf(closed))
+			require.Equal(t, "▌     ├─ ▸ [x] zed  needed by alpha", selectedRowOf(closed))
 			require.NotContains(t, strings.Join(treeOf(closed), "\n"), "level")
 			require.Equal(t, []string{screenOf(atZed), screenOf(atZed)}, []string{screenOf(pressed(closed, "l")), screenOf(pressed(closed, "enter"))})
 		})
@@ -422,22 +447,22 @@ func TestModel(t *testing.T) {
 		t.Run("l at an open feature selects its first option, and h at an option selects its feature", func(t *testing.T) {
 			atZed := pressed(openedWith(t, nil, nil), append(atAlpha, "space", "k", "k")...)
 
-			require.Equal(t, []string{"▌  │  └─   level  low", "▌  ├─ ▾ [x] zed  needed by alpha"}, []string{selectedRowOf(pressed(atZed, "l")), selectedRowOf(pressed(atZed, "l", "h"))})
+			require.Equal(t, []string{"▌     │  └─   level  low", "▌     ├─ ▾ [x] zed  needed by alpha"}, []string{selectedRowOf(pressed(atZed, "l")), selectedRowOf(pressed(atZed, "l", "h"))})
 		})
 
-		t.Run("h at an option of the starter selects the starter", func(t *testing.T) {
-			require.Equal(t, "▌▾ starter  service  fixed", selectedRowOf(pressed(openedWith(t, nil, nil), "j", "j", "j", "h")))
+		t.Run("h at an option of the starter selects the group options", func(t *testing.T) {
+			require.Equal(t, "▌  ├─ ▾ options", selectedRowOf(pressed(openedWith(t, nil, nil), "j", "j", "j", "j", "h")))
 		})
 
 		t.Run("an option with no default that a flag gives the empty text is marked fixed and missing", func(t *testing.T) {
-			require.Equal(t, "   ├─   zone      fixed, missing", treeOf(openedWith(t, map[string]string{"zone": ""}, nil))[4])
+			require.Equal(t, "   │  └─   zone      fixed, missing", treeOf(openedWith(t, map[string]string{"zone": ""}, nil))[5])
 		})
 
 		t.Run("an option whose value the need of a selected feature sets is marked fixed, and the mark goes when no selected need sets it", func(t *testing.T) {
-			needed := pressed(sized(opened(t, withNeedValue(), "service", "my-service", nil), 120, 20), "j", "j", "space", "j", "j", "space")
+			needed := pressed(sized(opened(t, withNeedValue(), "service", "my-service", nil), 120, 20), "j", "j", "j", "space", "j", "j", "space")
 			cleared := pressed(needed, "space")
 
-			require.Equal(t, []string{"   │  └─   method  api-key  fixed", "   │  └─   method  api-key"}, []string{treeOf(needed)[3], treeOf(cleared)[3]})
+			require.Equal(t, []string{"      │  └─   method  api-key  fixed", "      │  └─   method  api-key"}, []string{treeOf(needed)[4], treeOf(cleared)[4]})
 		})
 
 		for name, test := range map[string]struct {
@@ -448,7 +473,7 @@ func TestModel(t *testing.T) {
 			"a flag gives with the value that a selected need sets": {map[string]map[string]string{"auth": {"method": "api-key"}}, "command line, need of cli-auth"},
 		} {
 			t.Run("the details of an option whose value "+name+" show the source "+test.source, func(t *testing.T) {
-				m := pressed(opened(t, withNeedValue(), "service", "my-service", test.givenByFeature), "j", "j", "j", "j", "space", "k")
+				m := pressed(opened(t, withNeedValue(), "service", "my-service", test.givenByFeature), "j", "j", "j", "j", "j", "space", "k")
 
 				require.Equal(t, "value    api-key\ndefault  api-key\nvalues   api-key, oauth\nsource   "+test.source, detailsOf(m))
 			})
@@ -457,7 +482,7 @@ func TestModel(t *testing.T) {
 		t.Run("an option that --option or --feature gives is marked fixed", func(t *testing.T) {
 			m := openedWith(t, map[string]string{"region": "eu"}, map[string]map[string]string{"zed": {"level": "high"}})
 
-			require.Equal(t, []string{"   ├─   region  eu  fixed", "   │  └─   level  high  fixed"}, []string{treeOf(m)[3], treeOf(m)[7]})
+			require.Equal(t, []string{"   │  ├─   region  eu  fixed", "      │  └─   level  high  fixed"}, []string{treeOf(m)[4], treeOf(m)[9]})
 		})
 
 		for name, test := range map[string]struct {
@@ -466,11 +491,11 @@ func TestModel(t *testing.T) {
 			keys           []string
 			title, details string
 		}{
-			"an option of the starter with a pattern":    {nil, nil, []string{"j", "j", "j"}, "starter › region", "value    us\ndefault  us\npattern  ^[a-z]+$\nsource   default"},
-			"an option of the starter that a flag gives": {map[string]string{"region": "eu"}, nil, []string{"j", "j", "j"}, "starter › region", "value    eu\ndefault  us\npattern  ^[a-z]+$\nsource   command line"},
-			"an option whose default reads the name":     {nil, nil, []string{"j", "j"}, "starter › module", "value    example.com/my-service\ndefault  example.com/my-service\nsource   default"},
-			"an option of a feature with values":         {nil, map[string]map[string]string{"zed": {}}, []string{"j", "j", "j", "j", "j", "j", "j"}, "zed › level", "value    low\ndefault  low\nvalues   low, mid, high\nsource   default"},
-			"an option of a feature with one value":      {nil, map[string]map[string]string{"gamma": {}}, []string{"j", "j", "j", "j", "j", "j", "j", "j", "j", "j"}, "gamma › tone", "value    soft\ndefault  soft\nvalues   soft\nsource   default"},
+			"an option of the starter with a pattern":    {nil, nil, []string{"j", "j", "j", "j"}, "starter › region", "value    us\ndefault  us\npattern  ^[a-z]+$\nsource   default"},
+			"an option of the starter that a flag gives": {map[string]string{"region": "eu"}, nil, []string{"j", "j", "j", "j"}, "starter › region", "value    eu\ndefault  us\npattern  ^[a-z]+$\nsource   command line"},
+			"an option whose default reads the name":     {nil, nil, []string{"j", "j", "j"}, "starter › module", "value    example.com/my-service\ndefault  example.com/my-service\nsource   default"},
+			"an option of a feature with values":         {nil, map[string]map[string]string{"zed": {}}, []string{"j", "j", "j", "j", "j", "j", "j", "j", "j"}, "zed › level", "value    low\ndefault  low\nvalues   low, mid, high\nsource   default"},
+			"an option of a feature with one value":      {nil, map[string]map[string]string{"gamma": {}}, []string{"j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "j"}, "gamma › tone", "value    soft\ndefault  soft\nvalues   soft\nsource   default"},
 		} {
 			t.Run("the details of "+name+" show its value, its default, its values or its pattern, and its source", func(t *testing.T) {
 				m := pressed(openedWith(t, test.given, test.givenByFeature), test.keys...)
@@ -484,7 +509,7 @@ func TestModel(t *testing.T) {
 			m, err := form.New(catalog.New(withOptions()), "service", "", nil, nil)
 			require.NoError(t, err)
 
-			require.Equal(t, "   ├─   module  example.com/", treeOf(sized(m, 120, 20))[2])
+			require.Equal(t, "   │  ├─   module  example.com/", treeOf(sized(m, 120, 20))[3])
 		})
 	})
 
@@ -538,36 +563,36 @@ func TestModel(t *testing.T) {
 		})
 
 		t.Run("an option without values takes typed text: a text that fails its check shows the message and is not kept, and a text that passes is kept with the source answered", func(t *testing.T) {
-			atRegion := pressed(editable(t, nil, nil), "j", "j", "j", "enter")
+			atRegion := pressed(editable(t, nil, nil), "j", "j", "j", "j", "enter")
 			refused := pressed(atRegion, keysOf([]string{"backspace", "backspace"}, typed("EU"), []string{"enter"})...)
 			kept := pressed(refused, keysOf([]string{"backspace", "backspace"}, typed("eu"), []string{"enter"})...)
 
 			require.Equal(t, "> us", firstDetailsLineOf(atRegion))
 			require.Contains(t, strings.Join(strings.Fields(detailsOf(refused)), " "), `the value "EU" of the option region does not match its pattern ^[a-z]+$`)
-			require.Equal(t, []string{"▌  ├─   region  eu", "source   answered"}, []string{selectedRowOf(kept), lastLineOf(detailsOf(kept))})
+			require.Equal(t, []string{"▌  │  ├─   region  eu", "source   answered"}, []string{selectedRowOf(kept), lastLineOf(detailsOf(kept))})
 		})
 
 		t.Run("a kept value that equals the default has the source answered", func(t *testing.T) {
-			require.Equal(t, "source   answered", lastLineOf(detailsOf(pressed(editable(t, nil, nil), "j", "j", "j", "enter", "enter"))))
+			require.Equal(t, "source   answered", lastLineOf(detailsOf(pressed(editable(t, nil, nil), "j", "j", "j", "j", "enter", "enter"))))
 		})
 
 		t.Run("an option with no default shows no missing mark once the developer keeps a value", func(t *testing.T) {
-			require.Equal(t, "▌  ├─   zone    abc", selectedRowOf(pressed(editable(t, nil, nil), keysOf([]string{"j", "j", "j", "j", "enter"}, typed("abc"), []string{"enter"})...)))
+			require.Equal(t, "▌  │  └─   zone    abc", selectedRowOf(pressed(editable(t, nil, nil), keysOf([]string{"j", "j", "j", "j", "j", "enter"}, typed("abc"), []string{"enter"})...)))
 		})
 
 		t.Run("enter at an option with values lists them in the order of the file with the current value chosen, j and k move, and enter keeps the chosen value", func(t *testing.T) {
-			listed := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter")
+			listed := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "j", "j", "enter")
 			moved := pressed(listed, "j", "j", "k", "j")
 			kept := pressed(moved, "enter")
 
 			require.Equal(t, []string{"▌low\n mid\n high", " low\n mid\n▌high"}, []string{detailsOf(listed), detailsOf(moved)})
-			require.Equal(t, []string{"▌  │  └─   level  high", "source   answered"}, []string{selectedRowOf(kept), lastLineOf(detailsOf(kept))})
+			require.Equal(t, []string{"▌     │  └─   level  high", "source   answered"}, []string{selectedRowOf(kept), lastLineOf(detailsOf(kept))})
 		})
 
 		t.Run("esc drops the chosen value of a list", func(t *testing.T) {
-			m := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter", "j", "esc")
+			m := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "j", "j", "enter", "j", "esc")
 
-			require.Equal(t, "▌  │  └─   level  low", selectedRowOf(m))
+			require.Equal(t, "▌     │  └─   level  low", selectedRowOf(m))
 		})
 
 		t.Run("enter at the name of an argument starts no edit, and the details say that the command line fixes it", func(t *testing.T) {
@@ -582,14 +607,14 @@ func TestModel(t *testing.T) {
 			"a need sets and a flag gives with it": {map[string]map[string]string{"auth": {"method": "api-key"}}, "The option method is fixed: the command line and the need of cli-auth give it."},
 		} {
 			t.Run("enter at an option that "+name+" starts no edit, and the details say what fixes it", func(t *testing.T) {
-				m := pressed(opened(t, withNeedValue(), "service", "my-service", test.givenByFeature), "j", "j", "j", "j", "space", "k", "enter")
+				m := pressed(opened(t, withNeedValue(), "service", "my-service", test.givenByFeature), "j", "j", "j", "j", "j", "space", "k", "enter")
 
 				require.Equal(t, test.message, strings.Join(strings.Fields(strings.SplitN(detailsOf(m), "\n\n", 2)[0]), " "))
 			})
 		}
 
 		t.Run("the tree shows an option only while its when is true, after each answer, and the option has its kept value again when its when is true again", func(t *testing.T) {
-			kept := pressed(sized(opened(t, withWhen(), "service", "my-service", map[string]map[string]string{"client": {}}), 120, 20), "j", "j", "j", "j", "j", "enter", "k", "enter")
+			kept := pressed(sized(opened(t, withWhen(), "service", "my-service", map[string]map[string]string{"client": {}}), 120, 20), "j", "j", "j", "j", "j", "j", "enter", "k", "enter")
 			withOAuth := pressed(kept, "k", "k", "enter", "j", "enter")
 			withAPIKey := pressed(withOAuth, "enter", "k", "enter")
 
@@ -601,40 +626,40 @@ func TestModel(t *testing.T) {
 		})
 
 		t.Run("an answer that makes the when of an option false while a flag gives the option another value than its default leaves the answer as it was, and the details show why", func(t *testing.T) {
-			m := pressed(sized(opened(t, withWhen(), "service", "my-service", map[string]map[string]string{"client": {"store-key": "true"}}), 120, 20), "j", "j", "j", "enter", "j", "enter")
+			m := pressed(sized(opened(t, withWhen(), "service", "my-service", map[string]map[string]string{"client": {"store-key": "true"}}), 120, 20), "j", "j", "j", "j", "enter", "j", "enter")
 
 			require.Contains(t, strings.Join(treeOf(m), "\n"), "method  api-key")
 			require.Contains(t, strings.Join(strings.Fields(detailsOf(m)), " "), `the option store-key of the feature client applies only when auth.method == "api-key", and auth.method is "oauth", but the command line gives it "true"`)
 		})
 
 		t.Run("a value that the developer kept gives way to the value of a need, and the option has the kept value again when no selected need sets it", func(t *testing.T) {
-			kept := pressed(sized(opened(t, withNeedValue(), "service", "my-service", nil), 120, 20), "j", "j", "space", "j", "enter", "j", "enter")
+			kept := pressed(sized(opened(t, withNeedValue(), "service", "my-service", nil), 120, 20), "j", "j", "j", "space", "j", "enter", "j", "enter")
 			needed := pressed(kept, "j", "space")
 			cleared := pressed(needed, "space")
 
-			require.Equal(t, []string{"▌  │  └─   method  oauth", "   │  └─   method  api-key  fixed", "   │  └─   method  oauth"}, []string{treeOf(kept)[3], treeOf(needed)[3], treeOf(cleared)[3]})
+			require.Equal(t, []string{"▌     │  └─   method  oauth", "      │  └─   method  api-key  fixed", "      │  └─   method  oauth"}, []string{treeOf(kept)[4], treeOf(needed)[4], treeOf(cleared)[4]})
 		})
 
 		t.Run("enter at an option of a flag starts no edit, and the details say that the command line fixes it", func(t *testing.T) {
-			require.Equal(t, "The option region is fixed: the command line gives it.", firstDetailsLineOf(pressed(editable(t, map[string]string{"region": "eu"}, nil), "j", "j", "j", "enter")))
+			require.Equal(t, "The option region is fixed: the command line gives it.", firstDetailsLineOf(pressed(editable(t, map[string]string{"region": "eu"}, nil), "j", "j", "j", "j", "enter")))
 		})
 
 		t.Run("an option whose default reads the name follows the name until the developer keeps a value for it", func(t *testing.T) {
 			named := pressed(editable(t, nil, nil), keysOf([]string{"enter"}, typed("my-service"), []string{"enter"})...)
 			renamed := pressed(named, keysOf([]string{"enter"}, []string{"backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace"}, typed("other"), []string{"enter"})...)
-			moduleKept := pressed(renamed, "j", "j", "enter", "enter", "k", "k")
+			moduleKept := pressed(renamed, "j", "j", "j", "enter", "enter", "k", "k", "k")
 			renamedAgain := pressed(moduleKept, keysOf([]string{"enter"}, []string{"backspace", "backspace", "backspace", "backspace", "backspace"}, typed("third"), []string{"enter"})...)
 
-			require.Equal(t, []string{"   ├─   module  example.com/", "   ├─   module  example.com/my-service", "   ├─   module  example.com/other", "   ├─   module  example.com/other"}, []string{treeOf(editable(t, nil, nil))[2], treeOf(named)[2], treeOf(renamed)[2], treeOf(renamedAgain)[2]})
+			require.Equal(t, []string{"   │  ├─   module  example.com/", "   │  ├─   module  example.com/my-service", "   │  ├─   module  example.com/other", "   │  ├─   module  example.com/other"}, []string{treeOf(editable(t, nil, nil))[3], treeOf(named)[3], treeOf(renamed)[3], treeOf(renamedAgain)[3]})
 		})
 
 		t.Run("a feature that a space clears loses the values kept for it, also a need that the clear removes", func(t *testing.T) {
-			selected := pressed(editable(t, nil, nil), "j", "j", "j", "j", "j", "j", "j", "space")
+			selected := pressed(editable(t, nil, nil), "j", "j", "j", "j", "j", "j", "j", "j", "j", "space")
 			edited := pressed(selected, keysOf([]string{"j", "enter", "backspace", "backspace", "backspace", "backspace"}, typed("slow"), []string{"enter", "k", "k", "enter", "j", "enter", "j"})...)
 			again := pressed(edited, "space", "space")
 
-			require.Equal(t, []string{"   │  └─   level  mid", "   │  ├─   mode     slow"}, []string{treeOf(edited)[7], treeOf(edited)[9]})
-			require.Equal(t, []string{"   │  └─   level  low", "   │  ├─   mode     fast"}, []string{treeOf(again)[7], treeOf(again)[9]})
+			require.Equal(t, []string{"      │  └─   level  mid", "      │  ├─   mode     slow"}, []string{treeOf(edited)[9], treeOf(edited)[11]})
+			require.Equal(t, []string{"      │  └─   level  low", "      │  ├─   mode     fast"}, []string{treeOf(again)[9], treeOf(again)[11]})
 		})
 
 		t.Run("an empty name is not kept, and the details show the message of the check of the name", func(t *testing.T) {
@@ -645,7 +670,7 @@ func TestModel(t *testing.T) {
 		})
 
 		t.Run("an empty value of an option with no default is not kept, and the details say that it needs a value", func(t *testing.T) {
-			m := pressed(editable(t, nil, nil), "j", "j", "j", "j", "enter", "enter")
+			m := pressed(editable(t, nil, nil), "j", "j", "j", "j", "j", "enter", "enter")
 
 			require.Equal(t, ">", firstDetailsLineOf(m))
 			require.Contains(t, strings.Join(strings.Fields(detailsOf(m)), " "), "the option zone of the starter service has no default, so it needs a value")
@@ -664,28 +689,28 @@ func TestModel(t *testing.T) {
 			"j up":  "▌low\n mid\n high",
 		} {
 			t.Run("j and k move the chosen value by one, as down and up do, and stop at the ends: "+keys, func(t *testing.T) {
-				m := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), keysOf([]string{"j", "j", "j", "j", "j", "j", "j", "enter"}, strings.Fields(keys))...)
+				m := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), keysOf([]string{"j", "j", "j", "j", "j", "j", "j", "j", "j", "enter"}, strings.Fields(keys))...)
 
 				require.Equal(t, details, detailsOf(m))
 			})
 		}
 
 		t.Run("an option with values and no value yet lists its values with the first chosen", func(t *testing.T) {
-			require.Equal(t, "▌red\n blue", detailsOf(pressed(editable(t, nil, nil), "j", "j", "j", "j", "j", "space", "j", "enter")))
+			require.Equal(t, "▌red\n blue", detailsOf(pressed(editable(t, nil, nil), "j", "j", "j", "j", "j", "j", "j", "space", "j", "enter")))
 		})
 
 		t.Run("an option with one value lists that value", func(t *testing.T) {
-			require.Equal(t, "▌soft", detailsOf(pressed(editable(t, nil, map[string]map[string]string{"gamma": {}}), "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "enter")))
+			require.Equal(t, "▌soft", detailsOf(pressed(editable(t, nil, map[string]map[string]string{"gamma": {}}), "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "j", "enter")))
 		})
 
 		t.Run("a second edit of an option with values chooses the kept value", func(t *testing.T) {
-			m := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter", "j", "j", "enter", "enter")
+			m := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "j", "j", "enter", "j", "j", "enter", "enter")
 
 			require.Equal(t, " low\n mid\n▌high", detailsOf(m))
 		})
 
 		t.Run("h and l at a list change nothing", func(t *testing.T) {
-			listed := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter")
+			listed := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "j", "j", "enter")
 			m, quit := pressedAndQuit(listed, "h", "l")
 
 			require.False(t, quit)
@@ -693,16 +718,16 @@ func TestModel(t *testing.T) {
 		})
 
 		t.Run("after a value of a list is kept, the footer shows the keys of the tree again", func(t *testing.T) {
-			m := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter", "enter")
+			m := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "j", "j", "enter", "enter")
 
 			require.Equal(t, " j/k move • l open • h close • space select • w write • ctrl+d/u scroll details • q quit", linesOf(m)[19])
 		})
 
 		t.Run("a space at another feature keeps the values kept for the selected features", func(t *testing.T) {
-			edited := pressed(editable(t, nil, nil), keysOf([]string{"j", "j", "j", "j", "j", "j", "j", "space", "j", "enter", "backspace", "backspace", "backspace", "backspace"}, typed("slow"), []string{"enter"})...)
+			edited := pressed(editable(t, nil, nil), keysOf([]string{"j", "j", "j", "j", "j", "j", "j", "j", "j", "space", "j", "enter", "backspace", "backspace", "backspace", "backspace"}, typed("slow"), []string{"enter"})...)
 			m := pressed(edited, "k", "k", "k", "k", "space")
 
-			require.Equal(t, []string{"▌  ├─ ▾ [x] beta", "   │  ├─   mode     slow"}, []string{treeOf(m)[5], treeOf(m)[10]})
+			require.Equal(t, []string{"▌     ├─ ▾ [x] beta", "      │  ├─   mode     slow"}, []string{treeOf(m)[7], treeOf(m)[12]})
 		})
 
 		t.Run("with no starter yet, the name of an edit is kept also when flags are given", func(t *testing.T) {
@@ -721,14 +746,14 @@ func TestModel(t *testing.T) {
 		})
 
 		t.Run("q at a list of values stops the form", func(t *testing.T) {
-			_, quit := pressedAndQuit(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter", "q")
+			_, quit := pressedAndQuit(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "j", "j", "enter", "q")
 
 			require.True(t, quit)
 		})
 
 		t.Run("during an edit, the footer shows the keys of the edit", func(t *testing.T) {
 			text := pressed(editable(t, nil, nil), "enter")
-			list := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "enter")
+			list := pressed(editable(t, nil, map[string]map[string]string{"zed": {}}), "j", "j", "j", "j", "j", "j", "j", "j", "j", "enter")
 
 			require.Equal(t, []string{" enter keep • esc drop • ctrl+c quit", " j/k move • enter keep • esc drop • q quit"}, []string{linesOf(text)[19], linesOf(list)[19]})
 		})
@@ -767,7 +792,7 @@ func TestModel(t *testing.T) {
 		t.Run("enter keeps the chosen starter, and the tree shows its options and its features with the source answered", func(t *testing.T) {
 			m := chosen(t)
 
-			require.Equal(t, []string{"▌▾ starter  service", "   ├─   region  us", "   ├─   [ ] only", "   └─   [ ] shared"}, treeOf(m)[1:])
+			require.Equal(t, []string{"▌▾ starter  service", "   ├─ ▾ options", "   │  └─   region  us", "   └─ ▾ features  0 of 2", "      ├─   [ ] only", "      └─   [ ] shared"}, treeOf(m)[1:])
 			require.Equal(t, "A service.\n\nsource  answered", detailsOf(m))
 		})
 
@@ -781,23 +806,23 @@ func TestModel(t *testing.T) {
 
 		t.Run("a change of the starter keeps each selected feature that targets the new starter with its kept values, and clears the others and the kept values of the starter", func(t *testing.T) {
 			edited := chosen(t,
-				"j", "enter", "backspace", "backspace", "e", "u", "enter",
-				"j", "space", "j", "enter", "backspace", "backspace", "backspace", "backspace", "s", "l", "o", "w", "enter",
+				"j", "j", "enter", "backspace", "backspace", "e", "u", "enter",
+				"j", "j", "space", "j", "enter", "backspace", "backspace", "backspace", "backspace", "s", "l", "o", "w", "enter",
 				"j", "space", "j", "enter", "backspace", "backspace", "backspace", "backspace", "l", "o", "u", "d", "enter")
-			changed := pressed(edited, "k", "k", "k", "k", "k", "enter", "j", "enter")
+			changed := pressed(edited, "k", "k", "k", "k", "k", "k", "k", "enter", "j", "enter")
 
-			require.Equal(t, []string{"   ├─   region  eu", "   ├─ ▾ [x] only", "   │  └─   mode  slow", "   └─ ▾ [x] shared", "▌     └─   tone  loud"}, treeOf(edited)[2:])
-			require.Equal(t, []string{"▌▾ starter  worker", "   ├─   queue  jobs", "   └─ ▾ [x] shared", "      └─   tone  loud"}, treeOf(changed)[1:])
+			require.Equal(t, []string{"   ├─ ▾ options", "   │  └─   region  eu", "   └─ ▾ features  2 of 2", "      ├─ ▾ [x] only", "      │  └─   mode  slow", "      └─ ▾ [x] shared", "▌        └─   tone  loud"}, treeOf(edited)[2:])
+			require.Equal(t, []string{"▌▾ starter  worker", "   ├─ ▾ options", "   │  └─   queue  jobs", "   └─ ▾ features  1 of 1", "      └─ ▾ [x] shared", "         └─   tone  loud"}, treeOf(changed)[1:])
 		})
 
 		t.Run("keeping the current starter keeps the kept values of the starter", func(t *testing.T) {
-			m := chosen(t, "j", "enter", "backspace", "backspace", "e", "u", "enter", "k", "enter", "enter")
+			m := chosen(t, "j", "j", "enter", "backspace", "backspace", "e", "u", "enter", "k", "k", "enter", "enter")
 
-			require.Equal(t, "   ├─   region  eu", treeOf(m)[2])
+			require.Equal(t, "   │  └─   region  eu", treeOf(m)[3])
 		})
 
 		t.Run("keeping the current starter changes nothing", func(t *testing.T) {
-			selected := chosen(t, "j", "j", "space", "k", "k")
+			selected := chosen(t, "j", "j", "j", "j", "space", "k", "k", "k", "k")
 
 			require.Equal(t, screenOf(selected), screenOf(pressed(selected, "enter", "enter")))
 		})
@@ -837,12 +862,12 @@ func TestModel(t *testing.T) {
 			}
 			m, err := form.New(catalog.New(files), "", "my-service", nil, nil)
 			require.NoError(t, err)
-			kept := pressed(sized(m, 120, 20), "j", "enter", "enter", "j", "j", "space", "k", "enter", "j", "enter")
+			kept := pressed(sized(m, 120, 20), "j", "enter", "enter", "j", "j", "j", "space", "k", "enter", "j", "enter")
 
-			changed := pressed(kept, "k", "k", "enter", "j", "enter")
+			changed := pressed(kept, "k", "k", "k", "enter", "j", "enter")
 
-			require.Equal(t, "▌  │  └─   level  high", treeOf(kept)[3])
-			require.Equal(t, []string{"▌▾ starter  worker", "   └─   [ ] q"}, treeOf(changed)[1:])
+			require.Equal(t, "▌     │  └─   level  high", treeOf(kept)[4])
+			require.Equal(t, []string{"▌▾ starter  worker", "   └─ ▾ features  0 of 1", "      └─   [ ] q"}, treeOf(changed)[1:])
 		})
 
 		t.Run("a list longer than the details pane shows the chosen starter", func(t *testing.T) {
@@ -903,7 +928,7 @@ func TestModel(t *testing.T) {
 		})
 
 		t.Run("the preview shows the answers of the developer with the source answered", func(t *testing.T) {
-			m := pressed(sized(opened(t, withOptions(), "service", "my-service", map[string]map[string]string{"zed": {}}), 120, 30), "j", "j", "j", "j", "enter", "a", "b", "c", "enter", "w")
+			m := pressed(sized(opened(t, withOptions(), "service", "my-service", map[string]map[string]string{"zed": {}}), 120, 30), "j", "j", "j", "j", "j", "enter", "a", "b", "c", "enter", "w")
 
 			require.Contains(t, detailsOf(m), "\n  starter.zone: abc (answered)\n")
 		})
@@ -932,7 +957,7 @@ func TestModel(t *testing.T) {
 		})
 
 		t.Run("y stops the form, which then gives the selection of the preview with the answers of the developer", func(t *testing.T) {
-			m, quit := pressedAndQuit(sized(opened(t, withOptions(), "service", "my-service", map[string]map[string]string{"zed": {}}), 120, 30), "j", "j", "j", "j", "enter", "a", "b", "c", "enter", "w", "y")
+			m, quit := pressedAndQuit(sized(opened(t, withOptions(), "service", "my-service", map[string]map[string]string{"zed": {}}), 120, 30), "j", "j", "j", "j", "j", "enter", "a", "b", "c", "enter", "w", "y")
 
 			selection, err := m.Confirmed()
 			require.NoError(t, err)
@@ -944,7 +969,7 @@ func TestModel(t *testing.T) {
 
 		for _, back := range []string{"n", "esc"} {
 			t.Run(back+" goes back to the form with the same row selected and its details", func(t *testing.T) {
-				atAlpha := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j")
+				atAlpha := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j", "j")
 				m, quit := pressedAndQuit(atAlpha, "w", back)
 
 				require.False(t, quit)
@@ -997,11 +1022,11 @@ func TestModel(t *testing.T) {
 		})
 
 		t.Run("w with an option that has no default and no value selects its row, opens the rows above it, and the details show the message of its check", func(t *testing.T) {
-			closed := pressed(sized(opened(t, withOptions(), "service", "my-service", nil), 120, 30), "j", "j", "j", "j", "enter", "a", "b", "c", "enter", "j", "space", "h", "k", "k", "k", "k", "h")
+			closed := pressed(sized(opened(t, withOptions(), "service", "my-service", nil), 120, 30), "j", "j", "j", "j", "j", "enter", "a", "b", "c", "enter", "j", "j", "space", "h", "k", "k", "k", "k", "k", "k", "h")
 			m := pressed(closed, "w")
 
 			require.Equal(t, []string{"   name     my-service  fixed", "▌▸ starter  service  fixed"}, treeOf(closed))
-			require.Equal(t, "▌  │  └─   color    missing", selectedRowOf(m))
+			require.Equal(t, "▌     │  └─   color    missing", selectedRowOf(m))
 			require.Equal(t, `the feature beta: the value "" of the option color is not one of its values: red, blue`, strings.Join(strings.Fields(strings.SplitN(detailsOf(m), "\n\n", 2)[0]), " "))
 		})
 
@@ -1059,11 +1084,11 @@ func TestModel(t *testing.T) {
 				"features/c/feature.yml":            &fstest.MapFile{Data: []byte("summary: Needs two.\ntargets: [service]\nneeds:\n  b:\n  a:\n    mode: fast\n    level: high\n")},
 			}
 
-			require.Equal(t, "Needs two.\n\nNeeds\n  a  level  high\n     mode   fast\n  b\n\nsource  not selected", detailsOf(pressed(opened(t, files, "service", "my-service", nil), "j", "j", "j", "j")))
+			require.Equal(t, "Needs two.\n\nNeeds\n  a  level  high\n     mode   fast\n  b\n\nsource  not selected", detailsOf(pressed(opened(t, files, "service", "my-service", nil), "j", "j", "j", "j", "j")))
 		})
 
 		t.Run("a feature with no need says none, and a feature with two needs lists each", func(t *testing.T) {
-			atBeta := pressed(opened(t, withTwoNeeds(), "service", "my-service", nil), "j", "j")
+			atBeta := pressed(opened(t, withTwoNeeds(), "service", "my-service", nil), "j", "j", "j")
 			atDelta := pressed(atBeta, "j", "j", "j")
 
 			require.Equal(t, []string{"Feature beta.\n\nNeeds\n  none\n\nsource  not selected", "Feature delta.\n\nNeeds\n  beta\n  zed\n\nsource  not selected"}, []string{detailsOf(atBeta), detailsOf(atDelta)})
@@ -1076,7 +1101,21 @@ func TestModel(t *testing.T) {
 		})
 
 		t.Run("a feature shows its summary, its needs and its source", func(t *testing.T) {
-			require.Equal(t, "Feature alpha.\n\nNeeds\n  zed\n\nsource  command line", detailsOf(pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j")))
+			require.Equal(t, "Feature alpha.\n\nNeeds\n  zed\n\nsource  command line", detailsOf(pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j", "j", "j", "j")))
+		})
+
+		t.Run("the group options shows each option of the starter with its value", func(t *testing.T) {
+			m := pressed(sized(opened(t, withOptions(), "service", "my-service", nil), 120, 14), "j", "j")
+
+			_, title := paneTitlesOf(m)
+			require.Equal(t, []string{"options", "module  example.com/my-service\nregion  us\nzone"}, []string{title, detailsOf(m)})
+		})
+
+		t.Run("the group features lists the selected features and then the features that are not selected, each with its summary, in the order of the tree", func(t *testing.T) {
+			m := pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), "j", "j")
+
+			_, title := paneTitlesOf(m)
+			require.Equal(t, []string{"features", "Selected\n  zed    Feature zed.\n  alpha  Feature alpha.\n\nNot selected\n  beta   Feature beta.\n  gamma  Feature gamma."}, []string{title, detailsOf(m)})
 		})
 
 		for name, test := range map[string]struct {
@@ -1084,9 +1123,9 @@ func TestModel(t *testing.T) {
 			keys           []string
 			source         string
 		}{
-			"a feature that a selected feature needs":     {withAlpha(), []string{"j", "j", "j"}, "source  needed by alpha"},
-			"a feature of --feature that a feature needs": {map[string]map[string]string{"alpha": {}, "zed": {}}, []string{"j", "j", "j"}, "source  command line, needed by alpha"},
-			"a feature that is not selected":              {withAlpha(), []string{"j", "j"}, "source  not selected"},
+			"a feature that a selected feature needs":     {withAlpha(), []string{"j", "j", "j", "j"}, "source  needed by alpha"},
+			"a feature of --feature that a feature needs": {map[string]map[string]string{"alpha": {}, "zed": {}}, []string{"j", "j", "j", "j"}, "source  command line, needed by alpha"},
+			"a feature that is not selected":              {withAlpha(), []string{"j", "j", "j"}, "source  not selected"},
 		} {
 			t.Run(name+" shows its source with the text of the preview", func(t *testing.T) {
 				details := detailsOf(pressed(opened(t, withNeeds(), "service", "my-service", test.givenByFeature), test.keys...))
@@ -1096,9 +1135,10 @@ func TestModel(t *testing.T) {
 		}
 
 		for keys, title := range map[string]string{
-			"":      "name",
-			"j":     "service",
-			"j j j": "zed",
+			"":        "name",
+			"j":       "service",
+			"j j":     "features",
+			"j j j j": "zed",
 		} {
 			t.Run("the title of the details pane names the selected row: "+keys, func(t *testing.T) {
 				_, details := paneTitlesOf(pressed(opened(t, withNeeds(), "service", "my-service", withAlpha()), strings.Fields(keys)...))
@@ -1126,13 +1166,13 @@ func TestModel(t *testing.T) {
 
 		t.Run("a newly selected row after a scroll shows its details from the top, also when they are long", func(t *testing.T) {
 			long := strings.Repeat("word ", 60)
-			scrolled := pressed(sized(opened(t, withSummaries("Starter "+long, "Feature "+long), "service", "my-service", nil), 90, 10), "j", "ctrl+d")
+			scrolled := pressed(sized(opened(t, withSummaries("Starter "+long, "Feature "+long), "service", "my-service", nil), 90, 10), "j", "j", "ctrl+d")
 
 			require.Equal(t, "Feature word word word word word word word word", firstDetailsLineOf(pressed(scrolled, "j")))
 		})
 
 		t.Run("details that fill the pane exactly show no scroll position", func(t *testing.T) {
-			require.Equal(t, "", scrollNoteOf(pressed(sized(opened(t, withNeeds(), "service", "my-service", withAlpha()), 90, 10), "j", "j", "j", "j")))
+			require.Equal(t, "", scrollNoteOf(pressed(sized(opened(t, withNeeds(), "service", "my-service", withAlpha()), 90, 10), "j", "j", "j", "j", "j")))
 		})
 
 		t.Run("details scrolled to their end show 100%", func(t *testing.T) {
@@ -1149,7 +1189,7 @@ func TestModel(t *testing.T) {
 	t.Run("stop", func(t *testing.T) {
 		for name, keys := range map[string][]string{
 			"q":              {"q"},
-			"q at a feature": {"j", "j", "q"},
+			"q at a feature": {"j", "j", "j", "q"},
 			"ctrl+c":         {"ctrl+c"},
 		} {
 			t.Run(name+" stops the form, which then gives the cancel", func(t *testing.T) {
@@ -1174,6 +1214,51 @@ func TestModel(t *testing.T) {
 			_, quit := pressedAndQuit(opened(t, withNeeds(), "service", "my-service", nil), "j", "esc", "esc")
 
 			require.False(t, quit)
+		})
+	})
+
+	t.Run("style", func(t *testing.T) {
+		colored := func(t *testing.T) {
+			t.Helper()
+			profile := lipgloss.ColorProfile()
+			lipgloss.SetColorProfile(termenv.TrueColor)
+			t.Cleanup(func() { lipgloss.SetColorProfile(profile) })
+		}
+
+		t.Run("the name row and the starter row show their labels in the color of the labels, the name as plain text, and the starter in bold", func(t *testing.T) {
+			colored(t)
+			view := pressed(opened(t, withNeeds(), "service", "my-service", nil), "j", "j").View()
+
+			require.Contains(t, view, screen.LabelStyle.Render("name     ")+"my-service")
+			require.Contains(t, view, screen.LabelStyle.Render("starter  ")+screen.NameStyle.Render("service"))
+		})
+
+		t.Run("a group row shows its name in the color of the groups", func(t *testing.T) {
+			colored(t)
+
+			require.Contains(t, opened(t, withOptions(), "service", "my-service", nil).View(), screen.GroupStyle.Render("options"))
+		})
+
+		t.Run("an option row shows its name in the color of the labels and its value as plain text", func(t *testing.T) {
+			colored(t)
+
+			require.Contains(t, sized(opened(t, withOptions(), "service", "my-service", nil), 120, 20).View(), screen.LabelStyle.Render("region  ")+"us")
+		})
+
+		t.Run("a selected feature is bold, and a feature that is not selected is faint", func(t *testing.T) {
+			colored(t)
+			view := opened(t, withNeeds(), "service", "my-service", withAlpha()).View()
+
+			require.Contains(t, view, screen.NameStyle.Render("[x] alpha"))
+			require.Contains(t, view, screen.NotSelectedStyle.Render("[ ] beta"))
+		})
+
+		t.Run("the mark missing has the color of a problem, and the other marks are faint", func(t *testing.T) {
+			colored(t)
+			m, err := form.New(catalog.New(withOptions()), "service", "my-service", map[string]string{"zone": ""}, nil)
+			require.NoError(t, err)
+
+			require.Contains(t, sized(m, 120, 20).View(), screen.MarkStyle.Render("fixed")+screen.MarkStyle.Render(", ")+screen.ProblemStyle.Render("missing"))
 		})
 	})
 

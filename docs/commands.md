@@ -144,20 +144,22 @@ pane shows the details of the selected row. You can change any answer in any ord
 
 ```text
 
- feature-compose new                                                                               3 features
-╭─ Repo ───────────────────────────────────╮╭─ name ─────────────────────────────────────────────────────────╮
-│ ▌  name     my-service  fixed            ││ value   my-service                                             │
-│  ▾ starter  go-event-sourcing-service  … ││ source  command line                                           │
-│    ├─   go-version  1.27.1               ││                                                                │
-│    ├─   module      github.com/hpcsc/my… ││                                                                │
-│    ├─ ▾ [x] api-auth  needed by cli-auth ││                                                                │
-│    │  └─   method  api-key               ││                                                                │
-│    ├─   [x] cli  needed by cli-auth      ││                                                                │
-│    ├─ ▾ [x] cli-auth  fixed              ││                                                                │
-│    │  └─   store-key  false              ││                                                                │
-│    ├─   [ ] process-manager              ││                                                                │
-│    └─   [ ] push                         ││                                                                │
-╰──────────────────────────────────────────╯╰────────────────────────────────────────────────────────────────╯
+ feature-compose new                                                                                         3 features
+╭─ Repo ───────────────────────────────────────╮╭─ name ───────────────────────────────────────────────────────────────╮
+│ ▌  name     my-service  fixed                ││ value   my-service                                                   │
+│  ▾ starter  go-event-sourcing-service  fixed ││ source  command line                                                 │
+│    ├─ ▾ options                              ││                                                                      │
+│    │  ├─   go-version  1.27.1                ││                                                                      │
+│    │  └─   module      github.com/hpcsc/my-… ││                                                                      │
+│    └─ ▾ features  3 of 5                     ││                                                                      │
+│       ├─ ▾ [x] api-auth  needed by cli-auth  ││                                                                      │
+│       │  └─   method  api-key                ││                                                                      │
+│       ├─   [x] cli  needed by cli-auth       ││                                                                      │
+│       ├─ ▾ [x] cli-auth  fixed               ││                                                                      │
+│       │  └─   store-key  false               ││                                                                      │
+│       ├─   [ ] process-manager               ││                                                                      │
+│       └─   [ ] push                          ││                                                                      │
+╰──────────────────────────────────────────────╯╰──────────────────────────────────────────────────────────────────────╯
  j/k move • l open • h close • space select • w write • ctrl+d/u scroll details • q quit
 ```
 
@@ -166,9 +168,15 @@ The tree has these rows:
 | Row | What it shows |
 | --- | --- |
 | `name` | The name of the repo. |
-| `starter` | The starter. Under it come the options of the starter, in the order of the names, and then each feature that targets the starter, each after the features that it needs. |
+| `starter` | The starter. Under it come the groups `options` and `features`. A group that has no row does not show. |
+| `options` | The options of the starter, in the order of the names. Its details show the full value of each option. |
+| `features` | Each feature that targets the starter, each after the features that it needs. The mark `3 of 5` counts the selected features. Its details list the selected features, and then the other features, each with its summary. |
 | A feature | `[x]` when the repo gets the feature, and `[ ]` when it does not. Under a selected feature come its options. |
 | An option | The option and its value. |
+
+Each kind of row has its own style. The groups have the accent color. The labels `name` and `starter` and the names
+of the options are faint, and the values are plain. The starter and a selected feature are bold, and a feature that
+is not selected is faint.
 
 A mark after a row tells you more about it:
 
@@ -176,17 +184,17 @@ A mark after a row tells you more about it:
 | --- | --- |
 | `fixed` | An argument, a flag or the need of a selected feature gives the value, so the form does not change it. |
 | `needed by <features>` | Selected features need the feature, so it stays selected. |
-| `missing` | The row has no value yet, and `w` stops on it. |
+| `missing` | The row has no value yet, and `w` stops on it. This mark is red, and the other marks are faint. |
 
 The keys of the form:
 
 | Key | Action |
 | --- | --- |
 | `j`, `k`, or the up and down arrows | Move down and up in the tree. |
-| `l` or the right arrow | Open the selected starter or feature. At an open row, select its first row. |
+| `l` or the right arrow | Open the selected starter, group or feature. At an open row, select its first row. |
 | `h`, Esc, or the left arrow | Close an open row. At another row, select the row that it is under. |
 | Space | Select the feature of the row, or clear it. |
-| Enter | Edit the name, the starter or the option of the row. At a feature, do what `l` does. |
+| Enter | Edit the name, the starter or the option of the row. At a group or a feature, do what `l` does. |
 | `w` | Show the preview of the repo, and ask whether to write it. |
 | ctrl+d and ctrl+u, or Page Down and Page Up | Scroll the details down and up by half the pane. |
 | `q` or ctrl+c | Stop the form and write nothing. During an edit of a text, `q` goes to the text, and ctrl+c stops the form. |

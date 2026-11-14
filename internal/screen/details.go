@@ -42,7 +42,7 @@ func (e Entry) lines(width, labelWidth int) []string {
 		for i, value := range f.Values {
 			label := strings.Repeat(" ", labelWidth)
 			if i == 0 {
-				label = labelStyle.Render(padded(f.Label, labelWidth))
+				label = LabelStyle.Render(padded(f.Label, labelWidth))
 			}
 			for j, line := range Wrapped(value, max(width-labelWidth-2, 1)) {
 				if j > 0 {

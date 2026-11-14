@@ -176,7 +176,7 @@ func (m Model) updatePreview(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) entered() Model {
 	r := m.tree.selected
-	if r.kind == featureKind {
+	if r.kind == groupKind || r.kind == featureKind {
 		m.tree = m.tree.opened()
 		return m
 	}

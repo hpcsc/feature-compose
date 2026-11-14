@@ -44,7 +44,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Keep `.env.*` files, `.git` and build output out of the build of each image",
       "language": "Go",
       "testable": true,

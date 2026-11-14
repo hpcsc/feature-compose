@@ -3320,6 +3320,41 @@ jobs:
 			}
 		})
 
+		t.Run("for each app of the matrix of publish, a repo of go-event-sourcing-service has an ignore file beside the Dockerfile of the app with the lines of the .dockerignore of the go-event-sourcing-service of repo-templates", func(t *testing.T) {
+			files := writtenTarget(t, "go-event-sourcing-service", nil, nil)
+			publish := publishJob(t, parsedYAML(t, files[".github/workflows/ci.yml"])["jobs"].(map[string]any))
+
+			for _, app := range publish["strategy"].(map[string]any)["matrix"].(map[string]any)["app"].([]any) {
+				require.Equal(t, ".git\n.DS_Store\n**/node_modules\n**/dist\n**/bin\n**/.env.*\n**/*.out\n", files["Dockerfile."+app.(string)+".dockerignore"], app)
+			}
+		})
+
+		t.Run("for each app of the matrix of publish, the last stage of the Dockerfile of the app copies only the binary of the app from the build stage", func(t *testing.T) {
+			files := writtenTarget(t, "go-event-sourcing-service", nil, nil)
+			publish := publishJob(t, parsedYAML(t, files[".github/workflows/ci.yml"])["jobs"].(map[string]any))
+
+			for _, app := range publish["strategy"].(map[string]any)["matrix"].(map[string]any)["app"].([]any) {
+				dockerfile := files["Dockerfile."+app.(string)]
+				lastStage := dockerfile[strings.LastIndex(dockerfile, "\nFROM "):]
+				var copies []string
+				for _, line := range strings.Split(lastStage, "\n") {
+					instruction := strings.ToUpper(strings.SplitN(strings.TrimSpace(line), " ", 2)[0])
+					if instruction == "COPY" || instruction == "ADD" {
+						copies = append(copies, strings.TrimSpace(line))
+					}
+				}
+				require.Equal(t, []string{"COPY --from=build-env /build/" + app.(string) + " ."}, copies, app)
+			}
+		})
+
+		t.Run("with cli, a repo of go-event-sourcing-service has the .dockerignore of cli and the ignore file of each image", func(t *testing.T) {
+			files := writtenTarget(t, "go-event-sourcing-service", nil, withoutValues("cli"))
+
+			require.Contains(t, files, ".dockerignore")
+			require.Contains(t, files, "Dockerfile.api.dockerignore")
+			require.Contains(t, files, "Dockerfile.catchup.dockerignore")
+		})
+
 		t.Run("with each feature that targets go-event-sourcing-service, the workflow and the job test of ci.yml read the contents, and only the job publish writes the packages", func(t *testing.T) {
 			definitions, err := repoCatalog().Definitions()
 			require.NoError(t, err)

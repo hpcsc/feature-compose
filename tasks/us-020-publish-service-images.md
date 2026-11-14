@@ -293,14 +293,14 @@ from `docker/build-push-action` in CI, from `task <app>:docker:build`, and from 
 stage, so the image holds no file of the machine (decision 3).
 
 **Acceptance Criteria:**
-- [ ] `TestCatalog`: for each app of the matrix of `publish`, the written repo has `Dockerfile.<app>.dockerignore`
+- [x] `TestCatalog`: for each app of the matrix of `publish`, the written repo has `Dockerfile.<app>.dockerignore`
   beside `Dockerfile.<app>`, and its lines are the lines of the template's `.dockerignore` at `5c8d77f`, which the test
   holds as text.
-- [ ] `TestCatalog`: the last stage of each Dockerfile that `publish` builds copies only the binary from its build
+- [x] `TestCatalog`: the last stage of each Dockerfile that `publish` builds copies only the binary from its build
   stage, and copies or adds no other file.
-- [ ] `TestCatalog`: with `cli`, the written repo has the `.dockerignore` of `cli` and the ignore file of each image,
+- [x] `TestCatalog`: with `cli`, the written repo has the `.dockerignore` of `cli` and the ignore file of each image,
   and the write does not stop. "the catalog of this repo has no mistake" and the e2e test of `check` pass.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass, and `task test:combinations` passes.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass, and `task test:combinations` passes.
 
 **Affected Files/Modules:**
 - `catalog/starters/go-event-sourcing-service/files/go/Dockerfile.api.dockerignore` — new

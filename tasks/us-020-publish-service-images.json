@@ -103,7 +103,7 @@
     },
     {
       "n": 4,
-      "done": false,
+      "done": true,
       "title": "Check the shell scripts in the root folder of the repo with `task test:shellcheck`",
       "language": "Go",
       "testable": true,

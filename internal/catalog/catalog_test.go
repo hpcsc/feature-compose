@@ -3561,6 +3561,56 @@ jobs:
 			}
 		})
 
+		shellCheckWith := func(t *testing.T, rootScripts map[string]string) (checked []string, failed bool) {
+			t.Helper()
+			output, files := writtenStarter(t, nil)
+			for path, contents := range rootScripts {
+				require.NoError(t, os.WriteFile(filepath.Join(output, path), []byte(contents), 0o755))
+			}
+			stubs := t.TempDir()
+			recorded := filepath.Join(stubs, "shellcheck-arguments")
+			require.NoError(t, os.WriteFile(filepath.Join(stubs, "shellcheck"), []byte("#!/bin/sh\nstatus=3\nfor argument in \"$@\"; do\n  printf '%s\\n' \"$argument\" >> \""+recorded+"\"\n  case \"$argument\" in\n  -S|error) ;;\n  *)\n    [ -f \"$argument\" ] || exit 2\n    [ \"$status\" = 3 ] && status=0\n    if grep -q 'an error for shellcheck' \"$argument\"; then status=1; fi\n    ;;\n  esac\ndone\nexit $status\n"), 0o755))
+			for _, command := range parsedYAML(t, files["Taskfile.yml"])["tasks"].(map[string]any)["test:shellcheck"].(map[string]any)["cmds"].([]any) {
+				shell := exec.Command("sh", "-c", command.(string))
+				shell.Dir = output
+				shell.Env = append(os.Environ(), "PATH="+stubs+string(os.PathListSeparator)+os.Getenv("PATH"))
+				if shell.Run() != nil {
+					failed = true
+					break
+				}
+			}
+			arguments, err := os.ReadFile(recorded)
+			require.NoError(t, err)
+			return strings.Split(strings.TrimSuffix(string(arguments), "\n"), "\n"), failed
+		}
+
+		t.Run("test:shellcheck of go-event-sourcing-service gives shellcheck each .sh file in the root folder of the repo, and fails when shellcheck finds an error in one of them", func(t *testing.T) {
+			checked, failed := shellCheckWith(t, map[string]string{
+				"deploy.sh":  "#!/bin/sh\n# an error for shellcheck\n",
+				"release.sh": "#!/bin/sh\necho release\n",
+			})
+
+			require.True(t, failed)
+			require.Subset(t, checked, []string{"./deploy.sh", "./release.sh"})
+		})
+
+		for name, rootScripts := range map[string]map[string]string{
+			"a root script with no error": {"release.sh": "#!/bin/sh\necho release\n"},
+			"no root script":              nil,
+		} {
+			t.Run("with "+name+", test:shellcheck of go-event-sourcing-service passes and still gives shellcheck each .sh file under scripts and each file of hooks", func(t *testing.T) {
+				checked, failed := shellCheckWith(t, rootScripts)
+
+				require.False(t, failed)
+				require.Subset(t, checked, []string{
+					"./scripts/libs/git-hook-prepush.sh", "./scripts/local/migrate/entrypoint.sh", "./scripts/test/start-test-dependencies.sh", "./hooks/pre-push",
+				})
+				for path := range rootScripts {
+					require.Contains(t, checked, "./"+path)
+				}
+			})
+		}
+
 		t.Run("hooks/pre-push and the scripts can be run", func(t *testing.T) {
 			output, _ := writtenStarter(t, nil)
 

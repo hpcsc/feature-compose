@@ -410,12 +410,12 @@ before. The line is the template's, with no `|| true` (decision 4). The scripts 
 still checked, and the job `test` of CI runs the task.
 
 **Acceptance Criteria:**
-- [ ] `TestCatalog`: in a written repo, a `.sh` file in the root folder in which shellcheck finds an error makes
+- [x] `TestCatalog`: in a written repo, a `.sh` file in the root folder in which shellcheck finds an error makes
   `test:shellcheck` fail, and the file is among the files that shellcheck gets. A root script with no error, and no
   root script, let `test:shellcheck` pass.
-- [ ] `TestCatalog`: each `.sh` file under `scripts/` and each file of `hooks/` are still among the files that
+- [x] `TestCatalog`: each `.sh` file under `scripts/` and each file of `hooks/` are still among the files that
   shellcheck gets.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `catalog/starters/go-event-sourcing-service/files/go/Taskfile.yml` — `test:shellcheck`

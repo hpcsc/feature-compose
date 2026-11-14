@@ -70,6 +70,28 @@ add_to:
   test.dependencies:
     - service: nats
       when: delivery == "nats"
+  taskfile.dependencies:
+    - service: nats
+      when: delivery == "nats"
+  api.run.environment:
+    - name: NATS_URL
+      value: nats://127.0.0.1:4222
+      when: delivery == "nats"
+  catchup.run.environment:
+    - name: NATS_URL
+      value: nats://127.0.0.1:4222
+      when: delivery == "nats"
+  compose.api.environment:
+    - name: NATS_URL
+      value: nats://nats:4222
+      when: delivery == "nats"
+  compose.catchup.environment:
+    - name: NATS_URL
+      value: nats://nats:4222
+      when: delivery == "nats"
+  compose.depends_on:
+    - service: nats
+      when: delivery == "nats"
   readme.sections:
     - when: delivery == "pg-notify"
       text: |-
@@ -111,3 +133,50 @@ add_to:
         status 1.
 
         The code is in `internal/api/push`, and `internal/api/use_cases/push.go` connects it to the API.
+    - when: delivery == "nats"
+      text: |-
+        ## Push the Events to WebSocket Clients
+
+        The API sends each event that the service stores to its WebSocket clients. A client opens the route
+        `GET /api/ws` and gets one message for each event that the service stores after the client connects.
+        A message is a JSON object with the type of the event and its payload, for example:
+
+        ```json
+        {"type": "<name>.account-opened", "data": {"accountId": "<account ID>", "owner": "alice"}}
+        ```
+
+        `<name>` is the name of the repository. To see the messages of the local API, run `task run` and open
+        a client in the console of a browser:
+
+        ```js
+        const socket = new WebSocket("ws://127.0.0.1:3333/api/ws")
+        socket.onmessage = (message) => console.log(JSON.parse(message.data))
+        ```
+
+        Catchup publishes each event to the stream `PUSH` of NATS JetStream, after the events before it.
+        After each event that it publishes, it saves the position of the event as the checkpoint
+        `push-nats`, so after a restart it goes on after that event. Each instance of the API reads the new
+        messages of the stream with a JetStream consumer of its own, and sends each message to its clients.
+
+        So you can run more than one instance of the API, and a client of any instance gets each event at
+        least one time. A client can get one event two times, for example after a restart of catchup, and a
+        message holds no ID of its event. The stream keeps a message for one hour.
+
+        `task run` and the integration tests start NATS beside Postgres, with
+        `docker-compose.dependencies.yml`. The API and catchup read the address of NATS from `NATS_URL`.
+        `task run` sets it to `nats://127.0.0.1:4222`, the port of `NATS_HOST_PORT` in `.env.local`, and the
+        integration tests set it from `.env.integration`.
+
+        The route asks for no credential, also in a repository with `api-auth`, because the WebSocket API of
+        a browser cannot send the `Authorization` header. So each client that can reach the API gets each
+        event with its payload, for example the owner of an account. Do not serve the route where a person
+        who must not see the events can reach it. A page in a browser connects only from an origin of
+        `ALLOWED_ORIGINS`, as for the other routes, or from the origin of the API. A client that is not a
+        browser sends no origin, and the route accepts it.
+
+        When the API stops, it closes each client with the status 1001, going away, and it removes its
+        JetStream consumer and closes its connection to NATS. When the API or catchup cannot connect to
+        NATS at the start, it stops with the exit status 1.
+
+        The code is in `internal/api/push` and `internal/common/nats_push`. `internal/api/use_cases/push.go`
+        connects it to the API, and `cmd/catchup/push.go` connects it to catchup.

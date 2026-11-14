@@ -104,6 +104,26 @@ extension_points:
     summary: A service of docker-compose.local.yml, as YAML with the service name at the left edge.
     file: go/docker-compose.local.yml
     item: [text]
+  compose.api.environment:
+    summary: A variable of the environment of the api service of docker-compose.local.yml.
+    file: go/docker-compose.local.yml
+    item: [name, value]
+  compose.depends_on:
+    summary: A service of docker-compose.dependencies.yml that the api and catchup services of docker-compose.local.yml wait for, until its health check passes.
+    file: go/docker-compose.local.yml
+    item: [service]
+  taskfile.dependencies:
+    summary: A service of docker-compose.dependencies.yml that task run-dependencies starts beside db, and waits for until it is healthy, before task run starts the API and catchup.
+    file: go/Taskfile.yml
+    item: [service]
+  api.run.environment:
+    summary: A variable of the environment of task api:run, which task run uses to start the local API.
+    file: go/Taskfile.api.yml
+    item: [name, value]
+  catchup.run.environment:
+    summary: A variable of the environment of task catchup:run, which task run uses to start the local catchup.
+    file: go/Taskfile.catchup.yml
+    item: [name, value]
   compose.dependencies.services:
     summary: A service of docker-compose.dependencies.yml, beside db and migrate, as YAML with the service name at the left edge. task run-dependencies and the integration tests read this file, the integration tests with the values of .env.integration. A port on the host comes from a variable of .env.local and of .env.integration.
     file: go/docker-compose.dependencies.yml

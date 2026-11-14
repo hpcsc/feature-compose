@@ -10,6 +10,9 @@ tasks:
       DB_USERNAME: local-user
       DB_PASSWORD: local-password
       DB_HOST_PORT: 45432
+[[- range items "catchup.run.environment" ]]
+      [[ .name ]]: [[ .value ]]
+[[- end ]]
 
   build:
     cmds:

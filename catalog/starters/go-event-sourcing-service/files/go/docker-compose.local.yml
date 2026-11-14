@@ -10,6 +10,10 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+{{- range items "compose.depends_on" }}
+      {{ .service }}:
+        condition: service_healthy
+{{- end }}
     build:
       dockerfile: Dockerfile.api
       args:
@@ -18,11 +22,18 @@ services:
       - "3333:3333"
     environment:
       <<: *x-db-config
+{{- range items "compose.api.environment" }}
+      {{ .name }}: {{ .value }}
+{{- end }}
 
   catchup:
     depends_on:
       migrate:
         condition: service_completed_successfully
+{{- range items "compose.depends_on" }}
+      {{ .service }}:
+        condition: service_healthy
+{{- end }}
     build:
       dockerfile: Dockerfile.catchup
     environment:

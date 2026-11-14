@@ -467,22 +467,22 @@ until NATS is healthy. The README of a repo with `nats` tells how the events rea
 test the repo.
 
 **Acceptance Criteria:**
-- [ ] `starter.yml` declares `taskfile.dependencies` (`[service]`), `api.run.environment` (`[name, value]`),
+- [x] `starter.yml` declares `taskfile.dependencies` (`[service]`), `api.run.environment` (`[name, value]`),
   `catchup.run.environment` (`[name, value]`), `compose.api.environment` (`[name, value]`) and `compose.depends_on`
   (`[service]`), each with the file of decision 7 and a summary. The starter alone and the repo with `pg-notify` are
   the same as before, byte for byte.
-- [ ] With `nats`, read from the parsed YAML: the task `run-dependencies` of `Taskfile.yml` starts `nats` after `db`
+- [x] With `nats`, read from the parsed YAML: the task `run-dependencies` of `Taskfile.yml` starts `nats` after `db`
   and waits for it; the task `run` of `Taskfile.api.yml` and of `Taskfile.catchup.yml` sets `NATS_URL` to the port of
   `.env.local`; in `docker-compose.local.yml`, `api` and `catchup` have `NATS_URL: nats://nats:4222` and wait for
   `nats` with the condition `service_healthy`.
-- [ ] A run by hand of `task run` in a written repo with `nats` starts Postgres, NATS, the API and catchup, and a
+- [x] A run by hand of `task run` in a written repo with `nats` starts Postgres, NATS, the API and catchup, and a
   WebSocket client of the API gets the message of the event that `task api:open-account` stores.
-- [ ] The README of a repo with `nats` ends with a section that names the route `/api/ws`, the form of a message, that
+- [x] The README of a repo with `nats` ends with a section that names the route `/api/ws`, the form of a message, that
   catchup publishes each event to NATS and that each instance of the API sends it to its clients at least one time,
   that `task run` and the integration tests start NATS, the setting `NATS_URL`, and that the route asks for no
   credential, also in a repo with `api-auth`. It names only files and tasks that the repo has, and each route under
   `/api`.
-- [ ] An e2e test makes a repo with `push:delivery=nats` that builds, compiles its integration tests and passes
+- [x] An e2e test makes a repo with `push:delivery=nats` that builds, compiles its integration tests and passes
   `task test:unit`, and whose `task --list-all` names `run` and `run-dependencies`. `docs/e2e-tests.md` tells it.
   The whole tree of `show` fits in `rowsOfTheWholeTree` rows.
 

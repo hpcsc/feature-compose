@@ -468,6 +468,31 @@ describe('feature-compose new', () => {
     15 * 60 * 1000,
   )
 
+  it(
+    'makes a repo with push:delivery=nats that builds, compiles its integration tests, passes its unit tests, and has the tasks run and run-dependencies',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'push:delivery=nats', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      const repo = join(dir, 'my-service')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      for (const args of [['build', './...'], ['vet', '-tags', 'integration', './...']]) {
+        const result = await runProgram(repo, 'go', args, env)
+        expect(result.status, `go ${args.join(' ')}: ${result.stdout}${result.stderr}`).toBe(0)
+      }
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      expect(passedPackages(unit.stdout)).toEqual(expect.arrayContaining(['internal/api/push', 'internal/api/server']))
+      const tasks = await runProgram(repo, 'task', ['--list-all'], env)
+      expect(tasksIn(tasks.stdout)).toEqual(expect.arrayContaining(['run', 'run-dependencies']))
+    },
+    15 * 60 * 1000,
+  )
+
   it('a value that the option method of api-auth does not have stops new, names method and its values, and makes no folder', async () => {
     const dir = scratchDir()
 

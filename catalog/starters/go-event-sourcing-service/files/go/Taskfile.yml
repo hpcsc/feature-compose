@@ -49,7 +49,7 @@ tasks:
 
   run-dependencies:
     cmds:
-      - docker compose --env-file .env.local -f docker-compose.dependencies.yml -p [[ kebab .Name ]]-local up -d --wait db
+      - docker compose --env-file .env.local -f docker-compose.dependencies.yml -p [[ kebab .Name ]]-local up -d --wait db[[ range items "taskfile.dependencies" ]] [[ .service ]][[ end ]]
       - docker compose --env-file .env.local -f docker-compose.dependencies.yml -p [[ kebab .Name ]]-local up --exit-code-from migrate migrate
       - command -v tmuxp && echo "tmuxp exists" || pip install tmuxp
 

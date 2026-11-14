@@ -2252,8 +2252,9 @@ files:
 		}{
 			"pg-notify": {[]string{"common", "pg-notify"}, []string{"README.md", "go.mod", "internal/api/use_cases/register.go"}},
 			"nats": {[]string{"common", "nats"}, []string{
-				".env.integration", ".env.local", "cmd/catchup/main.go", "docker-compose.dependencies.yml", "go.mod", "internal/api/config.go",
-				"internal/api/use_cases/register.go", "scripts/test/start-test-dependencies.sh",
+				".env.integration", ".env.local", "README.md", "Taskfile.api.yml", "Taskfile.catchup.yml", "Taskfile.yml", "cmd/catchup/main.go",
+				"docker-compose.dependencies.yml", "docker-compose.local.yml", "go.mod", "internal/api/config.go", "internal/api/use_cases/register.go",
+				"scripts/test/start-test-dependencies.sh",
 			}},
 		} {
 			t.Run("push with the delivery "+delivery+" adds the files of its folders for that value, and of the starter it changes only the file of each extension point that an item of that value adds to", func(t *testing.T) {
@@ -2298,6 +2299,9 @@ files:
 					if _, ok := services["nats"]; ok {
 						found = append(found, path+": the service nats")
 					}
+					if strings.Contains(contents, "NATS_") {
+						found = append(found, path+": a NATS variable")
+					}
 				case strings.HasPrefix(path, ".env") || regexp.MustCompile(`^Taskfile[^/]*\.yml$`).MatchString(path):
 					if strings.Contains(contents, "NATS_") {
 						found = append(found, path+": a NATS variable")
@@ -2315,8 +2319,9 @@ files:
 		t.Run("with pg-notify, the repo has no NATS: no service of a Docker Compose file, no NATS variable of an .env file or a Taskfile, no nats-io module in go.mod, and no Go file that imports one", func(t *testing.T) {
 			require.Empty(t, natsPlacesIn(t, writtenWithPushOf(t, map[string]string{"delivery": "pg-notify"})))
 			require.Equal(t, []string{
-				".env.integration: a NATS variable", ".env.local: a NATS variable", "cmd/catchup/push_test.go: a nats-io module",
-				"docker-compose.dependencies.yml: the service nats", "go.mod: a nats-io module",
+				".env.integration: a NATS variable", ".env.local: a NATS variable", "Taskfile.api.yml: a NATS variable", "Taskfile.catchup.yml: a NATS variable",
+				"cmd/catchup/push_test.go: a nats-io module", "docker-compose.dependencies.yml: a NATS variable", "docker-compose.dependencies.yml: the service nats",
+				"docker-compose.local.yml: a NATS variable", "go.mod: a nats-io module",
 				"internal/api/use_cases/push_test.go: a nats-io module", "internal/common/nats_push/connection.go: a nats-io module",
 			}, natsPlacesIn(t, writtenWithPushOf(t, map[string]string{"delivery": "nats"})))
 		})
@@ -2343,6 +2348,63 @@ files:
 			require.True(t, strings.HasSuffix(files[".env.local"], "DB_PASSWORD=local-password\nDB_HOST_PORT=45432\n"))
 			require.True(t, strings.HasSuffix(files[".env.integration"], "DB_PASSWORD=local-password\nDB_HOST_PORT=45433\n"))
 			require.Contains(t, files["scripts/test/start-test-dependencies.sh"], "\ndocker compose up --wait db\n")
+		})
+
+		t.Run("with nats, task run-dependencies starts nats beside db and waits for it, task api:run and task catchup:run set NATS_URL to the port of .env.local, and in docker-compose.local.yml the API and catchup get the URL of the service nats and wait until nats is healthy", func(t *testing.T) {
+			files := writtenWithPushOf(t, map[string]string{"delivery": "nats"})
+
+			runDependencies := parsedYAML(t, files["Taskfile.yml"])["tasks"].(map[string]any)["run-dependencies"].(map[string]any)["cmds"].([]any)
+			require.True(t, strings.HasSuffix(runDependencies[0].(string), " up -d --wait db nats"), runDependencies[0])
+			require.Contains(t, files[".env.local"], "\nNATS_HOST_PORT=4222\n")
+			for _, path := range []string{"Taskfile.api.yml", "Taskfile.catchup.yml"} {
+				environment := parsedYAML(t, files[path])["tasks"].(map[string]any)["run"].(map[string]any)["env"].(map[string]any)
+				require.Equal(t, "nats://127.0.0.1:4222", environment["NATS_URL"], path)
+			}
+			services := parsedYAML(t, files["docker-compose.local.yml"])["services"].(map[string]any)
+			for _, name := range []string{"api", "catchup"} {
+				service := services[name].(map[string]any)
+				require.Equal(t, "nats://nats:4222", service["environment"].(map[string]any)["NATS_URL"], name)
+				require.Equal(t, map[string]any{
+					"migrate": map[string]any{"condition": "service_completed_successfully"},
+					"nats":    map[string]any{"condition": "service_healthy"},
+				}, service["depends_on"], name)
+			}
+		})
+
+		t.Run("with no item, task run-dependencies starts only db, task api:run and task catchup:run have only the settings of the starter, and in docker-compose.local.yml the API and catchup wait only for migrate", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			runDependencies := parsedYAML(t, files["Taskfile.yml"])["tasks"].(map[string]any)["run-dependencies"].(map[string]any)["cmds"].([]any)
+			require.True(t, strings.HasSuffix(runDependencies[0].(string), " up -d --wait db"), runDependencies[0])
+			for _, path := range []string{"Taskfile.api.yml", "Taskfile.catchup.yml"} {
+				environment := parsedYAML(t, files[path])["tasks"].(map[string]any)["run"].(map[string]any)["env"].(map[string]any)
+				require.ElementsMatch(t, []string{"DB_HOST", "DB_NAME", "DB_USERNAME", "DB_PASSWORD", "DB_HOST_PORT"}, slices.Collect(maps.Keys(environment)), path)
+			}
+			services := parsedYAML(t, files["docker-compose.local.yml"])["services"].(map[string]any)
+			for _, name := range []string{"api", "catchup"} {
+				require.Equal(t, map[string]any{"migrate": map[string]any{"condition": "service_completed_successfully"}}, services[name].(map[string]any)["depends_on"], name)
+			}
+			require.Len(t, services["api"].(map[string]any)["environment"], 5)
+		})
+
+		t.Run("with nats, the README ends with the section of push, which names the route, the form of a message, the stream and the checkpoint of catchup, more instances, at least one time, NATS in task run and in the integration tests, NATS_URL, the route with no credential, and only files that the repo has", func(t *testing.T) {
+			files := writtenWithPushOf(t, map[string]string{"delivery": "nats"})
+			readme := files["README.md"]
+			section := readme[strings.Index(readme, "\n## Push the Events to WebSocket Clients\n"):]
+
+			require.NotContains(t, section[1:], "\n## ")
+			for _, part := range []string{
+				"`GET /api/ws`", `{"type": "<name>.account-opened", "data": {"accountId": "<account ID>", "owner": "alice"}}`,
+				"ws://127.0.0.1:3333/api/ws", "the stream `PUSH` of NATS JetStream", "the checkpoint `push-nats`",
+				"more than one instance of the API", "gets each event at least one time", "`task run` and the integration tests start NATS",
+				"`NATS_URL`", "`nats://127.0.0.1:4222`", "`NATS_HOST_PORT` in `.env.local`",
+				"The route asks for no credential, also in a repository with `api-auth`", "an origin of `ALLOWED_ORIGINS`", "the status 1001, going away", "the exit status 1",
+			} {
+				require.Contains(t, strings.Join(strings.Fields(section), " "), part)
+			}
+			require.NotContains(t, section, "push-subscriber")
+			require.NotContains(t, section, "Run one instance")
+			namedPathsAreIn(t, section, files)
 		})
 
 		t.Run("with nats, the config of the API and of catchup has the field Push of nats_push, which each imports one time, catchup runs the publish worker, Register makes the push worker of NATS, and go.mod requires nats.go", func(t *testing.T) {

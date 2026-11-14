@@ -311,7 +311,7 @@ The next adds `--feature process-manager`, the example of a payment to another b
    limit and the URL of the webhook server gets 202. The webhook server then gets one webhook with the
    payment ID, `passed` true and the same key.
 
-The last adds `--feature push`, which sends each new event of the service to the WebSocket clients of the API:
+The next adds `--feature push`, which sends each new event of the service to the WebSocket clients of the API:
 
 1. `gofmt -l .` lists no file, `go build ./...` builds, and `go vet -tags integration ./...` compiles the
    integration tests of `internal/api/push` and `internal/api/use_cases`.
@@ -320,6 +320,14 @@ The last adds `--feature push`, which sends each new event of the service to the
 3. The test starts the API with the database settings that point to no database. The push worker of the API
    cannot read its checkpoint, so the API stops with the exit status 1, and its output names the worker `push`
    and the error.
+
+The last adds `--feature push:delivery=nats`, so catchup publishes the events to NATS:
+
+1. `gofmt -l .` lists no file, `go build ./...` builds, and `go vet -tags integration ./...` compiles the
+   integration tests of `cmd/catchup` and `internal/api/use_cases`, which need NATS.
+2. `task test:unit` stops with the exit status 0. The output of gotestsum shows that the tests of
+   `internal/api/push` and `internal/api/server` ran and passed.
+3. `task --list-all` names `run` and `run-dependencies`, which start NATS beside Postgres.
 
 The test does not run `task run`, the migrations or the integration tests. They need Docker and Postgres.
 The CI of the written repo runs the integration tests.

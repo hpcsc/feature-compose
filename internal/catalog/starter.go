@@ -191,6 +191,7 @@ func (s Starter) mistakes(catalogFeatures map[string]feature) []string {
 	mistakes = append(mistakes, s.cycleMistakes()...)
 	mistakes = append(mistakes, s.templateMistakes()...)
 	for _, name := range slices.Sorted(maps.Keys(s.extensionPoints)) {
+		mistakes = append(mistakes, s.extensionPoints[name].whenFieldMistakes()...)
 		mistakes = append(mistakes, s.extensionPoints[name].fileMistakes(s.templates)...)
 	}
 	mistakes = append(mistakes, s.ownerMistakes()...)
@@ -209,8 +210,8 @@ func (s Starter) addToMistakes(f feature) []string {
 			mistakes = append(mistakes, fmt.Sprintf("the feature %s adds to the extension point %q, which the starter, the feature and its needs do not declare", f.name, name))
 			continue
 		}
-		for i, item := range f.addTo[name] {
-			if err := extensionPoint.checkItem(f.name, i+1, item); err != nil {
+		for i, added := range f.addTo[name] {
+			if err := extensionPoint.checkItem(i+1, added); err != nil {
 				mistakes = append(mistakes, err.Error())
 			}
 		}
@@ -500,7 +501,7 @@ func (s Starter) extensionPointsOf(selected []feature) (map[string]extensionPoin
 			if !ok {
 				return nil, fmt.Errorf("the feature %s adds to the extension point %q, which neither the starter nor a selected feature declares", f.name, name)
 			}
-			added, err := declared.add(f.name, f.addTo[name])
+			added, err := declared.add(f.addTo[name])
 			if err != nil {
 				return nil, err
 			}

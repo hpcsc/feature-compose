@@ -15,7 +15,7 @@ type feature struct {
 	templates         []template
 	options           options
 	extensionPoints   map[string]extensionPoint
-	addTo             map[string][]map[string]string
+	addTo             map[string][]item
 	needs             []string
 	needValues        map[string]map[string]string
 	whenParseMistakes []string
@@ -101,13 +101,23 @@ func newFeature(fsys fs.FS, featureName string, parsed featureYML) (feature, err
 		}
 		declaredOptions.declared[optionName] = read
 	}
+	addTo := make(map[string][]item, len(parsed.AddTo))
+	for _, name := range slices.Sorted(maps.Keys(parsed.AddTo)) {
+		for i, declared := range parsed.AddTo[name] {
+			added, err := newItem(featureName, declared)
+			if err != nil {
+				whenParseMistakes = append(whenParseMistakes, fmt.Sprintf("the when %q of the item %d of the extension point %q: %s", declared[whenKey], i+1, name, err))
+			}
+			addTo[name] = append(addTo[name], added)
+		}
+	}
 	extensionPoints := make(map[string]extensionPoint, len(parsed.ExtensionPoints))
 	for name, declared := range parsed.ExtensionPoints {
 		extensionPoints[name] = extensionPoint{name: name, declarer: "the feature " + featureName, file: declared.File, itemFields: declared.Item}
 	}
 	return feature{
 		name: featureName, targets: parsed.Targets, templates: templates, options: declaredOptions,
-		extensionPoints: extensionPoints, addTo: parsed.AddTo, needs: parsed.needNames, needValues: parsed.Needs,
+		extensionPoints: extensionPoints, addTo: addTo, needs: parsed.needNames, needValues: parsed.Needs,
 		whenParseMistakes: whenParseMistakes,
 	}, nil
 }
@@ -157,6 +167,7 @@ func (f feature) needMistakes(starterName string, catalogFeatures map[string]fea
 func (f feature) mistakes(starters []Starter, catalogFeatures map[string]feature) []string {
 	ofFeature := slices.Concat(f.whenParseMistakes, f.readMistakes(starters, catalogFeatures))
 	for _, name := range slices.Sorted(maps.Keys(f.extensionPoints)) {
+		ofFeature = append(ofFeature, f.extensionPoints[name].whenFieldMistakes()...)
 		ofFeature = append(ofFeature, f.extensionPoints[name].fileMistakes(f.templates)...)
 	}
 	mistakes := f.itemFieldsMistakes(starters)
@@ -173,12 +184,7 @@ func (f feature) readMistakes(starters []Starter, catalogFeatures map[string]fea
 	for _, t := range f.templates {
 		if !checkedEntries[t.entry] {
 			checkedEntries[t.entry] = true
-			for _, reference := range t.when.references() {
-				if !readable[reference] {
-					entryWhenMistakes = append(entryWhenMistakes, fmt.Sprintf("the when %q of the files entry %q reads %q, which %s",
-						t.when.text, t.entry, reference, f.whyCannotRead(reference, readable, starters, "the feature")))
-				}
-			}
+			entryWhenMistakes = append(entryWhenMistakes, f.whenReadMistakes(t.when, fmt.Sprintf("the files entry %q", t.entry), starters, readable)...)
 		}
 		reads, err := t.readMistakes(readable, func(reference string) string { return f.whyCannotRead(reference, readable, starters, "the feature") })
 		if err != nil {
@@ -186,7 +192,28 @@ func (f feature) readMistakes(starters []Starter, catalogFeatures map[string]fea
 		}
 		templateReads = append(templateReads, reads...)
 	}
-	return slices.Concat(entryWhenMistakes, f.optionWhenReadMistakes(starters, readable), templateReads, parseMistakes)
+	return slices.Concat(entryWhenMistakes, f.optionWhenReadMistakes(starters, readable), f.itemWhenReadMistakes(starters, readable), templateReads, parseMistakes)
+}
+
+func (f feature) itemWhenReadMistakes(starters []Starter, readable map[string]bool) []string {
+	var mistakes []string
+	for _, name := range slices.Sorted(maps.Keys(f.addTo)) {
+		for i, added := range f.addTo[name] {
+			mistakes = append(mistakes, f.whenReadMistakes(added.when, fmt.Sprintf("the item %d of the extension point %q", i+1, name), starters, readable)...)
+		}
+	}
+	return mistakes
+}
+
+func (f feature) whenReadMistakes(when expression, subject string, starters []Starter, readable map[string]bool) []string {
+	var mistakes []string
+	for _, reference := range when.references() {
+		if !readable[reference] {
+			mistakes = append(mistakes, fmt.Sprintf("the when %q of %s reads %q, which %s",
+				when.text, subject, reference, f.whyCannotRead(reference, readable, starters, "the feature")))
+		}
+	}
+	return mistakes
 }
 
 func (f feature) optionWhenReadMistakes(starters []Starter, readable map[string]bool) []string {

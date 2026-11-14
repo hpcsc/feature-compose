@@ -50,7 +50,7 @@
     },
     {
       "n": 2,
-      "done": false,
+      "done": true,
       "title": "Add an item of add_to only for some values of the options, with a when on the item",
       "language": "Go",
       "testable": true,

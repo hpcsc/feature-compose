@@ -657,6 +657,98 @@ func TestSelection(t *testing.T) {
 			})
 		}
 
+		for name, selected := range map[string]struct {
+			starterValues map[string]string
+			featureValues map[string]map[string]string
+			expected      string
+		}{
+			"method oauth and region eu": {
+				map[string]string{"region": "eu"}, map[string]map[string]string{"auth": {"method": "oauth"}, "client": {}},
+				"always;oauth-only;client-oauth;client-eu;client-fast;|internal/a;internal/o;internal/e;internal/f;",
+			},
+			"method api-key and region us": {
+				map[string]string{"region": "us"}, map[string]map[string]string{"auth": {"method": "api-key"}, "client": {}},
+				"always;api-key-only;client-fast;client-us;|internal/a;internal/k;internal/f;internal/u;",
+			},
+		} {
+			t.Run("items and unique give an item with no when and each item whose when is true for the values that the feature that adds it reads, in their order, with "+name, func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\noptions:\n  region:\n    default: us\nextension_points:\n  api.middleware:\n    summary: A middleware.\n    file: go/server.go\n    item: [code, import]\n")},
+					"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range items "api.middleware" }}{{ .code }};{{ end }}|{{ range unique "import" "api.middleware" }}{{ . }};{{ end }}`)},
+					"features/auth/feature.yml": &fstest.MapFile{Data: []byte(`summary: Auth.
+targets: [service]
+options:
+  method:
+    values: [api-key, oauth]
+    default: api-key
+  mode:
+    default: slow
+add_to:
+  api.middleware:
+    - code: always
+      import: internal/a
+    - code: oauth-only
+      import: internal/o
+      when: method == "oauth"
+    - code: api-key-only
+      import: internal/k
+      when: method == "api-key"
+    - code: auth-fast
+      import: internal/f
+      when: mode == "fast"
+`)},
+					"features/client/feature.yml": &fstest.MapFile{Data: []byte(`summary: Client.
+targets: [service]
+needs: [auth]
+options:
+  mode:
+    default: fast
+add_to:
+  api.middleware:
+    - code: client-oauth
+      import: internal/o
+      when: auth.method == "oauth"
+    - code: client-eu
+      import: internal/e
+      when: starter.region == "eu"
+    - code: client-fast
+      import: internal/f
+      when: mode == "fast"
+    - code: client-us
+      import: internal/u
+      when: starter.region == "us"
+`)},
+				}
+				starter, err := catalog.New(files).Starter("service")
+				require.NoError(t, err)
+				selection, err := starter.Select("my-service", selected.starterValues, selected.featureValues, catalog.Answers{})
+				require.NoError(t, err)
+				output := filepath.Join(t.TempDir(), "my-service")
+
+				err = selection.Write(output)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"server.go": selected.expected}, filesIn(t, output))
+			})
+		}
+
+		for _, call := range []string{`items "api.middleware"`, `unique "import" "api.middleware"`} {
+			t.Run("a when of an item that reads a name that the feature cannot read stops the write before the first file, and the message names the when, the feature and the extension point, with "+call, func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":        withMiddleware,
+					"starters/service/files/go/a.md":      &fstest.MapFile{Data: []byte("a\n")},
+					"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range ` + call + ` }}{{ . }}{{ end }}`)},
+					"features/auth/feature.yml":           &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [service]\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n      when: vault.mode == \"fast\"\n")},
+				}
+				output := filepath.Join(t.TempDir(), "my-service")
+
+				err := featureSelection(t, files, "auth").Write(output)
+
+				require.ErrorContains(t, err, `the when "vault.mode == \"fast\"" of an item that the feature auth adds to the extension point "api.middleware": unknown name "vault.mode"`)
+				require.NoDirExists(t, output)
+			})
+		}
+
 		t.Run("unique over extension points with no item renders nothing, and the rest renders as without it", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":        withMiddleware,

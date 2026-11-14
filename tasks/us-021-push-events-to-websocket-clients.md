@@ -336,18 +336,18 @@ those items. `check` finds a `when` of an item that does not parse or that reads
 read, with the messages of the `when` of a files entry.
 
 **Acceptance Criteria:**
-- [ ] An item with `when` is in the written file of its extension point only when the expression is true for the
+- [x] An item with `when` is in the written file of its extension point only when the expression is true for the
   values of the selection, read as the feature that adds the item reads them. An item with no `when` is in each
   repo, and each test of the catalog that passed before passes unchanged.
-- [ ] `unique` gives the values of the items whose `when` is true, and no value of another item.
-- [ ] `when` is not an item field: an item with the fields of its extension point and a `when` is not a mistake, and
+- [x] `unique` gives the values of the items whose `when` is true, and no value of another item.
+- [x] `when` is not an item field: an item with the fields of its extension point and a `when` is not a mistake, and
   the order of the items does not change. `check` finds an extension point that declares the item field `when`.
-- [ ] A `when` of an item that does not parse stops `new`, and `check` gives one mistake that names the feature, the
+- [x] A `when` of an item that does not parse stops `new`, and `check` gives one mistake that names the feature, the
   extension point, the number of the item, the `when` and the cause.
-- [ ] A `when` of an item that reads an option that the feature cannot read is a mistake of `check`, with the
+- [x] A `when` of an item that reads an option that the feature cannot read is a mistake of `check`, with the
   reference and the options that the feature can read, as for the `when` of a files entry.
-- [ ] The definitions that `show --output json` gives have the `when` of an item as the key `when` of the item.
-- [ ] `docs/catalog.md` tells how an item applies only to some values of the options, with an example and the rules,
+- [x] The definitions that `show --output json` gives have the `when` of an item as the key `when` of the item.
+- [x] `docs/catalog.md` tells how an item applies only to some values of the options, with an example and the rules,
   and the table of `docs/commands.md` has the new mistakes of `check` with an example of each message.
 
 **Affected Files/Modules:**

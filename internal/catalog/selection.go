@@ -350,7 +350,7 @@ func (s Selection) items(name string) ([]map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return declared.items, nil
+	return declared.written(s.readable)
 }
 
 func (s Selection) unique(field string, names ...string) ([]string, error) {
@@ -363,7 +363,7 @@ func (s Selection) unique(field string, names ...string) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		values, err := declared.values(field)
+		values, err := declared.values(field, s.readable)
 		if err != nil {
 			return nil, err
 		}

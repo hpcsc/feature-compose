@@ -288,6 +288,30 @@ func protectedMiddleware(cfg *api.Config) []func(http.Handler) http.Handler {
   The template must call `items` with the name of the extension point. `check` finds a `file` that does not
   exist, and a file that does not call `items` for its extension point, also when it calls only `unique`.
 
+### An Item That Applies Only Sometimes
+
+`when` in an item adds the item only when its expression is true. The expression has the language of the
+`when` of a files entry, and reads the options that the feature that adds the item can read. For example, a
+feature with the option `method` adds a second middleware only for one value:
+
+```yaml
+add_to:
+  api.middleware:
+    - code: auth.Middleware(cfg.Auth)
+      import: internal/auth
+    - code: auth.Audit(cfg.Auth)
+      import: internal/auth
+      when: method == "oauth"
+```
+
+- An item with no `when` is in each repo.
+- `items` gives only the items whose `when` is true, and `unique` gives only the values of these items. The
+  items keep their order.
+- `when` is not an item field. An extension point cannot declare the item field `when`, and `check` finds one
+  that does.
+- A `when` that does not parse stops `new`. `check` finds it, and also a `when` that reads an option that the
+  feature cannot read.
+
 An item can hold a block of YAML, for example a job of a CI workflow. The feature writes the block with each
 key at the left edge, and the file of the extension point sets the indent with `indent`:
 

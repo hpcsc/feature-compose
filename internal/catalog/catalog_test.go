@@ -278,6 +278,21 @@ func TestCatalog(t *testing.T) {
 			})
 		}
 
+		for when, message := range whensThatDoNotParse {
+			t.Run("a when of an item that does not parse stops, and the message names the feature.yml, the item, the extension point, the when and why: "+when, func(t *testing.T) {
+				files := fstest.MapFS{
+					"starters/service/starter.yml":        &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n")},
+					"starters/service/files/go/server.go": &fstest.MapFile{Data: []byte(`{{ range items "api.middleware" }}{{ .code }}{{ end }}`)},
+					"features/cli/feature.yml":            &fstest.MapFile{Data: []byte("targets: [service]\noptions:\n  method:\n    default: api-key\nadd_to:\n  api.middleware:\n    - code: a\n    - code: b\n      when: '" + when + "'\n")},
+				}
+
+				_, err := catalog.New(files).Starter("service")
+
+				require.ErrorContains(t, err, "features/cli/feature.yml")
+				require.ErrorContains(t, err, strconv.Quote(when)+` of the item 2 of the extension point "api.middleware": `+message)
+			})
+		}
+
 		t.Run("of two options of a starter with a when, the message names the first in the order of the names", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("options:\n  zone:\n    default: a\n    when: 'module == \"x\"'\n  region:\n    default: us\n    when: 'module == \"x\"'\nfolders:\n  go:\n    path: .\n")},
@@ -392,6 +407,23 @@ func TestCatalog(t *testing.T) {
 					"listed": {"summary": "", "targets": [], "needs": {"auth": {}, "bare": {}}, "options": {"mode": {"default": "slow", "pattern": "", "values": [], "when": "auth.method == \"api-key\""}}, "extension_points": {}, "add_to": {}}
 				}
 			}`, string(encoded))
+		})
+
+		t.Run("the add_to of a feature gives the when of an item as the key when of the item, and an item with no when has no such key", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/api/starter.yml":  &fstest.MapFile{Data: []byte("summary: An API.\n")},
+				"features/auth/feature.yml": &fstest.MapFile{Data: []byte("targets: [api]\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n      when: method == \"oauth\"\n    - code: log.Middleware\n")},
+			}
+
+			definitions, err := catalog.New(files).Definitions()
+
+			require.NoError(t, err)
+			require.Equal(t, map[string][]map[string]string{
+				"api.middleware": {
+					{"code": "auth.Middleware", "when": `method == "oauth"`},
+					{"code": "log.Middleware"},
+				},
+			}, definitions.Features["auth"].AddTo)
 		})
 	})
 
@@ -915,6 +947,111 @@ files:
 				`the feature auth: the when "method == api-key" of the option "method": method == needs a quoted value after it`,
 				`the feature auth: the when "a ||" of the option "scope": the expression ends where a name is expected`,
 				`the feature cli: the when "!" of the option "level": the expression ends where a name is expected`,
+			}, mistakes)
+		})
+
+		t.Run("each item whose when does not parse is one mistake of the feature, after the when of its options, in the order of the extension points and the items, and the message names the feature, the item, the extension point, the when and why", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth": `targets: [service]
+options:
+  method:
+    default: api-key
+    when: 'a ||'
+extension_points:
+  auth.checks:
+    file: go/auth.go
+    item: [code]
+add_to:
+  auth.checks:
+    - code: a
+      when: '!'
+  api.middleware:
+    - code: auth.Middleware
+      import: internal/auth
+    - code: audit.Middleware
+      import: internal/audit
+      when: method == oauth
+files:
+  - path: files/
+`,
+			})
+			files["features/auth/files/go/auth.go"] = rendersItems("auth.checks")
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the feature auth: the when "a ||" of the option "method": the expression ends where a name is expected`,
+				`the feature auth: the when "method == oauth" of the item 2 of the extension point "api.middleware": method == needs a quoted value after it`,
+				`the feature auth: the when "!" of the item 1 of the extension point "auth.checks": the expression ends where a name is expected`,
+			}, mistakes)
+		})
+
+		t.Run("a when of an item that reads a reference that the feature cannot read is a mistake, and the message names the feature, the item, the extension point, the when, the reference and the references that the feature can read", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"vault": "targets: [service]\noptions:\n  mode:\n    default: slow\n",
+				"auth": `targets: [service]
+options:
+  method:
+    default: api-key
+extension_points:
+  auth.checks:
+    file: go/auth.go
+    item: [code]
+add_to:
+  api.middleware:
+    - code: auth.Middleware
+      import: internal/auth
+      when: vault.mode == "fast"
+    - code: audit.Middleware
+      import: internal/audit
+      when: method == "oauth" && starter.region == "eu"
+    - code: log.Middleware
+      import: internal/log
+      when: method == "oauth"
+  auth.checks:
+    - code: a
+      when: level == "high"
+files:
+  - path: files/
+`,
+			})
+			files["features/auth/files/go/auth.go"] = rendersItems("auth.checks")
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the feature auth: the when "vault.mode == \"fast\"" of the item 1 of the extension point "api.middleware" reads "vault.mode", which the feature cannot read: it can read method`,
+				`the feature auth: the when "method == \"oauth\" && starter.region == \"eu\"" of the item 2 of the extension point "api.middleware" reads "starter.region", which the starter service does not declare`,
+				`the feature auth: the when "level == \"high\"" of the item 1 of the extension point "auth.checks" reads "level", which the feature cannot read: it can read method`,
+			}, mistakes)
+		})
+
+		t.Run("an item with the item fields of its extension point and a when is not a mistake, and neither is an item with no when", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"auth": "targets: [service]\noptions:\n  method:\n    default: api-key\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n      when: method == \"oauth\"\n    - code: log.Middleware\n      import: internal/log\n",
+			})
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Empty(t, mistakes)
+		})
+
+		t.Run("an extension point that declares the item field when is a mistake of the starter or of the feature that declares it", func(t *testing.T) {
+			files := withFeatures(map[string]string{
+				"docs": "targets: [service]\nextension_points:\n  docs.pages:\n    file: go/index.md\n    item: [path, when]\nfiles:\n  - path: files/\n",
+			})
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code, when]\n")}
+			files["features/docs/files/go/index.md"] = rendersItems("docs.pages")
+
+			mistakes, err := catalog.New(files).Check()
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				`the starter service: the extension point "api.middleware" declares the item field when, which an item of add_to uses for its own when`,
+				`the feature docs: the extension point "docs.pages" declares the item field when, which an item of add_to uses for its own when`,
 			}, mistakes)
 		})
 

@@ -2,22 +2,29 @@ package middleware
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 )
 
 var defaultOrigins = []string{"http://localhost:8080", "http://127.0.0.1:8080"}
 
-func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
-	allowed := make(map[string]bool, len(allowedOrigins))
-	for _, origin := range allowedOrigins {
+func OriginsToAllow(configured []string) []string {
+	var allowed []string
+	for _, origin := range configured {
 		if trimmed := strings.TrimSpace(origin); trimmed != "" {
-			allowed[trimmed] = true
+			allowed = append(allowed, trimmed)
 		}
 	}
 	if len(allowed) == 0 {
-		for _, origin := range defaultOrigins {
-			allowed[origin] = true
-		}
+		return slices.Clone(defaultOrigins)
+	}
+	return allowed
+}
+
+func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
+	allowed := map[string]bool{}
+	for _, origin := range OriginsToAllow(allowedOrigins) {
+		allowed[origin] = true
 	}
 
 	return func(next http.Handler) http.Handler {

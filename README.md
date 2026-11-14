@@ -52,7 +52,7 @@ copier, can update a repo.
 | --- | --- | --- |
 | Catalog | A folder that holds the starters and the features. You can keep your own catalog. | `catalog/` |
 | Starter | The files that a new repo of one kind starts from. Each repo has one starter. | `chi-api`, `go`, `go-event-sourcing-service` |
-| Feature | A part that you can add to a repo. It adds files, and it adds items to extension points. | `cli`, `api-auth`, `cli-auth`, `process-manager` |
+| Feature | A part that you can add to a repo. It adds files, and it adds items to extension points. | `cli`, `api-auth`, `cli-auth`, `process-manager`, `push` |
 | Target | A starter that a feature works with. Each feature names its targets. | `cli` targets `chi-api`, `go` and `go-event-sourcing-service` |
 | Need | A feature that another feature cannot work without. The tool selects it for you. | `cli-auth` needs `cli` and `api-auth` |
 | Option | A question of a starter or a feature. Its answer selects a variant of the files. | `api-auth` has the option `method`, with the values `api-key` and `oauth` |
@@ -143,6 +143,7 @@ After the form, it also prints the command that makes the same repo again.
 | `api-auth` | `chi-api`, `go-event-sourcing-service` | A check of an API key or of an OAuth access token on each protected route of the API |
 | `cli-auth` | `chi-api`, `go-event-sourcing-service` | The credential in each request of the CLI, in the method of `api-auth`: the API key, which `store-key` keeps in the OS credential store, or the access token of a login at the issuer. It needs `cli` and `api-auth` |
 | `process-manager` | `go-event-sourcing-service` | The example of a process manager, a payment to another bank, with fakes of its outside systems |
+| `push` | `go-event-sourcing-service` | The WebSocket route `/api/ws` of the API, which sends each new event of the service to its clients |
 
 ## More Documents
 

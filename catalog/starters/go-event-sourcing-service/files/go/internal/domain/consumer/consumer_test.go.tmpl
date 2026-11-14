@@ -104,6 +104,16 @@ func TestConsumer(t *testing.T) {
 			require.ErrorIs(t, err, expectedErr)
 			require.Equal(t, []int{1}, h.batchSizes)
 		})
+
+		t.Run("returns no error when the handler fails because the context ended", func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			h := &fakeHandler{name: "test-consumer", handleErr: context.Canceled, cancelAtHandle: cancel}
+			sub := subscription.NewFake().WithEventChannel(closedChannel(eventAt(1)))
+
+			err := consumer.New(h, 1, store.NewEmptyMemory(), sub, test.DiscardLogger()).Start(ctx)
+
+			require.NoError(t, err)
+		})
 	})
 
 	t.Run("end", func(t *testing.T) {
@@ -147,6 +157,8 @@ type fakeHandler struct {
 	handleErr  error
 	startAsked bool
 	batchSizes []int
+
+	cancelAtHandle context.CancelFunc
 }
 
 func (h *fakeHandler) Name() string {
@@ -164,6 +176,9 @@ func (h *fakeHandler) StartWithoutCheckpoint(context.Context, event.Subscription
 
 func (h *fakeHandler) HandleBatch(_ context.Context, events []domain.Event) error {
 	h.batchSizes = append(h.batchSizes, len(events))
+	if h.cancelAtHandle != nil {
+		h.cancelAtHandle()
+	}
 	return h.handleErr
 }
 

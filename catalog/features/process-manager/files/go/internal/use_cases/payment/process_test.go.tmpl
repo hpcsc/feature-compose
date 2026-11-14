@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"{{ option "starter.module" }}/internal/api"
 	apiUseCases "{{ option "starter.module" }}/internal/api/use_cases"
 	"{{ option "starter.module" }}/internal/common/test"
 	"{{ option "starter.module" }}/internal/domain"
@@ -179,7 +180,7 @@ func startSystem(t *testing.T) *system {
 	timeout.Register(bus, payments, shortTimeouts, time.Now)
 
 	router := chi.NewRouter()
-	apiUseCases.Register(router, nil, pool, test.DiscardLogger())
+	apiUseCases.Register(router, nil, &api.Config{}, pool, test.DiscardLogger())
 	apiServer := httptest.NewServer(router)
 	t.Cleanup(apiServer.Close)
 	fakeServices := checks.NewFakeServices(10*time.Millisecond, test.DiscardLogger())

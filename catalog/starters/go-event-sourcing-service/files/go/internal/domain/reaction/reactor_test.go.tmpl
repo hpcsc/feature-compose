@@ -9,6 +9,7 @@ import (
 
 	"{{ option "starter.module" }}/internal/common/test"
 	"{{ option "starter.module" }}/internal/domain"
+	"{{ option "starter.module" }}/internal/domain/checkpoint"
 	"{{ option "starter.module" }}/internal/domain/checkpoint/store"
 	"{{ option "starter.module" }}/internal/domain/event"
 	"{{ option "starter.module" }}/internal/domain/event/subscription"
@@ -80,6 +81,22 @@ func TestReactor(t *testing.T) {
 			require.Equal(t, &domain.Position{TransactionID: 750, Sequence: 1}, checkpointAtSecondEvent)
 		})
 
+		t.Run("saves the checkpoint of an event that the reaction handled, also when the stop ended the context during the event", func(t *testing.T) {
+			ctx, stop := context.WithCancel(context.Background())
+			checkpointStore := storeThatChecksContext{store.NewMemory(map[string]domain.Position{"test-reaction": {TransactionID: 750, Sequence: 0}})}
+			react := reaction.NewFake("test-reaction", nil, func(context.Context, *domain.Event) error {
+				stop()
+				return nil
+			})
+			sub := subscription.NewFake().WithEventChannel(closedChannel(eventAt(1)))
+
+			_ = reaction.NewReactor(react, checkpointStore, sub, test.DiscardLogger()).Start(ctx)
+
+			cp, err := checkpointStore.Get(context.Background(), "test-reaction")
+			require.NoError(t, err)
+			require.Equal(t, &domain.Position{TransactionID: 750, Sequence: 1}, cp)
+		})
+
 		t.Run("stops at the event that fails and keeps the checkpoint of the event before it", func(t *testing.T) {
 			expectedErr := errors.New("side effect failed")
 			checkpointStore := store.NewMemory(map[string]domain.Position{"test-reaction": {TransactionID: 750, Sequence: 0}})
@@ -99,6 +116,17 @@ func TestReactor(t *testing.T) {
 			require.Equal(t, &domain.Position{TransactionID: 750, Sequence: 1}, cp)
 		})
 	})
+}
+
+type storeThatChecksContext struct {
+	checkpoint.Store
+}
+
+func (s storeThatChecksContext) Set(ctx context.Context, name string, position domain.Position) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return s.Store.Set(ctx, name, position)
 }
 
 func eventAt(sequence uint64) domain.Event {

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"{{ option "starter.module" }}/internal/api"
 	"{{ option "starter.module" }}/internal/api/use_cases"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +25,7 @@ func TestRegister(t *testing.T) {
 			})
 		}
 		router := chi.NewRouter()
-		use_cases.Register(router, []func(http.Handler) http.Handler{refuse}, nil, slog.New(slog.DiscardHandler))
+		use_cases.Register(router, []func(http.Handler) http.Handler{refuse}, &api.Config{}, nil, slog.New(slog.DiscardHandler))
 		return router
 	}
 	statusOf := func(t *testing.T, router chi.Router, method, pattern string) int {
@@ -97,7 +98,7 @@ func TestRegister(t *testing.T) {
 
 		t.Run("with no middleware for the protected routes, a request to a protected route gets to its handler", func(t *testing.T) {
 			router := chi.NewRouter()
-			use_cases.Register(router, nil, nil, slog.New(slog.DiscardHandler))
+			use_cases.Register(router, nil, &api.Config{}, nil, slog.New(slog.DiscardHandler))
 			recorder := httptest.NewRecorder()
 
 			router.ServeHTTP(recorder, httptest.NewRequest("POST", "/api/accounts", strings.NewReader("{}")))

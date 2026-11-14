@@ -1672,6 +1672,13 @@ add_to:
       import: internal/guard
   catchup.consumers:
     - code: guardWorkers(cfg.Guard, logger)
+  api.workers:
+    - name: guardWorker
+      code: newGuardWorker(cfg.Guard, logger)
+    - name: auditWorker
+      code: newAuditWorker(pool, reg, bus)
+  api.routes:
+    - code: guardWorker.routables()
 files:
   - path: files/
 `)}
@@ -1714,6 +1721,15 @@ files:
 			require.Contains(t, files["cmd/catchup/main.go"], "run(ctx, workers(pool, cfg, logger), lock.NewPostgres(pool), logger)")
 		})
 
+		t.Run("Register declares a variable for each item of api.workers in their order, an item of api.routes can use it, and Register gives each worker to the server", func(t *testing.T) {
+			files := writtenWithGuard(t)
+
+			require.Contains(t, files["internal/api/use_cases/register.go"], "\tcoreUseCases.RegisterHandlers(bus, eventStream)\n\tguardWorker := newGuardWorker(cfg.Guard, logger)\n\tauditWorker := newAuditWorker(pool, reg, bus)\n\n\troutables := []route.Routable{")
+			require.Contains(t, files["internal/api/use_cases/register.go"], "\t}\n\troutables = append(routables, guardWorker.routables()...)\n")
+			require.Contains(t, files["internal/api/use_cases/register.go"], "\treturn []api.Worker{\n\t\tguardWorker,\n\t\tauditWorker,\n\t}\n}")
+			require.Contains(t, files["internal/api/server/server.go"], "\tworkers := use_cases.Register(r, protectedMiddleware(cfg), cfg, pool, logger)\n")
+		})
+
 		t.Run("with no item, catchup has only the config and the workers of the starter", func(t *testing.T) {
 			_, files := writtenStarter(t, nil)
 
@@ -1742,6 +1758,17 @@ files:
 			return filesIn(t, output)
 		}
 
+		writtenWithPush := func(t *testing.T) map[string]string {
+			t.Helper()
+			starter, err := repoCatalog().Starter("go-event-sourcing-service")
+			require.NoError(t, err)
+			selection, err := starter.Select("my-service", nil, withoutValues("push"), catalog.Answers{})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "my-service")
+			require.NoError(t, selection.Write(output))
+			return filesIn(t, output)
+		}
+
 		t.Run("no written file holds the name of an extension point of the starter, with or without items", func(t *testing.T) {
 			definitions, err := repoCatalog().Definitions()
 			require.NoError(t, err)
@@ -1749,7 +1776,7 @@ files:
 			require.Subset(t, extensionPoints, []string{"api.middleware", "catchup.consumers", "use_cases.handlers"})
 			_, withoutItems := writtenStarter(t, nil)
 
-			for _, files := range []map[string]string{withoutItems, writtenWithGuard(t), writtenWithProcessManager(t)} {
+			for _, files := range []map[string]string{withoutItems, writtenWithGuard(t), writtenWithProcessManager(t), writtenWithPush(t)} {
 				for path, contents := range files {
 					for _, extensionPoint := range extensionPoints {
 						require.NotContains(t, contents, extensionPoint, path)
@@ -1872,10 +1899,11 @@ files:
 			require.Contains(t, files["internal/api/use_cases/register.go"], "\t\tapiAccount.NewHandler(bus, balance.NewQuery(pool)),\n\t}\n\troutables = append(routables, paymentRoutables(bus, pool)...)\n")
 		})
 
-		t.Run("with no item, the API serves only the routes of the starter", func(t *testing.T) {
+		t.Run("with no item, the API serves only the routes of the starter and has no worker", func(t *testing.T) {
 			_, files := writtenStarter(t, nil)
 
-			require.Contains(t, files["internal/api/use_cases/register.go"], "\t\tapiAccount.NewHandler(bus, balance.NewQuery(pool)),\n\t}\n\n\tvar routes []*route.Route\n")
+			require.Contains(t, files["internal/api/use_cases/register.go"], "\tcoreUseCases.RegisterHandlers(bus, eventStream)\n\n\troutables := []route.Routable{\n\t\troot.NewHandler(),\n\t\tapiAccount.NewHandler(bus, balance.NewQuery(pool)),\n\t}\n\n\tvar publicRoutes, protectedRoutes []*route.Route\n")
+			require.Contains(t, files["internal/api/use_cases/register.go"], "\treturn []api.Worker{\n\t}\n}")
 		})
 
 		parsedYAML := func(t *testing.T, contents string) map[string]any {
@@ -2076,6 +2104,55 @@ files:
 			}
 			return added, changed, removed
 		}
+
+		t.Run("push adds the files of its folders, and of the starter it changes only the file of each extension point that it adds items to", func(t *testing.T) {
+			var featureFiles []string
+			for _, folder := range []string{"common", "pg-notify"} {
+				featureFolder := filepath.Join(repoCatalogDir, "features", "push", "files", folder, "go")
+				require.NoError(t, filepath.WalkDir(featureFolder, func(path string, entry fs.DirEntry, err error) error {
+					if err != nil || entry.IsDir() {
+						return err
+					}
+					relative, err := filepath.Rel(featureFolder, path)
+					featureFiles = append(featureFiles, strings.TrimSuffix(filepath.ToSlash(relative), ".tmpl"))
+					return err
+				}))
+			}
+
+			added, changed, removed := changesBy(t, "go-event-sourcing-service", nil, withoutValues("push"))
+
+			require.Subset(t, featureFiles, []string{"internal/api/push/clients.go", "internal/api/push/reaction.go", "internal/api/use_cases/push.go"})
+			require.ElementsMatch(t, featureFiles, slices.Collect(maps.Keys(added)))
+			require.ElementsMatch(t, extensionPointFilesOf(t, "push", "go-event-sourcing-service"), changed)
+			require.Empty(t, removed)
+		})
+
+		t.Run("with push, the API runs the push worker, serves its route, and go.mod requires the module of the WebSocket", func(t *testing.T) {
+			files := writtenWithPush(t)
+
+			require.Contains(t, files["internal/api/use_cases/register.go"], "\tcoreUseCases.RegisterHandlers(bus, eventStream)\n\twebSocketPush := newPushWorker(pool, reg, logger)\n")
+			require.Contains(t, files["internal/api/use_cases/register.go"], "\troutables = append(routables, webSocketPush.routables(cfg)...)\n")
+			require.Contains(t, files["internal/api/use_cases/register.go"], "\treturn []api.Worker{\n\t\twebSocketPush,\n\t}\n}")
+			require.Contains(t, files["internal/api/push/handler.go"], `route.Public("GET", "/ws", h.serve)`)
+			require.Contains(t, files["go.mod"], "\tgithub.com/coder/websocket v1.8.15\n")
+		})
+
+		t.Run("with push, the README ends with the section of push, which names the route, the form of a message, the checkpoint, one instance, the route with no credential, and only files that the repo has", func(t *testing.T) {
+			files := writtenWithPush(t)
+			readme := files["README.md"]
+			section := readme[strings.Index(readme, "\n## Push the Events to WebSocket Clients\n"):]
+
+			require.NotContains(t, section[1:], "\n## ")
+			for _, part := range []string{
+				"`GET /api/ws`", `{"type": "<name>.account-opened", "data": {"accountId": "<account ID>", "owner": "alice"}}`,
+				"ws://127.0.0.1:3333/api/ws", "the checkpoint `push`", "does not send an old event again",
+				"Run one instance of the API", "The route asks for no credential, also in a repository with `api-auth`", "an origin of `ALLOWED_ORIGINS`",
+				"the status 1001, going away", "the exit status 1",
+			} {
+				require.Contains(t, strings.Join(strings.Fields(section), " "), part)
+			}
+			namedPathsAreIn(t, section, files)
+		})
 
 		writtenWithAPIAuth := func(t *testing.T, given map[string]string, apiAuthValues map[string]string) map[string]string {
 			t.Helper()
@@ -2791,6 +2868,7 @@ files:
 				"cli-auth":                         {writtenWithFeatures(t, withoutValues("cli-auth")), "/accounts"},
 				"cli-auth with the method oauth":   {writtenWithCLIAuthVariant(t, "oauth"), "/accounts"},
 				"process-manager":                  {writtenWithProcessManager(t), "/accounts"},
+				"push":                             {writtenWithPush(t), "/ws"},
 				"chi-api alone":                    {writtenTarget(t, "chi-api", nil, nil), "/users"},
 				"chi-api with api-auth of api-key": {writtenTarget(t, "chi-api", nil, map[string]map[string]string{"api-auth": {"method": "api-key"}}), "/users"},
 				"chi-api with api-auth of oauth":   {writtenTarget(t, "chi-api", nil, map[string]map[string]string{"api-auth": {"method": "oauth"}}), "/users"},
@@ -2800,7 +2878,7 @@ files:
 				files := written.files
 				var routes []string
 				for path, contents := range files {
-					if regexp.MustCompile(`^internal/(?:api/)?use_cases/.*\.go$`).MatchString(path) {
+					if regexp.MustCompile(`^internal/.*\.go$`).MatchString(path) {
 						for _, match := range routePattern.FindAllStringSubmatch(contents, -1) {
 							if match[1] != "/" {
 								routes = append(routes, match[1])

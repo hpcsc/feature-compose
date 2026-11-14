@@ -1,0 +1,155 @@
+//go:build unit
+
+package server
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"net"
+	"net/http"
+	"sync"
+	"testing"
+	"time"
+
+	"{{ option "starter.module" }}/internal/api"
+	"github.com/stretchr/testify/require"
+)
+
+func TestServer(t *testing.T) {
+	serverWith := func(address string, workers ...api.Worker) *Server {
+		return newServer(&http.Server{Addr: address, Handler: http.NotFoundHandler()}, workers, slog.New(slog.DiscardHandler))
+	}
+
+	t.Run("workers", func(t *testing.T) {
+		t.Run("Shutdown ends the work of each worker and returns after each worker stopped, and Start then returns no error", func(t *testing.T) {
+			first := &waitingWorker{name: "push", stopTime: 200 * time.Millisecond}
+			second := &waitingWorker{name: "audit", stopTime: 100 * time.Millisecond}
+			srv := serverWith("127.0.0.1:0", first, second)
+			stopped := resultOfStart(srv)
+
+			srv.Shutdown()
+
+			require.True(t, first.stopped())
+			require.True(t, second.stopped())
+			require.NoError(t, resultWithin(t, stopped))
+		})
+
+		t.Run("a worker that cannot start stops the server and the other workers, and Start returns the error with the name of the worker", func(t *testing.T) {
+			other := &waitingWorker{name: "audit"}
+			failing := &endingWorker{name: "push", err: errors.New("Postgres does not answer")}
+			srv := serverWith("127.0.0.1:0", other, failing)
+
+			err := resultWithin(t, resultOfStart(srv))
+
+			require.EqualError(t, err, "push failed: Postgres does not answer")
+			require.True(t, other.stopped())
+		})
+
+		t.Run("a worker that stops with no error before the API stops stops the server and the other workers, and Start returns that it stopped", func(t *testing.T) {
+			other := &waitingWorker{name: "audit"}
+			ending := &endingWorker{name: "push"}
+			srv := serverWith("127.0.0.1:0", other, ending)
+
+			err := resultWithin(t, resultOfStart(srv))
+
+			require.EqualError(t, err, "push failed: stopped before the API stopped")
+			require.True(t, other.stopped())
+		})
+
+		t.Run("a worker that panics stops the server and the other workers, and Start returns the panic with the name of the worker", func(t *testing.T) {
+			other := &waitingWorker{name: "audit"}
+			panicking := &panickingWorker{name: "push"}
+			srv := serverWith("127.0.0.1:0", other, panicking)
+
+			err := resultWithin(t, resultOfStart(srv))
+
+			require.EqualError(t, err, "push received unhandled error: the clients are nil")
+			require.True(t, other.stopped())
+		})
+
+		t.Run("a server that cannot listen stops the workers, and Start returns the error", func(t *testing.T) {
+			taken, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = taken.Close() })
+			worker := &waitingWorker{name: "push"}
+			srv := serverWith(taken.Addr().String(), worker)
+
+			err = resultWithin(t, resultOfStart(srv))
+
+			require.ErrorContains(t, err, "failed to start server")
+			require.True(t, worker.stopped())
+		})
+	})
+}
+
+func resultOfStart(srv *Server) <-chan error {
+	result := make(chan error, 1)
+	go func() {
+		result <- srv.Start()
+	}()
+	return result
+}
+
+func resultWithin(t *testing.T, result <-chan error) error {
+	t.Helper()
+	select {
+	case err := <-result:
+		return err
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "Start did not return within 5 seconds")
+		return nil
+	}
+}
+
+type endingWorker struct {
+	name string
+	err  error
+}
+
+func (w *endingWorker) Name() string {
+	return w.name
+}
+
+func (w *endingWorker) Start(context.Context) error {
+	return w.err
+}
+
+type panickingWorker struct {
+	name string
+}
+
+func (w *panickingWorker) Name() string {
+	return w.name
+}
+
+func (w *panickingWorker) Start(context.Context) error {
+	panic("the clients are nil")
+}
+
+type waitingWorker struct {
+	name     string
+	stopTime time.Duration
+
+	mutex sync.Mutex
+	ended bool
+}
+
+func (w *waitingWorker) Name() string {
+	return w.name
+}
+
+func (w *waitingWorker) Start(ctx context.Context) error {
+	<-ctx.Done()
+	time.Sleep(w.stopTime)
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+	w.ended = true
+	return nil
+}
+
+func (w *waitingWorker) stopped() bool {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+	return w.ended
+}

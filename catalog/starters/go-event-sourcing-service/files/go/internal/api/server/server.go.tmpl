@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,17 +22,27 @@ import (
 )
 
 func New(name string, cfg *api.Config, pool *pgxpool.Pool, logger *slog.Logger) *Server {
+	handler, workers := newHandler(name, cfg, pool, logger)
+	return newServer(&http.Server{
+		Addr:    fmt.Sprintf(":%s", cfg.Port),
+		Handler: handler,
+	}, workers, logger)
+}
+
+func newServer(httpServer *http.Server, workers []api.Worker, logger *slog.Logger) *Server {
+	workersCtx, stopWorkers := context.WithCancel(context.Background())
 	return &Server{
-		cfg: cfg,
-		httpServer: &http.Server{
-			Addr:    fmt.Sprintf(":%s", cfg.Port),
-			Handler: newHandler(name, cfg, pool, logger),
-		},
-		logger: logger,
+		httpServer:     httpServer,
+		workers:        workers,
+		logger:         logger,
+		workersCtx:     workersCtx,
+		stopWorkers:    stopWorkers,
+		workersStopped: make(chan struct{}),
+		failures:       make(chan error, len(workers)+1),
 	}
 }
 
-func newHandler(name string, cfg *api.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handler {
+func newHandler(name string, cfg *api.Config, pool *pgxpool.Pool, logger *slog.Logger) (http.Handler, []api.Worker) {
 	r := chi.NewRouter()
 
 	r.Use(apiMiddleware.RequestLogger(logger, request.NewRealClock(), nil))
@@ -40,9 +51,9 @@ func newHandler(name string, cfg *api.Config, pool *pgxpool.Pool, logger *slog.L
 
 	r.Use(apiMiddleware.CORS(cfg.AllowedOrigins))
 
-	use_cases.Register(r, protectedMiddleware(cfg), pool, logger)
+	workers := use_cases.Register(r, protectedMiddleware(cfg), cfg, pool, logger)
 
-	return r
+	return r, workers
 }
 
 func protectedMiddleware(cfg *api.Config) []func(http.Handler) http.Handler {
@@ -54,15 +65,45 @@ func protectedMiddleware(cfg *api.Config) []func(http.Handler) http.Handler {
 }
 
 type Server struct {
-	cfg        *api.Config
 	httpServer *http.Server
+	workers    []api.Worker
 	logger     *slog.Logger
+
+	workersCtx     context.Context
+	stopWorkers    context.CancelFunc
+	workersStopped chan struct{}
+	failures       chan error
 }
 
-func (s *Server) Start() {
+func (s *Server) Start() error {
+	var running sync.WaitGroup
+	for _, w := range s.workers {
+		running.Add(1)
+		go func() {
+			defer running.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					s.fail(fmt.Errorf("%s received unhandled error: %v", w.Name(), r))
+				}
+			}()
+			s.run(w)
+		}()
+	}
+
 	s.logger.Info(fmt.Sprintf("listening at %v", s.httpServer.Addr))
 	if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		s.logger.Error(fmt.Sprintf("failed to start server: %v", err))
+		s.failures <- fmt.Errorf("failed to start server: %w", err)
+		s.stopWorkers()
+	}
+
+	running.Wait()
+	close(s.workersStopped)
+
+	select {
+	case err := <-s.failures:
+		return err
+	default:
+		return nil
 	}
 }
 
@@ -83,5 +124,29 @@ func (s *Server) Shutdown() {
 		s.logger.Error(fmt.Sprintf("failed to gracefully shutdown server: %v", err))
 	} else {
 		s.logger.Info("server shutdown")
+	}
+
+	s.stopWorkers()
+	select {
+	case <-s.workersStopped:
+	case <-withTimeoutCtx.Done():
+	}
+}
+
+func (s *Server) run(w api.Worker) {
+	err := w.Start(s.workersCtx)
+	if err == nil && s.workersCtx.Err() == nil {
+		err = errors.New("stopped before the API stopped")
+	}
+	if err != nil {
+		s.fail(fmt.Errorf("%s failed: %w", w.Name(), err))
+	}
+}
+
+func (s *Server) fail(err error) {
+	s.failures <- err
+	s.stopWorkers()
+	if err := s.httpServer.Close(); err != nil {
+		s.logger.Error(fmt.Sprintf("failed to close server: %v", err))
 	}
 }

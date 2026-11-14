@@ -1,0 +1,82 @@
+package push
+
+import (
+	"context"
+	"encoding/json"
+	"log/slog"
+	"maps"
+	"slices"
+	"sync"
+	"time"
+
+	"github.com/coder/websocket"
+)
+
+const sendTimeout = 5 * time.Second
+
+type Clients struct {
+	mutex   sync.Mutex
+	clients map[*websocket.Conn]struct{}
+	logger  *slog.Logger
+}
+
+func NewClients(logger *slog.Logger) *Clients {
+	return &Clients{
+		clients: map[*websocket.Conn]struct{}{},
+		logger:  logger,
+	}
+}
+
+func (c *Clients) Send(ctx context.Context, message Message) {
+	data, err := json.Marshal(message)
+	if err != nil {
+		c.logger.Error("failed to marshal a message", "type", message.Type, "error", err)
+		return
+	}
+
+	c.forEach(func(client *websocket.Conn) {
+		withTimeoutCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sendTimeout)
+		defer cancel()
+		if err := client.Write(withTimeoutCtx, websocket.MessageText, data); err != nil {
+			c.logger.Warn("failed to send a message to a client", "type", message.Type, "error", err)
+		}
+	})
+}
+
+func (c *Clients) Close() {
+	c.forEach(func(client *websocket.Conn) {
+		if err := client.Close(websocket.StatusGoingAway, "the API stops"); err != nil {
+			c.logger.Warn("failed to close a client", "error", err)
+		}
+	})
+}
+
+func (c *Clients) add(client *websocket.Conn) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.clients[client] = struct{}{}
+	c.logger.Info("a client connected", "clients", len(c.clients))
+}
+
+func (c *Clients) remove(client *websocket.Conn) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	delete(c.clients, client)
+	c.logger.Info("a client left", "clients", len(c.clients))
+}
+
+func (c *Clients) forEach(do func(client *websocket.Conn)) {
+	c.mutex.Lock()
+	clients := slices.Collect(maps.Keys(c.clients))
+	c.mutex.Unlock()
+
+	var running sync.WaitGroup
+	for _, client := range clients {
+		running.Add(1)
+		go func() {
+			defer running.Done()
+			do(client)
+		}()
+	}
+	running.Wait()
+}

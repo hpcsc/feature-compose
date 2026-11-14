@@ -155,7 +155,8 @@ pane shows the details of the selected row. You can change any answer in any ord
 │    ├─   [x] cli  needed by cli-auth      ││                                                                │
 │    ├─ ▾ [x] cli-auth  fixed              ││                                                                │
 │    │  └─   store-key  false              ││                                                                │
-│    └─   [ ] process-manager              ││                                                                │
+│    ├─   [ ] process-manager              ││                                                                │
+│    └─   [ ] push                         ││                                                                │
 ╰──────────────────────────────────────────╯╰────────────────────────────────────────────────────────────────╯
  j/k move • l open • h close • space select • w write • ctrl+d/u scroll details • q quit
 ```

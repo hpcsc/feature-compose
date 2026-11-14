@@ -295,7 +295,7 @@ The next adds `--feature cli-auth --feature api-auth:method=oauth`, so the CLI l
 7. With `MY_SERVICE_OAUTH_AUDIENCE=another-api`, the same binary logs in for `another-api`, and the API refuses
    the token. So the CLI changes its audience with no new render.
 
-The last adds `--feature process-manager`, the example of a payment to another bank:
+The next adds `--feature process-manager`, the example of a payment to another bank:
 
 1. `gofmt -l .` lists no file, `go build ./...` builds, and `go vet -tags integration ./...` compiles the
    integration tests, `process_test.go` among them. The test does not run them: they need Postgres.
@@ -310,6 +310,16 @@ The last adds `--feature process-manager`, the example of a payment to another b
    free port with `WEBHOOK_DELAY=0s`. `POST /fraud/checks` with an `Idempotency-Key`, an amount under the
    limit and the URL of the webhook server gets 202. The webhook server then gets one webhook with the
    payment ID, `passed` true and the same key.
+
+The last adds `--feature push`, which sends each new event of the service to the WebSocket clients of the API:
+
+1. `gofmt -l .` lists no file, `go build ./...` builds, and `go vet -tags integration ./...` compiles the
+   integration tests of `internal/api/push` and `internal/api/use_cases`.
+2. `task test:unit` stops with the exit status 0. The output of gotestsum shows that the tests of
+   `internal/api/push` and `internal/api/server` ran and passed.
+3. The test starts the API with the database settings that point to no database. The push worker of the API
+   cannot read its checkpoint, so the API stops with the exit status 1, and its output names the worker `push`
+   and the error.
 
 The test does not run `task run`, the migrations or the integration tests. They need Docker and Postgres.
 The CI of the written repo runs the integration tests.

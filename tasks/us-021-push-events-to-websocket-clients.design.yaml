@@ -1,0 +1,184 @@
+design: planned
+types:
+  - name: item
+    package: internal/catalog
+    change: new
+    does: one item that a feature adds to an extension point, with the values of its fields and the when that decides whether a repo gets it
+    owns:
+      - an item with no when is in each repo; an item with a when is in the file of its extension point only when the when is true for the values that the feature that adds it can read
+      - when is not a field of an item, so the fields of an item are the fields that its extension point declares
+    fields: [fields, featureName, when]
+    methods: []
+  - name: extensionPoint
+    package: internal/catalog
+    change: changed
+    does: a named list in one file, which the starter or a feature declares with the fields of its items
+    owns:
+      - an extension point cannot declare the item field when
+    fields: [name, declarer, file, itemFields, items]
+    methods: []
+  - name: feature
+    package: internal/catalog
+    change: changed
+    does: one feature.yml with the templates under its files entries, which a selection writes into the folders of the starter
+    owns:
+      - a when of an item that does not parse is a mistake that names the feature, the extension point, the number of the item and the when
+      - a when of an item reads the options that the when of a files entry of the feature reads, and no other
+    fields: [name, targets, templates, options, extensionPoints, addTo, needs]
+    methods: []
+  - name: Selection
+    package: internal/catalog
+    change: changed
+    does: makes one repo from a starter, the selected features with the values of their options, a name and the values of the starter options
+    owns:
+      - items and unique give only the items whose when is true for the values of the feature that adds them
+    fields: [folders, name, starter, features, templates, extensionPoints]
+    methods: [Write, RunAfterRender]
+  - name: Worker
+    package: catalog/starters/go-event-sourcing-service/files/go/internal/api
+    change: new
+    does: a part of the API that runs while the API serves, until its context ends
+    owns:
+      - Start returns when its context ends, after the work of the worker when the API stops
+      - Start returns an error when the worker cannot start or cannot go on
+    fields: []
+    methods: [Name, Start]
+  - name: Server
+    package: catalog/starters/go-event-sourcing-service/files/go/internal/api/server
+    change: changed
+    does: serves the routes of the API and runs its workers
+    owns:
+      - Start starts each worker beside the HTTP server
+      - Shutdown ends the context of each worker after the HTTP server takes no new request, and returns only after each Start of a worker returned
+      - a worker whose Start returns an error stops the HTTP server and the other workers, and Start of the server returns the error with the name of the worker
+    fields: [cfg, httpServer, workers, logger]
+    methods: [Start, Shutdown]
+  - name: Clients
+    package: catalog/features/push/files/common/go/internal/api/push
+    change: new
+    does: the WebSocket clients of one instance of the API, which get each message that the API sends
+    owns:
+      - a client gets each message that is sent after it connects, and no message after it leaves
+      - a client that cannot take a message does not stop the send to the other clients
+      - Close closes each client with the status going away
+    fields: [clients, logger]
+    methods: [Send, Close]
+  - name: Handler
+    package: catalog/features/push/files/common/go/internal/api/push
+    change: new
+    does: serves the public route GET /ws, which keeps each connection as a client of the Clients until it leaves
+    owns:
+      - the route asks for no credential, and accepts a page in a browser only from an origin of ALLOWED_ORIGINS or of the API, and a client with no Origin header
+    fields: [clients, logger]
+    methods: [Routes]
+  - name: Message
+    package: catalog/features/push/files/common/go/internal/api/push
+    change: new
+    does: the JSON text that a client gets for one event, with the type of the event and its payload
+    owns:
+      - the JSON keys are type and data, the same for each value of delivery
+    fields: [Type, Data]
+    methods: []
+  - name: Reaction
+    package: catalog/features/push/files/pg-notify/go/internal/api/push
+    change: new
+    does: sends each event that the reactor gives it to the Clients as a message
+    owns:
+      - its name push-subscriber is the name of its checkpoint, so after a restart the reactor goes on after the last event that it sent
+    fields: [clients]
+    methods: [Name, EventTypes, Handle]
+  - name: NATSReader
+    package: catalog/features/push/files/nats/go/internal/api/push
+    change: new
+    does: reads each new message of the NATS subject of push with a consumer of its own, and sends it to the Clients until its context ends
+    owns:
+      - each instance of the API reads each message that catchup publishes after the instance starts
+      - when its context ends, it removes its consumer and closes its connection to NATS
+    fields: [config, clients, logger]
+    methods: [Start]
+  - name: Config
+    package: catalog/features/push/files/nats/go/internal/common/nats_push
+    change: new
+    does: the address of NATS, which the API and catchup read from NATS_URL
+    owns: []
+    fields: [URL]
+    methods: []
+  - name: Publisher
+    package: catalog/features/push/files/nats/go/internal/common/nats_push
+    change: new
+    does: publishes each event that the reactor of catchup gives it to the NATS subject of push, as a message
+    owns:
+      - its name push-nats is the name of its checkpoint and of its lock in catchup
+    fields: [jetStream]
+    methods: [Name, EventTypes, Handle]
+  - name: pushWorker
+    package: catalog/features/push/files/pg-notify/go/internal/api/use_cases
+    change: new
+    does: the push of one instance of the API with pg-notify, which reads the notifications of Postgres and sends each event to its clients
+    owns:
+      - when its context ends, it closes its clients
+    fields: [clients, reactor, logger]
+    methods: [Name, Start, routables]
+  - name: pushWorker
+    package: catalog/features/push/files/nats/go/internal/api/use_cases
+    change: new
+    does: the push of one instance of the API with nats, which reads NATS and sends each message to its clients
+    owns:
+      - when its context ends, it closes its clients and its connection to NATS
+    fields: [clients, reader, logger]
+    methods: [Name, Start, routables]
+  - name: pushWorker
+    package: catalog/features/push/files/nats/go/cmd/catchup
+    change: new
+    does: the worker of catchup that connects to NATS when it starts and publishes each event in order, with a checkpoint
+    owns:
+      - a NATS that does not answer when it starts is an error of Start, so catchup stops with exit 1
+    fields: [config, checkpointStore, subscription, logger]
+    methods: [Name, Start]
+functions:
+  - Register(router, protectedMiddleware, cfg, pool, logger) []api.Worker
+  - push.NewClients(logger) *Clients
+  - push.NewHandler(clients, logger) *Handler
+  - push.NewReaction(clients) *Reaction
+  - push.NewNATSReader(config, clients, logger) *NATSReader
+  - nats_push.NewPublisher(conn) (*Publisher, error)
+  - nats_push.EnsureStream(jetStream) error
+words:
+  - concept: the feature that sends each new event of a service to the WebSocket clients of its API
+    word: push
+    not: [broadcast, notify, stream, live updates]
+  - concept: the option of push that says how the new events reach the API
+    word: delivery
+    not: [transport, mode, backend, channel]
+  - concept: a WebSocket connection that the API sends each new event to
+    word: client
+    not: [subscriber, listener, socket, connection, peer]
+  - concept: the JSON text that a client gets for one event, with its type and its payload
+    word: message
+    not: [frame, envelope, notification, packet]
+  - concept: what the API does when it gives a message to its clients
+    word: send
+    not: [broadcast, emit, publish, fan out]
+  - concept: what catchup does when it gives an event to NATS
+    word: publish
+    not: [send, emit, produce, push]
+  - concept: a Postgres NOTIFY on the channel events, which wakes each reader of the events
+    word: notification
+    not: [signal, ping, push event]
+  - concept: a part of a process that runs until its context ends, with Name and Start; catchup runs each one under the lock of its name, and the API runs each one while it serves
+    word: worker
+    not: [job, runner, daemon, background task, service]
+  - concept: one running process of the API
+    word: instance
+    not: [replica, node, pod, server]
+  - concept: the key of an item of add_to whose expression decides whether a repo gets the item
+    word: when
+    not: [condition, if, only, guard]
+dependencies:
+  - internal/api/server -> internal/api
+  - internal/api/use_cases -> internal/api
+  - internal/api/use_cases -> internal/api/push
+  - internal/api/push -> internal/domain
+  - internal/api/push -> internal/common/nats_push
+  - internal/common/nats_push -> internal/domain/reaction
+  - cmd/catchup -> internal/common/nats_push

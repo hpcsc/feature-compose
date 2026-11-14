@@ -1,0 +1,145 @@
+//go:build integration
+
+package use_cases_test
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net"
+	"slices"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/coder/websocket"
+	"github.com/google/uuid"
+	"{{ option "starter.module" }}/internal/api"
+	"{{ option "starter.module" }}/internal/api/server"
+	"{{ option "starter.module" }}/internal/common/test"
+	"{{ option "starter.module" }}/internal/domain"
+	"{{ option "starter.module" }}/internal/domain/event/registry"
+	"{{ option "starter.module" }}/internal/domain/event/stream"
+	coreUseCases "{{ option "starter.module" }}/internal/use_cases"
+	"{{ option "starter.module" }}/internal/use_cases/account/event"
+	"github.com/stretchr/testify/require"
+)
+
+func TestPush(t *testing.T) {
+	t.Run("clients", func(t *testing.T) {
+		t.Run("a client of the route /api/ws gets each event that the service stores after the client connects, and a close with the status going away when the API stops", func(t *testing.T) {
+			pool := test.NewDBPool(t)
+			port := freePort(t)
+			srv := server.New("api", &api.Config{Port: port}, pool, test.DiscardLogger())
+			stopped := make(chan error, 1)
+			go func() {
+				stopped <- srv.Start()
+			}()
+			client := dialedWhenServing(t, "ws://127.0.0.1:"+port+"/api/ws")
+			reg := registry.New()
+			coreUseCases.RegisterEvents(reg)
+			eventStream := stream.NewPostgres(pool, reg)
+			open := func(owner string) uuid.UUID {
+				t.Helper()
+				accountID := uuid.New()
+				require.NoError(t, eventStream.Save(context.Background(), "test-"+accountID.String(), []domain.Event{domain.NewEvent(&event.AccountOpened{AccountID: accountID, Owner: owner})}, 0))
+				return accountID
+			}
+			var warmUps []uuid.UUID
+			for deadline := time.Now().Add(5 * time.Second); ; {
+				warmUps = append(warmUps, open("warm-up"))
+				if _, ok := client.nextAbout(100*time.Millisecond, warmUps...); ok {
+					break
+				}
+				require.True(t, time.Now().Before(deadline), "the client got no message within 5 seconds of its connection")
+			}
+
+			alice := open("alice")
+			bob := open("bob")
+
+			var messages []string
+			for range 2 {
+				message, ok := client.nextAbout(5*time.Second, alice, bob)
+				require.True(t, ok, "the client got no message about alice or bob within 5 seconds")
+				messages = append(messages, message)
+			}
+			opened := event.AccountOpened{}.EventType()
+			require.Equal(t, []string{
+				fmt.Sprintf(`{"type":%q,"data":{"accountId":%q,"owner":"alice"}}`, opened, alice),
+				fmt.Sprintf(`{"type":%q,"data":{"accountId":%q,"owner":"bob"}}`, opened, bob),
+			}, messages)
+
+			srv.Shutdown()
+
+			require.Equal(t, websocket.StatusGoingAway, client.closedWith(t))
+			require.NoError(t, <-stopped)
+		})
+	})
+}
+
+type pushClient struct {
+	messages chan string
+	closed   chan websocket.StatusCode
+}
+
+func dialedWhenServing(t *testing.T, url string) *pushClient {
+	t.Helper()
+	var connection *websocket.Conn
+	for deadline := time.Now().Add(10 * time.Second); connection == nil; time.Sleep(50 * time.Millisecond) {
+		var err error
+		connection, _, err = websocket.Dial(context.Background(), url, nil)
+		require.True(t, err == nil || time.Now().Before(deadline), "the API did not serve %s within 10 seconds: %v", url, err)
+	}
+	t.Cleanup(func() { _ = connection.CloseNow() })
+	client := &pushClient{messages: make(chan string, 1000), closed: make(chan websocket.StatusCode, 1)}
+	go func() {
+		for {
+			_, data, err := connection.Read(context.Background())
+			if err != nil {
+				client.closed <- websocket.CloseStatus(err)
+				return
+			}
+			client.messages <- string(data)
+		}
+	}()
+	return client
+}
+
+func (c *pushClient) nextAbout(wait time.Duration, accountIDs ...uuid.UUID) (string, bool) {
+	deadline := time.After(wait)
+	for {
+		select {
+		case message := <-c.messages:
+			var parsed struct {
+				Data struct {
+					AccountID uuid.UUID `json:"accountId"`
+				} `json:"data"`
+			}
+			if json.Unmarshal([]byte(message), &parsed) == nil && slices.Contains(accountIDs, parsed.Data.AccountID) {
+				return message, true
+			}
+		case <-deadline:
+			return "", false
+		}
+	}
+}
+
+func (c *pushClient) closedWith(t *testing.T) websocket.StatusCode {
+	t.Helper()
+	select {
+	case status := <-c.closed:
+		return status
+	case <-time.After(15 * time.Second):
+		require.FailNow(t, "the client was not closed within 15 seconds")
+		return 0
+	}
+}
+
+func freePort(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := listener.Addr().(*net.TCPAddr).Port
+	require.NoError(t, listener.Close())
+	return strconv.Itoa(port)
+}

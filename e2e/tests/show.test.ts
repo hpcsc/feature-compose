@@ -55,7 +55,7 @@ describe('feature-compose show in a terminal', () => {
 
     await session.waitForText('A Go HTTP API with chi, whose routes are under /api.', { timeout: 15_000 })
     const screen = await session.text()
-    for (const part of ['╭─ Catalog ', '╭─ chi-api ─', '▾ go', '▾ go-event-sourcing-service', '├─ ▾ features', '│  ├─ api-auth', '│  ├─ cli-auth', '│  └─ process-manager', '└─ ▾ extension points', '├─ api.middleware', '├─ cli.commands', '└─ use_cases.handlers', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
+    for (const part of ['╭─ Catalog ', '╭─ chi-api ─', '▾ go', '▾ go-event-sourcing-service', '├─ ▾ features', '│  ├─ api-auth', '│  ├─ cli-auth', '│  ├─ process-manager', '│  └─ push', '└─ ▾ extension points', '├─ api.middleware', '├─ cli.commands', '└─ use_cases.handlers', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
       expect(screen).toContain(part)
     }
     await session.press('/')
@@ -103,7 +103,7 @@ describe('feature-compose show in a terminal', () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
 
-    await session.waitForText('└─ process-manager', { timeout: 15_000 })
+    await session.waitForText('└─ push', { timeout: 15_000 })
     for (let i = 0; i < 4; i++) {
       await session.press('j')
     }
@@ -124,7 +124,7 @@ describe('feature-compose show in a terminal', () => {
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'], {}, rowsOfTheWholeTree)
 
     await session.waitForText('└─ use_cases.handlers', { timeout: 15_000 })
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 11; i++) {
       await session.press('j')
     }
     await session.waitForText('╭─ api.middleware ')

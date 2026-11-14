@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"{{ option "starter.module" }}/internal/api"
 	"{{ option "starter.module" }}/internal/api/use_cases"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +24,7 @@ func TestPaymentRoutes(t *testing.T) {
 				})
 			}
 			router := chi.NewRouter()
-			use_cases.Register(router, []func(http.Handler) http.Handler{refuse}, nil, slog.New(slog.DiscardHandler))
+			use_cases.Register(router, []func(http.Handler) http.Handler{refuse}, &api.Config{}, nil, slog.New(slog.DiscardHandler))
 			statuses := map[string]int{}
 
 			for _, r := range []string{

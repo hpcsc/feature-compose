@@ -62,6 +62,9 @@ func (c *Consumer) Start(ctx context.Context) error {
 
 			batch, open := c.collectBatch(evt, events)
 			if err := c.handler.HandleBatch(ctx, batch); err != nil {
+				if ctx.Err() != nil {
+					return nil
+				}
 				c.logger.Error("failed to handle events", "error", err, "firstPosition", batch[0].Position)
 				return err
 			}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"{{ option "starter.module" }}/internal/api"
 	"{{ option "starter.module" }}/internal/api/route"
 	apiAccount "{{ option "starter.module" }}/internal/api/use_cases/account"
 	"{{ option "starter.module" }}/internal/api/use_cases/root"
@@ -17,39 +18,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Register(router chi.Router, protectedMiddleware []func(http.Handler) http.Handler, pool *pgxpool.Pool, logger *slog.Logger) {
-	var publicRoutes, protectedRoutes []*route.Route
-	for _, r := range allRoutes(pool) {
-		if r.IsPublic() {
-			publicRoutes = append(publicRoutes, r)
-		} else if r.IsProtected() {
-			protectedRoutes = append(protectedRoutes, r)
-		}
-	}
-
-	router.Route("/api", func(api chi.Router) {
-		for _, r := range publicRoutes {
-			api.MethodFunc(r.Method, r.Pattern, r.Handler)
-			logger.Info(fmt.Sprintf("registered public route %s /api%s", r.Method, r.Pattern))
-		}
-
-		api.Group(func(protected chi.Router) {
-			protected.Use(protectedMiddleware...)
-			for _, r := range protectedRoutes {
-				protected.MethodFunc(r.Method, r.Pattern, r.Handler)
-				logger.Info(fmt.Sprintf("registered protected route %s /api%s", r.Method, r.Pattern))
-			}
-		})
-	})
-}
-
-func allRoutes(pool *pgxpool.Pool) []*route.Route {
+func Register(router chi.Router, protectedMiddleware []func(http.Handler) http.Handler, cfg *api.Config, pool *pgxpool.Pool, logger *slog.Logger) []api.Worker {
 	reg := registry.New()
 	coreUseCases.RegisterEvents(reg)
 
 	eventStream := stream.NewPostgres(pool, reg)
 	bus := command.NewBus(command.WithHistory(eventStream))
 	coreUseCases.RegisterHandlers(bus, eventStream)
+{{- range items "api.workers" }}
+	{{ .name }} := {{ .code }}
+{{- end }}
 
 	routables := []route.Routable{
 		root.NewHandler(),
@@ -59,9 +37,35 @@ func allRoutes(pool *pgxpool.Pool) []*route.Route {
 	routables = append(routables, {{ .code }}...)
 {{- end }}
 
-	var routes []*route.Route
-	for _, r := range routables {
-		routes = append(routes, r.Routes()...)
+	var publicRoutes, protectedRoutes []*route.Route
+	for _, routable := range routables {
+		for _, r := range routable.Routes() {
+			if r.IsPublic() {
+				publicRoutes = append(publicRoutes, r)
+			} else if r.IsProtected() {
+				protectedRoutes = append(protectedRoutes, r)
+			}
+		}
 	}
-	return routes
+
+	router.Route("/api", func(apiRouter chi.Router) {
+		for _, r := range publicRoutes {
+			apiRouter.MethodFunc(r.Method, r.Pattern, r.Handler)
+			logger.Info(fmt.Sprintf("registered public route %s /api%s", r.Method, r.Pattern))
+		}
+
+		apiRouter.Group(func(protected chi.Router) {
+			protected.Use(protectedMiddleware...)
+			for _, r := range protectedRoutes {
+				protected.MethodFunc(r.Method, r.Pattern, r.Handler)
+				logger.Info(fmt.Sprintf("registered protected route %s /api%s", r.Method, r.Pattern))
+			}
+		})
+	})
+
+	return []api.Worker{
+{{- range items "api.workers" }}
+		{{ .name }},
+{{- end }}
+	}
 }

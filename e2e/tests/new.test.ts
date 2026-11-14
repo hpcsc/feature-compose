@@ -442,6 +442,32 @@ describe('feature-compose new', () => {
     15 * 60 * 1000,
   )
 
+  it(
+    'makes a repo with push that builds, passes its unit tests, and whose API stops with the exit status 1 and names the push worker when Postgres does not answer',
+    async () => {
+      const dir = scratchDir()
+      const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
+
+      const made = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'push', '--no-prompt'], env)
+
+      expect(made.status, made.stdout + made.stderr).toBe(0)
+      const repo = join(dir, 'my-service')
+      const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
+      expect(unformatted).toMatchObject({ status: 0, stdout: '' })
+      for (const args of [['build', './...'], ['vet', '-tags', 'integration', './...']]) {
+        const result = await runProgram(repo, 'go', args, env)
+        expect(result.status, `go ${args.join(' ')}: ${result.stdout}${result.stderr}`).toBe(0)
+      }
+      const unit = await runProgram(repo, 'task', ['test:unit'], env)
+      expect(unit.status, unit.stdout + unit.stderr).toBe(0)
+      expect(passedPackages(unit.stdout)).toEqual(expect.arrayContaining(['internal/api/push', 'internal/api/server']))
+      const stopped = await stoppedApi(repo, env)
+      expect(stopped.status, stopped.output).toBe(1)
+      expect(stopped.output).toContain('push failed: failed to get the checkpoint of push: ')
+    },
+    15 * 60 * 1000,
+  )
+
   it('a value that the option method of api-auth does not have stops new, names method and its values, and makes no folder', async () => {
     const dir = scratchDir()
 
@@ -819,7 +845,7 @@ describe('feature-compose new', () => {
     const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'x', '--feature', 'no-such-feature'])
 
     expect(result.status).not.toBe(0)
-    expect(result.stdout + result.stderr).toContain('the features that target the starter go-event-sourcing-service are api-auth, cli, cli-auth, process-manager\n')
+    expect(result.stdout + result.stderr).toContain('the features that target the starter go-event-sourcing-service are api-auth, cli, cli-auth, process-manager, push\n')
     expect(readdirSync(dir)).toEqual([])
   })
 
@@ -1248,6 +1274,27 @@ async function until(condition: () => boolean): Promise<void> {
 // /api. The database settings point to no database: the pool of the API opens no connection before the first
 // query, and the requests of the tests stop before a query.
 async function startedApi(repo: string, env: Record<string, string>): Promise<string> {
+  const { api, port, output } = await spawnedApi(repo, env)
+  const url = `http://127.0.0.1:${port}/api`
+  for (let waited = 0; ; waited += 100) {
+    if (api.exitCode !== null) throw new Error(`the API stopped with the exit status ${api.exitCode}: ${output()}`)
+    if (await answers(url)) return url
+    if (waited > 20000) throw new Error(`the API did not answer within 20 seconds: ${output()}`)
+    await new Promise((done) => setTimeout(done, 100))
+  }
+}
+
+// stoppedApi starts the API of a written repo as startedApi does, and waits until the API stops.
+async function stoppedApi(repo: string, env: Record<string, string>): Promise<{ status: number | null; output: string }> {
+  const { api, output } = await spawnedApi(repo, env)
+  for (let waited = 0; api.exitCode === null; waited += 100) {
+    if (waited > 20000) throw new Error(`the API did not stop within 20 seconds: ${output()}`)
+    await new Promise((done) => setTimeout(done, 100))
+  }
+  return { status: api.exitCode, output: output() }
+}
+
+async function spawnedApi(repo: string, env: Record<string, string>): Promise<{ api: ChildProcess; port: number; output: () => string }> {
   const build = await runProgram(repo, 'go', ['build', '-o', join(repo, 'api-of-the-test'), './cmd/api'], env)
   expect(build.status, build.stdout + build.stderr).toBe(0)
   const port = await freePort()
@@ -1272,13 +1319,7 @@ async function startedApi(repo: string, env: Record<string, string>): Promise<st
   onTestFinished(() => {
     api.kill('SIGKILL')
   })
-  const url = `http://127.0.0.1:${port}/api`
-  for (let waited = 0; ; waited += 100) {
-    if (api.exitCode !== null) throw new Error(`the API stopped with the exit status ${api.exitCode}: ${printed}`)
-    if (await answers(url)) return url
-    if (waited > 20000) throw new Error(`the API did not answer within 20 seconds: ${printed}`)
-    await new Promise((done) => setTimeout(done, 100))
-  }
+  return { api, port, output: () => printed }
 }
 
 // startedFakes builds the fakes of the outside systems of a written repo, and starts them on a free port with no

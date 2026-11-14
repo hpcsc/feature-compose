@@ -1,0 +1,154 @@
+{
+  "story": "Push the events of a service to WebSocket clients",
+  "story_id": "feature-compose/US-021",
+  "tasks_file": "tasks/us-021-push-events-to-websocket-clients.md",
+  "tasks": [
+    {
+      "n": 1,
+      "done": true,
+      "title": "Push each new event to the WebSocket clients of the API with the notifications of Postgres, and stop the work of the API when it stops",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "catalog/starters/go-event-sourcing-service/files/go/cmd/catchup/main.go.tmpl:62-124",
+        "catalog/starters/go-event-sourcing-service/files/go/cmd/catchup/main_test.go.tmpl",
+        "catalog/features/process-manager/feature.yml",
+        "catalog/features/process-manager/files/go/internal/api/use_cases/payment.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/domain/reaction/reactor.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/domain/reaction/reactor_test.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/domain/event/subscription/fake.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/domain/checkpoint/store/memory.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/common/test/db.go.tmpl",
+        "internal/catalog/catalog_test.go:1651-1686",
+        "internal/catalog/catalog_test.go:1761-1797",
+        "internal/catalog/catalog_test.go:2777-2838",
+        "e2e/tests/new.test.ts:403-441"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "catalog/starters/go-event-sourcing-service/starter.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/worker.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/use_cases/register.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/use_cases/register_test.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/api/server/server.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/cmd/api/main.go.tmpl",
+        "catalog/features/process-manager/files/go/internal/api/use_cases/payment_test.go.tmpl",
+        "catalog/features/push/feature.yml",
+        "catalog/features/push/files/common/go/internal/api/push/",
+        "catalog/features/push/files/pg-notify/go/internal/api/push/",
+        "catalog/features/push/files/pg-notify/go/internal/api/use_cases/push.go.tmpl",
+        "catalog/features/push/files/pg-notify/go/internal/api/server/",
+        "internal/catalog/catalog_test.go",
+        "e2e/tests/new.test.ts",
+        "e2e/tests/show.test.ts",
+        "README.md",
+        "docs/e2e-tests.md",
+        "docs/commands.md"
+      ]
+    },
+    {
+      "n": 2,
+      "done": false,
+      "title": "Add an item of add_to only for some values of the options, with a when on the item",
+      "language": "Go",
+      "testable": true,
+      "certainty": "medium",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "internal/catalog/feature.go:63-91",
+        "internal/catalog/feature.go:169-190",
+        "internal/catalog/selection.go:243-249",
+        "internal/catalog/selection.go:348-376",
+        "internal/catalog/extension_point.go:17-39",
+        "internal/catalog/catalog_test.go:248-263",
+        "internal/catalog/catalog_test.go:939-980",
+        "docs/catalog.md:229-243",
+        "docs/commands.md:358-372"
+      ],
+      "depends_on": [],
+      "affected_files": [
+        "internal/catalog/feature.go",
+        "internal/catalog/extension_point.go",
+        "internal/catalog/starter.go",
+        "internal/catalog/selection.go",
+        "internal/catalog/definitions.go",
+        "internal/catalog/catalog_test.go",
+        "internal/catalog/starter_test.go",
+        "docs/catalog.md",
+        "docs/commands.md"
+      ]
+    },
+    {
+      "n": 3,
+      "done": false,
+      "title": "Deliver the events through NATS with the option delivery, and start NATS for the integration tests",
+      "language": "Go",
+      "testable": true,
+      "certainty": "low",
+      "blast_radius": "high",
+      "patterns_to_follow": [
+        "catalog/features/api-auth/feature.yml",
+        "catalog/features/process-manager/files/go/cmd/catchup/payment.go.tmpl:24-35",
+        "catalog/features/process-manager/files/go/cmd/catchup/payment_test.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/files/go/docker-compose.local.yml:30-36",
+        "catalog/starters/go-event-sourcing-service/starter.yml:95-101",
+        "catalog/starters/go-event-sourcing-service/files/go/internal/common/test/db.go.tmpl",
+        "internal/catalog/catalog_test.go:1888-1905",
+        "task:1",
+        "task:2"
+      ],
+      "depends_on": [
+        1,
+        2
+      ],
+      "affected_files": [
+        "catalog/features/push/feature.yml",
+        "catalog/features/push/files/nats/go/internal/common/nats_push/",
+        "catalog/features/push/files/nats/go/internal/api/push/",
+        "catalog/features/push/files/nats/go/internal/api/use_cases/push.go.tmpl",
+        "catalog/features/push/files/nats/go/cmd/catchup/push.go.tmpl",
+        "catalog/starters/go-event-sourcing-service/starter.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/docker-compose.dependencies.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/.env.local",
+        "catalog/starters/go-event-sourcing-service/files/go/.env.integration",
+        "catalog/starters/go-event-sourcing-service/files/go/scripts/test/start-test-dependencies.sh",
+        "internal/catalog/catalog_test.go"
+      ]
+    },
+    {
+      "n": 4,
+      "done": false,
+      "title": "Start NATS with task run and Docker Compose, and tell how to use the delivery nats",
+      "language": "Go",
+      "testable": true,
+      "certainty": "high",
+      "blast_radius": "low",
+      "patterns_to_follow": [
+        "catalog/starters/go-event-sourcing-service/files/go/docker-compose.local.yml:22-36",
+        "catalog/starters/go-event-sourcing-service/files/go/Taskfile.yml:8-15",
+        "catalog/starters/go-event-sourcing-service/starter.yml:91-101",
+        "internal/catalog/catalog_test.go:1888-1905",
+        "e2e/tests/new.test.ts:403-441",
+        "task:3"
+      ],
+      "depends_on": [
+        3
+      ],
+      "affected_files": [
+        "catalog/starters/go-event-sourcing-service/starter.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/Taskfile.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/Taskfile.api.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/Taskfile.catchup.yml",
+        "catalog/starters/go-event-sourcing-service/files/go/docker-compose.local.yml",
+        "catalog/features/push/feature.yml",
+        "internal/catalog/catalog_test.go",
+        "e2e/tests/new.test.ts",
+        "e2e/tests/show.test.ts",
+        "docs/e2e-tests.md"
+      ]
+    }
+  ],
+  "design_file": "tasks/us-021-push-events-to-websocket-clients.design.yaml"
+}

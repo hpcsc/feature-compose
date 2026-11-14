@@ -1,0 +1,65 @@
+package push
+
+import (
+	"log/slog"
+	"net/http"
+	"net/url"
+	"slices"
+	"strings"
+
+	"github.com/coder/websocket"
+	"{{ option "starter.module" }}/internal/api/route"
+)
+
+var _ route.Routable = (*handler)(nil)
+
+type handler struct {
+	clients        *Clients
+	originsToAllow []string
+	logger         *slog.Logger
+}
+
+func NewHandler(clients *Clients, originsToAllow []string, logger *slog.Logger) route.Routable {
+	return &handler{
+		clients:        clients,
+		originsToAllow: originsToAllow,
+		logger:         logger,
+	}
+}
+
+func (h *handler) Routes() []*route.Route {
+	return []*route.Route{
+		route.Public("GET", "/ws", h.serve),
+	}
+}
+
+func (h *handler) serve(w http.ResponseWriter, r *http.Request) {
+	if !h.allows(r) {
+		http.Error(w, "the origin of the page is not allowed", http.StatusForbidden)
+		return
+	}
+	client, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+	if err != nil {
+		h.logger.Warn("failed to accept a client", "error", err)
+		return
+	}
+	defer client.CloseNow()
+
+	h.clients.add(client)
+	defer h.clients.remove(client)
+
+	for {
+		if _, _, err := client.Read(r.Context()); err != nil {
+			return
+		}
+	}
+}
+
+func (h *handler) allows(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" || slices.Contains(h.originsToAllow, origin) {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	return err == nil && strings.EqualFold(parsed.Host, r.Host)
+}

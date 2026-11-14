@@ -45,7 +45,11 @@ func main() {
 		cancelServer()
 	}()
 
-	srv.Start()
+	if err := srv.Start(); err != nil {
+		logger.Error(err.Error())
+		pool.Close()
+		os.Exit(1)
+	}
 
 	<-withCancelCtx.Done()
 

@@ -1,0 +1,90 @@
+//go:build integration
+
+package push_test
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"testing"
+	"time"
+
+	"{{ option "starter.module" }}/internal/api/push"
+	commonTest "{{ option "starter.module" }}/internal/common/test"
+	"{{ option "starter.module" }}/internal/domain"
+	"{{ option "starter.module" }}/internal/domain/checkpoint/store"
+	"{{ option "starter.module" }}/internal/domain/event/registry"
+	"{{ option "starter.module" }}/internal/domain/event/stream"
+	"{{ option "starter.module" }}/internal/domain/event/subscription"
+	"{{ option "starter.module" }}/internal/domain/reaction"
+	"github.com/stretchr/testify/require"
+)
+
+func TestReaction(t *testing.T) {
+	t.Run("handle", func(t *testing.T) {
+		t.Run("with the reactor and the notifications of Postgres, a client gets each event that is stored after the first start, and after a restart each event after the last event that was sent, and no event that was sent before", func(t *testing.T) {
+			pool := commonTest.NewDBPool(t)
+			reg := registry.New()
+			reg.Register[domain.FakeSomethingHappened]()
+			eventStream := stream.NewPostgres(pool, reg)
+			testID := commonTest.NewStringID(t)
+			save := func(value string) {
+				t.Helper()
+				require.NoError(t, eventStream.Save(context.Background(), "test-"+commonTest.NewStringID(t), []domain.Event{domain.NewFakeSomethingHappenedEvent(testID, value)}, 0))
+			}
+			clients := push.NewClients(commonTest.DiscardLogger())
+			client := connected(t, clients, served(t, clients))
+			checkpoints := store.NewEmptyMemory()
+			started := func() (stop func()) {
+				t.Helper()
+				ctx, cancel := context.WithCancel(context.Background())
+				stopped := make(chan error, 1)
+				go func() {
+					stopped <- reaction.NewReactor(push.NewReaction(clients), checkpoints, subscription.NewPostgres(pool, reg, commonTest.DiscardLogger()), commonTest.DiscardLogger()).Start(ctx)
+				}()
+				require.Eventually(t, func() bool {
+					position, err := checkpoints.Get(context.Background(), push.NewReaction(clients).Name())
+					return err == nil && position != nil
+				}, 5*time.Second, 10*time.Millisecond)
+				return func() {
+					cancel()
+					select {
+					case err := <-stopped:
+						require.NoError(t, err)
+					case <-time.After(5 * time.Second):
+						require.FailNow(t, "the reactor did not stop within 5 seconds")
+					}
+				}
+			}
+			messageOf := func(value string) string {
+				return fmt.Sprintf(`{"type":"fake.something-happened","data":{"ID":%q,"Value":%q}}`, testID, value)
+			}
+			messagesUntil := func(last string) []string {
+				t.Helper()
+				var messages []string
+				for len(messages) == 0 || messages[len(messages)-1] != messageOf(last) {
+					message := client.next(t)
+					var parsed struct {
+						Data domain.FakeSomethingHappened `json:"data"`
+					}
+					require.NoError(t, json.Unmarshal([]byte(message), &parsed))
+					if parsed.Data.ID == testID {
+						messages = append(messages, message)
+					}
+				}
+				return messages
+			}
+
+			save("before the first start")
+			stop := started()
+			save("after the first start")
+			require.Equal(t, []string{messageOf("after the first start")}, messagesUntil("after the first start"))
+			stop()
+			save("while stopped")
+			stop = started()
+			save("after the restart")
+			require.Equal(t, []string{messageOf("while stopped"), messageOf("after the restart")}, messagesUntil("after the restart"))
+			stop()
+		})
+	})
+}

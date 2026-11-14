@@ -36,9 +36,13 @@ extension_points:
     file: go/internal/use_cases/register.go
     item: [code]
   api.routes:
-    summary: An expression of type []route.Routable, whose routes Register serves under /api as public or protected routes. It can use bus, the *command.Bus, and pool, the *pgxpool.Pool, and the functions that a feature declares in a file of its own in the package use_cases of the API.
+    summary: An expression of type []route.Routable, whose routes Register serves under /api as public or protected routes. It can use bus, the *command.Bus, pool, the *pgxpool.Pool, cfg, the *api.Config, the name of each item of api.workers, and the functions that a feature declares in a file of its own in the package use_cases of the API.
     file: go/internal/api/use_cases/register.go
     item: [code]
+  api.workers:
+    summary: A worker of the API. Register declares the variable name with the value code, an expression of a type with the methods of api.Worker, Name() string and Start(ctx context.Context) error. name is a Go name that no other variable of Register has, and an item of api.routes can use it. code can use cfg, the *api.Config, pool, the *pgxpool.Pool, logger, the *slog.Logger, reg, the *registry.OfEvents, and bus, the *command.Bus, and the functions that a feature declares in a file of its own in the package use_cases of the API. The API starts each worker when it starts. When it stops, after the HTTP server takes no new request, it ends the context of each worker and waits until Start returns. A worker whose Start returns an error stops the API, and the API logs the name of the worker with the error and exits with 1.
+    file: go/internal/api/use_cases/register.go
+    item: [name, code]
   api.middleware:
     summary: An expression of type func(http.Handler) http.Handler, which each request to a protected route goes through. It can use cfg, the *api.Config of the API. import is the path of its package under the module.
     file: go/internal/api/server/server.go

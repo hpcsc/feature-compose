@@ -1,0 +1,58 @@
+//go:build unit
+
+package push_test
+
+import (
+	"context"
+	"log/slog"
+	"testing"
+
+	"github.com/coder/websocket"
+	"{{ option "starter.module" }}/internal/api/push"
+	"github.com/stretchr/testify/require"
+)
+
+func TestClients(t *testing.T) {
+	t.Run("send", func(t *testing.T) {
+		t.Run("each client of the route /ws gets each message that the API sends after the client connects, in order, as JSON with the type and the data", func(t *testing.T) {
+			clients := push.NewClients(slog.New(slog.DiscardHandler))
+			url := served(t, clients)
+			first := connected(t, clients, url)
+			second := connected(t, clients, url)
+
+			clients.Send(context.Background(), push.Message{Type: "my-service.account-opened", Data: map[string]any{"accountId": "a1", "owner": "alice"}})
+			clients.Send(context.Background(), push.Message{Type: "my-service.money-deposited", Data: map[string]any{"accountId": "a1", "amount": 500}})
+
+			for _, client := range []*connectedClient{first, second} {
+				require.JSONEq(t, `{"type": "my-service.account-opened", "data": {"accountId": "a1", "owner": "alice"}}`, client.next(t))
+				require.JSONEq(t, `{"type": "my-service.money-deposited", "data": {"accountId": "a1", "amount": 500}}`, client.next(t))
+			}
+		})
+
+		t.Run("a send with a context that the stop of the API ended still reaches each client, so the close of the API is the one close that the client gets", func(t *testing.T) {
+			clients := push.NewClients(slog.New(slog.DiscardHandler))
+			client := connected(t, clients, served(t, clients))
+			stopped, stop := context.WithCancel(context.Background())
+			stop()
+
+			clients.Send(stopped, push.Message{Type: "my-service.account-closed", Data: map[string]any{"accountId": "a1"}})
+			clients.Close()
+
+			require.JSONEq(t, `{"type": "my-service.account-closed", "data": {"accountId": "a1"}}`, client.next(t))
+			require.Equal(t, websocket.StatusGoingAway, client.closedWith(t))
+		})
+	})
+
+	t.Run("close", func(t *testing.T) {
+		t.Run("each client gets a close with the status going away", func(t *testing.T) {
+			clients := push.NewClients(slog.New(slog.DiscardHandler))
+			url := served(t, clients)
+			first := connected(t, clients, url)
+			second := connected(t, clients, url)
+
+			clients.Close()
+
+			require.Equal(t, []websocket.StatusCode{websocket.StatusGoingAway, websocket.StatusGoingAway}, []websocket.StatusCode{first.closedWith(t), second.closedWith(t)})
+		})
+	})
+}

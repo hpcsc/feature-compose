@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"{{ option "starter.module" }}/internal/domain"
 	"{{ option "starter.module" }}/internal/domain/checkpoint"
@@ -12,6 +13,8 @@ import (
 )
 
 var _ consumer.Handler = (*reactor)(nil)
+
+const checkpointTimeout = 5 * time.Second
 
 type ReactorOption func(*reactor)
 
@@ -72,9 +75,15 @@ func (r *reactor) HandleBatch(ctx context.Context, events []domain.Event) error 
 			return fmt.Errorf("reaction %s failed to handle event %s at version %d of stream %s: %w", r.Name(), evt.Type(), evt.Version, evt.StreamID, err)
 		}
 
-		if err := r.checkpointStore.Set(ctx, r.Name(), evt.Position); err != nil {
+		if err := r.saveCheckpoint(ctx, evt.Position); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (r *reactor) saveCheckpoint(ctx context.Context, position domain.Position) error {
+	withTimeoutCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), checkpointTimeout)
+	defer cancel()
+	return r.checkpointStore.Set(withTimeoutCtx, r.Name(), position)
 }

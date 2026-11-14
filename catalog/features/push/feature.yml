@@ -1,0 +1,55 @@
+summary: The API sends each new event of the service to its WebSocket clients.
+targets: [go-event-sourcing-service]
+
+files:
+  - path: files/common/
+  - path: files/pg-notify/
+
+add_to:
+  api.workers:
+    - name: webSocketPush
+      code: newPushWorker(pool, reg, logger)
+  api.routes:
+    - code: webSocketPush.routables(cfg)
+  gomod.requires:
+    - module: github.com/coder/websocket
+      version: v1.8.15
+  readme.sections:
+    - text: |-
+        ## Push the Events to WebSocket Clients
+
+        The API sends each event that the service stores to its WebSocket clients. A client opens the route
+        `GET /api/ws` and gets one message for each event that the service stores after the client connects.
+        A message is a JSON object with the type of the event and its payload, for example:
+
+        ```json
+        {"type": "<name>.account-opened", "data": {"accountId": "<account ID>", "owner": "alice"}}
+        ```
+
+        `<name>` is the name of the repository. To see the messages of the local API, run `task run` and open
+        a client in the console of a browser:
+
+        ```js
+        const socket = new WebSocket("ws://127.0.0.1:3333/api/ws")
+        socket.onmessage = (message) => console.log(JSON.parse(message.data))
+        ```
+
+        The API reads the new events through the notifications of Postgres. After each event that it sends,
+        it saves the position of the event as the checkpoint `push`. After a restart, the API goes on after
+        that event, so it does not send an old event again.
+
+        Run one instance of the API. All the instances save one checkpoint, so a second instance sends the
+        same events, and an instance that is behind the other stops with an error.
+
+        The route asks for no credential, also in a repository with `api-auth`, because the WebSocket API of
+        a browser cannot send the `Authorization` header. So each client that can reach the API gets each
+        event with its payload, for example the owner of an account. Do not serve the route where a person
+        who must not see the events can reach it. A page in a browser connects only from an origin of
+        `ALLOWED_ORIGINS`, as for the other routes, or from the origin of the API. A client that is not a
+        browser sends no origin, and the route accepts it.
+
+        When the API stops, it closes each client with the status 1001, going away. When the API cannot read
+        the events, for example when Postgres does not answer at the start, the API stops with the exit
+        status 1.
+
+        The code is in `internal/api/push`, and `internal/api/use_cases/push.go` connects it to the API.

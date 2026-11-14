@@ -1,0 +1,49 @@
+package use_cases
+
+import (
+	"context"
+	"log/slog"
+
+	"{{ option "starter.module" }}/internal/api"
+	apiMiddleware "{{ option "starter.module" }}/internal/api/middleware"
+	"{{ option "starter.module" }}/internal/api/push"
+	"{{ option "starter.module" }}/internal/api/route"
+	"{{ option "starter.module" }}/internal/domain/checkpoint/store"
+	"{{ option "starter.module" }}/internal/domain/consumer"
+	"{{ option "starter.module" }}/internal/domain/event/registry"
+	"{{ option "starter.module" }}/internal/domain/event/subscription"
+	"{{ option "starter.module" }}/internal/domain/reaction"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+var _ api.Worker = (*pushWorker)(nil)
+
+type pushWorker struct {
+	clients *push.Clients
+	reactor *consumer.Consumer
+	logger  *slog.Logger
+}
+
+func newPushWorker(pool *pgxpool.Pool, reg *registry.OfEvents, logger *slog.Logger) *pushWorker {
+	clients := push.NewClients(logger)
+	return &pushWorker{
+		clients: clients,
+		reactor: reaction.NewReactor(push.NewReaction(clients), store.NewPostgres(pool), subscription.NewPostgres(pool, reg, logger), logger),
+		logger:  logger,
+	}
+}
+
+func (w *pushWorker) Name() string {
+	return "push"
+}
+
+func (w *pushWorker) Start(ctx context.Context) error {
+	defer w.clients.Close()
+	return w.reactor.Start(ctx)
+}
+
+func (w *pushWorker) routables(cfg *api.Config) []route.Routable {
+	return []route.Routable{
+		push.NewHandler(w.clients, apiMiddleware.OriginsToAllow(cfg.AllowedOrigins), w.logger),
+	}
+}

@@ -76,7 +76,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Run the migrations with the SSL mode that `DB_SSLMODE` names, and with `disable` when it has no value",
       "language": "Go",
       "testable": true,

@@ -355,15 +355,15 @@ Postgres as before (decision 5). The README of the repo tells that the `migrate`
 (decision 6).
 
 **Acceptance Criteria:**
-- [ ] `TestCatalog`: the written entrypoint, run with stubs of `nc` and `migrate` on `PATH` and values for the `DB_`
+- [x] `TestCatalog`: the written entrypoint, run with stubs of `nc` and `migrate` on `PATH` and values for the `DB_`
   variables, gives `migrate` a database URL with the SSL mode of `DB_SSLMODE` for `require` and for `verify-full`, and
   with `disable` when `DB_SSLMODE` is not set and when it is empty. In each case the user, the password, the host, the
   port and the name of the URL, the folder of the migrations and the command are those of the values. The result does
   not change with a `DB_SSLMODE` in the shell that runs the test.
-- [ ] `TestCatalog` "hooks/pre-push and the scripts can be run" passes.
-- [ ] The README of the written repo tells that the `migrate` container reads `DB_SSLMODE` for a database that needs
+- [x] `TestCatalog` "hooks/pre-push and the scripts can be run" passes.
+- [x] The README of the written repo tells that the `migrate` container reads `DB_SSLMODE` for a database that needs
   SSL, and that the mode is `disable` with no value.
-- [ ] `go build ./...`, `go vet ./...` and `task test:unit` pass.
+- [x] `go build ./...`, `go vet ./...` and `task test:unit` pass.
 
 **Affected Files/Modules:**
 - `catalog/starters/go-event-sourcing-service/files/go/scripts/local/migrate/entrypoint.sh` — the SSL mode of the URL

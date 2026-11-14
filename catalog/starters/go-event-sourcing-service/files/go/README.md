@@ -120,6 +120,10 @@ example a re-run of an older run, publishes its image with the short SHA only.
 When the tests of the newest commit of `main` fail, `main` and `latest` stay on an older image until a newer
 commit passes its tests.
 
+The images do not hold the migrations. The `migrate` container applies them with
+`scripts/local/migrate/entrypoint.sh`, which connects with the SSL mode of `DB_SSLMODE`, for example
+`require` for a database that needs SSL. With no value, the mode is `disable`.
+
 ## Replace the Example
 
 Replace the account example with your own domain:

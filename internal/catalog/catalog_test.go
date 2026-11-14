@@ -3510,6 +3510,57 @@ jobs:
 			})
 		}
 
+		for name, migration := range map[string]struct {
+			env     []string
+			sslMode string
+		}{
+			"DB_SSLMODE=require":     {[]string{"DB_SSLMODE=require"}, "require"},
+			"DB_SSLMODE=verify-full": {[]string{"DB_SSLMODE=verify-full"}, "verify-full"},
+			"an empty DB_SSLMODE":    {[]string{"DB_SSLMODE="}, "disable"},
+			"no DB_SSLMODE":          {nil, "disable"},
+		} {
+			t.Run("with "+name+", the entrypoint of the migrations gives migrate the database of the DB_ variables with the SSL mode "+migration.sslMode, func(t *testing.T) {
+				output, _ := writtenStarter(t, nil)
+				stubs := t.TempDir()
+				recorded := filepath.Join(stubs, "migrate-arguments")
+				require.NoError(t, os.WriteFile(filepath.Join(stubs, "nc"), []byte("#!/bin/sh\nexit 0\n"), 0o755))
+				require.NoError(t, os.WriteFile(filepath.Join(stubs, "migrate"), []byte("#!/bin/sh\nfor argument in \"$@\"; do printf '%s\\n' \"$argument\" >> \""+recorded+"\"; done\n"), 0o755))
+				var env []string
+				for _, variable := range os.Environ() {
+					if !strings.HasPrefix(variable, "DB_") && !strings.HasPrefix(variable, "PATH=") {
+						env = append(env, variable)
+					}
+				}
+				entrypoint := exec.Command("sh", filepath.Join(output, "scripts", "local", "migrate", "entrypoint.sh"))
+				entrypoint.Env = append(env, append([]string{
+					"PATH=" + stubs + string(os.PathListSeparator) + os.Getenv("PATH"),
+					"DB_USERNAME=ledger-user", "DB_PASSWORD=ledger-password", "DB_HOST=db.example.test", "DB_PORT=6543", "DB_NAME=ledger",
+				}, migration.env...)...)
+
+				printed, err := entrypoint.CombinedOutput()
+
+				require.NoError(t, err, string(printed))
+				arguments, readErr := os.ReadFile(recorded)
+				require.NoError(t, readErr, string(printed))
+				require.Equal(t, []string{
+					"-database", "postgres://ledger-user:ledger-password@db.example.test:6543/ledger?sslmode=" + migration.sslMode,
+					"-path", "/app/migrations",
+					"up",
+				}, strings.Split(strings.TrimSuffix(string(arguments), "\n"), "\n"))
+			})
+		}
+
+		t.Run("the README of go-event-sourcing-service tells that the migrate container connects with the SSL mode of DB_SSLMODE, and with disable when it has no value", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			for _, part := range []string{
+				"The `migrate` container applies them with\n`scripts/local/migrate/entrypoint.sh`", "the SSL mode of `DB_SSLMODE`",
+				"`require` for a database that needs SSL", "With no value, the mode is `disable`.",
+			} {
+				require.Contains(t, files["README.md"], part)
+			}
+		})
+
 		t.Run("hooks/pre-push and the scripts can be run", func(t *testing.T) {
 			output, _ := writtenStarter(t, nil)
 

@@ -47,7 +47,7 @@ describe('feature-compose show', () => {
 })
 
 describe('feature-compose show in a terminal', () => {
-  const rowsOfTheWholeTree = 60
+  const rowsOfTheWholeTree = 72
 
   it('opens the tree with each starter open and the details of the first starter, chi-api, and filters it with /', async () => {
     const dir = scratchDir()

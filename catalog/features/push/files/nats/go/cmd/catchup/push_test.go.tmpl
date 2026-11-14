@@ -1,0 +1,127 @@
+//go:build integration
+
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"os"
+	"slices"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"{{ option "starter.module" }}/internal/common/lock"
+	"{{ option "starter.module" }}/internal/common/nats_push"
+	"{{ option "starter.module" }}/internal/common/test"
+	"{{ option "starter.module" }}/internal/domain"
+	"{{ option "starter.module" }}/internal/domain/checkpoint/store"
+	"{{ option "starter.module" }}/internal/domain/event/registry"
+	"{{ option "starter.module" }}/internal/domain/event/stream"
+	"{{ option "starter.module" }}/internal/domain/event/subscription"
+	"{{ option "starter.module" }}/internal/use_cases"
+	"{{ option "starter.module" }}/internal/use_cases/account/event"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
+	"github.com/stretchr/testify/require"
+)
+
+func TestPushWorkers(t *testing.T) {
+	t.Run("start", func(t *testing.T) {
+		t.Run("a publish worker whose NATS does not answer stops catchup, and catchup logs the name of the worker with the error", func(t *testing.T) {
+			pool := test.NewDBPool(t)
+			var logs bytes.Buffer
+			workers := pushWorkers(nats_push.Config{URL: "nats://127.0.0.1:1"}, store.NewEmptyMemory(), subscription.NewFake(), test.DiscardLogger())
+
+			failed := run(context.Background(), workers, lock.NewPostgres(pool), slog.New(slog.NewTextHandler(&logs, nil)))
+
+			require.True(t, failed)
+			require.Contains(t, logs.String(), "push-nats failed: failed to connect to NATS at nats://127.0.0.1:1")
+		})
+
+		t.Run("publishes each event that the service stores after the worker starts, in order, to the stream of push, with the type and the payload of the event", func(t *testing.T) {
+			natsURL := os.Getenv("NATS_URL")
+			require.NotEmpty(t, natsURL, "NATS_URL must be set, see .env.integration")
+			conn, err := nats.Connect(natsURL)
+			require.NoError(t, err)
+			t.Cleanup(conn.Close)
+			jetStream, err := jetstream.New(conn)
+			require.NoError(t, err)
+			pool := test.NewDBPool(t)
+			reg := registry.New()
+			use_cases.RegisterEvents(reg)
+			eventStream := stream.NewPostgres(pool, reg)
+			open := func(owner string) uuid.UUID {
+				t.Helper()
+				accountID := uuid.New()
+				require.NoError(t, eventStream.Save(context.Background(), "test-"+accountID.String(), []domain.Event{domain.NewEvent(&event.AccountOpened{AccountID: accountID, Owner: owner})}, 0))
+				return accountID
+			}
+			checkpointStore := store.NewEmptyMemory()
+			worker := pushWorkers(nats_push.Config{URL: natsURL}, checkpointStore, subscription.NewPostgres(pool, reg, test.DiscardLogger()), test.DiscardLogger())[0]
+			ctx, cancel := context.WithCancel(context.Background())
+			stopped := make(chan error, 1)
+
+			alice := open("alice")
+			go func() {
+				stopped <- worker.Start(ctx)
+			}()
+			require.Eventually(t, func() bool {
+				position, err := checkpointStore.Get(context.Background(), worker.Name())
+				return err == nil && position != nil
+			}, 5*time.Second, 10*time.Millisecond)
+			bob := open("bob")
+			carol := open("carol")
+			pushStream, err := jetStream.Stream(context.Background(), "PUSH")
+			require.NoError(t, err)
+
+			opened := event.AccountOpened{}.EventType()
+			require.Equal(t, []string{
+				fmt.Sprintf(`{"type":%q,"data":{"accountId":%q,"owner":"bob"}}`, opened, bob),
+				fmt.Sprintf(`{"type":%q,"data":{"accountId":%q,"owner":"carol"}}`, opened, carol),
+			}, publishedAbout(t, pushStream, carol, alice, bob, carol))
+			cancel()
+			select {
+			case err := <-stopped:
+				require.NoError(t, err)
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "the publish worker did not stop within 5 seconds")
+			}
+		})
+	})
+}
+
+func publishedAbout(t *testing.T, pushStream jetstream.Stream, last uuid.UUID, accountIDs ...uuid.UUID) []string {
+	t.Helper()
+	info, err := pushStream.Info(context.Background())
+	require.NoError(t, err)
+	var published []string
+	deadline := time.Now().Add(5 * time.Second)
+	for sequence := max(info.State.FirstSeq, 1); ; {
+		msg, err := pushStream.GetMsg(context.Background(), sequence)
+		if errors.Is(err, jetstream.ErrMsgNotFound) {
+			require.True(t, time.Now().Before(deadline), "the stream got no message about %s within 5 seconds", last)
+			time.Sleep(10 * time.Millisecond)
+			continue
+		}
+		require.NoError(t, err)
+		sequence++
+		var parsed struct {
+			Data struct {
+				AccountID uuid.UUID `json:"accountId"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(msg.Data, &parsed))
+		if !slices.Contains(accountIDs, parsed.Data.AccountID) {
+			continue
+		}
+		published = append(published, string(msg.Data))
+		if parsed.Data.AccountID == last {
+			return published
+		}
+	}
+}

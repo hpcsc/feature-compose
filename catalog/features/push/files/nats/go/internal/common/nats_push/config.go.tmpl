@@ -1,0 +1,20 @@
+package nats_push
+
+import "net/url"
+
+type Config struct {
+	URL string `env:"NATS_URL" envDefault:"nats://127.0.0.1:4222"`
+}
+
+func (c Config) redactedURL() string {
+	parsed, err := url.Parse(c.URL)
+	if err != nil {
+		return "the URL of NATS_URL, which does not parse"
+	}
+	if parsed.User != nil {
+		if _, hasPassword := parsed.User.Password(); !hasPassword {
+			parsed.User = url.User("xxxxx")
+		}
+	}
+	return parsed.Redacted()
+}

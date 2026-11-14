@@ -394,32 +394,32 @@ instance gets each event at least one time. When the API stops, it closes its cl
 The integration tests start NATS beside Postgres.
 
 **Acceptance Criteria:**
-- [ ] `push` declares the option `delivery` with the values `pg-notify` and `nats` and the default `pg-notify`. The
+- [x] `push` declares the option `delivery` with the values `pg-notify` and `nats` and the default `pg-notify`. The
   files entries and the items that only `pg-notify` uses, the README section of Task 1 among them, have
   `when: delivery == "pg-notify"`, and those of `nats` have `when: delivery == "nats"`.
 - [ ] With the default and with `delivery=pg-notify`, the repo that the built binary writes from the work tree is the
   same, byte for byte, as the repo with `push` that it writes from the catalog of the commit before (`diff -r`, with
   the `.md` files in the diff). The starter alone is also the same, byte for byte.
-- [ ] With `pg-notify`, the repo has no NATS: no service of a Docker Compose file, no NATS setting of an `.env`
+- [x] With `pg-notify`, the repo has no NATS: no service of a Docker Compose file, no NATS setting of an `.env`
   file or a Taskfile, no `nats-io` module in `go.mod`, and no Go file that imports one.
-- [ ] `starter.yml` declares `compose.dependencies.services` (`[text]`), `dotenv.local` (`[name, value]`),
+- [x] `starter.yml` declares `compose.dependencies.services` (`[text]`), `dotenv.local` (`[name, value]`),
   `dotenv.integration` (`[name, value]`) and `test.dependencies` (`[service]`), each with the file of decision 7 and
   a summary. With no item, each of these files is the same as before, byte for byte.
-- [ ] With `nats`, the parsed `docker-compose.dependencies.yml` has the service `nats` with JetStream, a health check
+- [x] With `nats`, the parsed `docker-compose.dependencies.yml` has the service `nats` with JetStream, a health check
   and the port `${NATS_HOST_PORT}`; `.env.local` sets `NATS_HOST_PORT`; `.env.integration` sets `NATS_HOST_PORT` and
   `NATS_URL` to another port than `.env.local`; `scripts/test/start-test-dependencies.sh` starts `nats` and waits for
   it, and passes `task test:shellcheck`.
-- [ ] With `nats`, the config of the API and of catchup has a NATS field from a package of `push` (decision 9),
+- [x] With `nats`, the config of the API and of catchup has a NATS field from a package of `push` (decision 9),
   imported one time; `catchup.consumers` adds the push worker; `go.mod` requires `github.com/nats-io/nats.go`.
-- [ ] A catchup whose NATS does not answer when the push worker starts logs the name of the worker with the error and
+- [x] A catchup whose NATS does not answer when the push worker starts logs the name of the worker with the error and
   exits with 1.
 - [ ] Integration tests of a written repo with `nats`, which `task test:integration` runs with Postgres and NATS, show:
   an event that the push worker of catchup publishes reaches a client of each of two instances of the API at least
   one time, with the same message as with `pg-notify`; after an instance stops, its client gets a close with the
   status going away, and NATS has no connection and no consumer of that instance.
-- [ ] With each value, the repo with `push` differs from the starter-alone repo only in the files of the folders of
+- [x] With each value, the repo with `push` differs from the starter-alone repo only in the files of the folders of
   `push` for that value, and in the file of each extension point that an item of that value adds to.
-- [ ] `Catalog.Combinations` gives `push` with each value of `delivery`, and `TestCombination` passes for each
+- [x] `Catalog.Combinations` gives `push` with each value of `delivery`, and `TestCombination` passes for each
   combination with `push`.
 
 **Affected Files/Modules:**

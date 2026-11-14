@@ -32,3 +32,7 @@ services:
     volumes:
       - ./scripts/local/migrate/entrypoint.sh:/app/entrypoint.sh
       - ./migrations:/app/migrations
+{{- range items "compose.dependencies.services" }}
+
+{{ indent 2 .text }}
+{{- end }}

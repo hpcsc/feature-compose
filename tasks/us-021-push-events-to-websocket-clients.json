@@ -82,7 +82,7 @@
     },
     {
       "n": 3,
-      "done": false,
+      "done": true,
       "title": "Deliver the events through NATS with the option delivery, and start NATS for the integration tests",
       "language": "Go",
       "testable": true,

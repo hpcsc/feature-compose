@@ -1,0 +1,36 @@
+//go:build unit
+
+package push_test
+
+import (
+	"context"
+	"log/slog"
+	"testing"
+
+	"{{ option "starter.module" }}/internal/api/push"
+	"{{ option "starter.module" }}/internal/common/nats_push"
+	"github.com/stretchr/testify/require"
+)
+
+func TestNATSReader(t *testing.T) {
+	t.Run("start", func(t *testing.T) {
+		for name, url := range map[string]struct {
+			given    string
+			inError  string
+			notShown string
+		}{
+			"a user and a password": {"nats://push-api:the-password@127.0.0.1:1", "nats://push-api:xxxxx@127.0.0.1:1", "the-password"},
+			"a token":               {"nats://the-token@127.0.0.1:1", "nats://xxxxx@127.0.0.1:1", "the-token"},
+		} {
+			t.Run("returns an error that names the address of NATS with no secret of "+name+" when NATS does not answer", func(t *testing.T) {
+				logger := slog.New(slog.DiscardHandler)
+				reader := push.NewNATSReader(nats_push.Config{URL: url.given}, push.NewClients(logger), logger)
+
+				err := reader.Start(context.Background())
+
+				require.ErrorContains(t, err, "failed to connect to NATS at "+url.inError)
+				require.NotContains(t, err.Error(), url.notShown)
+			})
+		}
+	})
+}

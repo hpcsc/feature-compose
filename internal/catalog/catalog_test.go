@@ -1895,15 +1895,19 @@ files:
 			return filesIn(t, output)
 		}
 
-		writtenWithPush := func(t *testing.T) map[string]string {
+		writtenWithPushOf := func(t *testing.T, values map[string]string) map[string]string {
 			t.Helper()
 			starter, err := repoCatalog().Starter("go-event-sourcing-service")
 			require.NoError(t, err)
-			selection, err := starter.Select("my-service", nil, withoutValues("push"), catalog.Answers{})
+			selection, err := starter.Select("my-service", nil, map[string]map[string]string{"push": values}, catalog.Answers{})
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "my-service")
 			require.NoError(t, selection.Write(output))
 			return filesIn(t, output)
+		}
+		writtenWithPush := func(t *testing.T) map[string]string {
+			t.Helper()
+			return writtenWithPushOf(t, nil)
 		}
 
 		t.Run("no written file holds the name of an extension point of the starter, with or without items", func(t *testing.T) {
@@ -1913,7 +1917,7 @@ files:
 			require.Subset(t, extensionPoints, []string{"api.middleware", "catchup.consumers", "use_cases.handlers"})
 			_, withoutItems := writtenStarter(t, nil)
 
-			for _, files := range []map[string]string{withoutItems, writtenWithGuard(t), writtenWithProcessManager(t), writtenWithPush(t)} {
+			for _, files := range []map[string]string{withoutItems, writtenWithGuard(t), writtenWithProcessManager(t), writtenWithPush(t), writtenWithPushOf(t, map[string]string{"delivery": "nats"})} {
 				for path, contents := range files {
 					for _, extensionPoint := range extensionPoints {
 						require.NotContains(t, contents, extensionPoint, path)
@@ -2242,26 +2246,116 @@ files:
 			return added, changed, removed
 		}
 
-		t.Run("push adds the files of its folders, and of the starter it changes only the file of each extension point that it adds items to", func(t *testing.T) {
-			var featureFiles []string
-			for _, folder := range []string{"common", "pg-notify"} {
-				featureFolder := filepath.Join(repoCatalogDir, "features", "push", "files", folder, "go")
-				require.NoError(t, filepath.WalkDir(featureFolder, func(path string, entry fs.DirEntry, err error) error {
-					if err != nil || entry.IsDir() {
+		for delivery, expected := range map[string]struct {
+			folders []string
+			changed []string
+		}{
+			"pg-notify": {[]string{"common", "pg-notify"}, []string{"README.md", "go.mod", "internal/api/use_cases/register.go"}},
+			"nats": {[]string{"common", "nats"}, []string{
+				".env.integration", ".env.local", "cmd/catchup/main.go", "docker-compose.dependencies.yml", "go.mod", "internal/api/config.go",
+				"internal/api/use_cases/register.go", "scripts/test/start-test-dependencies.sh",
+			}},
+		} {
+			t.Run("push with the delivery "+delivery+" adds the files of its folders for that value, and of the starter it changes only the file of each extension point that an item of that value adds to", func(t *testing.T) {
+				var featureFiles []string
+				for _, folder := range expected.folders {
+					featureFolder := filepath.Join(repoCatalogDir, "features", "push", "files", folder, "go")
+					require.NoError(t, filepath.WalkDir(featureFolder, func(path string, entry fs.DirEntry, err error) error {
+						if err != nil || entry.IsDir() {
+							return err
+						}
+						relative, err := filepath.Rel(featureFolder, path)
+						featureFiles = append(featureFiles, strings.TrimSuffix(filepath.ToSlash(relative), ".tmpl"))
 						return err
+					}))
+				}
+
+				added, changed, removed := changesBy(t, "go-event-sourcing-service", nil, map[string]map[string]string{"push": {"delivery": delivery}})
+
+				require.Subset(t, featureFiles, []string{"internal/api/push/clients.go", "internal/api/use_cases/push.go"})
+				require.ElementsMatch(t, featureFiles, slices.Collect(maps.Keys(added)))
+				require.ElementsMatch(t, expected.changed, changed)
+				require.Subset(t, extensionPointFilesOf(t, "push", "go-event-sourcing-service"), changed)
+				require.Empty(t, removed)
+			})
+		}
+
+		t.Run("push has the option delivery with the values pg-notify and nats and the default pg-notify, and with no value it writes the repo of pg-notify", func(t *testing.T) {
+			definitions, err := repoCatalog().Definitions()
+			require.NoError(t, err)
+
+			require.Equal(t, catalog.OptionDefinition{Default: "pg-notify", Values: []string{"pg-notify", "nats"}}, definitions.Features["push"].Options["delivery"])
+			require.Equal(t, writtenWithPushOf(t, map[string]string{"delivery": "pg-notify"}), writtenWithPush(t))
+		})
+
+		natsPlacesIn := func(t *testing.T, files map[string]string) []string {
+			t.Helper()
+			var found []string
+			for path, contents := range files {
+				switch {
+				case regexp.MustCompile(`^docker-compose[^/]*\.yml$`).MatchString(path):
+					services, _ := parsedYAML(t, contents)["services"].(map[string]any)
+					if _, ok := services["nats"]; ok {
+						found = append(found, path+": the service nats")
 					}
-					relative, err := filepath.Rel(featureFolder, path)
-					featureFiles = append(featureFiles, strings.TrimSuffix(filepath.ToSlash(relative), ".tmpl"))
-					return err
-				}))
+				case strings.HasPrefix(path, ".env") || regexp.MustCompile(`^Taskfile[^/]*\.yml$`).MatchString(path):
+					if strings.Contains(contents, "NATS_") {
+						found = append(found, path+": a NATS variable")
+					}
+				case path == "go.mod" || strings.HasSuffix(path, ".go"):
+					if strings.Contains(contents, "github.com/nats-io/") {
+						found = append(found, path+": a nats-io module")
+					}
+				}
 			}
+			slices.Sort(found)
+			return found
+		}
 
-			added, changed, removed := changesBy(t, "go-event-sourcing-service", nil, withoutValues("push"))
+		t.Run("with pg-notify, the repo has no NATS: no service of a Docker Compose file, no NATS variable of an .env file or a Taskfile, no nats-io module in go.mod, and no Go file that imports one", func(t *testing.T) {
+			require.Empty(t, natsPlacesIn(t, writtenWithPushOf(t, map[string]string{"delivery": "pg-notify"})))
+			require.Equal(t, []string{
+				".env.integration: a NATS variable", ".env.local: a NATS variable", "cmd/catchup/push_test.go: a nats-io module",
+				"docker-compose.dependencies.yml: the service nats", "go.mod: a nats-io module",
+				"internal/api/use_cases/push_test.go: a nats-io module", "internal/common/nats_push/connection.go: a nats-io module",
+			}, natsPlacesIn(t, writtenWithPushOf(t, map[string]string{"delivery": "nats"})))
+		})
 
-			require.Subset(t, featureFiles, []string{"internal/api/push/clients.go", "internal/api/push/reaction.go", "internal/api/use_cases/push.go"})
-			require.ElementsMatch(t, featureFiles, slices.Collect(maps.Keys(added)))
-			require.ElementsMatch(t, extensionPointFilesOf(t, "push", "go-event-sourcing-service"), changed)
-			require.Empty(t, removed)
+		t.Run("with nats, docker-compose.dependencies.yml has the service nats with JetStream, a health check and the port of NATS_HOST_PORT, the .env files set that port and the URL of the integration tests on another port, and the test script starts nats", func(t *testing.T) {
+			files := writtenWithPushOf(t, map[string]string{"delivery": "nats"})
+
+			services := parsedYAML(t, files["docker-compose.dependencies.yml"])["services"].(map[string]any)
+			require.ElementsMatch(t, []string{"db", "migrate", "nats"}, slices.Collect(maps.Keys(services)))
+			nats := services["nats"].(map[string]any)
+			require.Equal(t, []any{"-js", "-m", "8222"}, nats["command"])
+			require.Equal(t, []any{"CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"}, nats["healthcheck"].(map[string]any)["test"])
+			require.Equal(t, []any{"${NATS_HOST_PORT}:4222"}, nats["ports"])
+			require.True(t, strings.HasSuffix(files[".env.local"], "DB_HOST_PORT=45432\nNATS_HOST_PORT=4222\n"))
+			require.True(t, strings.HasSuffix(files[".env.integration"], "DB_HOST_PORT=45433\nNATS_HOST_PORT=44222\nNATS_URL=nats://127.0.0.1:44222\n"))
+			require.Contains(t, files["scripts/test/start-test-dependencies.sh"], "\ndocker compose up --wait db nats\n")
+		})
+
+		t.Run("with no item, docker-compose.dependencies.yml, the .env files and the test script have only the lines of the starter", func(t *testing.T) {
+			_, files := writtenStarter(t, nil)
+
+			require.ElementsMatch(t, []string{"db", "migrate"}, slices.Collect(maps.Keys(parsedYAML(t, files["docker-compose.dependencies.yml"])["services"].(map[string]any))))
+			require.True(t, strings.HasSuffix(files["docker-compose.dependencies.yml"], "      - ./migrations:/app/migrations\n"))
+			require.True(t, strings.HasSuffix(files[".env.local"], "DB_PASSWORD=local-password\nDB_HOST_PORT=45432\n"))
+			require.True(t, strings.HasSuffix(files[".env.integration"], "DB_PASSWORD=local-password\nDB_HOST_PORT=45433\n"))
+			require.Contains(t, files["scripts/test/start-test-dependencies.sh"], "\ndocker compose up --wait db\n")
+		})
+
+		t.Run("with nats, the config of the API and of catchup has the field Push of nats_push, which each imports one time, catchup runs the publish worker, Register makes the push worker of NATS, and go.mod requires nats.go", func(t *testing.T) {
+			files := writtenWithPushOf(t, map[string]string{"delivery": "nats"})
+
+			require.Contains(t, files["internal/api/config.go"], "\tDB             config.DB\n\tPush nats_push.Config\n}")
+			require.Contains(t, files["cmd/catchup/main.go"], "\tDB config.DB\n\tPush nats_push.Config\n}")
+			for _, path := range []string{"internal/api/config.go", "cmd/catchup/main.go"} {
+				require.Equal(t, 1, strings.Count(files[path], `"github.com/hpcsc/my-service/internal/common/nats_push"`), path)
+			}
+			require.Contains(t, files["cmd/catchup/main.go"], "\tall = append(all, pushWorkers(cfg.Push, checkpointStore, eventSubscription, logger)...)\n")
+			require.Contains(t, files["internal/api/use_cases/register.go"], "\tcoreUseCases.RegisterHandlers(bus, eventStream)\n\twebSocketPush := newPushWorker(cfg.Push, logger)\n")
+			require.Contains(t, files["go.mod"], "\tgithub.com/nats-io/nats.go v1.55.0\n")
 		})
 
 		t.Run("with push, the API runs the push worker, serves its route, and go.mod requires the module of the WebSocket", func(t *testing.T) {
@@ -2284,7 +2378,7 @@ files:
 				"`GET /api/ws`", `{"type": "<name>.account-opened", "data": {"accountId": "<account ID>", "owner": "alice"}}`,
 				"ws://127.0.0.1:3333/api/ws", "the checkpoint `push`", "does not send an old event again",
 				"Run one instance of the API", "The route asks for no credential, also in a repository with `api-auth`", "an origin of `ALLOWED_ORIGINS`",
-				"the status 1001, going away", "the exit status 1",
+				"the status 1001, going away", "the exit status 1", "`--feature push:delivery=nats`",
 			} {
 				require.Contains(t, strings.Join(strings.Fields(section), " "), part)
 			}
@@ -3006,6 +3100,7 @@ files:
 				"cli-auth with the method oauth":   {writtenWithCLIAuthVariant(t, "oauth"), "/accounts"},
 				"process-manager":                  {writtenWithProcessManager(t), "/accounts"},
 				"push":                             {writtenWithPush(t), "/ws"},
+				"push with the delivery nats":      {writtenWithPushOf(t, map[string]string{"delivery": "nats"}), "/ws"},
 				"chi-api alone":                    {writtenTarget(t, "chi-api", nil, nil), "/users"},
 				"chi-api with api-auth of api-key": {writtenTarget(t, "chi-api", nil, map[string]map[string]string{"api-auth": {"method": "api-key"}}), "/users"},
 				"chi-api with api-auth of oauth":   {writtenTarget(t, "chi-api", nil, map[string]map[string]string{"api-auth": {"method": "oauth"}}), "/users"},
@@ -4521,6 +4616,20 @@ add_to:
 			for _, name := range names {
 				require.False(t, strings.Contains(name, "api-auth:method=oauth") && strings.Contains(name, "store-key=true"), name)
 			}
+		})
+
+		t.Run("the catalog of this repo gives push with each value of delivery", func(t *testing.T) {
+			combinations, err := repoCatalog().Combinations()
+			require.NoError(t, err)
+			var names []string
+			for _, combination := range combinations {
+				names = append(names, combination.String())
+			}
+
+			require.Subset(t, names, []string{
+				"go-event-sourcing-service --feature push:delivery=pg-notify",
+				"go-event-sourcing-service --feature push:delivery=nats",
+			})
 		})
 
 		for _, failing := range []string{"starters", "starters/api/starter.yml", "features", "features/cli/feature.yml"} {

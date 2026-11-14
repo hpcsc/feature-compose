@@ -1,0 +1,8 @@
+package nats_push
+
+import "encoding/json"
+
+type PublishedEvent struct {
+	Type string          `json:"type"`
+	Data json.RawMessage `json:"data"`
+}

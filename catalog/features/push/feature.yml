@@ -1,21 +1,78 @@
 summary: The API sends each new event of the service to its WebSocket clients.
 targets: [go-event-sourcing-service]
 
+options:
+  delivery:
+    values: [pg-notify, nats]
+    default: pg-notify
+
 files:
   - path: files/common/
   - path: files/pg-notify/
+    when: delivery == "pg-notify"
+  - path: files/nats/
+    when: delivery == "nats"
 
 add_to:
   api.workers:
     - name: webSocketPush
       code: newPushWorker(pool, reg, logger)
+      when: delivery == "pg-notify"
+    - name: webSocketPush
+      code: newPushWorker(cfg.Push, logger)
+      when: delivery == "nats"
   api.routes:
     - code: webSocketPush.routables(cfg)
+  api.config:
+    - name: Push
+      type: nats_push.Config
+      import: internal/common/nats_push
+      when: delivery == "nats"
+  catchup.config:
+    - name: Push
+      type: nats_push.Config
+      import: internal/common/nats_push
+      when: delivery == "nats"
+  catchup.consumers:
+    - code: pushWorkers(cfg.Push, checkpointStore, eventSubscription, logger)
+      when: delivery == "nats"
   gomod.requires:
     - module: github.com/coder/websocket
       version: v1.8.15
-  readme.sections:
+    - module: github.com/nats-io/nats.go
+      version: v1.55.0
+      when: delivery == "nats"
+  compose.dependencies.services:
     - text: |-
+        nats:
+          image: nats:2-alpine
+          command: ["-js", "-m", "8222"]
+          healthcheck:
+            test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+            interval: 2s
+            timeout: 1s
+            retries: 10
+            start_period: 1s
+          ports:
+            - "${NATS_HOST_PORT}:4222"
+      when: delivery == "nats"
+  dotenv.local:
+    - name: NATS_HOST_PORT
+      value: "4222"
+      when: delivery == "nats"
+  dotenv.integration:
+    - name: NATS_HOST_PORT
+      value: "44222"
+      when: delivery == "nats"
+    - name: NATS_URL
+      value: nats://127.0.0.1:44222
+      when: delivery == "nats"
+  test.dependencies:
+    - service: nats
+      when: delivery == "nats"
+  readme.sections:
+    - when: delivery == "pg-notify"
+      text: |-
         ## Push the Events to WebSocket Clients
 
         The API sends each event that the service stores to its WebSocket clients. A client opens the route
@@ -39,7 +96,8 @@ add_to:
         that event, so it does not send an old event again.
 
         Run one instance of the API. All the instances save one checkpoint, so a second instance sends the
-        same events, and an instance that is behind the other stops with an error.
+        same events, and an instance that is behind the other stops with an error. For more instances, make
+        the repository with `--feature push:delivery=nats`.
 
         The route asks for no credential, also in a repository with `api-auth`, because the WebSocket API of
         a browser cannot send the `Authorization` header. So each client that can reach the API gets each

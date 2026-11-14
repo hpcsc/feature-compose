@@ -1,0 +1,69 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"log/slog"
+
+	"{{ option "starter.module" }}/internal/common/nats_push"
+	"{{ option "starter.module" }}/internal/domain"
+	"{{ option "starter.module" }}/internal/domain/checkpoint"
+	"{{ option "starter.module" }}/internal/domain/event"
+	"{{ option "starter.module" }}/internal/domain/reaction"
+)
+
+const pushNATSName = "push-nats"
+
+type publishWorker struct {
+	config          nats_push.Config
+	checkpointStore checkpoint.Store
+	subscription    event.Subscription
+	logger          *slog.Logger
+}
+
+func pushWorkers(config nats_push.Config, checkpointStore checkpoint.Store, subscription event.Subscription, logger *slog.Logger) []worker {
+	return []worker{
+		&publishWorker{
+			config:          config,
+			checkpointStore: checkpointStore,
+			subscription:    subscription,
+			logger:          logger,
+		},
+	}
+}
+
+func (w *publishWorker) Name() string {
+	return pushNATSName
+}
+
+func (w *publishWorker) Start(ctx context.Context) error {
+	connection, err := nats_push.Connect(ctx, w.config, w.logger)
+	if err != nil {
+		return err
+	}
+	defer connection.Close()
+
+	return reaction.NewReactor(&publisher{connection: connection}, w.checkpointStore, w.subscription, w.logger).Start(ctx)
+}
+
+var _ reaction.Interface = (*publisher)(nil)
+
+type publisher struct {
+	connection *nats_push.Connection
+}
+
+func (p *publisher) Name() string {
+	return pushNATSName
+}
+
+func (p *publisher) EventTypes() []string {
+	return nil
+}
+
+func (p *publisher) Handle(ctx context.Context, evt *domain.Event) error {
+	data, err := json.Marshal(evt.Payload)
+	if err != nil {
+		return err
+	}
+	return p.connection.Publish(ctx, nats_push.PublishedEvent{Type: evt.Type(), Data: data})
+}

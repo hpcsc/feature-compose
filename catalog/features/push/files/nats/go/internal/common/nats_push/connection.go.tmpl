@@ -1,0 +1,123 @@
+package nats_push
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
+)
+
+const (
+	streamName = "PUSH"
+	subject    = "push.events"
+)
+
+type Connection struct {
+	conn      *nats.Conn
+	jetStream jetstream.JetStream
+	stream    jetstream.Stream
+	logger    *slog.Logger
+}
+
+func Connect(ctx context.Context, config Config, logger *slog.Logger) (*Connection, error) {
+	conn, err := nats.Connect(config.URL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to NATS at %s: %w", config.redactedURL(), err)
+	}
+	jetStream, err := jetstream.New(conn)
+	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+	stream, err := jetStream.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+		Name:      streamName,
+		Subjects:  []string{subject},
+		Storage:   jetstream.FileStorage,
+		Retention: jetstream.LimitsPolicy,
+		MaxAge:    time.Hour,
+		Discard:   jetstream.DiscardOld,
+	})
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to create the JetStream stream %s: %w", streamName, err)
+	}
+	return &Connection{
+		conn:      conn,
+		jetStream: jetStream,
+		stream:    stream,
+		logger:    logger,
+	}, nil
+}
+
+func (c *Connection) Publish(ctx context.Context, published PublishedEvent) error {
+	body, err := json.Marshal(published)
+	if err != nil {
+		return err
+	}
+	_, err = c.jetStream.Publish(ctx, subject, body)
+	return err
+}
+
+func (c *Connection) Read(ctx context.Context, handle func(PublishedEvent)) error {
+	consumer, err := c.stream.CreateConsumer(ctx, jetstream.ConsumerConfig{
+		DeliverPolicy:     jetstream.DeliverNewPolicy,
+		AckPolicy:         jetstream.AckNonePolicy,
+		InactiveThreshold: time.Minute,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create a JetStream consumer of the stream %s: %w", streamName, err)
+	}
+	defer c.removeConsumer(consumer.CachedInfo().Name)
+
+	lost := make(chan error, 1)
+	consuming, err := consumer.Consume(func(msg jetstream.Msg) {
+		var published PublishedEvent
+		if err := json.Unmarshal(msg.Data(), &published); err != nil {
+			c.logger.Warn("failed to read an event of the JetStream stream", "jetstream_stream", streamName, "error", err)
+			return
+		}
+		handle(published)
+	}, jetstream.ConsumeErrHandler(func(_ jetstream.ConsumeContext, err error) {
+		if !errors.Is(err, jetstream.ErrConsumerDeleted) {
+			_, infoErr := consumer.Info(ctx)
+			if !errors.Is(infoErr, jetstream.ErrConsumerNotFound) {
+				return
+			}
+			err = infoErr
+		}
+		select {
+		case lost <- err:
+		default:
+		}
+	}))
+	if err != nil {
+		return fmt.Errorf("failed to read the JetStream stream %s: %w", streamName, err)
+	}
+	defer consuming.Stop()
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-lost:
+		return fmt.Errorf("lost the JetStream consumer of the stream %s: %w", streamName, err)
+	case <-consuming.Closed():
+		return fmt.Errorf("the connection to NATS closed, so the read of the JetStream stream %s stopped", streamName)
+	}
+}
+
+func (c *Connection) Close() {
+	c.conn.Close()
+}
+
+func (c *Connection) removeConsumer(name string) {
+	withTimeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := c.stream.DeleteConsumer(withTimeoutCtx, name); err != nil && !errors.Is(err, jetstream.ErrConsumerNotFound) {
+		c.logger.Warn("failed to remove a JetStream consumer", "jetstream_stream", streamName, "jetstream_consumer", name, "error", err)
+	}
+}

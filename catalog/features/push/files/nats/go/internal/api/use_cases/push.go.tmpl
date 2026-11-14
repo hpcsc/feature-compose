@@ -1,0 +1,44 @@
+package use_cases
+
+import (
+	"context"
+	"log/slog"
+
+	"{{ option "starter.module" }}/internal/api"
+	apiMiddleware "{{ option "starter.module" }}/internal/api/middleware"
+	"{{ option "starter.module" }}/internal/api/push"
+	"{{ option "starter.module" }}/internal/api/route"
+	"{{ option "starter.module" }}/internal/common/nats_push"
+)
+
+var _ api.Worker = (*pushWorker)(nil)
+
+type pushWorker struct {
+	clients *push.Clients
+	reader  *push.NATSReader
+	logger  *slog.Logger
+}
+
+func newPushWorker(config nats_push.Config, logger *slog.Logger) *pushWorker {
+	clients := push.NewClients(logger)
+	return &pushWorker{
+		clients: clients,
+		reader:  push.NewNATSReader(config, clients, logger),
+		logger:  logger,
+	}
+}
+
+func (w *pushWorker) Name() string {
+	return "push"
+}
+
+func (w *pushWorker) Start(ctx context.Context) error {
+	defer w.clients.Close()
+	return w.reader.Start(ctx)
+}
+
+func (w *pushWorker) routables(cfg *api.Config) []route.Routable {
+	return []route.Routable{
+		push.NewHandler(w.clients, apiMiddleware.OriginsToAllow(cfg.AllowedOrigins), w.logger),
+	}
+}

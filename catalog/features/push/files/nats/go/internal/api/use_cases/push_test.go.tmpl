@@ -1,0 +1,225 @@
+//go:build integration
+
+package use_cases_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"os"
+	"slices"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/coder/websocket"
+	"github.com/google/uuid"
+	"{{ option "starter.module" }}/internal/api"
+	"{{ option "starter.module" }}/internal/api/server"
+	"{{ option "starter.module" }}/internal/common/nats_push"
+	"{{ option "starter.module" }}/internal/common/test"
+	"{{ option "starter.module" }}/internal/use_cases/account/event"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
+	"github.com/stretchr/testify/require"
+)
+
+func TestPush(t *testing.T) {
+	t.Run("clients", func(t *testing.T) {
+		t.Run("a client of each of two instances of the API gets each event that catchup publishes after the client connects, and when an instance stops, its client gets a close with the status going away, NATS has no consumer of it, and the other instance goes on until NATS removes its consumer", func(t *testing.T) {
+			natsURL := os.Getenv("NATS_URL")
+			require.NotEmpty(t, natsURL, "NATS_URL must be set, see .env.integration")
+			conn, err := nats.Connect(natsURL)
+			require.NoError(t, err)
+			t.Cleanup(conn.Close)
+			jetStream, err := jetstream.New(conn)
+			require.NoError(t, err)
+			consumerNames := func() []string {
+				t.Helper()
+				stream, err := jetStream.Stream(context.Background(), "PUSH")
+				if errors.Is(err, jetstream.ErrStreamNotFound) {
+					return nil
+				}
+				require.NoError(t, err)
+				var names []string
+				lister := stream.ConsumerNames(context.Background())
+				for name := range lister.Name() {
+					names = append(names, name)
+				}
+				require.NoError(t, lister.Err())
+				return names
+			}
+			consumersAre := func(count int) func() bool {
+				return func() bool {
+					stream, err := jetStream.Stream(context.Background(), "PUSH")
+					if err != nil {
+						return false
+					}
+					info, err := stream.Info(context.Background())
+					return err == nil && info.State.Consumers == count
+				}
+			}
+			namesBefore := consumerNames()
+			before := len(namesBefore)
+			pool := test.NewDBPool(t)
+			first := startedAPI(t, pool, natsURL)
+			second := startedAPI(t, pool, natsURL)
+			require.Eventually(t, consumersAre(before+2), 5*time.Second, 10*time.Millisecond)
+			stream, err := jetStream.Stream(context.Background(), "PUSH")
+			require.NoError(t, err)
+			connection, err := nats_push.Connect(context.Background(), nats_push.Config{URL: natsURL}, test.DiscardLogger())
+			require.NoError(t, err)
+			t.Cleanup(connection.Close)
+			publish := func(owner string) uuid.UUID {
+				t.Helper()
+				accountID := uuid.New()
+				data, err := json.Marshal(event.AccountOpened{AccountID: accountID, Owner: owner})
+				require.NoError(t, err)
+				require.NoError(t, connection.Publish(context.Background(), nats_push.PublishedEvent{Type: event.AccountOpened{}.EventType(), Data: data}))
+				return accountID
+			}
+			var warmUps []uuid.UUID
+			for _, client := range []*pushClient{first.client, second.client} {
+				for deadline := time.Now().Add(5 * time.Second); ; {
+					warmUps = append(warmUps, publish("warm-up"))
+					if _, ok := client.nextAbout(100*time.Millisecond, warmUps...); ok {
+						break
+					}
+					require.True(t, time.Now().Before(deadline), "the client got no message within 5 seconds of its connection")
+				}
+			}
+			opened := event.AccountOpened{}.EventType()
+			messageOf := func(accountID uuid.UUID, owner string) string {
+				return fmt.Sprintf(`{"type":%q,"data":{"accountId":%q,"owner":%q}}`, opened, accountID, owner)
+			}
+			messagesAbout := func(client *pushClient, accountIDs ...uuid.UUID) []string {
+				t.Helper()
+				var messages []string
+				for range accountIDs {
+					message, ok := client.nextAbout(5*time.Second, accountIDs...)
+					require.True(t, ok, "the client got no message about the accounts within 5 seconds")
+					messages = append(messages, message)
+				}
+				return messages
+			}
+
+			alice := publish("alice")
+			bob := publish("bob")
+
+			for _, client := range []*pushClient{first.client, second.client} {
+				require.Equal(t, []string{messageOf(alice, "alice"), messageOf(bob, "bob")}, messagesAbout(client, alice, bob))
+			}
+
+			first.server.Shutdown()
+
+			require.Equal(t, websocket.StatusGoingAway, first.client.closedWith(t))
+			require.NoError(t, <-first.stopped)
+			require.Eventually(t, consumersAre(before+1), 5*time.Second, 10*time.Millisecond)
+
+			carol := publish("carol")
+
+			require.Equal(t, []string{messageOf(carol, "carol")}, messagesAbout(second.client, carol))
+
+			for _, name := range consumerNames() {
+				if !slices.Contains(namesBefore, name) {
+					require.NoError(t, stream.DeleteConsumer(context.Background(), name))
+				}
+			}
+
+			select {
+			case err := <-second.stopped:
+				require.ErrorContains(t, err, "push failed: lost the JetStream consumer of the stream PUSH")
+			case <-time.After(60 * time.Second):
+				require.FailNow(t, "the instance did not stop within 60 seconds after NATS removed its consumer")
+			}
+			require.Equal(t, websocket.StatusGoingAway, second.client.closedWith(t))
+		})
+	})
+}
+
+type runningAPI struct {
+	server  *server.Server
+	stopped chan error
+	client  *pushClient
+}
+
+func startedAPI(t *testing.T, pool *pgxpool.Pool, natsURL string) *runningAPI {
+	t.Helper()
+	port := freePort(t)
+	srv := server.New("api", &api.Config{Port: port, Push: nats_push.Config{URL: natsURL}}, pool, test.DiscardLogger())
+	stopped := make(chan error, 1)
+	go func() {
+		stopped <- srv.Start()
+	}()
+	return &runningAPI{server: srv, stopped: stopped, client: dialedWhenServing(t, "ws://127.0.0.1:"+port+"/api/ws")}
+}
+
+type pushClient struct {
+	messages chan string
+	closed   chan websocket.StatusCode
+}
+
+func dialedWhenServing(t *testing.T, url string) *pushClient {
+	t.Helper()
+	var connection *websocket.Conn
+	for deadline := time.Now().Add(10 * time.Second); connection == nil; time.Sleep(50 * time.Millisecond) {
+		var err error
+		connection, _, err = websocket.Dial(context.Background(), url, nil)
+		require.True(t, err == nil || time.Now().Before(deadline), "the API did not serve %s within 10 seconds: %v", url, err)
+	}
+	t.Cleanup(func() { _ = connection.CloseNow() })
+	client := &pushClient{messages: make(chan string, 1000), closed: make(chan websocket.StatusCode, 1)}
+	go func() {
+		for {
+			_, data, err := connection.Read(context.Background())
+			if err != nil {
+				client.closed <- websocket.CloseStatus(err)
+				return
+			}
+			client.messages <- string(data)
+		}
+	}()
+	return client
+}
+
+func (c *pushClient) nextAbout(wait time.Duration, accountIDs ...uuid.UUID) (string, bool) {
+	deadline := time.After(wait)
+	for {
+		select {
+		case message := <-c.messages:
+			var parsed struct {
+				Data struct {
+					AccountID uuid.UUID `json:"accountId"`
+				} `json:"data"`
+			}
+			if json.Unmarshal([]byte(message), &parsed) == nil && slices.Contains(accountIDs, parsed.Data.AccountID) {
+				return message, true
+			}
+		case <-deadline:
+			return "", false
+		}
+	}
+}
+
+func (c *pushClient) closedWith(t *testing.T) websocket.StatusCode {
+	t.Helper()
+	select {
+	case status := <-c.closed:
+		return status
+	case <-time.After(15 * time.Second):
+		require.FailNow(t, "the client was not closed within 15 seconds")
+		return 0
+	}
+}
+
+func freePort(t *testing.T) string {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := listener.Addr().(*net.TCPAddr).Port
+	require.NoError(t, listener.Close())
+	return strconv.Itoa(port)
+}

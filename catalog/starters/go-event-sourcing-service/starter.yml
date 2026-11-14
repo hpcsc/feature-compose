@@ -104,6 +104,22 @@ extension_points:
     summary: A service of docker-compose.local.yml, as YAML with the service name at the left edge.
     file: go/docker-compose.local.yml
     item: [text]
+  compose.dependencies.services:
+    summary: A service of docker-compose.dependencies.yml, beside db and migrate, as YAML with the service name at the left edge. task run-dependencies and the integration tests read this file, the integration tests with the values of .env.integration. A port on the host comes from a variable of .env.local and of .env.integration.
+    file: go/docker-compose.dependencies.yml
+    item: [text]
+  dotenv.local:
+    summary: A variable of .env.local, which docker-compose.dependencies.yml reads for task run-dependencies.
+    file: go/.env.local
+    item: [name, value]
+  dotenv.integration:
+    summary: A variable of .env.integration, which task test:integration gives to the integration tests and which docker-compose.dependencies.yml reads for them.
+    file: go/.env.integration
+    item: [name, value]
+  test.dependencies:
+    summary: A service of docker-compose.dependencies.yml that the integration tests need beside db. scripts/test/start-test-dependencies.sh starts it and waits until it is healthy.
+    file: go/scripts/test/start-test-dependencies.sh
+    item: [service]
 
 delimiters:
   - glob: "go/**/Taskfile*.yml"

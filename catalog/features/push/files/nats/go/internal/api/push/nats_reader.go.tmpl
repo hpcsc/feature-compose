@@ -1,0 +1,34 @@
+package push
+
+import (
+	"context"
+	"log/slog"
+
+	"{{ option "starter.module" }}/internal/common/nats_push"
+)
+
+type NATSReader struct {
+	config  nats_push.Config
+	clients *Clients
+	logger  *slog.Logger
+}
+
+func NewNATSReader(config nats_push.Config, clients *Clients, logger *slog.Logger) *NATSReader {
+	return &NATSReader{
+		config:  config,
+		clients: clients,
+		logger:  logger,
+	}
+}
+
+func (r *NATSReader) Start(ctx context.Context) error {
+	connection, err := nats_push.Connect(ctx, r.config, r.logger)
+	if err != nil {
+		return err
+	}
+	defer connection.Close()
+
+	return connection.Read(ctx, func(published nats_push.PublishedEvent) {
+		r.clients.Send(ctx, Message{Type: published.Type, Data: published.Data})
+	})
+}

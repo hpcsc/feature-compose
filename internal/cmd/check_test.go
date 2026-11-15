@@ -206,15 +206,11 @@ the feature cli: the file "go/cli.go" of the extension point "cli.commands" does
 		})
 
 		t.Run("--catalog checks the catalog in that folder, also with no config file", func(t *testing.T) {
-			catalogDir := t.TempDir()
-			for path, contents := range map[string]string{
+			catalogDir := writtenCatalog(t, map[string]string{
 				"starters/service/starter.yml":      "folders:\n  go:\n    path: .\n",
 				"starters/service/files/go/main.go": "package main\n",
 				"features/tools/feature.yml":        "targets: [service]\nadd_to:\n  cli.commands:\n    - code: newToolsCommand()\n",
-			} {
-				require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(catalogDir, path)), 0o755))
-				require.NoError(t, os.WriteFile(filepath.Join(catalogDir, path), []byte(contents), 0o644))
-			}
+			})
 			command := newCheckCommand(func() (catalog.Catalog, error) { return catalog.Catalog{}, errors.New("no config file") })
 			var printed bytes.Buffer
 			command.Writer, command.ErrWriter = &printed, io.Discard

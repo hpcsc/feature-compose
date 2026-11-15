@@ -8,7 +8,8 @@
 | `feature-compose version` | Prints the tag that the binary comes from, or its commit. |
 | `feature-compose update` | Replaces the binary with the latest release or prerelease. |
 
-`new`, `show` and `check` read the catalog that the config file names.
+`new`, `show` and `check` read the catalog that the config file names, or the catalog folder that `--catalog`
+gives.
 [Install feature-compose and Point It at a Catalog](install-and-configure.md) tells how to write the config
 file, and how `version` and `update` work.
 
@@ -25,6 +26,7 @@ feature-compose new <starter> <name> [--feature <name>[:<option>=<value>,...]]..
 | `--output-dir <folder>` | The folder of the new repo. The default is `./<name>`. |
 | `--no-prompt` | Opens no form. Each option without a value gets its default. |
 | `--dry-run` | Prints a preview of the repo, writes no file and runs no command. |
+| `--catalog <folder>` | Makes the repo from the catalog in that folder. `new` then does not read the config file. Use it to try a catalog that you write, for example `new --catalog . my-starter my-test --dry-run` in the folder of the catalog. |
 
 `new` writes each file of the starter and of the selected features. Then it runs the `after_render` commands of
 each folder of the starter, for example `go mod tidy`. Last, it writes the selection file `.feature-compose.yml` to
@@ -278,9 +280,11 @@ the option region of the starter service has no default and no value: give it wi
   starter and the features whose `targets` name it.
 
 An unknown starter stops the command before the TUI starts, and the message lists the starters.
+`--catalog <folder>` shows the catalog in that folder, and `show` then does not read the config file.
 
 ```shell
 feature-compose show
+feature-compose show --catalog ./catalog
 feature-compose show --output json
 feature-compose show go-event-sourcing-service --output json | jq '.features | keys'
 ```

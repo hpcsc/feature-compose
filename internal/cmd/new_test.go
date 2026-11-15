@@ -138,6 +138,22 @@ folders:
 	const doesNotApply = `the option store-key of the feature client applies only when auth.method == "api-key", and auth.method is "oauth", but the command line gives it "true"`
 
 	t.Run("write", func(t *testing.T) {
+		t.Run("--catalog makes the repo from the catalog in that folder, also with no config file", func(t *testing.T) {
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+			catalogDir := writtenCatalog(t, map[string]string{
+				"starters/other/starter.yml":          "folders:\n  docs:\n    path: .\n",
+				"starters/other/files/docs/README.md": "# {{ .Name }}\n",
+			})
+			command := newNewCommand(func() (catalog.Catalog, error) { return catalog.Catalog{}, errors.New("no config file") }, version)
+			command.Writer, command.ErrWriter = io.Discard, io.Discard
+
+			err := command.Run(context.Background(), []string{"new", "--catalog", catalogDir, "other", "my-repo"})
+
+			require.NoError(t, err)
+			require.Equal(t, "# my-repo\n", filesIn(t, workingFolder)["my-repo/README.md"])
+		})
+
 		t.Run("writes the repo to a folder with the name of the repo in the working folder", func(t *testing.T) {
 			workingFolder := t.TempDir()
 			t.Chdir(workingFolder)
@@ -704,6 +720,14 @@ folders:
 			require.Contains(t, printed, "print a preview of the repo, and write no file and run no command")
 		})
 
+		t.Run("--help shows --catalog and the catalog that new reads with it", func(t *testing.T) {
+			printed, err := runNew(t, withFeatures(), "--help")
+
+			require.NoError(t, err)
+			require.Contains(t, printed, "--catalog")
+			require.Contains(t, printed, "make the repo from the catalog in this folder, not the catalog folder of the config file")
+		})
+
 		t.Run("--help shows the arguments of new as optional", func(t *testing.T) {
 			printed, err := runNew(t, withFeatures(), "--help")
 
@@ -1165,6 +1189,16 @@ type failingReader struct {
 func (r failingReader) Read([]byte) (int, error) {
 	r.t.Error("the command read its input")
 	return 0, io.EOF
+}
+
+func writtenCatalog(t *testing.T, files map[string]string) string {
+	t.Helper()
+	catalogDir := t.TempDir()
+	for path, contents := range files {
+		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(catalogDir, path)), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(catalogDir, path), []byte(contents), 0o644))
+	}
+	return catalogDir
 }
 
 func filesIn(t *testing.T, dir string) map[string]string {

@@ -45,8 +45,8 @@ The file has one field:
 
 Without the config file, `new`, `show` and `check` stop, and the message names the path of the file. A config
 file with no `catalog`, or a `catalog` that is not a folder, also stops them, and the message says why.
-`version` and `update` do not read the config file. `check --catalog <folder>` checks a catalog with no config
-file.
+`version` and `update` do not read the config file. `--catalog <folder>` gives `new`, `show` and `check` a
+catalog with no config file.
 
 The catalog of this repo is in `catalog/`. A team can keep its own catalog in its own repo, and its members
 point the config file at their copy. [Write the Starters and the Features of a Catalog](catalog.md) tells how

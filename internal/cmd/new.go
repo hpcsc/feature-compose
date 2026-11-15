@@ -24,6 +24,7 @@ func newNewCommand(load func() (catalog.Catalog, error), version string) *cli.Co
 			&cli.StringFlag{Name: "output-dir", Usage: "the folder for the new repo (default: ./<name>)"},
 			&cli.BoolFlag{Name: "no-prompt", Usage: "start no TUI: give each option without a value its default, and stop on an option with no default and no value"},
 			&cli.BoolFlag{Name: "dry-run", Usage: "print a preview of the repo, and write no file and run no command"},
+			catalogFlag("make the repo from the catalog in this folder, not the catalog folder of the config file"),
 		},
 		DisableSliceFlagSeparator: true,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -42,7 +43,7 @@ func newNewCommand(load func() (catalog.Catalog, error), version string) *cli.Co
 			if err != nil {
 				return err
 			}
-			c, err := load()
+			c, err := catalogToRead(cmd, load)
 			if err != nil {
 				return err
 			}

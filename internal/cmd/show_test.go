@@ -92,6 +92,18 @@ add_to:
 		"cli": {"summary": "A CLI.", "targets": ["worker", "api"], "needs": {}, "options": {}, "extension_points": {}, "add_to": {}}`
 
 	t.Run("json", func(t *testing.T) {
+		t.Run("--catalog prints the catalog in that folder, also with no config file", func(t *testing.T) {
+			catalogDir := writtenCatalog(t, map[string]string{"starters/other/starter.yml": "summary: Other.\nfolders:\n  docs:\n    path: .\n"})
+			command := newShowCommand(func() (catalog.Catalog, error) { return catalog.Catalog{}, errors.New("no config file") })
+			var printed bytes.Buffer
+			command.Writer, command.ErrWriter = &printed, io.Discard
+
+			err := command.Run(context.Background(), []string{"show", "--catalog", catalogDir, "--output", "json"})
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"other"}, slices.Sorted(maps.Keys(showOutput(t, printed.String()).Starters)))
+		})
+
 		t.Run("--output json prints each starter and each feature with each field, a field with no value as [], {} or an empty text, and the lists in the order of the files", func(t *testing.T) {
 			printed, err := runShow(t, withEachField(), "--output", "json")
 
@@ -213,11 +225,19 @@ add_to:
 	})
 
 	t.Run("help", func(t *testing.T) {
+		t.Run("--help shows --catalog and the catalog that show reads with it", func(t *testing.T) {
+			printed, err := runShow(t, withEachField(), "--help")
+
+			require.NoError(t, err)
+			require.Contains(t, printed, "--catalog")
+			require.Contains(t, printed, "show the catalog in this folder, not the catalog folder of the config file")
+		})
+
 		t.Run("--help shows what show does, its optional starter and the json output", func(t *testing.T) {
 			printed, err := runShow(t, withEachField(), "--help")
 
 			require.NoError(t, err)
-			for _, part := range []string{"show - show the starters, the features and the extension points of the catalog\n", "options] [<starter>]\n", "--output string  print the catalog in this format: json\n"} {
+			for _, part := range []string{"show - show the starters, the features and the extension points of the catalog\n", "options] [<starter>]\n", "--output string   print the catalog in this format: json\n"} {
 				require.Contains(t, printed, part)
 			}
 		})

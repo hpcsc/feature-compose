@@ -745,11 +745,13 @@ folders:
 	})
 
 	t.Run("tui", func(t *testing.T) {
-		t.Run("in a terminal, w and y write the repo, and new prints the command that makes the same repo", func(t *testing.T) {
+		toButton := strings.Repeat("\t", 10)
+
+		t.Run("in a terminal, enter at the button and enter at the preview write the repo, and new prints the command that makes the same repo", func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			output := filepath.Join(t.TempDir(), "my-service")
 
-			screen, err := runInTerminal(t, withFeatures(), "Repo", "wy", "service", "my-service", "--output-dir", output, "--feature", "cli", "--option", "go-version=1.27.1", "--option", "module=github.com/hpcsc/my-service")
+			screen, err := runInTerminal(t, withFeatures(), "Write the repo", toButton+"\r\r", "service", "my-service", "--output-dir", output, "--feature", "cli", "--option", "go-version=1.27.1", "--option", "module=github.com/hpcsc/my-service")
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
@@ -764,23 +766,22 @@ folders:
 			t.Chdir(t.TempDir())
 			output := filepath.Join(t.TempDir(), "my-service")
 
-			_, err := runInTerminal(t, withNeeds(), "Repo", "jjjj wy", "service", "my-service", "--output-dir", output)
+			_, err := runInTerminal(t, withNeeds(), "Write the repo", "j "+toButton+"\r\r", "service", "my-service", "--output-dir", output)
 
 			require.NoError(t, err)
 			require.Equal(t, "version: v1.2.3\nstarter: service\nname: my-service\noptions: {}\nfeatures:\n  a: {}\n  b:\n    mode: fast\nrequested: [a]\n", filesIn(t, output)[".feature-compose.yml"])
 		})
 
 		for name, keys := range map[string]string{
-			"q":                        "q",
-			"w, n back to the form, q": "wnq",
-			"ctrl+c":                   "\x03",
+			"ctrl+c": "\x03",
+			"enter at the button, esc back to the form, and ctrl+c": toButton + "\r\x1b\x03",
 		} {
 			t.Run("in a terminal, "+name+" stops new with the cancel, and new writes nothing", func(t *testing.T) {
 				workingFolder := t.TempDir()
 				t.Chdir(workingFolder)
 				output := filepath.Join(t.TempDir(), "my-service")
 
-				_, err := runInTerminal(t, withFeatures(), "Repo", keys, "service", "my-service", "--output-dir", output, "--feature", "cli")
+				_, err := runInTerminal(t, withFeatures(), "Write the repo", keys, "service", "my-service", "--output-dir", output, "--feature", "cli")
 
 				require.EqualError(t, err, "you canceled new, so it wrote no file")
 				require.NoDirExists(t, output)
@@ -792,11 +793,11 @@ folders:
 			"with no argument":  nil,
 			"with one argument": {"service"},
 		} {
-			t.Run("in a terminal, "+name+", new opens the form with the missing answers, and q cancels", func(t *testing.T) {
+			t.Run("in a terminal, "+name+", new opens the form with the missing answers, and ctrl+c cancels", func(t *testing.T) {
 				workingFolder := t.TempDir()
 				t.Chdir(workingFolder)
 
-				screen, err := runInTerminal(t, withFeatures(), "Repo", "q", arguments...)
+				screen, err := runInTerminal(t, withFeatures(), "Write the repo", "\x03", arguments...)
 
 				require.EqualError(t, err, "you canceled new, so it wrote no file")
 				require.Contains(t, screen, "missing")

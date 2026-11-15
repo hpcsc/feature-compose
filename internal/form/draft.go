@@ -1,14 +1,17 @@
 package form
 
 import (
-	"cmp"
 	"fmt"
 	"maps"
 	"slices"
 	"strings"
 
 	"github.com/hpcsc/feature-compose/internal/catalog"
-	"github.com/hpcsc/feature-compose/internal/screen"
+)
+
+const (
+	fromCommandLine = "from the command line"
+	repoLabelWidth  = len("starter") + 2
 )
 
 type draft struct {
@@ -72,7 +75,7 @@ func (d draft) selected(starter catalog.Starter, answers catalog.Answers) (catal
 }
 
 func (d draft) toggled(featureName string) (draft, string) {
-	if d.isFixed(row{kind: featureKind, feature: featureName}) {
+	if _, isGiven := d.givenByFeature[featureName]; isGiven {
 		return d, featureName + " stays selected: --feature selects it."
 	}
 	if neededBy := d.selection.NeededBy(featureName); len(neededBy) > 0 {
@@ -134,169 +137,24 @@ func (d draft) withKeptStarter(starterName string) (draft, error) {
 	return kept, nil
 }
 
-func (d draft) isFixed(r row) bool {
-	switch r.kind {
-	case nameKind:
-		return d.nameGiven
-	case starterKind:
-		return d.starterGiven
-	case featureKind:
-		_, isGiven := d.givenByFeature[r.feature]
-		return isGiven
-	case optionKind:
-		return d.question(r).Fixed()
-	}
-	panic(fmt.Sprintf("the form has no source for the row kind %d", r.kind))
-}
-
-func (d draft) editOf(r row) (edit, string) {
-	if message := d.fixedMessage(r); message != "" {
-		return edit{}, message
-	}
-	if r.kind == starterKind && len(d.definitions.Starters) == 0 {
-		return edit{}, "The catalog has no starter."
-	}
-	if choices := d.choices(r); len(choices) > 0 {
-		return newListEdit(r, choices, d.summaries(r), d.value(r)), ""
-	}
-	return newTextEdit(r, d.value(r)), ""
-}
-
-func (d draft) fixedMessage(r row) string {
-	switch {
-	case !d.isFixed(r):
-		return ""
-	case r.kind == nameKind:
-		return "The name is fixed: the command line gives it."
-	case r.kind == starterKind:
-		return "The starter is fixed: the command line gives it."
-	}
-	q := d.question(r)
-	switch {
-	case q.Given && len(q.NeedOf) > 0:
-		return "The option " + r.option + " is fixed: the command line and the need of " + strings.Join(q.NeedOf, ", ") + " give it."
-	case len(q.NeedOf) > 0:
-		return "The option " + r.option + " is fixed: the need of " + strings.Join(q.NeedOf, ", ") + " sets it."
-	}
-	return "The option " + r.option + " is fixed: the command line gives it."
-}
-
 func (d draft) value(r row) string {
 	switch r.kind {
 	case nameKind:
 		return d.name
-	case starterKind:
-		return d.starterName
 	case optionKind:
 		return d.question(r).Value
 	}
-	panic(fmt.Sprintf("the form has no value for the row kind %d", r.kind))
-}
-
-func (d draft) choices(r row) []string {
-	switch r.kind {
-	case nameKind:
-		return nil
-	case starterKind:
-		return slices.Sorted(maps.Keys(d.definitions.Starters))
-	case optionKind:
-		return d.question(r).Accepted
-	}
-	panic(fmt.Sprintf("the form has no choices for the row kind %d", r.kind))
-}
-
-func (d draft) summaries(r row) []string {
-	var summaries []string
-	if r.kind == starterKind {
-		for _, starterName := range d.choices(r) {
-			summaries = append(summaries, d.definitions.Starters[starterName].Summary)
-		}
-	}
-	return summaries
+	panic(fmt.Sprintf("the form has no text for the row kind %d", r.kind))
 }
 
 func (d draft) check(r row, value string) error {
 	switch r.kind {
-	case starterKind:
-		return nil
 	case nameKind:
 		return catalog.CheckRepoName(value)
 	case optionKind:
 		return d.question(r).Check(value)
 	}
 	panic(fmt.Sprintf("the form has no check for the row kind %d", r.kind))
-}
-
-func (d draft) nodes() []node {
-	var nameMarks []string
-	switch {
-	case d.nameGiven:
-		nameMarks = []string{"fixed"}
-	case d.name == "":
-		nameMarks = []string{missingMark}
-	}
-	var starterMarks []string
-	switch {
-	case d.starterGiven:
-		starterMarks = []string{"fixed"}
-	case d.starterName == "":
-		starterMarks = []string{missingMark}
-	}
-	return []node{
-		{row: row{kind: nameKind}, label: "name     ", text: d.name, textStyle: screen.PlainStyle, marks: nameMarks},
-		{row: row{kind: starterKind}, label: "starter  ", text: d.starterName, textStyle: screen.NameStyle, marks: starterMarks, children: d.groupNodes()},
-	}
-}
-
-func (d draft) groupNodes() []node {
-	var nodes []node
-	if options := d.optionNodes(""); len(options) > 0 {
-		nodes = append(nodes, node{row: row{kind: groupKind, group: optionsGroup}, text: string(optionsGroup), textStyle: screen.GroupStyle, children: options})
-	}
-	if features := d.featureNodes(); len(features) > 0 {
-		count := fmt.Sprintf("%d of %d", d.featureCount(), len(d.featureNames))
-		nodes = append(nodes, node{row: row{kind: groupKind, group: featuresGroup}, text: string(featuresGroup), textStyle: screen.GroupStyle, marks: []string{count}, children: features})
-	}
-	return nodes
-}
-
-func (d draft) featureNodes() []node {
-	nodes := make([]node, 0, len(d.featureNames))
-	for _, featureName := range d.featureNames {
-		box, style := "[ ] ", screen.NotSelectedStyle
-		if d.selection.Holds(featureName) {
-			box, style = "[x] ", screen.NameStyle
-		}
-		var marks []string
-		if _, isGiven := d.givenByFeature[featureName]; isGiven {
-			marks = append(marks, "fixed")
-		}
-		if neededBy := d.selection.NeededBy(featureName); len(neededBy) > 0 {
-			marks = append(marks, "needed by "+strings.Join(neededBy, ", "))
-		}
-		nodes = append(nodes, node{row: row{kind: featureKind, feature: featureName}, text: box + featureName, textStyle: style, marks: marks, children: d.optionNodes(featureName)})
-	}
-	return nodes
-}
-
-func (d draft) optionNodes(featureName string) []node {
-	questions := d.questionsOf(featureName)
-	widest := 0
-	for _, q := range questions {
-		widest = max(widest, len(q.Option))
-	}
-	nodes := make([]node, 0, len(questions))
-	for _, q := range questions {
-		var marks []string
-		if q.Fixed() {
-			marks = append(marks, "fixed")
-		}
-		if q.Missing {
-			marks = append(marks, missingMark)
-		}
-		nodes = append(nodes, node{row: row{kind: optionKind, feature: featureName, option: q.Option}, label: fmt.Sprintf("%-*s  ", widest, q.Option), text: q.Value, textStyle: screen.PlainStyle, marks: marks})
-	}
-	return nodes
 }
 
 func (d draft) questionsOf(featureName string) []catalog.Question {
@@ -315,9 +173,9 @@ func (d draft) question(r row) catalog.Question {
 func (d draft) missingAnswer() (row, string, bool) {
 	switch {
 	case d.name == "":
-		return row{kind: nameKind}, "", true
+		return row{kind: nameKind}, catalog.CheckRepoName("").Error(), true
 	case d.starterName == "":
-		return row{kind: starterKind}, "", true
+		return row{kind: starterKind}, "No starter is chosen.", true
 	}
 	for _, q := range d.selection.Questions() {
 		if q.Missing {
@@ -337,96 +195,130 @@ func (d draft) featureCount() int {
 	return count
 }
 
-func (d draft) details(r row, width int) (title, text string) {
-	switch r.kind {
-	case nameKind:
-		return "name", d.nameDetails(width)
-	case starterKind:
-		return cmp.Or(d.starterName, "starter"), d.starterDetails(width)
-	case groupKind:
-		return string(r.group), d.groupDetails(r.group, width)
-	case featureKind:
-		return r.feature, d.featureDetails(r.feature, width)
-	case optionKind:
-		return cmp.Or(r.feature, "starter") + " › " + r.option, d.optionDetails(r, width)
+func (d draft) panels() []panel {
+	panels := []panel{{title: "Repo", fields: []field{d.nameField(), d.starterField()}}}
+	if fields := d.optionFields(""); len(fields) > 0 {
+		panels = append(panels, panel{title: "Options of " + d.starterName, fields: fields})
 	}
-	panic(fmt.Sprintf("the form has no details for the row kind %d", r.kind))
-}
-
-func (d draft) nameDetails(width int) string {
-	if d.name == "" {
-		return strings.Join(screen.Wrapped(catalog.CheckRepoName("").Error(), width), "\n")
+	if len(d.featureNames) > 0 {
+		panels = append(panels, panel{title: "Features", count: fmt.Sprintf("%d of %d", d.featureCount(), len(d.featureNames)), fields: []field{d.featuresField()}})
 	}
-	source := "answered"
-	if d.nameGiven {
-		source = "command line"
-	}
-	return strings.Join(screen.Entry{Fields: []screen.Field{{Label: "value", Values: []string{d.name}}, {Label: "source", Values: []string{source}}}}.Lines(width), "\n")
-}
-
-func (d draft) starterDetails(width int) string {
-	if d.starterName == "" {
-		starters := screen.Section{Heading: "Starters", None: "none"}
-		for _, starterName := range slices.Sorted(maps.Keys(d.definitions.Starters)) {
-			starters.Entries = append(starters.Entries, screen.Entry{Name: starterName, Summary: d.definitions.Starters[starterName].Summary})
-		}
-		return screen.Details("No starter is chosen.", width, starters)
-	}
-	source := "answered"
-	if d.starterGiven {
-		source = "command line"
-	}
-	return d.withSource(screen.Details(d.definitions.Starters[d.starterName].Summary, width), source, width)
-}
-
-func (d draft) groupDetails(g group, width int) string {
-	if g == optionsGroup {
-		var fields []screen.Field
-		for _, q := range d.questionsOf("") {
-			fields = append(fields, screen.Field{Label: q.Option, Values: []string{q.Value}})
-		}
-		return strings.Join(screen.Entry{Fields: fields}.Lines(width), "\n")
-	}
-	selected := screen.Section{Heading: "Selected", None: "none"}
-	notSelected := screen.Section{Heading: "Not selected", None: "none"}
 	for _, featureName := range d.featureNames {
-		entry := screen.Entry{Name: featureName, Summary: d.definitions.Features[featureName].Summary}
-		if d.selection.Holds(featureName) {
-			selected.Entries = append(selected.Entries, entry)
-		} else {
-			notSelected.Entries = append(notSelected.Entries, entry)
+		if fields := d.optionFields(featureName); len(fields) > 0 {
+			panels = append(panels, panel{title: "Options of " + featureName, fields: fields})
 		}
 	}
-	return screen.Details("", width, selected, notSelected)
+	return panels
 }
 
-func (d draft) featureDetails(featureName string, width int) string {
-	feature := d.definitions.Features[featureName]
-	needs := screen.ValuesSection("Needs", "none", feature.Needs)
-	return d.withSource(screen.Details(feature.Summary, width, needs), d.featureSource(featureName), width)
+func (d draft) fields() []field {
+	var fields []field
+	for _, p := range d.panels() {
+		fields = append(fields, p.fields...)
+	}
+	return append(fields, writeField)
 }
 
-func (d draft) optionDetails(r row, width int) string {
-	q := d.question(r)
-	fields := []screen.Field{{Label: "value", Values: []string{q.Value}}, {Label: "default", Values: []string{q.Default}}}
-	if len(q.Accepted) > 0 {
-		fields = append(fields, screen.Field{Label: "values", Values: []string{strings.Join(q.Accepted, ", ")}})
+func (d draft) nameField() field {
+	f := field{row: row{kind: nameKind}, label: padded("name", repoLabelWidth), control: textControl, value: d.name, missing: d.name == ""}
+	if d.nameGiven {
+		f.control, f.mark = fixedControl, fromCommandLine
+	}
+	return f
+}
+
+func (d draft) starterField() field {
+	f := field{row: row{kind: starterKind}, label: padded("starter", repoLabelWidth), value: d.starterName}
+	switch {
+	case d.starterGiven:
+		f.control, f.mark = fixedControl, fromCommandLine
+		return f
+	case len(d.definitions.Starters) == 0:
+		f.control, f.mark = fixedControl, "the catalog has no starter"
+		return f
+	}
+	f.control, f.missing = selectControl, d.starterName == ""
+	f.summary = d.definitions.Starters[d.starterName].Summary
+	for _, starterName := range slices.Sorted(maps.Keys(d.definitions.Starters)) {
+		f.items = append(f.items, item{name: starterName, checked: starterName == d.starterName, summary: d.definitions.Starters[starterName].Summary})
+	}
+	return f
+}
+
+func (d draft) optionFields(featureName string) []field {
+	questions := d.questionsOf(featureName)
+	optionNames := make([]string, 0, len(questions))
+	for _, q := range questions {
+		optionNames = append(optionNames, q.Option)
+	}
+	fields := make([]field, 0, len(questions))
+	for _, q := range questions {
+		f := field{row: row{kind: optionKind, feature: featureName, option: q.Option}, label: padded(q.Option, widest(optionNames)+2), value: q.Value, missing: q.Missing, hint: hintOf(q)}
+		switch {
+		case q.Fixed():
+			f.control, f.mark = fixedControl, sourceOfFixed(q)
+		case len(q.Accepted) > 0:
+			f.control = selectControl
+			for _, value := range q.Accepted {
+				f.items = append(f.items, item{name: value, checked: value == q.Value})
+			}
+		default:
+			f.control = textControl
+		}
+		fields = append(fields, f)
+	}
+	return fields
+}
+
+func (d draft) featuresField() field {
+	f := field{row: row{kind: featuresKind}, control: checklistControl}
+	for _, featureName := range d.featureNames {
+		var marks []string
+		if _, isGiven := d.givenByFeature[featureName]; isGiven {
+			marks = append(marks, fromCommandLine)
+		}
+		if neededBy := d.selection.NeededBy(featureName); len(neededBy) > 0 {
+			marks = append(marks, "needed by "+strings.Join(neededBy, ", "))
+		}
+		feature := d.definitions.Features[featureName]
+		choice := item{name: featureName, checked: d.selection.Holds(featureName), mark: strings.Join(marks, ", "), summary: feature.Summary}
+		if len(feature.Needs) > 0 {
+			choice.hint = "needs " + strings.Join(slices.Sorted(maps.Keys(feature.Needs)), ", ")
+		}
+		f.items = append(f.items, choice)
+	}
+	return f
+}
+
+func sourceOfFixed(q catalog.Question) string {
+	switch {
+	case q.Given && len(q.NeedOf) > 0:
+		return "from the command line and the need of " + strings.Join(q.NeedOf, ", ")
+	case len(q.NeedOf) > 0:
+		return "from the need of " + strings.Join(q.NeedOf, ", ")
+	}
+	return fromCommandLine
+}
+
+func hintOf(q catalog.Question) string {
+	var parts []string
+	if q.Default != "" {
+		parts = append(parts, "default "+q.Default)
 	}
 	if q.Pattern != "" {
-		fields = append(fields, screen.Field{Label: "pattern", Values: []string{q.Pattern}})
+		parts = append(parts, "pattern "+q.Pattern)
 	}
-	fields = append(fields, screen.Field{Label: "source", Values: []string{q.Source}})
-	return strings.Join(screen.Entry{Fields: fields}.Lines(width), "\n")
+	return strings.Join(parts, ", ")
 }
 
-func (d draft) featureSource(featureName string) string {
-	return cmp.Or(d.selection.FeatureSource(featureName), "not selected")
+func widest(texts []string) int {
+	widest := 0
+	for _, text := range texts {
+		widest = max(widest, len(text))
+	}
+	return widest
 }
 
-func (d draft) withSource(details, source string, width int) string {
-	lines := screen.Entry{Fields: []screen.Field{{Label: "source", Values: []string{source}}}}.Lines(width)
-	if details == "" {
-		return strings.Join(lines, "\n")
-	}
-	return details + "\n\n" + strings.Join(lines, "\n")
+func padded(text string, width int) string {
+	return text + strings.Repeat(" ", max(width-len(text), 0))
 }

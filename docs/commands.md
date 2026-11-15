@@ -118,8 +118,8 @@ above. Each option shows the value that the templates read, and its source:
 | --- | --- |
 | `command line` | `--option <name>=<value>` or `--feature <name>:<option>=<value>` gives the value, also when it is the same as the default. When a need also sets the value, the line ends with `, need of <features>`. |
 | `need of <features>` | The `needs` of the features that select this feature set the value, for example a feature `client` with `needs: {auth: {method: api-key}}` sets the `method` of `auth` to `api-key`. A need comes after a flag and before an answer. |
-| `answered` | You keep the value with Enter in the form, also when it is the default. `--dry-run` opens no form, so it never shows this source. |
-| `default` | No flag gives the value, so the option has its default. A default that holds `{{ .Name }}` shows with the name of the repo. An option whose `when` is false has its default, also when the form keeps another value for it. |
+| `answered` | You type or choose the value in the form, also when it is the default. `--dry-run` opens no form, so it never shows this source. |
+| `default` | No flag gives the value, so the option has its default. A default that holds `{{ .Name }}` shows with the name of the repo. An option whose `when` is false has its default, also when you gave it another value in the form. |
 
 Last, the preview gives each file of the repo by its path, in the order of the paths, with its owner: the starter,
 the feature whose template writes the file, or `feature-compose` for the selection file `.feature-compose.yml`.
@@ -142,111 +142,131 @@ The preview is text for a person, and its layout can change. A script reads the 
 
 ## Answer the Questions in a TUI
 
-When stdin and stdout are both terminals, `feature-compose new` opens a form. The form has the look and the keys of
-the TUI of `show` (see [Show the Catalog](#show-the-catalog)). The left pane is a tree of the answers, and the right
-pane shows the details of the selected row. You can change any answer in any order. This is
-`feature-compose new go-event-sourcing-service my-service --feature cli-auth`:
+When stdin and stdout are both terminals, `feature-compose new` opens a form. The form has the look of the TUI of
+`show` (see [Show the Catalog](#show-the-catalog)): each section of the form is a panel with its title in the top
+border. The panels come from top to bottom: the repo, the options of the starter, the features, and the options of
+each selected feature. Under the panels is the button that writes the repo. You can change any answer in any order.
+This is `feature-compose new go-event-sourcing-service my-service --feature cli-auth`, with the focus on the features:
 
 ```text
+ feature-compose new                                                                     3 features
+╭─ Repo ───────────────────────────────────────────────────────────────────────────────────────────╮
+│   name     my-service  from the command line                                                     │
+│   starter  go-event-sourcing-service  from the command line                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options of go-event-sourcing-service ───────────────────────────────────────────────────────────╮
+│   go-version  1.27.1                                                                             │
+│   module      github.com/hpcsc/my-service                                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Features ────────────────────────────────────────────────────────────────────────────── 3 of 5 ─╮
+│ ▌ [x] api-auth         needed by cli-auth                                                        │
+│                        The API accepts a request to a protected route only when it carries a     │
+│                        credential that the API accepts, an API key or an OAuth access token.     │
+│   [x] cli              needed by cli-auth                                                        │
+│   [x] cli-auth         from the command line                                                     │
+│   [ ] process-manager  The example of a process manager, a payment to another bank, with fakes … │
+│   [ ] push             The API sends each new event of the service to its WebSocket clients.     │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options of api-auth ────────────────────────────────────────────────────────────────────────────╮
+│   method  api-key                                                                                │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options of cli-auth ────────────────────────────────────────────────────────────────────────────╮
+│   store-key  false                                                                               │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+                                                                                   Write the repo
 
- feature-compose new                                                                                         3 features
-╭─ Repo ───────────────────────────────────────╮╭─ name ───────────────────────────────────────────────────────────────╮
-│ ▌  name     my-service  fixed                ││ value   my-service                                                   │
-│  ▾ starter  go-event-sourcing-service  fixed ││ source  command line                                                 │
-│    ├─ ▾ options                              ││                                                                      │
-│    │  ├─   go-version  1.27.1                ││                                                                      │
-│    │  └─   module      github.com/hpcsc/my-… ││                                                                      │
-│    └─ ▾ features  3 of 5                     ││                                                                      │
-│       ├─ ▾ [x] api-auth  needed by cli-auth  ││                                                                      │
-│       │  └─   method  api-key                ││                                                                      │
-│       ├─   [x] cli  needed by cli-auth       ││                                                                      │
-│       ├─ ▾ [x] cli-auth  fixed               ││                                                                      │
-│       │  └─   store-key  false               ││                                                                      │
-│       ├─   [ ] process-manager               ││                                                                      │
-│       └─   [ ] push                          ││                                                                      │
-╰──────────────────────────────────────────────╯╰──────────────────────────────────────────────────────────────────────╯
- j/k move • l open • h close • space select • w write • ctrl+d/u scroll details • q quit
+ j/k move • space select • tab next • ctrl+c quit
 ```
 
-The tree has these rows:
+The form has these panels:
 
-| Row | What it shows |
+| Panel | What it holds |
 | --- | --- |
-| `name` | The name of the repo. |
-| `starter` | The starter. Under it come the groups `options` and `features`. A group that has no row does not show. |
-| `options` | The options of the starter, in the order of the names. Its details show the full value of each option. |
-| `features` | Each feature that targets the starter, each after the features that it needs. The mark `3 of 5` counts the selected features. Its details list the selected features, and then the other features, each with its summary. |
-| A feature | `[x]` when the repo gets the feature, and `[ ]` when it does not. Under a selected feature come its options. |
-| An option | The option and its value. |
+| `Repo` | The name of the repo, as a text, and the starter. |
+| `Options of <starter>` | Each option of the starter, in the order of the names. |
+| `Features` | Each feature that targets the starter, each after the features that it needs. The count at the right of the top border, for example `3 of 5`, counts the selected features. `[x]` marks a selected feature, and `[ ]` marks a feature that is not selected. |
+| `Options of <feature>` | Each option of a selected feature. |
 
-Each kind of row has its own style. The groups have the accent color. The labels `name` and `starter` and the names
-of the options are faint, and the values are plain. The starter and a selected feature are bold, and a feature that
-is not selected is faint.
+An option is a text, or a list of its values when the option has `values`. When the command line gives no starter,
+the starter is a list of the starters of the catalog, each with its summary.
 
-A mark after a row tells you more about it:
+The text after a field tells you more about it:
 
-| Mark | Meaning |
+| Text | Meaning |
 | --- | --- |
-| `fixed` | An argument, a flag or the need of a selected feature gives the value, so the form does not change it. |
+| `from the command line` | An argument or a flag gives the value, so the form does not change it. |
+| `from the need of <features>` | The need of a selected feature sets the value, so the form does not change it. |
 | `needed by <features>` | Selected features need the feature, so it stays selected. |
-| `missing` | The row has no value yet, and `w` stops on it. This mark is red, and the other marks are faint. |
+| `missing` | The field has no value yet. This text is red, and the other texts are faint. |
+| A summary | The summary of a starter or a feature that has no other text. |
+
+The panel with the focus has a border in the accent color. In it, the field with the focus has the bar `▌` at its
+left. A list shows the bar and a colored background on the row under its cursor. Under the field with the focus, the
+form shows its default and its pattern, or the whole summary and the needs of the feature under the cursor. A row
+wider than its panel ends with `…`. When the form is taller than the terminal, it scrolls to show the cursor. The
+footer shows the keys of the field with the focus.
+
+**A list.** A list of values, such as the starters or the values of an option, shows only the chosen value until it
+gets the focus. With the focus, it opens: `●` marks the chosen value, `○` marks the other values, and `›` marks the
+cursor. The cursor starts at the chosen value. `j` and `k` move the cursor, and Enter chooses the value under the
+cursor and moves the focus to the next field. Space chooses the value under the cursor and keeps the list open. A
+move of the cursor alone chooses nothing.
 
 The keys of the form:
 
 | Key | Action |
 | --- | --- |
-| `j`, `k`, or the up and down arrows | Move down and up in the tree. |
-| `l` or the right arrow | Open the selected starter, group or feature. At an open row, select its first row. |
-| `h`, Esc, or the left arrow | Close an open row. At another row, select the row that it is under. |
-| Space | Select the feature of the row, or clear it. |
-| Enter | Edit the name, the starter or the option of the row. At a group or a feature, do what `l` does. |
-| `w` | Show the preview of the repo, and ask whether to write it. |
-| ctrl+d and ctrl+u, or Page Down and Page Up | Scroll the details down and up by half the pane. |
-| `q` or ctrl+c | Stop the form and write nothing. During an edit of a text, `q` goes to the text, and ctrl+c stops the form. |
+| Tab | Move the focus to the next field. The focus skips a value that the command line or a need sets. |
+| Shift+Tab | Move the focus to the field before. |
+| `j` and `k` | Move the cursor in a list or in the features down and up. The cursor stops at the ends. |
+| Down and up arrows | Do what `j` and `k` do. At the ends of a list, and at a field that is not a list, move the focus to the next field or to the field before. |
+| Enter | In a list of values, choose the value under the cursor. Then move the focus to the next field. At the button, show the preview. |
+| Space | In a list of values, choose the value under the cursor. In the features, select the feature under the cursor, or clear it. At the button, show the preview. |
+| Each other key at a text | Edit the text. `j`, `k` and Space also go into the text. The left and right arrows move the cursor of the text. |
+| ctrl+c | Stop the form and write nothing. |
 
 **The features and their needs.** Space at a feature selects it, and the form also selects each feature that it
-needs, with the mark `needed by <features>`. Space at a needed feature changes nothing, and the details name the
-features that need it. Space at a feature that you selected clears it, and also clears each feature that only its
-needs selected. A feature that a `--feature` flag gives stays selected, and you can select more features next to it.
-When the selection stops, for example because two features declare one extension point, the feature stays as it was
-and the details show the message. The selection also stops when the need of a feature sets another value than a flag,
-for example a Space at a feature `client` whose need sets `auth.method` to `api-key`, with
+needs, with the text `needed by <features>`. Space at a needed feature changes nothing, and a message under the
+feature names the features that need it. Space at a feature that you selected clears it, and also clears each feature
+that only its needs selected. A feature that a `--feature` flag gives stays selected, and you can select more features
+next to it. When the selection stops, for example because two features declare one extension point, the feature stays
+as it was, and a message under it says why. The selection also stops when the need of a feature sets another value
+than a flag, for example a Space at a feature `client` whose need sets `auth.method` to `api-key`, with
 `--feature auth:method=oauth`. The message names both sources.
 
-**An option with a `when`.** The tree shows an option only while its `when` is true, and it changes after each
+**An option with a `when`.** The form shows an option only while its `when` is true, and it changes after each
 answer. For example, the answer `oauth` for `auth.method` hides an option whose `when` is
-`auth.method == "api-key"`. A value that you kept for the option comes back when its `when` is true again. An answer
+`auth.method == "api-key"`. A value that you gave the option comes back when its `when` is true again. An answer
 that makes the `when` false while a flag gives the option another value than its default stops the selection: the
-answer stays as it was, and the details show the message.
+answer stays as it was, and a message under the option says why.
 
-**The edit.** Enter at the name, or at an option without `values`, starts an edit of the text in the right pane. Each
-key goes to the text. While the text does not pass its check, the details say why, for example that it does not match
-the `pattern` of the option. Enter keeps a text that passes, and Esc drops the change. Enter at an option with
-`values`, or at the starter, lists the values or the starters in the right pane: `j` and `k` move, Enter keeps the
-chosen one, and Esc drops the change. Enter at a value that an argument, a flag or a need gives starts no edit, and
-the details say what gives the value.
+**A text.** The form takes the text at each key while the text passes its check. A text that does not pass stays in
+the field, and a message under the field says why, for example that the text does not match the `pattern` of the
+option. The form then keeps the last value that passed. The message stays when the focus moves to another field, and
+goes away when the text passes.
 
-A value that you keep has the source `answered`, also when it is the default. Until you keep a value for an option,
-the option has its default, and a default that reads the name, for example `github.com/hpcsc/{{ .Name }}`, follows
-the name. A clear of a feature drops the values that you kept for it. While the need of a selected feature sets an
-option, the option has the value of the need, and a value that you kept for it comes back when no selected need sets
-it.
+A value that you type or choose has the source `answered`, also when it is the default. Until you type or choose a
+value for an option, the option has its default, and a default that reads the name, for example
+`github.com/hpcsc/{{ .Name }}`, follows the name. A clear of a feature drops the values that you gave its options.
+While the need of a selected feature sets an option, the option has the value of the need, and a value that you gave
+the option comes back when no selected need sets it.
 
 **The starter.** A change of the starter keeps each feature that you selected and that targets the new starter, with
-the values that you kept for it. It clears the other features, and the values that you kept for the options of the
-old starter. A starter that the flags do not fit, or whose features have needs that form a cycle, is not kept, and
-the details show the message.
+the values that you gave its options. It clears the other features, and the values that you gave the options of the
+old starter. A starter that the flags do not fit, or whose features have needs that form a cycle, is not chosen, and a
+message under the list says why.
 
-**Write the repo.** `w` shows the preview in the right pane, which is the text that `--dry-run` prints, and asks
-`Write the repo?`. `y` writes the repo, and `n` or Esc goes back to the form. While an answer is missing (the name,
-the starter, or the value of an option with no default), `w` selects its row, opens the rows above it, and the details
-say what is missing.
+**Write the repo.** Enter at the button shows the preview in a panel, which is the text that `--dry-run` prints, and
+asks `Write the repo?`. Enter writes the repo, and Esc goes back to the form. The arrow keys, `j` and `k`, Page Up and
+Page Down, and ctrl+u and ctrl+d scroll the preview, and the bottom border shows how far it is scrolled. When an
+answer is missing (the name, the starter, or the value of an option with no default), or a text does not pass its
+check, the button moves the focus to the first such field, and a message under the field says what is wrong.
 
 An unknown starter, a flag that the starter does not know, and a flag that gives an option another value than a need,
 stop `new` before the form opens, with the message that `new` gives without the form.
 
-`new` writes nothing until you press `y`. A cancel writes no file, makes no output folder and runs no command. `new`
-then prints `you canceled new, so it wrote no file` and ends with the status 1.
+`new` writes nothing until you press Enter at the preview. A cancel writes no file, makes no output folder and runs no
+command. `new` then prints `you canceled new, so it wrote no file` and ends with the status 1.
 
 After `new` writes the repo, it prints the command that makes the same repo:
 

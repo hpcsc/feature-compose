@@ -5,21 +5,13 @@ type rowKind int
 const (
 	nameKind rowKind = iota
 	starterKind
-	groupKind
-	featureKind
+	featuresKind
 	optionKind
-)
-
-type group string
-
-const (
-	optionsGroup  group = "options"
-	featuresGroup group = "features"
+	writeKind
 )
 
 type row struct {
 	kind    rowKind
-	group   group
 	feature string
 	option  string
 }

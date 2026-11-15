@@ -362,9 +362,9 @@ CLI with `BUILD_TAG`. `runCli` and `openCli` give the CLI a config file that nam
 `XDG_CONFIG_HOME`, and a test can give another `XDG_CONFIG_HOME` in its `env`.
 
 No feature of the catalog of this repo sets a value in a need. So the tests of a need value, the source
-`need of <features>`, the stop of a flag against a need and the mark `fixed` of the form, write a catalog to a
-scratch folder: a starter `service`, a feature `auth` with the option `method`, and a feature `client` whose
-need sets `method: api-key`. `needValueHome` gives them a config folder that names that catalog.
+`need of <features>`, the stop of a flag against a need and the text `from the need of <features>` in the form,
+write a catalog to a scratch folder: a starter `service`, a feature `auth` with the option `method`, and a feature
+`client` whose need sets `method: api-key`. `needValueHome` gives them a config folder that names that catalog.
 
 The Docker image has two stages:
 

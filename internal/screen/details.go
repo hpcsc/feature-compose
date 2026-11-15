@@ -62,7 +62,7 @@ type Section struct {
 }
 
 func (s Section) lines(width int) []string {
-	lines := Wrapped(headingStyle.Render(s.Heading), width)
+	lines := Wrapped(HeadingStyle.Render(s.Heading), width)
 	if len(s.Entries) == 0 {
 		return append(lines, "  "+NoneStyle.Render(s.None))
 	}

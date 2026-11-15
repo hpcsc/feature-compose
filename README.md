@@ -118,7 +118,7 @@ flowchart LR
    ```
 
 6. Make the repo. In a terminal, `new` opens a form, where you can select more features and change the
-   answers. `w` shows the preview, and `y` writes the repo:
+   answers. The button `Write the repo` shows the preview, and Enter writes the repo:
 
    ```shell
    feature-compose new go my-tool --feature cli

@@ -193,8 +193,8 @@ options:
 
 While the `when` is false, the option does not apply:
 
-- The tool asks no question for it, and the form of `new` shows no row for it.
-- It has its default, also when the form keeps another value for it. That value comes back when the `when` is true
+- The tool asks no question for it, and the form of `new` shows no field for it.
+- It has its default, also when you gave it another value in the form. That value comes back when the `when` is true
   again.
 - An option with no default is not missing.
 - A flag or a need that gives it its default is accepted. A flag or a need that gives it another value stops `new`,

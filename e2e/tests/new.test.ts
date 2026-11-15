@@ -992,18 +992,22 @@ describe('feature-compose new in a terminal', () => {
       await session.press(key as Parameters<typeof session.press>[0])
     }
   }
+  const toButton = Array(12).fill('tab')
+  const wordsOf = (screen: string) => screen.replace(/│/g, ' ').replace(/\s+/g, ' ')
 
-  it('the form marks the values of the arguments and the flags as fixed and the needs as needed by, w shows the preview, ctrl+d scrolls it, esc goes back, and q cancels and writes nothing', async () => {
+  it('the form shows the values of the arguments and the flags with their source and the needs with needed by, the button shows the preview, ctrl+d scrolls it, esc goes back, and ctrl+c cancels and writes nothing', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', ...flags])
 
     await session.waitForText('needed by cli-auth', { timeout: 15_000 })
-    const tree = await session.text()
-    for (const part of ['name     my-service  fixed', 'starter  go-event-sourcing-service  fixed', 'go-version  1.28', '[x] cli-auth  fixed', '[x] api-auth  fixed, needed by cli-auth', '[x] cli  needed by cli-auth']) {
-      expect(tree).toContain(part)
+    const form = await session.text()
+    for (const part of ['name     my-service  from the command line', 'starter  go-event-sourcing-service  from the command line', 'go-version  1.28  from the command line']) {
+      expect(form).toContain(part)
     }
-    expect(tree).toMatch(/go-version {2}1\.28 {2}fixed/)
-    await session.press('w')
+    for (const part of [/\[x\] cli-auth +from the command line/, /\[x\] api-auth +from the command line, needed by cli-auth/, /\[x\] cli +needed by cli-auth/]) {
+      expect(form).toMatch(part)
+    }
+    await pressed(session, [...toButton, 'enter'])
     await session.waitForText('Write the repo?')
     const preview = await session.text()
     for (const part of ['Repo: my-service', 'cli-auth: command line', 'api-auth: command line, needed by cli-auth', 'cli: needed by cli-auth', 'starter.go-version: 1.28 (command line)']) {
@@ -1014,9 +1018,9 @@ describe('feature-compose new in a terminal', () => {
     }
     expect(await session.text()).toContain('go.mod: the starter')
     await session.press('escape')
-    await session.waitForText('name     my-service  fixed')
+    await session.waitForText('name     my-service  from the command line')
     expect(await session.text()).not.toContain('Write the repo?')
-    await session.press('q')
+    await session.press(['ctrl', 'c'])
     await session.waitForText('EXIT:1')
     expect(await session.text()).toContain('you canceled new, so it wrote no file')
     expect(readdirSync(dir)).toEqual([])
@@ -1027,51 +1031,48 @@ describe('feature-compose new in a terminal', () => {
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service'])
 
     await session.waitForText('[ ] cli-auth', { timeout: 15_000 })
-    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'j', 'j', 'j', 'space'])
-    await session.waitForText('[x] cli  needed by cli-auth')
-    expect(await session.text()).toContain('[x] api-auth  needed by cli-auth')
-    await pressed(session, ['k', 'k', 'k', 'space'])
+    await pressed(session, ['tab', 'tab', 'j', 'j', 'space'])
+    await session.waitForText(/\[x\] cli +needed by cli-auth/)
+    expect(await session.text()).toMatch(/\[x\] api-auth +needed by cli-auth/)
+    await pressed(session, ['k', 'k', 'space'])
     await session.waitForText('api-auth stays selected: it is needed by cli-auth.')
-    expect(await session.text()).toContain('[x] api-auth  needed by cli-auth')
-    await pressed(session, ['j', 'j', 'j', 'space'])
+    expect(await session.text()).toMatch(/\[x\] api-auth +needed by cli-auth/)
+    await pressed(session, ['j', 'j', 'space'])
     await session.waitForText('[ ] api-auth')
     const cleared = await session.text()
     expect(cleared).toContain('[ ] cli ')
     expect(cleared).toContain('[ ] cli-auth')
-    await pressed(session, ['k', 'space', 'w'])
+    await pressed(session, ['k', 'space', ...toButton, 'enter'])
     await session.waitForText('Write the repo?')
     expect(await session.text()).toContain('cli: answered')
-    await session.press('q')
+    await session.press(['ctrl', 'c'])
     await session.waitForText('EXIT:1')
     expect(readdirSync(dir)).toEqual([])
   })
 
-  it('with a feature whose need sets a value, the form marks the option as fixed with the source need of the feature, and enter at it starts no edit and names the feature', async () => {
+  it('with a feature whose need sets a value, the form shows the need as the source of the option, and the focus skips the option', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'service', 'my-service', '--feature', 'client'], { XDG_CONFIG_HOME: needValueHome() })
 
-    await session.waitForText('method  api-key  fixed', { timeout: 15_000 })
-    await pressed(session, ['j', 'j', 'j', 'j'])
-    await session.waitForText('source   need of client')
-    await session.press('enter')
-    await session.waitForText('The option method is fixed')
-    expect(detailsPaneOf(await session.text())).toContain('The option method is fixed: the need of client sets it.')
-    await session.press('q')
+    await session.waitForText('method  api-key  from the need of client', { timeout: 15_000 })
+    await session.press('tab')
+    await session.waitForText('▐ Write the repo ▌')
+    await session.press(['ctrl', 'c'])
     await session.waitForText('EXIT:1')
     expect(readdirSync(dir)).toEqual([])
   })
 
-  it('with a flag of another value than the need of a feature sets, space at the feature leaves it unselected, and the details name both sources', async () => {
+  it('with a flag of another value than the need of a feature sets, space at the feature leaves it unselected, and the message names both sources', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'service', 'my-service', '--feature', 'auth:method=oauth'], { XDG_CONFIG_HOME: needValueHome() })
 
-    await session.waitForText('method  oauth  fixed', { timeout: 15_000 })
-    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'space'])
+    await session.waitForText('method  oauth  from the command line', { timeout: 15_000 })
+    await pressed(session, ['j', 'space'])
     await session.waitForText('two values')
     const refused = await session.text()
     expect(refused).toContain('[ ] client')
-    expect(detailsPaneOf(refused)).toContain('"oauth" from the command line and "api-key" from the need of client')
-    await session.press('q')
+    expect(wordsOf(refused)).toContain('"oauth" from the command line and "api-key" from the need of client')
+    await session.press(['ctrl', 'c'])
     await session.waitForText('EXIT:1')
     expect(readdirSync(dir)).toEqual([])
   })
@@ -1080,96 +1081,87 @@ describe('feature-compose new in a terminal', () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'api-auth:method=oauth'])
 
-    await session.waitForText('method  oauth  fixed', { timeout: 15_000 })
-    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'j', 'j', 'j', 'j', 'space'])
-    await session.waitForText('[x] cli  needed by cli-auth')
+    await session.waitForText('method  oauth  from the command line', { timeout: 15_000 })
+    await pressed(session, ['tab', 'tab', 'j', 'j', 'space'])
+    await session.waitForText(/\[x\] cli +needed by cli-auth/)
     const selected = await session.text()
     expect(selected).toContain('[x] cli-auth')
     expect(selected).not.toContain('two values')
-    await session.press('q')
+    await session.press(['ctrl', 'c'])
     await session.waitForText('EXIT:1')
     expect(readdirSync(dir)).toEqual([])
   })
 
-  it('with --feature cli-auth, the tree shows store-key under cli-auth with api-key, hides it after the answer oauth, whose preview gives store-key its default, and shows it again after api-key', async () => {
+  it('with --feature cli-auth, the form shows store-key in the panel of cli-auth with api-key, hides it after the choice oauth, whose preview gives store-key its default, and shows it again after api-key', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth'])
 
     await session.waitForText('store-key  false', { timeout: 15_000 })
-    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'j', 'j', 'enter'])
-    await session.waitForText('▌api-key')
-    await pressed(session, ['j', 'enter'])
-    await session.waitForText('method  oauth')
+    await pressed(session, ['tab', 'tab', 'tab', 'j', 'space'])
+    await session.waitForText('› ● oauth')
     expect(await session.text()).not.toContain('store-key')
-    await session.press('w')
+    await pressed(session, [...toButton, 'enter'])
     await session.waitForText('Write the repo?')
     expect(await session.text()).toContain('cli-auth.store-key: false (default)')
     await session.press('escape')
-    await session.waitForText('method  oauth')
-    await pressed(session, ['enter', 'k', 'enter'])
+    await session.waitForText('▐ Write the repo ▌')
+    await pressed(session, ['up', 'k', 'space'])
     await session.waitForText('store-key  false')
-    expect(await session.text()).toContain('method  api-key')
-    await session.press('q')
+    expect(await session.text()).toContain('› ● api-key')
+    await session.press(['ctrl', 'c'])
     await session.waitForText('EXIT:1')
     expect(readdirSync(dir)).toEqual([])
   })
 
-  it('with --feature cli-auth, the method of api-auth is not fixed, enter lists api-key and oauth, and after oauth the preview names the answer and the files of oauth of cli-auth', async () => {
+  it('with --feature cli-auth, the method of api-auth is not fixed, its list chooses oauth, and the preview names the answer and the files of oauth of cli-auth', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth'])
 
     await session.waitForText('needed by cli-auth', { timeout: 15_000 })
-    expect(await session.text()).toMatch(/method {2}api-key +││/)
-    await pressed(session, ['j', 'j', 'j', 'j', 'j', 'j', 'j'])
-    await session.waitForText('source   default')
-    await session.press('enter')
-    await session.waitForText('▌api-key')
-    expect(detailsPaneOf(await session.text())).toContain('▌api-key oauth')
-    await session.press('j')
-    await session.waitForText('▌oauth')
-    await session.press('enter')
+    expect(await session.text()).toContain('method  api-key')
+    await pressed(session, ['tab', 'tab', 'tab'])
+    await session.waitForText('default api-key')
+    expect(await session.text()).toContain('› ● api-key')
+    await pressed(session, ['j', 'enter'])
     await session.waitForText('method  oauth')
-    await session.press('w')
+    await session.press('enter')
     await session.waitForText('Write the repo?')
     expect(await session.text()).toContain('api-auth.method: oauth (answered)')
     for (let i = 0; i < 20 && !(await session.text()).includes('internal/credential/login.go: the feature cli-auth'); i++) {
       await session.press(['ctrl', 'd'])
     }
     expect(await session.text()).toContain('internal/credential/login.go: the feature cli-auth')
-    await session.press('q')
+    await session.press(['ctrl', 'c'])
     await session.waitForText('EXIT:1')
     expect(readdirSync(dir)).toEqual([])
   })
 
-  it('enter at go-version edits it, the form refuses a text that does not match its pattern and keeps one that matches, and the preview shows it as answered next to the defaults', async () => {
+  it('go-version takes the typed text, the message under it refuses a text that does not match its pattern, and the preview shows the text that matches as answered next to the defaults', async () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth'])
 
     await session.waitForText('go-version  1.27.1', { timeout: 15_000 })
-    await pressed(session, ['j', 'j', 'j', 'enter'])
-    await session.waitForText('> 1.27.1')
     await pressed(session, Array(6).fill('backspace'))
     await session.type('1.20')
-    await session.waitForText('^1\\.(2[7-9]|[3-9][0-9])(\\.[0-9]+)?$')
-    await session.press('enter')
-    expect(await session.text()).toContain('> 1.20')
+    await session.waitForText('does not match its pattern')
+    expect(wordsOf(await session.text())).toContain('the value "1.20" of the option go-version does not match its pattern')
     await session.press('backspace')
     await session.type('8')
-    await session.press('enter')
     await session.waitForText('go-version  1.28')
-    await session.press('w')
+    expect(await session.text()).not.toContain('does not match its pattern')
+    await pressed(session, [...toButton, 'enter'])
     await session.waitForText('Write the repo?')
     const preview = await session.text()
     for (const part of ['starter.go-version: 1.28 (answered)', 'starter.module: github.com/hpcsc/my-service (default)', 'api-auth.method: api-key (default)']) {
       expect(preview).toContain(part)
     }
-    await session.press('q')
+    await session.press(['ctrl', 'c'])
     await session.waitForText('EXIT:1')
     expect(readdirSync(dir)).toEqual([])
   })
 
   it(
-    'with no argument, w selects the missing name, the form takes the name and the starter, the default of module follows the name, y writes the repo, and the printed command with --no-prompt makes the same files',
+    'with no argument, the button moves the focus to the missing name, the form takes the name and the starter, the default of module follows the name, enter at the preview writes the repo, and the printed command with --no-prompt makes the same files',
     async () => {
       const dir = scratchDir()
       const env = { MISE_TRUSTED_CONFIG_PATHS: realpathSync(dir) }
@@ -1177,26 +1169,25 @@ describe('feature-compose new in a terminal', () => {
       mkdirSync(join(dir, 'flags'))
       const session = await openCli(join(dir, 'tui'), ['new'], env)
 
-      await session.waitForText('starter    missing', { timeout: 15_000 })
-      await session.press('w')
+      await session.waitForText('Write the repo', { timeout: 15_000 })
+      await pressed(session, [...toButton, 'enter'])
       await session.waitForText('the name "" of the repo')
-      await session.press('enter')
       await session.type('my-service')
-      await session.press('enter')
       await session.waitForText('name     my-service')
-      await pressed(session, ['j', 'enter'])
+      await session.press('tab')
       await session.waitForText('A Go HTTP API with chi, whose routes are under /api.')
       await session.press('j')
-      await session.waitForText('A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow.')
+      await session.waitForText('› ○ go ')
+      expect(await session.text()).toContain('A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow.')
       await session.press('j')
-      await session.waitForText('A Go service with an event store, an HTTP API, and a catchup process.')
+      await session.waitForText('› ○ go-event-sourcing-service')
+      expect(await session.text()).toContain('A Go service with an event store, an HTTP API, and a catchup process.')
       await session.press('enter')
       await session.waitForText('go-version  1.27.1')
-      await pressed(session, ['j', 'j', 'j'])
-      await session.waitForText('github.com/hpcsc/my-service')
-      await pressed(session, ['j', 'j', 'j', 'j', 'space', 'w'])
+      expect(await session.text()).toContain('module      github.com/hpcsc/my-service')
+      await pressed(session, ['tab', 'tab', 'j', 'j', 'space', ...toButton, 'enter'])
       await session.waitForText('Write the repo?')
-      await session.press('y')
+      await session.press('enter')
       await session.waitForText('EXIT:0', { timeout: 14 * 60 * 1000 })
       expect(await session.text()).toContain('feature-compose new go-event-sourcing-service my-service --feature cli-auth')
 
@@ -1223,7 +1214,7 @@ describe('feature-compose new in a terminal', () => {
       await session.waitForText(/EXIT:\d+/, { timeout: 15_000 })
       const screen = await session.text()
       expect(screen).toContain('the output folder taken is not empty')
-      expect(screen).not.toContain('j/k move')
+      expect(screen).not.toContain('ctrl+c quit')
     })
   }
 
@@ -1234,7 +1225,7 @@ describe('feature-compose new in a terminal', () => {
     await session.waitForText('EXIT:0', { timeout: 15_000 })
     const screen = await session.text()
     expect(screen).toContain(': the starter')
-    expect(screen).not.toContain('j/k move')
+    expect(screen).not.toContain('ctrl+c quit')
     expect(readdirSync(dir)).toEqual([])
   })
 })
@@ -1624,14 +1615,6 @@ function tasksIn(list: string): string[] {
     .split('\n')
     .map((line) => /^\* (\S+?):(\s|$)/.exec(line)?.[1])
     .filter((name): name is string => name !== undefined)
-}
-
-function detailsPaneOf(screen: string): string {
-  return screen
-    .split('\n')
-    .map((line) => (line.split('││')[1] ?? '').replace(/│\s*$/, '').trim())
-    .join(' ')
-    .replace(/\s+/g, ' ')
 }
 
 async function commandsOfTheBuiltCLI(repo: string, name: string, env: Record<string, string>): Promise<string[]> {

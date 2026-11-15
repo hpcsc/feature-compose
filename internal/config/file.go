@@ -16,7 +16,7 @@ type File struct {
 }
 
 func Load() (File, error) {
-	path, err := filePath()
+	path, err := FilePath()
 	if err != nil {
 		return File{}, err
 	}
@@ -47,7 +47,7 @@ func Load() (File, error) {
 	return File{CatalogDir: catalogDir}, nil
 }
 
-func filePath() (string, error) {
+func FilePath() (string, error) {
 	if configHome := os.Getenv("XDG_CONFIG_HOME"); configHome != "" {
 		return filepath.Join(configHome, "feature-compose", "config.yml"), nil
 	}

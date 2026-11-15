@@ -1,0 +1,17 @@
+summary: A small repo with a README and a test script, to show how a starter works.
+
+options:
+  owner:
+    default: nobody
+    pattern: '^[a-z][a-z0-9-]*$'
+
+folders:
+  app:
+    path: .
+    test: [sh ./scripts/test.sh]
+
+extension_points:
+  readme.sections:
+    summary: A section of README.md, as Markdown that starts with a heading of the second level.
+    file: app/README.md
+    item: [text]

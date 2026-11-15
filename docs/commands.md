@@ -5,6 +5,7 @@
 | `feature-compose new [<starter> [<name>]]` | Makes a new repo from a starter and the features that you select. |
 | `feature-compose show [<starter>]` | Shows the starters, the features and the extension points of the catalog. |
 | `feature-compose check [--build]` | Finds the mistakes of the starters, the features and the templates of the catalog. With `--build`, it also makes the repo of each combination and runs its commands. |
+| `feature-compose init <folder>` | Writes a small catalog with one starter and one feature, as the start of a catalog of your own. |
 | `feature-compose version` | Prints the tag that the binary comes from, or its commit. |
 | `feature-compose update` | Replaces the binary with the latest release or prerelease. |
 
@@ -345,6 +346,40 @@ is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each
 | `features.<name>.extension_points.<name>.file` | The file of the feature that renders the items. |
 | `features.<name>.extension_points.<name>.item` | The fields of each item. |
 | `features.<name>.add_to.<name>` | The items that the feature adds to the extension point, each with the fields of that extension point. |
+
+## Start a Catalog
+
+`feature-compose init <folder>` writes a small catalog that works, as the start of a catalog of your own. The
+folder can hold other files, for example `README.md` and `.git`. When it already holds a file of the catalog,
+`init` stops, names the file, and writes no file.
+
+```shell
+feature-compose init my-catalog
+```
+
+The catalog has these files:
+
+| Path | What it holds |
+| --- | --- |
+| `starters/example/starter.yml` | The starter `example`, with the option `owner`, the folder `app`, and the extension point `readme.sections`. |
+| `starters/example/files/app/` | `README.md`, which writes the items of `readme.sections`, and `scripts/test.sh`, which runs each script in `tests/`. |
+| `features/greeting/feature.yml` | The feature `greeting`, with the option `language` (`en` or `fr`) and an item of `readme.sections`. |
+| `features/greeting/files/app/` | `scripts/greet`, which prints the greeting, and its test `tests/greeting.sh`. |
+| `.github/workflows/check.yml` | A GitHub workflow that installs the latest release of feature-compose and runs `check --catalog . --build` on each push. |
+
+Then `init` prints the commands that try the catalog, and the line of the config file that makes it the catalog
+of `new`, `show` and `check`:
+
+```text
+Made a catalog in my-catalog with the starter example and the feature greeting. Try it:
+  feature-compose show --catalog my-catalog
+  feature-compose new --catalog my-catalog example my-repo --feature greeting --dry-run
+  feature-compose check --catalog my-catalog --build
+To use it with no --catalog, write this line in /home/me/.config/feature-compose/config.yml:
+  catalog: /home/me/my-catalog
+```
+
+Change the starter and the feature into your own, or keep them as an example next to your own.
 
 ## Check the Catalog
 

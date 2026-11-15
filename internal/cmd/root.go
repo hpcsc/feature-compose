@@ -34,6 +34,7 @@ func newCommand() *cli.Command {
 			newNewCommand(catalogInConfig, version.Current()),
 			newShowCommand(catalogInConfig),
 			newCheckCommand(catalogInConfig),
+			newInitCommand(),
 			newVersionCommand(),
 			newUpdateCommand(),
 		},

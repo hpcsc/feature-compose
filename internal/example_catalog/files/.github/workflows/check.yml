@@ -1,0 +1,18 @@
+name: Check the catalog
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install feature-compose
+        run: sh <(curl -fsSL https://raw.githubusercontent.com/hpcsc/feature-compose/main/scripts/install.sh) --channel release --dir "$HOME/.local/bin"
+
+      - name: Find the mistakes of the catalog, and make and test the repo of each combination
+        run: feature-compose check --catalog . --build

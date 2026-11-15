@@ -1,0 +1,17 @@
+summary: A script scripts/greet that prints a greeting in the language of the option language.
+targets: [example]
+
+options:
+  language:
+    values: [en, fr]
+    default: en
+
+files:
+  - path: files/
+
+add_to:
+  readme.sections:
+    - text: |-
+        ## Greeting
+
+        Run `scripts/greet` to print a greeting.

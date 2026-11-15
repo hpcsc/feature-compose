@@ -55,6 +55,9 @@ jobs:
     - name: Install Task
       run: go install github.com/go-task/task/v3/cmd/task@v3.53.1
 
+    - name: Install gotestsum
+      run: go install gotest.tools/gotestsum@v1.13.0
+
     - name: Make and test the repo of each combination of the catalog
       run: task test:combinations
 

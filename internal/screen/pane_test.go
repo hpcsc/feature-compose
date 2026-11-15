@@ -36,6 +36,12 @@ func TestPane(t *testing.T) {
 		require.Equal(t, []string{"╭─  ────╮", "│ one   │", "│       │", "│       │", "╰───────╯"}, linesOf(pane.View()))
 	})
 
+	t.Run("shows its count at the right of its top border", func(t *testing.T) {
+		pane := screen.Pane{Title: "Repo", Count: "1 of 2", Width: 20, Height: 3, Border: screen.PlainBorder}
+
+		require.Equal(t, "╭─ Repo ── 1 of 2 ─╮", linesOf(pane.View())[0])
+	})
+
 	t.Run("shows its note at the right of its bottom border", func(t *testing.T) {
 		pane := screen.Pane{Note: "50%", Width: 20, Height: 3, Border: screen.PlainBorder}
 

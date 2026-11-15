@@ -370,7 +370,7 @@ The Docker image has two stages:
 
 ```mermaid
 flowchart LR
-    subgraph builder["stage 1: golang:1.27.1"]
+    subgraph builder["stage 1: golang:1.27.4"]
         G["go build, with releaseTag set to v0.1.0"] --> BIN[/"feature-compose binary"/]
         I["go install task, gotestsum and goreleaser"] --> TOOLS[/"task, gotestsum, goreleaser"/]
         GO[/"Go in /usr/local/go"/]

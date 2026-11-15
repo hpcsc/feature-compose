@@ -1,4 +1,4 @@
-FROM golang:1.27.1 AS builder
+FROM golang:1.27.4 AS builder
 # go.mod can ask for a newer Go patch release than the image has
 ENV GOTOOLCHAIN=auto
 WORKDIR /src

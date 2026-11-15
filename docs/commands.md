@@ -4,7 +4,7 @@
 | --- | --- |
 | `feature-compose new [<starter> [<name>]]` | Makes a new repo from a starter and the features that you select. |
 | `feature-compose show [<starter>]` | Shows the starters, the features and the extension points of the catalog. |
-| `feature-compose check` | Finds the mistakes of the starters, the features and the templates of the catalog. |
+| `feature-compose check [--build]` | Finds the mistakes of the starters, the features and the templates of the catalog. With `--build`, it also makes the repo of each combination and runs its commands. |
 | `feature-compose version` | Prints the tag that the binary comes from, or its commit. |
 | `feature-compose update` | Replaces the binary with the latest release or prerelease. |
 
@@ -421,3 +421,41 @@ with the status 1. With no mistake, it prints
 `The catalog has no mistakes.` and exits with the status 0. A catalog that `check` cannot read, for example a
 `starter.yml` that is not valid YAML, stops `check` with the message that `new` and `show` give, and the exit
 status is 1.
+
+### Make the Repo of Each Combination
+
+`check` reads the files, but it does not make a repo. A template can parse and still give a repo that does not
+build. `check --build` finds this mistake. When the catalog has no mistake, `check --build` makes the repo of each
+combination of the catalog in a temporary folder. In each repo, it runs the `after_render` commands and then the
+`test` commands of each folder. These are the combinations:
+
+- Each starter alone
+- Each starter with each feature that targets it, and the needs of the feature
+- One for each value of an option that has `values`, with the other options at their defaults
+- One for each value of an option that has `values` of a feature that a feature needs, with both features. The
+  option of the need has that value, and each other option of the need has the value that the needs of the feature
+  and of its own needs set, or its default. A value that these needs set gives no such combination, and a need of a
+  need gives none. When two of these needs set two values of one option, the feature gets no such combination.
+- Each pair of features that add items to one extension point, except a pair in which one feature needs the
+  other: the repo of that feature already holds both
+
+```shell
+feature-compose check --catalog . --build
+```
+
+```text
+The catalog has no mistakes.
+The catalog has 3 combinations. Make the repo of each, and run its after_render and test commands.
+[1/3] ok    example (0s)
+[2/3] ok    example --feature greeting:language=en (0s)
+[3/3] FAIL  example --feature greeting:language=fr (0s)
+      the test command "sh ./scripts/test.sh" of the folder app failed: exit status 1
+      tests/greeting.sh: the greeting is "Hello, my-repo!", not "Bonjour, my-repo!"
+```
+
+Each line names the combination as the arguments of `new` that make the same repo, so you can make it again to
+find the cause. The repo of each combination is `my-repo`. `check` removes the temporary folder when it ends. When
+a combination fails, `check` goes on with the next one, and then exits with the status 1 and names each combination
+that failed. Each repo takes as long as its commands: for a Go repo, some seconds when the Go module cache has its
+modules, and some minutes when it does not. The catalog gives the list, so a new starter, feature or value needs no
+change to the CI of the catalog.

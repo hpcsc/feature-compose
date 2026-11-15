@@ -9,6 +9,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -222,7 +224,76 @@ the feature cli: the file "go/cli.go" of the extension point "cli.commands" does
 		})
 	})
 
+	t.Run("build", func(t *testing.T) {
+		withCommands := func(afterRender string) fstest.MapFS {
+			return fstest.MapFS{
+				"starters/service/starter.yml":         &fstest.MapFile{Data: []byte("folders:\n  app:\n    path: .\n    after_render: [" + afterRender + "]\n    test: [grep -q my-repo README.md, test ! -f broken.txt]\n")},
+				"starters/service/files/app/README.md": &fstest.MapFile{Data: []byte("# {{ .Name }}\n")},
+			}
+		}
+		withBroken := func() fstest.MapFS {
+			files := withCommands("test -f README.md")
+			files["features/broken/feature.yml"] = &fstest.MapFile{Data: []byte("targets: [service]\nfiles:\n  - path: files/\n")}
+			files["features/broken/files/app/broken.txt"] = &fstest.MapFile{Data: []byte("broken\n")}
+			return files
+		}
+		durations := regexp.MustCompile(`\(\d+s\)`)
+
+		t.Run("--build makes the repo of each combination and runs its commands, prints FAIL with the error of the command that fails, and stops with an error that names each combination that fails", func(t *testing.T) {
+			printed, err := runCheck(t, withBroken(), "--build")
+
+			require.EqualError(t, err, "1 of 2 combinations failed:\n  service --feature broken")
+			require.Equal(t, `The catalog has no mistakes.
+The catalog has 2 combinations. Make the repo of each, and run its after_render and test commands.
+[1/2] ok    service (…)
+[2/2] FAIL  service --feature broken (…)
+      the test command "test ! -f broken.txt" of the folder app failed: exit status 1
+`, durations.ReplaceAllString(printed, "(…)"))
+		})
+
+		t.Run("--build says that each repo passes, and stops with no error, when each command passes", func(t *testing.T) {
+			printed, err := runCheck(t, withCommands("test -f README.md"), "--build")
+
+			require.NoError(t, err)
+			require.Equal(t, `The catalog has no mistakes.
+The catalog has 1 combination. Make the repo of each, and run its after_render and test commands.
+[1/1] ok    service (…)
+The repo of each combination passes its commands.
+`, durations.ReplaceAllString(printed, "(…)"))
+		})
+
+		t.Run("--build removes the repo of each combination when it ends", func(t *testing.T) {
+			folderFile := filepath.Join(t.TempDir(), "folder")
+
+			_, err := runCheck(t, withCommands("pwd > "+folderFile), "--build")
+
+			require.NoError(t, err)
+			folder, err := os.ReadFile(folderFile)
+			require.NoError(t, err)
+			require.NoDirExists(t, strings.TrimSpace(string(folder)))
+		})
+
+		t.Run("--build with a mistake prints the mistakes and makes no repo", func(t *testing.T) {
+			madeFile := filepath.Join(t.TempDir(), "made")
+			files := withCommands("touch " + madeFile)
+			files["features/tools/feature.yml"] = &fstest.MapFile{Data: []byte("targets: [service]\nadd_to:\n  cli.commands:\n    - code: newToolsCommand()\n")}
+
+			_, err := runCheck(t, files, "--build")
+
+			require.EqualError(t, err, "the catalog has 1 mistake")
+			require.NoFileExists(t, madeFile)
+		})
+	})
+
 	t.Run("help", func(t *testing.T) {
+		t.Run("--help names --build and what it does", func(t *testing.T) {
+			printed, err := runCheck(t, withFeatures(nil), "--help")
+
+			require.NoError(t, err)
+			require.Contains(t, printed, "--build")
+			require.Contains(t, printed, "also make the repo of each combination of the catalog in a temporary folder, and run its after_render and test commands")
+		})
+
 		t.Run("--help names --catalog and the folder that it checks", func(t *testing.T) {
 			printed, err := runCheck(t, withFeatures(nil), "--help")
 

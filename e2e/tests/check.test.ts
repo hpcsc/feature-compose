@@ -9,6 +9,26 @@ function writeFile(path: string, contents: string): void {
 }
 
 describe('feature-compose check', () => {
+  it('with --build, makes the repo of each combination, runs its commands, names each combination whose command fails, and exits with 1', async () => {
+    const catalogDir = scratchDir()
+    writeFile(join(catalogDir, 'starters', 'service', 'starter.yml'), 'folders:\n  app:\n    path: .\n    test: [grep -q my-repo README.md, test ! -f broken.txt]\n')
+    writeFile(join(catalogDir, 'starters', 'service', 'files', 'app', 'README.md'), '# {{ .Name }}\n')
+    writeFile(join(catalogDir, 'features', 'broken', 'feature.yml'), 'targets: [service]\nfiles:\n  - path: files/\n')
+    writeFile(join(catalogDir, 'features', 'broken', 'files', 'app', 'broken.txt'), 'broken\n')
+
+    const result = await runCli(scratchDir(), ['check', '--catalog', catalogDir, '--build'])
+
+    expect(result.status).toBe(1)
+    expect(result.stdout.replace(/\(\d+s\)/g, '(…)')).toBe(
+      'The catalog has no mistakes.\n' +
+        'The catalog has 2 combinations. Make the repo of each, and run its after_render and test commands.\n' +
+        '[1/2] ok    service (…)\n' +
+        '[2/2] FAIL  service --feature broken (…)\n' +
+        '      the test command "test ! -f broken.txt" of the folder app failed: exit status 1\n',
+    )
+    expect(result.stderr).toBe('1 of 2 combinations failed:\n  service --feature broken\n')
+  })
+
   it('finds no mistake in the catalog of this repo, and exits with 0', async () => {
     const result = await runCli(scratchDir(), ['check'])
 

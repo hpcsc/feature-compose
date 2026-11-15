@@ -10,8 +10,12 @@ tasks:
 
   combinations:
     desc: Make the repo of each combination of the catalog, and run its after_render and test commands
+    env:
+      # mise refuses the mise.toml of each repo in the temporary folder until the real path of that folder is trusted
+      MISE_TRUSTED_CONFIG_PATHS:
+        sh: cd "${TMPDIR:-/tmp}" && pwd -P
     cmds:
-      - gotestsum --format testname -- -tags=combinations -count=1 -timeout=60m ./internal/catalog/
+      - go run ./cmd/feature-compose check --catalog catalog --build
 
   catalog:
     desc: Check the starters, the features and the templates of the catalog in catalog/

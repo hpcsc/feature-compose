@@ -378,5 +378,6 @@ that it cannot read, or that does not parse.
 [What Each Command of feature-compose Does](commands.md#check-the-catalog) lists each mistake that it finds.
 Run it in the CI of the catalog, so that a mistake stops before somebody runs `new`.
 
-`check` reads the files, but it does not build a repo. To find a template that does not build, make a repo of
-each combination and run its commands. This repo does this with `task test:combinations`.
+`check` reads the files, but it does not make a repo. To find a template that does not build, run
+`check --build`. It makes the repo of each combination and runs its commands.
+[Make the Repo of Each Combination](commands.md#make-the-repo-of-each-combination) lists the combinations.

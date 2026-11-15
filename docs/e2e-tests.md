@@ -376,7 +376,7 @@ flowchart LR
         GO[/"Go in /usr/local/go"/]
     end
     subgraph runner["stage 2: node:24-trixie-slim"]
-        APT["apt-get install python3 make g++ git"] --> NPM["npm ci"]
+        APT["apt-get install python3 make g++ git ca-certificates"] --> NPM["npm ci"]
         NPM --> RUN["npx vitest run"]
         CAT[/"catalog/ in /catalog"/] --> RUN
     end
@@ -386,7 +386,8 @@ flowchart LR
 ```
 
 `python3`, `make` and `g++` let npm build node-pty when no prebuilt node-pty fits the platform. `g++` also
-brings `gcc`, the C compiler that `go test -race` needs, and GoReleaser needs `git`. The runner stage copies Go,
+brings `gcc`, the C compiler that `go test -race` needs, and GoReleaser needs `git`. `go mod tidy` of a new repo
+needs `ca-certificates` to trust the TLS certificate of the Go module proxy. The runner stage copies Go,
 Task, gotestsum and GoReleaser from stage 1 for [the full run of `new`](#the-full-run-of-new). The image runs `npm ci` when
 `e2e/package-lock.json` is in the repository, and `npm install` when it is not. Commit the lock file, so
 every run installs the same packages.

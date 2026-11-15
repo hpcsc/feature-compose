@@ -17,9 +17,10 @@ RUN CGO_ENABLED=0 go build -ldflags "-X github.com/hpcsc/feature-compose/interna
 FROM node:24-trixie-slim
 # python3, make and g++ build node-pty when no prebuilt node-pty fits the platform. g++ also brings the
 # C compiler that the -race flag of a new repo's task test:unit needs. GoReleaser stops when no git is on
-# the PATH, also outside a git repository.
+# the PATH, also outside a git repository. go mod tidy of a new repo needs ca-certificates to trust the
+# module proxy, and --no-install-recommends drops it from the packages that git recommends.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 make g++ git \
+    && apt-get install -y --no-install-recommends python3 make g++ git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /usr/local/go /usr/local/go
 COPY --from=builder /go/bin/task /go/bin/gotestsum /go/bin/goreleaser /usr/local/bin/

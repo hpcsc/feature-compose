@@ -6,6 +6,8 @@
 | `feature-compose show [<starter>]` | Shows the starters, the features and the extension points of the catalog. |
 | `feature-compose check [--build]` | Finds the mistakes of the starters, the features and the templates of the catalog. With `--build`, it also makes the repo of each combination and runs its commands. |
 | `feature-compose init <folder>` | Writes a small catalog with one starter and one feature, as the start of a catalog of your own. |
+| `feature-compose add starter <name>` | Adds a starter to the catalog, with a `starter.yml` to fill in. |
+| `feature-compose add feature <name> --target <starter>` | Adds a feature to the catalog, with a `feature.yml` to fill in. |
 | `feature-compose version` | Prints the tag that the binary comes from, or its commit. |
 | `feature-compose update` | Replaces the binary with the latest release or prerelease. |
 
@@ -380,6 +382,37 @@ To use it with no --catalog, write this line in /home/me/.config/feature-compose
 ```
 
 Change the starter and the feature into your own, or keep them as an example next to your own.
+
+## Add a Starter or a Feature
+
+`add` writes the files of a new starter or feature, with comments that show the fields to fill in. `check` finds
+no mistake in them, and `check --build` passes on their repos, so you can try each change that you make. `add`
+writes to the catalog folder of the config file, or to the folder that `--catalog` gives. When the catalog already
+has the starter or the feature, `add` stops and writes no file.
+
+```shell
+feature-compose add starter service
+feature-compose add feature metrics --target service --target example
+```
+
+`add starter <name>` writes these files:
+
+| Path | What it holds |
+| --- | --- |
+| `starters/<name>/starter.yml` | A summary to change, the folder `app` with the path `.`, and the fields `options`, `after_render`, `test` and `extension_points` as comments. |
+| `starters/<name>/files/app/README.md` | A heading with the name of the repo. |
+
+`add feature <name> --target <starter>` writes these files. Give `--target` one time for each starter that the
+feature targets. A target that is not a starter of the catalog stops `add`, and the message lists the starters.
+
+| Path | What it holds |
+| --- | --- |
+| `features/<name>/feature.yml` | A summary to change, the targets, a files entry, and the fields `needs` and `options` as comments. A comment lists the extension points of each target with the fields of an item, and gives an `add_to` example with an extension point that each target declares. |
+| `features/<name>/files/<folder>/docs/<name>.md` | A file to change into the files of the feature. `<folder>` is the first folder, in the order of the names, that each target has. When no folder is in each target, `add` writes no file and no files entry, and a comment in `feature.yml` says why. |
+
+The name of a starter or a feature must start with a lowercase letter or a digit, and hold only lowercase letters,
+digits and `-`. Then `add` prints the files that it wrote, and the commands of `new --dry-run` and `check --build`
+that try the starter or the feature.
 
 ## Check the Catalog
 

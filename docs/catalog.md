@@ -3,7 +3,9 @@
 A catalog is a folder with two parts: `starters/` and `features/`. Each starter is the base of one kind of
 repo. Each feature is a part that a repo can add. This document tells how to write both. The catalog of this
 repo, in `catalog/`, has an example of each part. To start a catalog of your own, run
-`feature-compose init <folder>`: it writes a small catalog with one starter and one feature that work.
+`feature-compose init <folder>`: it writes a small catalog with one starter and one feature that work. Then
+`feature-compose add starter <name>` and `feature-compose add feature <name> --target <starter>` write the files of
+a new starter or feature, with comments that show the fields to fill in.
 
 ## The Folders of a Catalog
 

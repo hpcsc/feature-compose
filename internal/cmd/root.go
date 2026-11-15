@@ -35,6 +35,7 @@ func newCommand() *cli.Command {
 			newShowCommand(catalogInConfig),
 			newCheckCommand(catalogInConfig),
 			newInitCommand(),
+			newAddCommand(catalogDirInConfig),
 			newVersionCommand(),
 			newUpdateCommand(),
 		},
@@ -53,11 +54,19 @@ func newVersionCommand() *cli.Command {
 }
 
 func catalogInConfig() (catalog.Catalog, error) {
-	file, err := config.Load()
+	catalogDir, err := catalogDirInConfig()
 	if err != nil {
 		return catalog.Catalog{}, err
 	}
-	return catalog.New(os.DirFS(file.CatalogDir)), nil
+	return catalog.New(os.DirFS(catalogDir)), nil
+}
+
+func catalogDirInConfig() (string, error) {
+	file, err := config.Load()
+	if err != nil {
+		return "", err
+	}
+	return file.CatalogDir, nil
 }
 
 func writeError(w io.Writer, err error) {

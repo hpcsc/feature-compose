@@ -19,9 +19,24 @@ func catalogToRead(cmd *cli.Command, load func() (catalog.Catalog, error)) (cata
 	if catalogDir == "" {
 		return load()
 	}
-	info, err := os.Stat(catalogDir)
-	if err != nil || !info.IsDir() {
-		return catalog.Catalog{}, fmt.Errorf("the catalog folder %s is not a folder", catalogDir)
+	if err := checkCatalogFolder(catalogDir); err != nil {
+		return catalog.Catalog{}, err
 	}
 	return catalog.New(os.DirFS(catalogDir)), nil
+}
+
+func catalogDirOf(cmd *cli.Command, configured func() (string, error)) (string, error) {
+	catalogDir := cmd.String(catalogFlagName)
+	if catalogDir == "" {
+		return configured()
+	}
+	return catalogDir, checkCatalogFolder(catalogDir)
+}
+
+func checkCatalogFolder(catalogDir string) error {
+	info, err := os.Stat(catalogDir)
+	if err != nil || !info.IsDir() {
+		return fmt.Errorf("the catalog folder %s is not a folder", catalogDir)
+	}
+	return nil
 }

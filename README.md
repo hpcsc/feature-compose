@@ -129,6 +129,10 @@ flowchart LR
 `new` writes the repo to `./my-tool`, and then runs the commands of the starter, for example `go mod tidy`.
 After the form, it also prints the command that makes the same repo again.
 
+To make a catalog of your own, start with `feature-compose init my-catalog`.
+[Start a Catalog and Write Its First Feature, Step by Step](docs/start-a-catalog.md) goes from an empty folder to a
+feature that `check --build` tests.
+
 ## The Catalog of This Repo
 
 | Starter | What the repo gets |
@@ -151,6 +155,7 @@ After the form, it also prints the command that makes the same repo again.
 | --- | --- |
 | [Install feature-compose and Point It at a Catalog](docs/install-and-configure.md) | The options of the installer, the config file, and the update of the tool |
 | [What Each Command of feature-compose Does](docs/commands.md) | `new`, its preview and its form, `show`, `check`, `version` and `update` |
+| [Start a Catalog and Write Its First Feature, Step by Step](docs/start-a-catalog.md) | `init`, `add`, `check` and `check --build`, from an empty folder to a tested feature |
 | [Write the Starters and the Features of a Catalog](docs/catalog.md) | The folders of a catalog, `starter.yml`, `feature.yml`, options, needs, extension points and templates |
 | [Build, Test and Release feature-compose](docs/development.md) | The tasks of this repo, the test of the combinations of the catalog, and the releases |
 | [How the end-to-end tests work](docs/e2e-tests.md) | The tests that run the binary in a terminal |

@@ -6,6 +6,7 @@ repo, in `catalog/`, has an example of each part. To start a catalog of your own
 `feature-compose init <folder>`: it writes a small catalog with one starter and one feature that work. Then
 `feature-compose add starter <name>` and `feature-compose add feature <name> --target <starter>` write the files of
 a new starter or feature, with comments that show the fields to fill in.
+[Start a Catalog and Write Its First Feature, Step by Step](start-a-catalog.md) goes through these commands.
 
 ## The Folders of a Catalog
 

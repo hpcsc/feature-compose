@@ -59,7 +59,24 @@ func catalogDetails(definitions catalog.Definitions, r row, width int) string {
 			features.Entries = append(features.Entries, screen.Entry{Name: shortName(name), Summary: definitions.Features[name].Summary})
 		}
 	}
-	return screen.Details("", width, starters, features)
+	origin := definitions.Catalogs[r.catalog]
+	path, ref, commit := origin.Path, origin.Ref, origin.Commit
+	if path == "" {
+		path = "the root of the source"
+	}
+	switch {
+	case commit == "":
+		ref, commit = "none: a local folder", "none: a local folder"
+	case ref == "":
+		ref = "the default branch"
+	}
+	source := screen.Entry{Fields: []screen.Field{
+		{Label: "source", Values: []string{origin.Source}},
+		{Label: "path", Values: []string{path}},
+		{Label: "ref", Values: []string{ref}},
+		{Label: "commit", Values: []string{commit}},
+	}}
+	return strings.Join(append(source.Lines(width), ""), "\n") + "\n" + screen.Details("", width, starters, features)
 }
 
 func starterDetails(starter catalog.StarterDefinition, width int) string {

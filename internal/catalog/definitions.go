@@ -110,6 +110,7 @@ func (f FeatureDefinition) withFullNames(origin Origin) FeatureDefinition {
 }
 
 type Definitions struct {
+	Catalogs map[string]Origin            `json:"catalogs,omitempty"`
 	Starters map[string]StarterDefinition `json:"starters"`
 	Features map[string]FeatureDefinition `json:"features"`
 }
@@ -126,7 +127,13 @@ func (d Definitions) ForStarter(name string) (Definitions, error) {
 			features[featureName] = f
 		}
 	}
-	return Definitions{Starters: map[string]StarterDefinition{starterName: starter}, Features: features}, nil
+	narrowed := Definitions{Starters: map[string]StarterDefinition{starterName: starter}, Features: features}
+	if catalogName, _ := SplitFullName(starterName); catalogName != "" {
+		if origin, ok := d.Catalogs[catalogName]; ok {
+			narrowed.Catalogs = map[string]Origin{catalogName: origin}
+		}
+	}
+	return narrowed, nil
 }
 
 func nonNil[T any](values []T) []T {

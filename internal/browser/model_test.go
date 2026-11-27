@@ -65,6 +65,10 @@ func TestModel(t *testing.T) {
 
 	named := func() catalog.Definitions {
 		return catalog.Definitions{
+			Catalogs: map[string]catalog.Origin{
+				"hpcsc": {Name: "hpcsc", Source: "https://github.com/hpcsc/feature-compose", Path: "catalog", Commit: "2868ee8c1f0e4b6a9d3e2f7a5b1c0d9e8f7a6b5c"},
+				"team":  {Name: "team", Source: "/code/team-catalog"},
+			},
 			Starters: map[string]catalog.StarterDefinition{
 				"hpcsc/api": {Summary: "An API.", ExtensionPoints: map[string]catalog.ExtensionPointDefinition{
 					"api.middleware": {Summary: "A middleware.", File: "go/main.go", Item: []string{"code"}},
@@ -595,7 +599,15 @@ Extension points that it adds items to
 
 			_, title := paneTitlesOf(m)
 			require.Equal(t, "the catalog hpcsc", title)
-			require.Equal(t, "Starters\n  api     An API.\n  worker  A worker.\n\nFeatures\n  auth  Auth.\n  log   Logs.", detailsOf(m))
+			require.Equal(t, "source  https://github.com/hpcsc/feature-compose\npath    catalog\nref     the default branch\ncommit  2868ee8c1f0e4b6a9d3e2f7a5b1c0d9e8f7a6b5c\n\nStarters\n  api     An API.\n  worker  A worker.\n\nFeatures\n  auth  Auth.\n  log   Logs.", detailsOf(m))
+		})
+
+		t.Run("the details of a catalog from a local folder say that it has no ref and no commit", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), "j", "j", "j", "j", "j", "j", "j")
+
+			_, title := paneTitlesOf(m)
+			require.Equal(t, "the catalog team", title)
+			require.Equal(t, []string{"source  /code/team-catalog", "path    the root of the source", "ref     none: a local folder", "commit  none: a local folder"}, strings.Split(detailsOf(m), "\n")[:4])
 		})
 
 		t.Run("the details of a feature name its needs with the names that the catalog gives them", func(t *testing.T) {

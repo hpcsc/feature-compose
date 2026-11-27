@@ -3,11 +3,11 @@ package catalog
 import "strings"
 
 type Origin struct {
-	Name   string `yaml:"name"`
-	Source string `yaml:"source"`
-	Path   string `yaml:"path,omitempty"`
-	Ref    string `yaml:"ref,omitempty"`
-	Commit string `yaml:"commit,omitempty"`
+	Name   string `json:"name" yaml:"name"`
+	Source string `json:"source" yaml:"source"`
+	Path   string `json:"path" yaml:"path,omitempty"`
+	Ref    string `json:"ref" yaml:"ref,omitempty"`
+	Commit string `json:"commit" yaml:"commit,omitempty"`
 }
 
 func (o Origin) fullName(name string) string {

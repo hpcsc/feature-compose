@@ -111,6 +111,33 @@ func TestCatalogs(t *testing.T) {
 	})
 
 	t.Run("definitions", func(t *testing.T) {
+		t.Run("give the origin of each named catalog", func(t *testing.T) {
+			definitions, err := twoCatalogs().Definitions()
+
+			require.NoError(t, err)
+			require.Equal(t, map[string]catalog.Origin{
+				"hpcsc": {Name: "hpcsc", Source: "https://example.com/hpcsc.git", Ref: "main", Commit: "0123abc"},
+				"team":  {Name: "team", Source: "https://example.com/team.git", Ref: "main", Commit: "0123abc"},
+			}, definitions.Catalogs)
+		})
+
+		t.Run("for one starter, give only the origin of its catalog", func(t *testing.T) {
+			definitions, err := twoCatalogs().Definitions()
+			require.NoError(t, err)
+
+			worker, err := definitions.ForStarter("team/worker")
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"team"}, slices.Sorted(maps.Keys(worker.Catalogs)))
+		})
+
+		t.Run("a catalog with no name gives no origin", func(t *testing.T) {
+			definitions, err := catalog.NewCatalogs(catalog.New(fstest.MapFS{"starters/service/starter.yml": &fstest.MapFile{Data: []byte("summary: A service.\n")}})).Definitions()
+
+			require.NoError(t, err)
+			require.Nil(t, definitions.Catalogs)
+		})
+
 		t.Run("give the full name of each starter, feature, target and need", func(t *testing.T) {
 			definitions, err := twoCatalogs().Definitions()
 

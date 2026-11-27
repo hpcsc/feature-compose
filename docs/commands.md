@@ -339,7 +339,8 @@ the option region of the starter service has no default and no value: give it wi
 
   With the catalogs of the config file, the tree puts the starters of each catalog under the name of the catalog.
   In a catalog, the tree and the details give each starter and each feature the name that the catalog gives it,
-  for example `go` and `cli`, with no catalog name. The details of a catalog list its starters and its features.
+  for example `go` and `cli`, with no catalog name. The details of a catalog give its source, its path, its ref
+  and its commit, and list its starters and its features.
   The header counts the catalogs, the starters and the features. A catalog from `--catalog <folder>` has no name,
   so the tree has no row for it.
 - **JSON, for a script.** `--output json` prints the catalog as JSON. When stdin or stdout is not a terminal,
@@ -393,6 +394,7 @@ is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each
 
 | Field | Meaning |
 | --- | --- |
+| `catalogs.<name>.source`, `path`, `ref`, `commit` | The source, the path, the ref and the commit of each catalog of the config file, as `.feature-compose.yml` records them. An empty `ref` is the default branch. A local folder has an empty `ref` and `commit`. A catalog from `--catalog <folder>` has no name, so the JSON has no `catalogs`. |
 | `starters.<name>.summary` | One sentence about what a repo from the starter gets. |
 | `starters.<name>.folders.<name>.path` | The path of the folder in the repo. |
 | `starters.<name>.folders.<name>.after_render` | The commands that run in the folder after the tool writes the files. |

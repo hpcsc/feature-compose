@@ -54,6 +54,12 @@ func (cs Catalogs) Definitions() (Definitions, error) {
 		}
 		maps.Copy(all.Starters, definitions.Starters)
 		maps.Copy(all.Features, definitions.Features)
+		if len(definitions.Catalogs) > 0 {
+			if all.Catalogs == nil {
+				all.Catalogs = map[string]Origin{}
+			}
+			maps.Copy(all.Catalogs, definitions.Catalogs)
+		}
 	}
 	return all, nil
 }

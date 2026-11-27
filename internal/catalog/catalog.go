@@ -79,6 +79,9 @@ func (c Catalog) Definitions() (Definitions, error) {
 		}
 		definitions.Features[c.origin.fullName(featureName)] = parsed.FeatureDefinition.filled().withFullNames(c.origin)
 	}
+	if c.origin.Name != "" {
+		definitions.Catalogs = map[string]Origin{c.origin.Name: c.origin}
+	}
 	return definitions, nil
 }
 

@@ -1,6 +1,6 @@
 import { readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { openCli, runCli, scratchDir } from '../testUtils'
+import { featureComposeCatalogDir, openCli, runCli, scratchDir } from '../testUtils'
 
 describe('feature-compose show', () => {
   it('prints the catalog as JSON when stdout is not a terminal', async () => {
@@ -10,6 +10,7 @@ describe('feature-compose show', () => {
 
     expect(result.status, result.stderr).toBe(0)
     const catalog = JSON.parse(result.stdout)
+    expect(catalog.catalogs).toEqual({ hpcsc: { name: 'hpcsc', source: featureComposeCatalogDir(), path: '', ref: '', commit: '' } })
     const starter = catalog.starters['hpcsc/go-event-sourcing-service']
     expect(starter.summary).toBe('A Go service with an event store, an HTTP API, and a catchup process.')
     expect(starter.folders.go.after_render[0]).toBe('go mod tidy')
@@ -27,6 +28,7 @@ describe('feature-compose show', () => {
 
     expect(result.status, result.stderr).toBe(0)
     expect(JSON.parse(result.stdout)).toEqual({
+      catalogs: all.catalogs,
       starters: { 'hpcsc/go-event-sourcing-service': all.starters['hpcsc/go-event-sourcing-service'] },
       features: Object.fromEntries(
         Object.entries(all.features).filter(([, feature]) => (feature as { targets: string[] }).targets.includes('hpcsc/go-event-sourcing-service')),

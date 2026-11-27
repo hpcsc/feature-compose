@@ -22,13 +22,16 @@ func extensionPointsOf(narrowed catalog.Definitions, starterName string) map[str
 	}
 	for _, featureName := range slices.Sorted(maps.Keys(narrowed.Features)) {
 		for name, extensionPoint := range narrowed.Features[featureName].ExtensionPoints {
-			extensionPoints[name] = declaredExtensionPoint{ExtensionPointDefinition: extensionPoint, declarer: "the feature " + featureName}
+			extensionPoints[name] = declaredExtensionPoint{ExtensionPointDefinition: extensionPoint, declarer: "the feature " + shortName(featureName)}
 		}
 	}
 	return extensionPoints
 }
 
 func detailsOf(definitions catalog.Definitions, r row, width int) string {
+	if r.isCatalog() {
+		return catalogDetails(definitions, r, width)
+	}
 	narrowed, _ := definitions.ForStarter(r.starter)
 	switch {
 	case r.isStarter():
@@ -40,7 +43,23 @@ func detailsOf(definitions catalog.Definitions, r row, width int) string {
 	case r.group == featuresGroup:
 		return featureDetails(narrowed.Features[r.name], width)
 	}
-	return extensionPointDetails(narrowed, r.starter, r.name, width)
+	return extensionPointDetails(narrowed, r, width)
+}
+
+func catalogDetails(definitions catalog.Definitions, r row, width int) string {
+	starters := screen.Section{Heading: "Starters", None: "none"}
+	for _, name := range slices.Sorted(maps.Keys(definitions.Starters)) {
+		if (row{starter: name}).catalogName() == r.catalog {
+			starters.Entries = append(starters.Entries, screen.Entry{Name: shortName(name), Summary: definitions.Starters[name].Summary})
+		}
+	}
+	features := screen.Section{Heading: "Features", None: "none"}
+	for _, name := range slices.Sorted(maps.Keys(definitions.Features)) {
+		if catalogName, _ := catalog.SplitFullName(name); catalogName == r.catalog {
+			features.Entries = append(features.Entries, screen.Entry{Name: shortName(name), Summary: definitions.Features[name].Summary})
+		}
+	}
+	return screen.Details("", width, starters, features)
 }
 
 func starterDetails(starter catalog.StarterDefinition, width int) string {
@@ -79,7 +98,7 @@ func queryFields(pattern string, rule map[string]any) []screen.Field {
 func featuresDetails(narrowed catalog.Definitions, width int) string {
 	features := screen.Section{Heading: "Features", None: "none"}
 	for _, name := range slices.Sorted(maps.Keys(narrowed.Features)) {
-		features.Entries = append(features.Entries, screen.Entry{Name: name, Summary: narrowed.Features[name].Summary})
+		features.Entries = append(features.Entries, screen.Entry{Name: shortName(name), Summary: narrowed.Features[name].Summary})
 	}
 	return screen.Details("", width, features)
 }
@@ -97,7 +116,11 @@ func extensionPointsDetails(narrowed catalog.Definitions, starterName string, wi
 }
 
 func featureDetails(feature catalog.FeatureDefinition, width int) string {
-	needs := screen.ValuesSection("Needs", "none", feature.Needs)
+	byShortName := make(map[string]map[string]string, len(feature.Needs))
+	for name, values := range feature.Needs {
+		byShortName[shortName(name)] = values
+	}
+	needs := screen.ValuesSection("Needs", "none", byShortName)
 
 	declared := screen.Section{Heading: "Extension points that it declares", None: "none"}
 	for _, name := range slices.Sorted(maps.Keys(feature.ExtensionPoints)) {
@@ -115,15 +138,15 @@ func featureDetails(feature catalog.FeatureDefinition, width int) string {
 	return screen.Details(feature.Summary, width, needs, optionsSection(feature.Options), declared, addedTo)
 }
 
-func extensionPointDetails(narrowed catalog.Definitions, starterName, name string, width int) string {
-	extensionPoint := extensionPointsOf(narrowed, starterName)[name]
+func extensionPointDetails(narrowed catalog.Definitions, r row, width int) string {
+	extensionPoint := extensionPointsOf(narrowed, r.starter)[r.name]
 	addedToBy := []string{}
-	if _, ok := narrowed.Starters[starterName].AddTo[name]; ok {
+	if _, ok := narrowed.Starters[r.starter].AddTo[r.name]; ok {
 		addedToBy = append(addedToBy, "the starter")
 	}
 	for _, featureName := range slices.Sorted(maps.Keys(narrowed.Features)) {
-		if _, ok := narrowed.Features[featureName].AddTo[name]; ok {
-			addedToBy = append(addedToBy, featureName)
+		if _, ok := narrowed.Features[featureName].AddTo[r.name]; ok {
+			addedToBy = append(addedToBy, shortName(featureName))
 		}
 	}
 	if len(addedToBy) == 0 {

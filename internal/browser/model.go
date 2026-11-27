@@ -183,7 +183,11 @@ func (m Model) View() string {
 	if m.details.TotalLineCount() > m.details.Height {
 		detailsPane.Note = fmt.Sprintf("%d%%", int(m.details.ScrollPercent()*100))
 	}
-	return screen.Header("feature-compose show", screen.Counted(len(m.definitions.Starters), "starter")+" · "+screen.Counted(len(m.definitions.Features), "feature"), m.width) + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, treePane.View(), detailsPane.View()) + "\n" + m.footer()
+	counts := screen.Counted(len(m.definitions.Starters), "starter") + " · " + screen.Counted(len(m.definitions.Features), "feature")
+	if len(m.tree.catalogNames) > 0 {
+		counts = screen.Counted(len(m.tree.catalogNames), "catalog") + " · " + counts
+	}
+	return screen.Header("feature-compose show", counts, m.width) + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, treePane.View(), detailsPane.View()) + "\n" + m.footer()
 }
 
 func (m Model) detailsTitle() string {
@@ -191,12 +195,14 @@ func (m Model) detailsTitle() string {
 	switch {
 	case m.tree.selectedIndex() < 0:
 		return "Details"
+	case selected.isCatalog():
+		return "the catalog " + selected.catalog
 	case selected.isStarter():
-		return selected.starter
+		return shortName(selected.starter)
 	case selected.isGroup():
-		return selected.starter + " › " + string(selected.group)
+		return shortName(selected.starter) + " › " + string(selected.group)
 	}
-	return selected.name
+	return displayed(selected.group, selected.name)
 }
 
 func (m Model) footer() string {

@@ -63,6 +63,23 @@ func TestModel(t *testing.T) {
 		return many
 	}
 
+	named := func() catalog.Definitions {
+		return catalog.Definitions{
+			Starters: map[string]catalog.StarterDefinition{
+				"hpcsc/api": {Summary: "An API.", ExtensionPoints: map[string]catalog.ExtensionPointDefinition{
+					"api.middleware": {Summary: "A middleware.", File: "go/main.go", Item: []string{"code"}},
+				}},
+				"hpcsc/worker": {Summary: "A worker."},
+				"team/worker":  {Summary: "The worker of the team."},
+			},
+			Features: map[string]catalog.FeatureDefinition{
+				"hpcsc/auth": {Summary: "Auth.", Targets: []string{"hpcsc/api"}, Needs: map[string]map[string]string{"hpcsc/log": {}}, AddTo: map[string][]map[string]string{"api.middleware": {{"code": "auth()"}}}},
+				"hpcsc/log":  {Summary: "Logs.", Targets: []string{"hpcsc/api"}},
+				"team/cli":   {Summary: "A CLI.", Targets: []string{"team/worker"}},
+			},
+		}
+	}
+
 	t.Run("layout", func(t *testing.T) {
 		t.Run("the screen holds a title line with the counts, the tree pane, the details pane of the selected row, and the keys", func(t *testing.T) {
 			screen := screenOf(sized(browser.New(definitions()), 80, 10))
@@ -250,6 +267,60 @@ func TestModel(t *testing.T) {
 
 			require.Equal(t, "The catalog has no starter.", strings.Join(treeOf(empty), " "))
 			require.Equal(t, screenOf(empty), screenOf(pressed(empty, "j", "k", "l", "h", "ctrl+d")))
+		})
+
+		t.Run("the tree groups the starters under the name of their catalog, with the names that the catalog gives them, and the header counts the catalogs", func(t *testing.T) {
+			m := opened(browser.New(named()))
+
+			require.Equal(t, []string{
+				" ▾ hpcsc",
+				"▌  ▾ api",
+				"     ├─ ▾ features",
+				"     │  ├─ auth",
+				"     │  └─ log",
+				"     └─ ▾ extension points",
+				"        └─ api.middleware",
+				"     worker",
+				" ▾ team",
+				"   ▾ worker",
+				"     └─ ▾ features",
+				"        └─ cli",
+			}, treeOf(m))
+			require.Contains(t, linesOf(m)[0], "2 catalogs · 3 starters · 3 features")
+		})
+
+		t.Run("h at a starter selects its catalog, and h again closes the catalog", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), "h", "h", "h")
+
+			require.Equal(t, []string{"▌▸ hpcsc", " ▾ team", "   ▾ worker", "     └─ ▾ features", "        └─ cli"}, treeOf(m))
+		})
+
+		t.Run("l at a closed catalog opens it again", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), "h", "h", "h", "l")
+
+			require.Equal(t, []string{" ▾ team", "   ▾ worker", "     └─ ▾ features", "        └─ cli"}, treeOf(m)[len(treeOf(m))-4:])
+			require.Equal(t, "▌▾ hpcsc", selectedRowOf(m))
+		})
+
+		t.Run("h at a closed group selects its starter", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), "j", "h", "h")
+
+			require.Equal(t, "▌  ▾ api", selectedRowOf(m))
+		})
+
+		t.Run("l at an open catalog selects its first starter", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), "k", "l")
+
+			require.Equal(t, "▌  ▾ api", selectedRowOf(m))
+		})
+
+		t.Run("the tree is wide enough for a catalog name that is wider than the rows under it", func(t *testing.T) {
+			definitions := catalog.Definitions{
+				Starters: map[string]catalog.StarterDefinition{"a-catalog-with-a-long-name/x": {Summary: "X."}},
+				Features: map[string]catalog.FeatureDefinition{},
+			}
+
+			require.Equal(t, " ▾ a-catalog-with-a-long-name", treeOf(opened(browser.New(definitions)))[0])
 		})
 	})
 
@@ -518,6 +589,28 @@ Extension points that it adds items to
 		t.Run("details that fit the pane show no scroll position", func(t *testing.T) {
 			require.Equal(t, "", scrollNoteOf(pressed(opened(browser.New(definitions())), "j", "j", "j", "j", "j", "j", "j", "j", "j", "j")))
 		})
+
+		t.Run("the details of a catalog list its starters and its features, with the names that the catalog gives them", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), "k")
+
+			_, title := paneTitlesOf(m)
+			require.Equal(t, "the catalog hpcsc", title)
+			require.Equal(t, "Starters\n  api     An API.\n  worker  A worker.\n\nFeatures\n  auth  Auth.\n  log   Logs.", detailsOf(m))
+		})
+
+		t.Run("the details of a feature name its needs with the names that the catalog gives them", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), "j", "j")
+
+			_, title := paneTitlesOf(m)
+			require.Equal(t, "auth", title)
+			require.Contains(t, detailsOf(m), "Needs\n  log")
+		})
+
+		t.Run("an extension point names the features that add items to it with the names that the catalog gives them", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), "j", "j", "j", "j", "j")
+
+			require.Contains(t, detailsOf(m), "added to by  auth")
+		})
 	})
 
 	t.Run("filter", func(t *testing.T) {
@@ -585,6 +678,48 @@ Extension points that it adds items to
 		t.Run("the footer shows the keys of the filter while it is typed", func(t *testing.T) {
 			require.Equal(t, " /w   enter keep filter • esc clear filter", footerOf(pressed(opened(browser.New(definitions())), "/", "w")))
 		})
+
+		t.Run("a filter with the name of a feature shows that feature under its starter and its catalog", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), append([]string{"/"}, strings.Split("log", "")...)...)
+
+			require.Equal(t, []string{" ▾ hpcsc", "   ▾ api", "     └─ ▾ features", "        └─ log"}, withoutSelection(treeOf(m)))
+		})
+
+		t.Run("a filter opens a closed catalog that holds a match", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), append([]string{"h", "h", "h", "/"}, strings.Split("log", "")...)...)
+
+			require.Equal(t, []string{" ▾ hpcsc", "   ▾ api", "     └─ ▾ features", "        └─ log"}, withoutSelection(treeOf(m)))
+		})
+
+		t.Run("a filter that hides the selected feature selects its group", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), append([]string{"j", "j", "j", "/"}, strings.Split("auth", "")...)...)
+
+			require.Equal(t, "▌    └─ ▾ features", selectedRowOf(m))
+		})
+
+		t.Run("a filter does not match the name of a catalog in the full name of a starter or a feature", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), append([]string{"/"}, strings.Split("pcs/", "")...)...)
+
+			require.Equal(t, []string{"No name matches the", "filter."}, treeOf(m))
+		})
+
+		t.Run("a filter with the name of a catalog shows only that catalog", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), append([]string{"/"}, strings.Split("team", "")...)...)
+
+			require.Equal(t, []string{" ▾ team", "   ▾ worker", "     └─ ▾ features", "        └─ cli"}, withoutSelection(treeOf(m)))
+		})
+
+		t.Run("a filter that hides the selected extension point and its group selects its starter", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), append([]string{"j", "j", "j", "j", "j", "/"}, strings.Split("auth", "")...)...)
+
+			require.Equal(t, "▌  ▾ api", selectedRowOf(m))
+		})
+
+		t.Run("a filter opens a closed group of a starter that is not the first, when the group holds a match", func(t *testing.T) {
+			m := pressed(opened(browser.New(named())), append([]string{"j", "j", "j", "j", "j", "j", "j", "j", "j", "h", "/"}, strings.Split("cli", "")...)...)
+
+			require.Equal(t, []string{" ▾ team", "   ▾ worker", "     └─ ▾ features", "        └─ cli"}, withoutSelection(treeOf(m)))
+		})
 	})
 
 	t.Run("stop", func(t *testing.T) {
@@ -631,7 +766,7 @@ Extension points that it adds items to
 			atStarter, err := browser.NewAtStarter(named, "worker")
 			require.NoError(t, err)
 
-			require.Equal(t, []string{"   hpcsc/api", "▌  team/worker"}, treeOf(opened(atStarter)))
+			require.Equal(t, "▌    worker", selectedRowOf(opened(atStarter)))
 		})
 	})
 }

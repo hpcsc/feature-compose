@@ -47,7 +47,7 @@ describe('feature-compose show', () => {
 })
 
 describe('feature-compose show in a terminal', () => {
-  const rowsOfTheWholeTree = 72
+  const rowsOfTheWholeTree = 73
 
   it('opens the tree with each starter open and the details of the first starter, chi-api, and filters it with /', async () => {
     const dir = scratchDir()
@@ -55,14 +55,14 @@ describe('feature-compose show in a terminal', () => {
 
     await session.waitForText('A Go HTTP API with chi, whose routes are under /api.', { timeout: 15_000 })
     const screen = await session.text()
-    for (const part of ['╭─ Catalog ', '╭─ hpcsc/chi-api ─', '▾ hpcsc/go', '▾ hpcsc/go-event-sourcing-service', '├─ ▾ features', '│  ├─ hpcsc/api-auth', '│  ├─ hpcsc/cli-auth', '│  ├─ hpcsc/process-manager', '│  └─ hpcsc/push', '└─ ▾ extension points', '├─ api.middleware', '├─ cli.commands', '└─ use_cases.handlers', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
+    for (const part of ['╭─ Catalog ', '1 catalog · 4 starters', '▾ hpcsc', '╭─ chi-api ─', '▾ go', '▾ go-event-sourcing-service', '├─ ▾ features', '│  ├─ api-auth', '│  ├─ cli-auth', '│  ├─ process-manager', '│  └─ push', '└─ ▾ extension points', '├─ api.middleware', '├─ cli.commands', '└─ use_cases.handlers', 'after_render  go mod tidy', 'test          task test:unit', 'go-version  default  1.27.1']) {
       expect(screen).toContain(part)
     }
     await session.press('/')
     await session.type('zzz')
     await session.waitForText('No name matches the filter.')
     await session.press('escape')
-    await session.waitForText('▾ hpcsc/go-event-sourcing-service')
+    await session.waitForText('▾ go-event-sourcing-service')
     await session.press('q')
     await session.waitForText('EXIT:0')
     expect(readdirSync(dir)).toEqual([])
@@ -72,9 +72,9 @@ describe('feature-compose show in a terminal', () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
 
-    await session.waitForText('▾ hpcsc/go-event-sourcing-service', { timeout: 15_000 })
+    await session.waitForText('▾ go-event-sourcing-service', { timeout: 15_000 })
     await session.press('h')
-    await session.waitForText('▸ hpcsc/go-event-sourcing-service')
+    await session.waitForText('▸ go-event-sourcing-service')
     expect(await session.text()).not.toContain('process-manager')
     await session.press('l')
     await session.waitForText('└─ ▾ extension points')
@@ -103,17 +103,17 @@ describe('feature-compose show in a terminal', () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
 
-    await session.waitForText('└─ hpcsc/push', { timeout: 15_000 })
+    await session.waitForText('└─ push', { timeout: 15_000 })
     for (let i = 0; i < 4; i++) {
       await session.press('j')
     }
-    await session.waitForText('╭─ hpcsc/cli-auth ')
+    await session.waitForText('╭─ cli-auth ')
     const details = await session.text()
-    for (const part of ['Needs', '  hpcsc/api-auth', 'Extension points that it adds items to', '  cli.commands']) {
+    for (const part of ['Needs', '  api-auth', 'Extension points that it adds items to', '  cli.commands']) {
       expect(details).toContain(part)
     }
     await session.press('h')
-    await session.waitForText('╭─ hpcsc/go-event-sourcing-service › features ')
+    await session.waitForText('╭─ go-event-sourcing-service › features ')
     await session.press('q')
     await session.waitForText('EXIT:0')
     expect(readdirSync(dir)).toEqual([])
@@ -129,7 +129,7 @@ describe('feature-compose show in a terminal', () => {
     }
     await session.waitForText('╭─ api.middleware ')
     const details = await session.text()
-    for (const part of ['An expression of type func(http.Handler) http.Handler', 'item         code, import', 'declared by  the starter', 'added to by  hpcsc/api-auth']) {
+    for (const part of ['An expression of type func(http.Handler) http.Handler', 'item         code, import', 'declared by  the starter', 'added to by  api-auth']) {
       expect(details).toContain(part)
     }
     await session.press('q')
@@ -140,8 +140,8 @@ describe('feature-compose show in a terminal', () => {
     const dir = scratchDir()
     const session = await openCli(dir, ['show', 'go-event-sourcing-service'])
 
-    await session.waitForText('▾ hpcsc/go-event-sourcing-service', { timeout: 15_000 })
-    expect(await session.text()).toContain('╭─ hpcsc/go-event-sourcing-service ')
+    await session.waitForText('▾ go-event-sourcing-service', { timeout: 15_000 })
+    expect(await session.text()).toContain('╭─ go-event-sourcing-service ')
     await session.press('q')
     await session.waitForText('EXIT:0')
   })

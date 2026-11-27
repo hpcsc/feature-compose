@@ -20,13 +20,26 @@ const (
 var groups = []group{featuresGroup, extensionPointsGroup}
 
 type row struct {
+	catalog string
 	starter string
 	group   group
 	name    string
 }
 
+func (r row) catalogName() string {
+	if r.isCatalog() {
+		return r.catalog
+	}
+	catalogName, _ := catalog.SplitFullName(r.starter)
+	return catalogName
+}
+
+func (r row) isCatalog() bool {
+	return r.starter == ""
+}
+
 func (r row) isStarter() bool {
-	return r.group == ""
+	return r.starter != "" && r.group == ""
 }
 
 func (r row) isGroup() bool {
@@ -34,7 +47,15 @@ func (r row) isGroup() bool {
 }
 
 func (r row) parent() row {
-	if r.isGroup() {
+	switch {
+	case r.isCatalog():
+		return r
+	case r.isStarter():
+		if r.catalogName() == "" {
+			return r
+		}
+		return row{catalog: r.catalogName()}
+	case r.isGroup():
 		return row{starter: r.starter}
 	}
 	return row{starter: r.starter, group: r.group}
@@ -48,6 +69,7 @@ type treeRow struct {
 }
 
 type tree struct {
+	catalogNames []string
 	starterNames []string
 	children     map[string]map[group][]string
 	open         map[row]bool
@@ -64,6 +86,9 @@ func newTree(definitions catalog.Definitions) tree {
 			featuresGroup:        slices.Sorted(maps.Keys(narrowed.Features)),
 			extensionPointsGroup: slices.Sorted(maps.Keys(extensionPointsOf(narrowed, starterName))),
 		}
+		if catalogName := (row{starter: starterName}).catalogName(); catalogName != "" && !slices.Contains(t.catalogNames, catalogName) {
+			t.catalogNames = append(t.catalogNames, catalogName)
+		}
 	}
 	if len(t.starterNames) > 0 {
 		t.selected = row{starter: t.starterNames[0]}
@@ -72,31 +97,70 @@ func newTree(definitions catalog.Definitions) tree {
 }
 
 func (t tree) rows() []treeRow {
+	if len(t.catalogNames) == 0 {
+		return t.starterRows("", t.starterNames)
+	}
 	var rows []treeRow
-	for _, starterName := range t.starterNames {
-		shown := t.shownGroupsOf(starterName)
-		if !t.matches(starterName) && len(shown) == 0 {
+	for _, catalogName := range t.catalogNames {
+		shown := t.shownStartersOf(catalogName)
+		if len(shown) == 0 {
 			continue
 		}
-		starterRow := row{starter: starterName}
-		rows = append(rows, treeRow{row: starterRow, prefix: screen.Arrow(len(shown) > 0, t.isOpen(starterRow)), canOpen: len(shown) > 0, isOpen: t.isOpen(starterRow) && len(shown) > 0})
-		if !t.isOpen(starterRow) {
+		catalogRow := row{catalog: catalogName}
+		rows = append(rows, treeRow{row: catalogRow, prefix: screen.Arrow(true, t.isOpen(catalogRow)), canOpen: true, isOpen: t.isOpen(catalogRow)})
+		if t.isOpen(catalogRow) {
+			rows = append(rows, t.starterRows("  ", shown)...)
+		}
+	}
+	return rows
+}
+
+func (t tree) starterRows(indent string, starterNames []string) []treeRow {
+	var rows []treeRow
+	for _, starterName := range starterNames {
+		shown := t.shownGroupsOf(starterName)
+		if !t.matchesStarter(starterName) && len(shown) == 0 {
+			continue
+		}
+		starter := row{starter: starterName}
+		rows = append(rows, treeRow{row: starter, prefix: indent + screen.Arrow(len(shown) > 0, t.isOpen(starter)), canOpen: len(shown) > 0, isOpen: t.isOpen(starter) && len(shown) > 0})
+		if !t.isOpen(starter) {
 			continue
 		}
 		for i, g := range shown {
 			lastGroup := i == len(shown)-1
 			groupRow := row{starter: starterName, group: g}
-			rows = append(rows, treeRow{row: groupRow, prefix: "  " + screen.Branch(lastGroup) + screen.Arrow(true, t.isOpen(groupRow)), canOpen: true, isOpen: t.isOpen(groupRow)})
+			rows = append(rows, treeRow{row: groupRow, prefix: indent + "  " + screen.Branch(lastGroup) + screen.Arrow(true, t.isOpen(groupRow)), canOpen: true, isOpen: t.isOpen(groupRow)})
 			if !t.isOpen(groupRow) {
 				continue
 			}
 			names := t.shownNamesOf(starterName, g)
 			for j, name := range names {
-				rows = append(rows, treeRow{row: row{starter: starterName, group: g, name: name}, prefix: "  " + screen.ChildIndent(lastGroup) + screen.Branch(j == len(names)-1)})
+				rows = append(rows, treeRow{row: row{starter: starterName, group: g, name: name}, prefix: indent + "  " + screen.ChildIndent(lastGroup) + screen.Branch(j == len(names)-1)})
 			}
 		}
 	}
 	return rows
+}
+
+func (t tree) startersOf(catalogName string) []string {
+	var starterNames []string
+	for _, starterName := range t.starterNames {
+		if (row{starter: starterName}).catalogName() == catalogName {
+			starterNames = append(starterNames, starterName)
+		}
+	}
+	return starterNames
+}
+
+func (t tree) shownStartersOf(catalogName string) []string {
+	var shown []string
+	for _, starterName := range t.startersOf(catalogName) {
+		if t.matchesStarter(starterName) || len(t.shownGroupsOf(starterName)) > 0 {
+			shown = append(shown, starterName)
+		}
+	}
+	return shown
 }
 
 func (t tree) shownGroupsOf(starterName string) []group {
@@ -110,16 +174,21 @@ func (t tree) shownGroupsOf(starterName string) []group {
 }
 
 func (t tree) shownNamesOf(starterName string, g group) []string {
-	if t.matches(starterName) {
+	if t.matchesStarter(starterName) {
 		return t.children[starterName][g]
 	}
 	var shown []string
 	for _, name := range t.children[starterName][g] {
-		if t.matches(name) {
+		if t.matches(displayed(g, name)) {
 			shown = append(shown, name)
 		}
 	}
 	return shown
+}
+
+func (t tree) matchesStarter(starterName string) bool {
+	catalogName, name := catalog.SplitFullName(starterName)
+	return t.matches(name) || (catalogName != "" && t.matches(catalogName))
 }
 
 func (t tree) matches(name string) bool {
@@ -163,7 +232,7 @@ func (t tree) opened() tree {
 }
 
 func (t tree) closed() tree {
-	if !t.selected.isStarter() && !t.selected.isGroup() {
+	if !t.selected.isCatalog() && !t.selected.isStarter() && !t.selected.isGroup() {
 		t.selected = t.selected.parent()
 		return t
 	}
@@ -178,15 +247,22 @@ func (t tree) filtered(text string) tree {
 	t.filter = text
 	t.filterOpen = map[row]bool{}
 	for _, starterName := range t.starterNames {
-		if text == "" || t.matches(starterName) {
+		if text == "" {
+			continue
+		}
+		starter := row{starter: starterName}
+		if starter.catalogName() != "" && (t.matchesStarter(starterName) || len(t.shownGroupsOf(starterName)) > 0) {
+			t.filterOpen[row{catalog: starter.catalogName()}] = true
+		}
+		if t.matchesStarter(starterName) {
 			continue
 		}
 		for _, g := range t.shownGroupsOf(starterName) {
-			t.filterOpen[row{starter: starterName}] = true
+			t.filterOpen[starter] = true
 			t.filterOpen[row{starter: starterName, group: g}] = true
 		}
 	}
-	for t.selectedIndex() < 0 && !t.selected.isStarter() {
+	for t.selectedIndex() < 0 && t.selected.parent() != t.selected {
 		t.selected = t.selected.parent()
 	}
 	if rows := t.rows(); t.selectedIndex() < 0 && len(rows) > 0 {
@@ -207,13 +283,18 @@ func (t tree) withOpen(r row, isOpen bool) tree {
 }
 
 func (t tree) widestRow() int {
+	indent := ""
 	widest := 0
+	for _, catalogName := range t.catalogNames {
+		indent = "  "
+		widest = max(widest, lipgloss.Width(screen.Arrow(true, true)+catalogName))
+	}
 	for _, starterName := range t.starterNames {
-		widest = max(widest, lipgloss.Width(screen.Arrow(true, true)+starterName))
+		widest = max(widest, lipgloss.Width(indent+screen.Arrow(true, true)+shortName(starterName)))
 		for _, g := range groups {
-			widest = max(widest, lipgloss.Width("  "+screen.Branch(false)+screen.Arrow(true, true)+string(g)))
+			widest = max(widest, lipgloss.Width(indent+"  "+screen.Branch(false)+screen.Arrow(true, true)+string(g)))
 			for _, name := range t.children[starterName][g] {
-				widest = max(widest, lipgloss.Width("  "+screen.ChildIndent(false)+screen.Branch(false)+name))
+				widest = max(widest, lipgloss.Width(indent+"  "+screen.ChildIndent(false)+screen.Branch(false)+displayed(g, name)))
 			}
 		}
 	}
@@ -230,10 +311,12 @@ func (t tree) lines(offset, width, height int) []string {
 }
 
 func (r treeRow) line(selected bool, width int) string {
-	name := r.name
+	name := displayed(r.group, r.name)
 	switch {
+	case r.isCatalog():
+		name = r.catalog
 	case r.isStarter():
-		name = r.starter
+		name = shortName(r.starter)
 	case r.isGroup():
 		name = string(r.group)
 	}
@@ -241,10 +324,22 @@ func (r treeRow) line(selected bool, width int) string {
 		return screen.SelectedRowLine(r.prefix+name, width)
 	}
 	switch {
-	case r.isStarter():
+	case r.isCatalog(), r.isStarter():
 		name = screen.NameStyle.Render(name)
 	case r.isGroup():
 		name = screen.GroupStyle.Render(name)
 	}
 	return screen.RowLine(r.prefix, name, width)
+}
+
+func displayed(g group, name string) string {
+	if g == featuresGroup {
+		return shortName(name)
+	}
+	return name
+}
+
+func shortName(fullName string) string {
+	_, name := catalog.SplitFullName(fullName)
+	return name
 }

@@ -336,14 +336,20 @@ the option region of the starter service has no default and no value: give it wi
   pane is a tree of the starters. Under each starter, the tree has two groups: its features and its extension
   points. Each starter and each group starts open. The right pane shows the details of the selected row.
   `feature-compose show <starter>` opens the TUI with that starter selected.
+
+  With the catalogs of the config file, the tree puts the starters of each catalog under the name of the catalog.
+  In a catalog, the tree and the details give each starter and each feature the name that the catalog gives it,
+  for example `go` and `cli`, with no catalog name. The details of a catalog list its starters and its features.
+  The header counts the catalogs, the starters and the features. A catalog from `--catalog <folder>` has no name,
+  so the tree has no row for it.
 - **JSON, for a script.** `--output json` prints the catalog as JSON. When stdin or stdout is not a terminal,
   for example in a pipe, `show` prints JSON with no flag. `feature-compose show <starter>` prints only that
   starter and the features whose `targets` name it.
 
 An unknown starter stops the command before the TUI starts, and the message lists the starters.
 `--catalog <folder>` shows the catalog in that folder, and `show` then does not read the config file.
-`--catalog <name>` shows only that catalog of the config file. The starters and the features of a catalog of the
-config file have their full names, for example `hpcsc/go` and `hpcsc/cli`.
+`--catalog <name>` shows only that catalog of the config file. In the JSON, the starters and the features of a
+catalog of the config file have their full names, for example `hpcsc/go` and `hpcsc/cli`.
 
 ```shell
 feature-compose show
@@ -357,14 +363,15 @@ The keys of the TUI:
 | Key | Action |
 | --- | --- |
 | `j`, `k`, or the up and down arrows | Move down and up in the tree. |
-| `l`, Enter, or the right arrow | Open the selected starter or group. At an open starter or group, select its first row. |
-| `h`, Esc, or the left arrow | At a feature or an extension point, select its group. At an open starter or group, close it. At a closed group, select its starter. |
+| `l`, Enter, or the right arrow | Open the selected catalog, starter or group. At an open catalog, starter or group, select its first row. |
+| `h`, Esc, or the left arrow | At a feature or an extension point, select its group. At an open catalog, starter or group, close it. At a closed group, select its starter. At a closed starter, select its catalog. |
 | `/` | Start a filter on the names of the starters, the features and the extension points. While you type the filter, each key goes to the filter. Enter keeps the filter, and Esc clears it. |
 | Esc, with a filter | Clear the filter. |
 | ctrl+d and ctrl+u, or Page Down and Page Up | Scroll the details down and up by half the pane. |
 | `q` | Stop the TUI. While you type the filter, `q` goes to the filter, and ctrl+c stops the TUI. |
 
 The filter keeps a starter whose name holds the text, with all its features and extension points. It also keeps
+each starter of a catalog whose name holds the text. It also keeps
 a feature or an extension point whose name holds the text, and opens its group and its starter. The filter ignores
 case. When the filter clears, the rows that it opened close again.
 

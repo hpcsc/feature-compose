@@ -1,0 +1,28 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.Repo.Migrations.CreateLoans do
+  use Ecto.Migration
+
+  def up do
+    create table(:loans) do
+      add :member_id, references(:members, on_delete: :restrict), null: false
+      add :copy_id, references(:copies, on_delete: :restrict), null: false
+      add :issued_at, :utc_datetime, null: false
+      add :issued_by, :string, null: false
+      add :due_on, :date, null: false
+      add :returned_at, :utc_datetime
+      add :returned_by, :string
+      timestamps(type: :utc_datetime)
+    end
+
+    create index(:loans, [:member_id])
+
+    create unique_index(:loans, [:copy_id],
+             where: "returned_at IS NULL",
+             name: :loans_open_copy_index
+           )
+  end
+
+  def down do
+    drop table(:loans)
+  end
+end

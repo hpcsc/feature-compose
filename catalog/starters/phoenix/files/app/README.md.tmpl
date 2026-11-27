@@ -1,0 +1,169 @@
+{{- $module := pascal (option "starter.app") -}}
+{{- $app := option "starter.app" -}}
+# {{ $module }}
+
+A Phoenix app with contexts at the bottom and use cases above them. Contexts own the data and the
+rules. Use cases above them combine the contexts. Each use case runs as one workflow, with the I/O
+at its start and at its end. A lint, `mix xref.layers`, keeps each dependency in one direction.
+
+The sample code is the desk of a lending library: a member borrows a copy of a book. It shows each
+part of the structure one time. Replace it with your own code.
+
+The sample has no sign-in. `{{ $module }}Web.StaffScope` gives each visitor the scope of the staff
+member "Front desk". Add real authentication before the app goes live.
+
+## Run It
+
+```bash
+mise install                  # Erlang and Elixir, from mise.toml
+docker compose up -d --wait   # Postgres on port 5444
+mix setup                     # dependencies, database, seed data, assets
+mix phx.server                # http://localhost:4000
+```
+
+The checks:
+
+```bash
+mix test
+mix xref.layers
+mix precommit                 # compile, format, xref.layers and test
+```
+
+## Two Levels of Structure
+
+| Level | What it decides | In the sample |
+|---|---|---|
+| 1. Between modules | Which module can depend on which | The layer list in `lib/mix/tasks/xref.layers.ex` |
+| 2. Inside a use case | The order of the steps, and where the I/O happens | `{{ $module }}.UseCases.Borrowing.borrow/3` |
+
+## Level 1: Subjects at the Bottom, Use Cases Above Them
+
+A module depends only on modules lower in this list. Inside one layer, the order of the list
+counts too.
+
+| Layer | Modules, from the top down | What the layer holds |
+|---|---|---|
+| Inbound adapters | `{{ $module }}Web`, `Adapters.Inbound` | Code that the outside starts. Each event of a LiveView calls one use case or one context function. |
+| Outbound adapters | `Adapters.Outbound` | Code that the app starts. An adapter implements a port of the app, and it uses nothing else in the app except the base. |
+| Use cases | `Borrowing` | Modules that each run one use case over more than one context |
+| Contexts | `Loans`, `Catalog`, `Members` | Subjects. Each one owns its tables and the rules for them. |
+| Base | `Scope`, `Repo`, `PubSub`{{ range items "layers.base" }}, `{{ .module }}`{{ end }} | Values, the identity of the caller, and the tools that write to the database |
+
+`{{ $module }}.Application` and `config/` form the composition root. `{{ $module }}.Application`
+starts all the processes, so it can use any module, and the lint skips it.
+
+### The Rules
+
+1. **A module depends only on modules lower in the list.** An alias, a struct, a call, a job and
+   a behaviour that it implements all count.
+2. **Code outside a module calls only its top module.** Two kinds of inner module are public.
+   Other code can match on a schema, read its fields and join on its table. An adapter can use a
+   module that the layer list exports, such as a port. Both are still subject to rule 1.
+3. **Only the context that owns a table builds its changesets and writes its rows.**
+4. **An outbound adapter uses only the port that it implements and the base.** It never calls a
+   use case or a context. The data of the port carries all that the adapter needs.
+5. **A use case calls no other use case.** Work that two use cases share goes down into a
+   context.
+
+### Folders
+
+A folder can group whole modules by their role, but it never splits one subject by the kind of
+code. So `lib/{{ $app }}/use_cases/` holds whole use cases, and each use case keeps all its code
+in its own folder, as `lib/{{ $app }}/use_cases/borrowing/` does.
+
+| Where | What it holds |
+|---|---|
+| `lib/{{ $app }}_web/` | Inbound adapters for HTTP and LiveView. Phoenix puts them here. |
+| `lib/{{ $app }}/adapters/inbound/` | The other inbound adapters |
+| `lib/{{ $app }}/adapters/outbound/` | Outbound adapters |
+| `lib/{{ $app }}/use_cases/` | Use cases, such as `{{ $module }}.UseCases.Borrowing` |
+| A module with a folder, at the top of `lib/{{ $app }}/` | A context, such as `{{ $module }}.Loans` with `lib/{{ $app }}/loans/` |
+| A single file at the top of `lib/{{ $app }}/` | A base module, such as `{{ $module }}.Scope` |
+
+### Each Rule Has One Owner
+
+| Rule | Owner | Used by |
+|---|---|---|
+| A loan lasts 21 days, and a member has at most 5 open loans | `Loans`, in `Loans.Policy` | `Borrowing` |
+| Who can borrow: not suspended, fewer than 5 open loans, and a copy that is not on loan | `Borrowing.Decision` | `Borrowing` only. This rule combines facts from two contexts, so it belongs to the use case. |
+
+### One Transaction Across Contexts
+
+Each context gives functions that add its own step to an `Ecto.Multi`, such as `Loans.issue/2`.
+The use case puts the steps together and runs the whole `Multi` in one transaction. Each context
+still builds its own changesets, so rule 3 holds.
+
+### Inbound and Outbound Adapters
+
+| | Inbound adapter | Outbound adapter |
+|---|---|---|
+| Who starts the action | The outside: a person, a job, a webhook | The app |
+| Examples | LiveViews, controllers, job workers, webhook handlers, Mix tasks | Email, SMS, a payment API, a file store |
+| How it depends on the app | It calls the public functions of the app. It needs no port. | It implements a port that the app defines. The dependency is inverted. |
+| What it can use | Use cases, contexts and the base | Its port and the base only (rule 4) |
+| How to test it | Drive it, as `test/{{ $app }}_web/live/member_live_test.exs` does | A fake replaces it in the tests of the app |
+
+The sample has no outbound adapter. An outside service gets a port: a behaviour in the module
+that calls it, exported in the layer list. Its adapter goes in `lib/{{ $app }}/adapters/outbound/`,
+and its fake goes in `test/support/`.
+
+## Level 2: One Workflow in Each Use Case
+
+`{{ $module }}.UseCases.Borrowing.borrow/3` runs five steps:
+
+```elixir
+def borrow(%Scope{} = scope, params, opts \\ []) do
+  now = Keyword.get_lazy(opts, :now, fn -> DateTime.utc_now(:second) end)
+
+  with {:ok, request} <- Request.cast(params) do
+    Multi.new()
+    |> Multi.run(:facts, fn _repo, _changes -> load_facts(request) end)
+    |> Multi.run(:plan, fn _repo, %{facts: facts} -> Decision.decide(facts, now) end)
+    |> Multi.merge(fn %{plan: plan} -> write(scope, plan, now) end)
+    |> Repo.transaction()
+    |> finish()
+  end
+end
+```
+
+| Step | Code | Why it sits there |
+|---|---|---|
+| 1. Check the input at the edge | `Borrowing.Request`, an embedded schema | Only valid data reaches a query |
+| 2. Load the facts inside the transaction | `load_facts/1` locks the member row, then reads the copy and the loans | A read that decides a write can change before the write. Inside the transaction, it cannot. |
+| 3. Decide in a pure function | `Borrowing.Decision.decide/2` takes the facts and the time, and returns a plan or a reason | The tests of the rules need no database and no clock |
+| 4. Write through the contexts | `write/3` adds the step of `Loans` to the `Multi` | Each context writes only its own tables |
+| 5. Publish | `finish/1` broadcasts the change after the commit | A rollback cannot take back a message that went out |
+
+The clock is an input too. The `now:` option lets a test choose the time, and the use case reads
+the real clock only at its edge. A unique index allows only one open loan for each copy, so two
+requests at the same moment cannot both lend the same copy. The use case turns that error into
+`{:error, :copy_on_loan}`.
+{{- range items "readme.sections" }}
+
+{{ .text }}
+{{- end }}
+
+## Where New Code Goes
+
+1. **A rule of one subject** goes in its context.
+2. **A write to the tables of one context** goes in that context, as a function or as a step for
+   a `Multi`.
+3. **A use case over two or more contexts** goes in a new module in `lib/{{ $app }}/use_cases/`,
+   with the five steps.
+4. **An outside service** gets a port and an outbound adapter.
+5. **A new entry point**, such as a JSON API or a webhook, is an inbound adapter. It decodes its
+   input and calls one function of the app.
+6. **A new top-level module** gets its place in the layer list in the same change.
+
+## How the Rules Are Checked
+
+`mix xref.layers` reads the syntax tree of each file in `lib/` and resolves its aliases. It fails
+on four kinds of reference:
+
+- a dependency that points up the list
+- a reference to a module inside another module that is not a schema and not exported
+- a reference from an outbound adapter to anything except its port and the base
+- a top-level module with no place in the list
+
+`mix precommit` and CI run it. The tests in `test/mix/tasks/xref_layers_test.exs` show each kind
+of failure.

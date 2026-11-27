@@ -1,0 +1,10 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}Web.StaffScope do
+  import Phoenix.Component, only: [assign: 3]
+
+  alias {{ $module }}.Scope
+
+  def on_mount(:default, _params, _session, socket) do
+    {:cont, assign(socket, :current_scope, Scope.for_staff("Front desk"))}
+  end
+end

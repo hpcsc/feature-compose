@@ -1,0 +1,27 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.Catalog do
+  import Ecto.Query
+
+  alias {{ $module }}.Catalog.Book
+  alias {{ $module }}.Catalog.Copy
+  alias {{ $module }}.Repo
+
+  def create_book(attrs) do
+    %Book{}
+    |> Book.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def add_copy(%Book{} = book, attrs) do
+    %Copy{book_id: book.id}
+    |> Copy.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def fetch_copy_by_barcode(barcode) do
+    case Repo.one(from(c in Copy, where: c.barcode == ^barcode, preload: :book)) do
+      nil -> {:error, :not_found}
+      copy -> {:ok, copy}
+    end
+  end
+end

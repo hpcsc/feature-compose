@@ -1,0 +1,41 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.Members do
+  import Ecto.Query
+
+  alias {{ $module }}.Members.Member
+  alias {{ $module }}.Repo
+
+  def create(attrs) do
+    %Member{}
+    |> Member.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def list do
+    Repo.all(from(m in Member, order_by: [asc: m.name]))
+  end
+
+  def fetch(id) do
+    case Repo.get(Member, id) do
+      nil -> {:error, :not_found}
+      member -> {:ok, member}
+    end
+  end
+
+  def lock(id) do
+    case Repo.one(from(m in Member, where: m.id == ^id, lock: "FOR UPDATE")) do
+      nil -> {:error, :not_found}
+      member -> {:ok, member}
+    end
+  end
+
+  def subscribe(member_id) do
+    Phoenix.PubSub.subscribe({{ $module }}.PubSub, topic(member_id))
+  end
+
+  def broadcast_change(member_id) do
+    Phoenix.PubSub.broadcast({{ $module }}.PubSub, topic(member_id), {:member_changed, member_id})
+  end
+
+  defp topic(member_id), do: "member:#{member_id}"
+end

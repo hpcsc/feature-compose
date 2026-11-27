@@ -34,7 +34,13 @@ combination of the catalog in `catalog/`, and runs the `after_render` and `test`
 tells how to read the output. Run the task after you change a starter or a feature.
 
 The task sets `MISE_TRUSTED_CONFIG_PATHS` to the temporary folder, because mise refuses the `mise.toml` of a repo
-in a folder that it does not trust. The task needs Go, Task, gotestsum, a C compiler and the network.
+in a folder that it does not trust. The task needs Go, Task, gotestsum, a C compiler and the network. The starter
+`phoenix` also needs Elixir, the archive `phx_new` and `ast-grep`.
+
+CI installs `phx_new` at a fixed version for this task, so that a new release of `phx_new` cannot fail an
+unrelated push. The workflow `.github/workflows/generator-catalog.yml` uses the latest `phx_new` each week. It
+makes a repo of each combination of `phoenix` and runs the checks of the CI of that repo, also `mix test`
+against Postgres.
 
 ### The End-to-End Tests
 

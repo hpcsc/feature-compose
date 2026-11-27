@@ -22,6 +22,9 @@ FROM node:24-trixie-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 make g++ git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+# check reads the patterns of the starter phoenix in the catalog of this repo with ast-grep, at the version in
+# the mise.toml of this repo
+RUN npm install -g --no-audit --no-fund @ast-grep/cli@0.45.3
 COPY --from=builder /usr/local/go /usr/local/go
 COPY --from=builder /go/bin/task /go/bin/gotestsum /go/bin/goreleaser /usr/local/bin/
 ENV PATH=/usr/local/go/bin:$PATH GOTOOLCHAIN=auto

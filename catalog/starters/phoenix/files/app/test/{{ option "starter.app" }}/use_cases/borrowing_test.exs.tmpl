@@ -1,0 +1,59 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.UseCases.BorrowingTest do
+  use {{ $module }}.DataCase, async: true
+
+  import {{ $module }}.Fixtures
+
+  alias {{ $module }}.Loans
+  alias {{ $module }}.UseCases.Borrowing
+
+  @now ~U[2026-03-02 10:00:00Z]
+
+  describe "borrow" do
+    test "issues a loan due in 21 days, in the name of the staff member" do
+      member = member()
+      copy = copy()
+
+      assert {:ok, loan} =
+               Borrowing.borrow(scope(), %{"member_id" => member.id, "barcode" => copy.barcode},
+                 now: @now
+               )
+
+      assert %{issued_by: "Test desk", due_on: ~D[2026-03-23]} = loan
+      assert [%{id: id, copy_id: copy_id}] = Loans.list_open_for_member(member.id)
+      assert {id, copy_id} == {loan.id, copy.id}
+    end
+
+    test "refuses a copy that another member has on loan, and gives no loan" do
+      copy = copy()
+      loan(member(), copy, @now)
+      second = member()
+
+      assert Borrowing.borrow(scope(), %{"member_id" => second.id, "barcode" => copy.barcode},
+               now: @now
+             ) == {:error, :copy_on_loan}
+
+      assert Loans.list_open_for_member(second.id) == []
+    end
+
+    test "refuses a barcode that no copy has" do
+      member = member()
+
+      assert Borrowing.borrow(scope(), %{"member_id" => member.id, "barcode" => "NONE"},
+               now: @now
+             ) ==
+               {:error, :copy_not_found}
+    end
+
+    test "returns the changeset when the barcode is blank" do
+      member = member()
+
+      assert {:error, changeset} =
+               Borrowing.borrow(scope(), %{"member_id" => member.id, "barcode" => "  "},
+                 now: @now
+               )
+
+      assert %{barcode: ["can't be blank"]} = errors_on(changeset)
+    end
+  end
+end

@@ -1,0 +1,42 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule Mix.Tasks.Xref.Layers do
+  use Mix.Task
+
+  alias Mix.Tasks.Xref.Layers.Rules
+
+  @shortdoc "Fail on a dependency that breaks the layer list, the exported ports or the limit of a layer"
+
+  @layers [
+    inbound: [{{ $module }}Web, {{ $module }}.Adapters.Inbound],
+    outbound: [{{ $module }}.Adapters.Outbound],
+    use_cases: [{{ $module }}.UseCases.Borrowing],
+    contexts: [{{ $module }}.Loans, {{ $module }}.Catalog, {{ $module }}.Members],
+    base: [{{ $module }}.Scope, {{ $module }}.Repo, {{ $module }}.PubSub{{ range items "layers.base" }}, {{ $module }}.{{ .module }}{{ end }}]
+  ]
+
+  @exports []
+
+  @may_use [outbound: [:base]]
+
+  @composition_root [{{ $module }}.Application]
+
+  @impl Mix.Task
+  def run(_args) do
+    sources =
+      for path <- Path.wildcard("lib/**/*.ex"),
+          not String.starts_with?(path, "lib/mix/"),
+          do: {path, File.read!(path)}
+
+    opts = [ignore: @composition_root, exports: @exports, may_use: @may_use]
+
+    case Rules.violations(sources, @layers, opts) do
+      [] ->
+        Mix.shell().info("xref.layers: OK")
+
+      violations ->
+        Enum.each(violations, &Mix.shell().error(Rules.describe(&1)))
+
+        Mix.raise("xref.layers failed. Fix each dependency above.")
+    end
+  end
+end

@@ -147,6 +147,7 @@ feature that `check --build` tests.
 | `chi-api` | A Go HTTP API with chi, whose routes are under `/api`, with an example of a public route and of a protected route |
 | `go` | A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow |
 | `go-event-sourcing-service` | A Go service with an event store, an HTTP API, and a catchup process |
+| `phoenix` | A Phoenix app from the latest `mix phx.new`, with contexts at the bottom, use cases above them, and a layer list that `mix xref.layers` checks. Its sample, the desk of a lending library, shows each part of the structure one time. It needs Elixir, the archive `phx_new` and `ast-grep` |
 
 | Feature | Targets | What it adds |
 | --- | --- | --- |
@@ -155,6 +156,7 @@ feature that `check --build` tests.
 | `cli-auth` | `chi-api`, `go-event-sourcing-service` | The credential in each request of the CLI, in the method of `api-auth`: the API key, which `store-key` keeps in the OS credential store, or the access token of a login at the issuer. It needs `cli` and `api-auth` |
 | `process-manager` | `go-event-sourcing-service` | The example of a process manager, a payment to another bank, with fakes of its outside systems |
 | `push` | `go-event-sourcing-service` | The WebSocket route `/api/ws` of the API, which sends each new event of the service to its clients. The option `delivery` reads the events from the notifications of Postgres (`pg-notify`) or from NATS (`nats`) |
+| `oban` | `phoenix` | Oban jobs in Postgres, and a `Jobs` module that adds a job from a struct in a `Multi`. It adds Oban to six files that `mix phx.new` writes |
 
 ## More Documents
 

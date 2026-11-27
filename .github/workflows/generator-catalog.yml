@@ -1,0 +1,73 @@
+name: Generator catalog
+
+on:
+  schedule:
+    # a new version of a generator can change its files with no commit in this repo
+    - cron: '0 3 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+
+  phoenix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        features: ['', '--feature oban']
+    services:
+      db:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5444:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 15
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Go
+      uses: actions/setup-go@v7
+      with:
+        go-version-file: 'go.mod'
+
+    - name: Mise install
+      uses: jdx/mise-action@v5
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Elixir
+      uses: erlef/setup-beam@v1
+      with:
+        otp-version: '29.1'
+        elixir-version: '1.20.4'
+
+    - name: Install the latest phx_new
+      run: mix archive.install hex phx_new --force
+
+    - name: Make the repo with the latest phx_new
+      env:
+        FEATURES: ${{ matrix.features }}
+      run: |
+        # FEATURES holds a flag and its value, so it is split on purpose
+        # shellcheck disable=SC2086
+        go run ./cmd/feature-compose new phoenix lending-desk --catalog catalog $FEATURES --no-prompt --output-dir "$RUNNER_TEMP/lending-desk"
+
+    - name: Run the checks of the CI of the repo
+      working-directory: ${{ runner.temp }}/lending-desk
+      env:
+        MISE_TRUSTED_CONFIG_PATHS: ${{ runner.temp }}
+      run: |
+        mix deps.unlock --check-unused
+        MIX_ENV="test" mix compile --warnings-as-errors
+        mix format --check-formatted
+        mix xref.layers
+        mix test

@@ -1,0 +1,26 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.Repo.Migrations.CreateBooksAndCopies do
+  use Ecto.Migration
+
+  def up do
+    create table(:books) do
+      add :title, :string, null: false
+      add :author, :string, null: false
+      timestamps(type: :utc_datetime)
+    end
+
+    create table(:copies) do
+      add :book_id, references(:books, on_delete: :restrict), null: false
+      add :barcode, :string, null: false
+      timestamps(type: :utc_datetime)
+    end
+
+    create index(:copies, [:book_id])
+    create unique_index(:copies, [:barcode])
+  end
+
+  def down do
+    drop table(:copies)
+    drop table(:books)
+  end
+end

@@ -1,0 +1,25 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.Loans.Loan do
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  schema "loans" do
+    belongs_to :member, {{ $module }}.Members.Member
+    belongs_to :copy, {{ $module }}.Catalog.Copy
+    field :issued_at, :utc_datetime
+    field :issued_by, :string
+    field :due_on, :date
+    field :returned_at, :utc_datetime
+    field :returned_by, :string
+    timestamps(type: :utc_datetime)
+  end
+
+  def issue_changeset(loan, attrs) do
+    loan
+    |> cast(attrs, [:member_id, :copy_id, :issued_at, :issued_by, :due_on])
+    |> validate_required([:member_id, :copy_id, :issued_at, :issued_by, :due_on])
+    |> foreign_key_constraint(:member_id)
+    |> foreign_key_constraint(:copy_id)
+    |> unique_constraint(:copy_id, name: :loans_open_copy_index, message: "is on loan")
+  end
+end

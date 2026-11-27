@@ -1,0 +1,19 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.UseCases.Borrowing.Request do
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  @primary_key false
+  embedded_schema do
+    field :member_id, :id
+    field :barcode, :string
+  end
+
+  def cast(params) do
+    %__MODULE__{}
+    |> cast(params, [:member_id, :barcode])
+    |> update_change(:barcode, &String.trim/1)
+    |> validate_required([:member_id, :barcode])
+    |> apply_action(:insert)
+  end
+end

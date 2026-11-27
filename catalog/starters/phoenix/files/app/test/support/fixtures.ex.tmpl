@@ -1,0 +1,41 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.Fixtures do
+  alias {{ $module }}.Catalog
+  alias {{ $module }}.Members
+  alias {{ $module }}.Scope
+  alias {{ $module }}.UseCases.Borrowing
+
+  def scope, do: Scope.for_staff("Test desk")
+
+  def member(attrs \\ %{}) do
+    unique = System.unique_integer([:positive])
+
+    {:ok, member} =
+      attrs
+      |> Enum.into(%{name: "Member #{unique}", email: "member#{unique}@example.com"})
+      |> Members.create()
+
+    member
+  end
+
+  def book(attrs \\ %{}) do
+    {:ok, book} =
+      attrs
+      |> Enum.into(%{title: "Book #{System.unique_integer([:positive])}", author: "An Author"})
+      |> Catalog.create_book()
+
+    book
+  end
+
+  def copy(book \\ book()) do
+    {:ok, copy} = Catalog.add_copy(book, %{barcode: "C-#{System.unique_integer([:positive])}"})
+    copy
+  end
+
+  def loan(member, copy, %DateTime{} = now) do
+    {:ok, loan} =
+      Borrowing.borrow(scope(), %{"member_id" => member.id, "barcode" => copy.barcode}, now: now)
+
+    loan
+  end
+end

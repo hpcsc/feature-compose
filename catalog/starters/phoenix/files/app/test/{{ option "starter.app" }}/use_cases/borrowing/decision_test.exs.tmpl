@@ -1,0 +1,45 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.UseCases.Borrowing.DecisionTest do
+  use ExUnit.Case, async: true
+
+  alias {{ $module }}.Catalog.Copy
+  alias {{ $module }}.Members.Member
+  alias {{ $module }}.UseCases.Borrowing.Decision
+  alias {{ $module }}.UseCases.Borrowing.Facts
+  alias {{ $module }}.UseCases.Borrowing.Plan
+
+  @now ~U[2026-03-02 10:00:00Z]
+
+  defp facts(overrides \\ []) do
+    defaults = [
+      member: %Member{id: 1, status: :active},
+      copy: %Copy{id: 10, book_id: 100},
+      copy_on_loan?: false,
+      open_loans: 0
+    ]
+
+    struct!(Facts, Keyword.merge(defaults, overrides))
+  end
+
+  describe "decide" do
+    test "lends the copy for 21 days" do
+      assert Decision.decide(facts(), @now) ==
+               {:ok, %Plan{member_id: 1, copy_id: 10, due_on: ~D[2026-03-23]}}
+    end
+
+    test "refuses a suspended member" do
+      facts = facts(member: %Member{id: 1, status: :suspended})
+
+      assert Decision.decide(facts, @now) == {:error, :member_suspended}
+    end
+
+    test "refuses a copy that is on loan" do
+      assert Decision.decide(facts(copy_on_loan?: true), @now) == {:error, :copy_on_loan}
+    end
+
+    test "refuses a member with five open loans, and lends to a member with four" do
+      assert Decision.decide(facts(open_loans: 5), @now) == {:error, :loan_limit_reached}
+      assert {:ok, %Plan{}} = Decision.decide(facts(open_loans: 4), @now)
+    end
+  end
+end

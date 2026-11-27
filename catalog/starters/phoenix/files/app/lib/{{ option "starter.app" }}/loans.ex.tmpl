@@ -1,0 +1,36 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.Loans do
+  import Ecto.Query
+
+  alias Ecto.Multi
+  alias {{ $module }}.Loans.Loan
+  alias {{ $module }}.Loans.Policy
+  alias {{ $module }}.Repo
+
+  defdelegate due_on(issued_at), to: Policy
+  defdelegate max_open_loans(), to: Policy
+
+  def copy_on_loan?(copy_id) do
+    Repo.exists?(from(l in open(), where: l.copy_id == ^copy_id))
+  end
+
+  def count_open_for_member(member_id) do
+    Repo.aggregate(from(l in open(), where: l.member_id == ^member_id), :count)
+  end
+
+  def list_open_for_member(member_id) do
+    Repo.all(
+      from(l in open(),
+        where: l.member_id == ^member_id,
+        order_by: [asc: l.due_on, asc: l.id],
+        preload: [copy: :book]
+      )
+    )
+  end
+
+  def issue(%Multi{} = multi, attrs) do
+    Multi.insert(multi, :loan, Loan.issue_changeset(%Loan{}, attrs))
+  end
+
+  defp open, do: from(l in Loan, where: is_nil(l.returned_at))
+end

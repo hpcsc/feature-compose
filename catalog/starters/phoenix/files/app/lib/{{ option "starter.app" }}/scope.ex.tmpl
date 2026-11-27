@@ -1,0 +1,9 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.Scope do
+  @enforce_keys [:staff]
+  defstruct [:staff]
+
+  @type t :: %__MODULE__{staff: String.t()}
+
+  def for_staff(name) when is_binary(name) and name != "", do: %__MODULE__{staff: name}
+end

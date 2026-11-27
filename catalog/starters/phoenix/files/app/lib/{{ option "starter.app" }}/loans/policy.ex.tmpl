@@ -1,0 +1,13 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.Loans.Policy do
+  @loan_days 21
+  @max_open_loans 5
+
+  def due_on(%DateTime{} = issued_at) do
+    issued_at
+    |> DateTime.to_date()
+    |> Date.add(@loan_days)
+  end
+
+  def max_open_loans, do: @max_open_loans
+end

@@ -1,0 +1,26 @@
+{{- $module := pascal (option "starter.app") -}}
+alias {{ $module }}.Catalog
+alias {{ $module }}.Members
+alias {{ $module }}.Scope
+alias {{ $module }}.UseCases.Borrowing
+
+{:ok, _ada} = Members.create(%{name: "Ada Lovelace", email: "ada@example.com"})
+{:ok, grace} = Members.create(%{name: "Grace Hopper", email: "grace@example.com"})
+
+{:ok, _alan} =
+  Members.create(%{name: "Alan Turing", email: "alan@example.com", status: :suspended})
+
+for {title, author, barcodes} <- [
+      {"Dune", "Frank Herbert", ["C-1001", "C-1002"]},
+      {"Emma", "Jane Austen", ["C-2001"]}
+    ] do
+  {:ok, book} = Catalog.create_book(%{title: title, author: author})
+
+  Enum.each(barcodes, fn barcode -> {:ok, _copy} = Catalog.add_copy(book, %{barcode: barcode}) end)
+end
+
+{:ok, _loan} =
+  Borrowing.borrow(Scope.for_staff("Seed script"), %{
+    "member_id" => grace.id,
+    "barcode" => "C-2001"
+  })

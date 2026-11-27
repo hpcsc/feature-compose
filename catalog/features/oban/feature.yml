@@ -1,0 +1,45 @@
+summary: Oban jobs in Postgres, and a Jobs module that adds a job from a struct in a Multi.
+targets: [phoenix]
+
+files:
+  - path: files/
+
+add_to:
+  mix.deps:
+    - dep: '{:oban, "~> 2.24"}'
+  config.blocks:
+    - block: |-
+        config :{{ option "starter.app" }}, Oban,
+          repo: {{ pascal (option "starter.app") }}.Repo,
+          queues: [default: 10],
+          plugins: [Oban.Plugins.Pruner]
+
+        config :{{ option "starter.app" }}, {{ pascal (option "starter.app") }}.Jobs, workers: %{}
+  config.test_blocks:
+    - block: 'config :{{ option "starter.app" }}, Oban, testing: :manual'
+  application.children:
+    - child: '{Oban, Application.fetch_env!(:{{ option "starter.app" }}, Oban)}'
+  data_case.using:
+    - code: 'use Oban.Testing, repo: {{ pascal (option "starter.app") }}.Repo'
+  layers.base:
+    - module: Jobs
+  readme.sections:
+    - text: |-
+        ## Jobs
+
+        A job is a row in the same database as the data, in the same transaction, so `Jobs` is a
+        base module, as `Repo` is, and not a port. A message to an outside queue, such as SQS, is
+        an outbound call, so it gets a port.
+
+        - **A worker is an inbound adapter**, and it lives in `adapters/inbound/jobs/` in the folder
+          of the app. The queue starts it, so it decodes its args and calls one function, as a
+          LiveView does.
+        - **Each job has one owner:** the module whose function the worker calls. The owner
+          describes the job with a struct and enqueues it with `Jobs.enqueue/4`. A map in
+          `config/` says which worker runs each struct, so the owner never names the worker, and no
+          reference points up.
+        - **The worker decodes its args** back into the struct with `Jobs.decode/2`. The struct
+          defines the keys on both sides, so the two cannot drift apart.
+        - **A message that must go out is a job in the `Multi`** of the use case. A rollback then
+          also takes back the job, and Oban retries a job that fails.
+        - **A cron worker needs no struct**, because only `config/` names it.

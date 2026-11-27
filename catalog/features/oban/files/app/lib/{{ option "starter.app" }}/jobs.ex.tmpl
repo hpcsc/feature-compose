@@ -1,0 +1,37 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.Jobs do
+  alias Ecto.Multi
+
+  @workers Application.compile_env!(:{{ option "starter.app" }}, [__MODULE__, :workers])
+
+  def enqueue(%Multi{} = multi, step, %job{} = description, opts \\ []) do
+    args = encode(description)
+    worker = worker!(job)
+    Oban.insert(multi, step, worker.new(args, opts))
+  end
+
+  def decode(job, %{} = args) when is_atom(job) do
+    fields = job.__struct__() |> Map.keys() |> List.delete(:__struct__)
+    struct!(job, Map.new(fields, &{&1, Map.fetch!(args, Atom.to_string(&1))}))
+  end
+
+  defp worker!(job) do
+    case @workers do
+      %{^job => worker} -> worker
+      %{} -> raise ArgumentError, "the map of workers in config has no worker for #{inspect(job)}"
+    end
+  end
+
+  defp encode(description) do
+    description
+    |> Map.from_struct()
+    |> Map.new(fn {key, value} -> {Atom.to_string(key), plain!(key, value)} end)
+  end
+
+  defp plain!(_key, value) when is_integer(value) or is_binary(value) or is_boolean(value),
+    do: value
+
+  defp plain!(key, _value) do
+    raise ArgumentError, "job args carry plain values such as ids, and #{key} is not one"
+  end
+end

@@ -1,0 +1,81 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.UseCases.Borrowing do
+  alias Ecto.Multi
+  alias {{ $module }}.Catalog
+  alias {{ $module }}.Loans
+  alias {{ $module }}.Members
+  alias {{ $module }}.Repo
+  alias {{ $module }}.Scope
+  alias {{ $module }}.UseCases.Borrowing.Decision
+  alias {{ $module }}.UseCases.Borrowing.Facts
+  alias {{ $module }}.UseCases.Borrowing.Plan
+  alias {{ $module }}.UseCases.Borrowing.Request
+
+  def borrow(%Scope{} = scope, params, opts \\ []) do
+    now = Keyword.get_lazy(opts, :now, fn -> DateTime.utc_now(:second) end)
+
+    with {:ok, request} <- Request.cast(params) do
+      Multi.new()
+      |> Multi.run(:facts, fn _repo, _changes -> load_facts(request) end)
+      |> Multi.run(:plan, fn _repo, %{facts: facts} -> Decision.decide(facts, now) end)
+      |> Multi.merge(fn %{plan: plan} -> write(scope, plan, now) end)
+      |> Repo.transaction()
+      |> finish()
+    end
+  end
+
+  defp load_facts(%Request{} = request) do
+    with {:ok, member} <- lock_member(request.member_id),
+         {:ok, copy} <- fetch_copy(request.barcode) do
+      {:ok,
+       %Facts{
+         member: member,
+         copy: copy,
+         copy_on_loan?: Loans.copy_on_loan?(copy.id),
+         open_loans: Loans.count_open_for_member(member.id)
+       }}
+    end
+  end
+
+  defp lock_member(member_id) do
+    case Members.lock(member_id) do
+      {:ok, member} -> {:ok, member}
+      {:error, :not_found} -> {:error, :member_not_found}
+    end
+  end
+
+  defp fetch_copy(barcode) do
+    case Catalog.fetch_copy_by_barcode(barcode) do
+      {:ok, copy} -> {:ok, copy}
+      {:error, :not_found} -> {:error, :copy_not_found}
+    end
+  end
+
+  defp write(%Scope{} = scope, %Plan{} = plan, now) do
+    Multi.new()
+    |> Loans.issue(%{
+      member_id: plan.member_id,
+      copy_id: plan.copy_id,
+      issued_at: now,
+      issued_by: scope.staff,
+      due_on: plan.due_on
+    })
+  end
+
+  defp finish({:ok, %{loan: loan}}) do
+    Members.broadcast_change(loan.member_id)
+    {:ok, loan}
+  end
+
+  defp finish({:error, step, reason, _changes}) when step in [:facts, :plan], do: {:error, reason}
+
+  defp finish({:error, :loan, %Ecto.Changeset{} = changeset, _changes}) do
+    if open_loan_conflict?(changeset), do: {:error, :copy_on_loan}, else: {:error, changeset}
+  end
+
+  defp finish({:error, _step, %Ecto.Changeset{} = changeset, _changes}), do: {:error, changeset}
+
+  defp open_loan_conflict?(changeset) do
+    match?({_message, [constraint: :unique, constraint_name: _]}, changeset.errors[:copy_id])
+  end
+end

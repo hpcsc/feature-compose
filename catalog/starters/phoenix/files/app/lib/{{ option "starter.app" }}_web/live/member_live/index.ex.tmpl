@@ -1,0 +1,29 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}Web.MemberLive.Index do
+  use {{ $module }}Web, :live_view
+
+  alias {{ $module }}.Members
+
+  @impl true
+  def mount(_params, _session, socket) do
+    {:ok, assign_async(socket, :members, fn -> {:ok, %{members: Members.list()}} end)}
+  end
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <Layouts.app flash={@flash}>
+      <.header>Members</.header>
+      <.async_result :let={members} assign={@members}>
+        <:loading>Loading the members.</:loading>
+        <ul id="members" class="divide-y divide-base-300">
+          <li :for={member <- members} id={"member-#{member.id}"} class="py-2">
+            <.link navigate={~p"/members/#{member.id}"} class="link">{member.name}</.link>
+            <span :if={member.status == :suspended} class="badge badge-warning ml-2">suspended</span>
+          </li>
+        </ul>
+      </.async_result>
+    </Layouts.app>
+    """
+  end
+end

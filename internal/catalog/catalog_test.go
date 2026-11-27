@@ -1607,6 +1607,7 @@ files:
 		})
 
 		t.Run("the catalog of this repo has no mistake", func(t *testing.T) {
+			requireASTGrep(t)
 			mistakes, err := repoCatalog().Check(context.Background())
 
 			require.NoError(t, err)

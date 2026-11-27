@@ -1,0 +1,5 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.UseCases.Borrowing.Plan do
+  @enforce_keys [:member_id, :copy_id, :due_on]
+  defstruct @enforce_keys
+end

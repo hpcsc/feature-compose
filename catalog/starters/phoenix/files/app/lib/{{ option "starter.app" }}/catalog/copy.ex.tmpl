@@ -1,0 +1,18 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.Catalog.Copy do
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  schema "copies" do
+    field :barcode, :string
+    belongs_to :book, {{ $module }}.Catalog.Book
+    timestamps(type: :utc_datetime)
+  end
+
+  def changeset(copy, attrs) do
+    copy
+    |> cast(attrs, [:barcode])
+    |> validate_required([:barcode])
+    |> unique_constraint(:barcode)
+  end
+end

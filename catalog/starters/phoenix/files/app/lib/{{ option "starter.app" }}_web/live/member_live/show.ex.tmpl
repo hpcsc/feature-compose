@@ -1,0 +1,93 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}Web.MemberLive.Show do
+  use {{ $module }}Web, :live_view
+
+  alias {{ $module }}.Loans
+  alias {{ $module }}.Members
+  alias {{ $module }}.UseCases.Borrowing
+
+  @impl true
+  def mount(%{"id" => member_id}, _session, socket) do
+    if connected?(socket), do: Members.subscribe(member_id)
+
+    {:ok,
+     socket
+     |> assign(member_id: member_id, borrow_form: new_borrow_form(%{}))
+     |> load()}
+  end
+
+  @impl true
+  def handle_event("change_borrow", %{"borrow" => params}, socket) do
+    {:noreply, assign(socket, :borrow_form, new_borrow_form(params))}
+  end
+
+  def handle_event("borrow", %{"borrow" => params}, socket) do
+    params = Map.put(params, "member_id", socket.assigns.member_id)
+
+    case Borrowing.borrow(socket.assigns.current_scope, params) do
+      {:ok, loan} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Borrowed. Due on #{loan.due_on}.")
+         |> assign(:borrow_form, new_borrow_form(%{}))
+         |> load()}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign(socket, :borrow_form, to_form(changeset, as: :borrow))}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, refusal(reason))}
+    end
+  end
+
+  @impl true
+  def handle_info({:member_changed, _member_id}, socket), do: {:noreply, load(socket)}
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <Layouts.app flash={@flash}>
+      <.async_result :let={member} assign={@member}>
+        <:loading>Loading the member.</:loading>
+        <:failed>The member was not found.</:failed>
+        <.header>{member.name}</.header>
+      </.async_result>
+
+      <.form for={@borrow_form} id="borrow-form" phx-change="change_borrow" phx-submit="borrow">
+        <.input field={@borrow_form[:barcode]} label="Barcode of the copy" autocomplete="off" />
+        <.button variant="primary">Borrow</.button>
+      </.form>
+
+      <.async_result :let={loans} assign={@loans}>
+        <section id="loans">
+          <h2 class="font-semibold">On loan</h2>
+          <p :if={loans == []}>No books on loan.</p>
+          <.table :if={loans != []} id="loan-rows" rows={loans} row_id={&"loan-#{&1.id}"}>
+            <:col :let={loan} label="Title">{loan.copy.book.title}</:col>
+            <:col :let={loan} label="Barcode">{loan.copy.barcode}</:col>
+            <:col :let={loan} label="Due">{loan.due_on}</:col>
+          </.table>
+        </section>
+      </.async_result>
+    </Layouts.app>
+    """
+  end
+
+  defp load(socket) do
+    member_id = socket.assigns.member_id
+
+    assign_async(socket, [:member, :loans], fn ->
+      with {:ok, member} <- Members.fetch(member_id) do
+        {:ok, %{member: member, loans: Loans.list_open_for_member(member.id)}}
+      end
+    end)
+  end
+
+  defp new_borrow_form(params), do: to_form(params, as: :borrow)
+
+  defp refusal(:member_not_found), do: "The member was not found."
+  defp refusal(:copy_not_found), do: "No copy has this barcode."
+  defp refusal(:member_suspended), do: "This member is suspended."
+  defp refusal(:copy_on_loan), do: "This copy is on loan."
+  defp refusal(:loan_limit_reached), do: "This member has the most loans that the library allows."
+end

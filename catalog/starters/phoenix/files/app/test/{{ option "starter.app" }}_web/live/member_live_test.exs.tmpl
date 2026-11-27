@@ -1,0 +1,39 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}Web.MemberLiveTest do
+  use {{ $module }}Web.ConnCase, async: true
+
+  import {{ $module }}.Fixtures
+  import Phoenix.LiveViewTest
+
+  describe "the member page" do
+    test "borrows a copy and shows it on loan", %{conn: conn} do
+      member = member()
+      copy = copy(book(%{title: "Dune"}))
+      {:ok, view, _html} = live(conn, ~p"/members/#{member.id}")
+      render_async(view)
+
+      view
+      |> form("#borrow-form", borrow: %{barcode: copy.barcode})
+      |> render_submit()
+
+      render_async(view)
+      assert has_element?(view, "#loans", "Dune")
+    end
+
+    test "shows the reason when the library refuses a loan", %{conn: conn} do
+      member = member(%{status: :suspended})
+      copy = copy()
+      {:ok, view, _html} = live(conn, ~p"/members/#{member.id}")
+      render_async(view)
+
+      html =
+        view
+        |> form("#borrow-form", borrow: %{barcode: copy.barcode})
+        |> render_submit()
+
+      assert html =~ "This member is suspended."
+      render_async(view)
+      refute has_element?(view, "#loans table")
+    end
+  end
+end

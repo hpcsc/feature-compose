@@ -1,0 +1,165 @@
+summary: A Phoenix app from the latest mix phx.new, with contexts, use cases above them, and a layer list that mix xref.layers checks.
+
+options:
+  app:
+    default: "{{ snake .Name }}"
+    pattern: '^[a-z][a-z0-9_]*$'
+
+folders:
+  app:
+    path: .
+    generate: mix phx.new {{ .Folder }} --app {{ option "starter.app" }} --no-mailer --no-gettext --no-dashboard --no-install
+    after_render: [mix deps.get, mix format]
+    test: [mix deps.unlock --check-unused, MIX_ENV=test mix compile --warnings-as-errors, mix format --check-formatted, mix xref.layers]
+
+remove:
+  - file: app/lib/{{ option "starter.app" }}.ex
+  - file: app/lib/{{ option "starter.app" }}_web/controllers/page_controller.ex
+  - file: app/lib/{{ option "starter.app" }}_web/controllers/page_html.ex
+  - file: app/lib/{{ option "starter.app" }}_web/controllers/page_html/home.html.heex
+  - file: app/test/{{ option "starter.app" }}_web/controllers/page_controller_test.exs
+  - file: app/lib/{{ option "starter.app" }}_web/router.ex
+    language: elixir
+    pattern: get "/", PageController, :home
+
+extension_points:
+  readme.sections:
+    summary: A section of README.md about a part of the structure, as Markdown that starts with a heading of level 2. It goes after the section about use cases.
+    file: app/README.md
+    item: [text]
+
+  layers.base:
+    summary: A module at the bottom of the layer list, as its name under the module of the app. Each layer can use it.
+    file: app/lib/mix/tasks/xref.layers.ex
+    item: [module]
+
+  mix.deps:
+    summary: A dependency of the app, as a tuple of deps in mix.exs.
+    file: app/mix.exs
+    item: [dep]
+    language: elixir
+    pattern: defp deps do [$$$DEPS] end
+    after: DEPS
+    separator: ","
+    insert: "{{ .dep }}"
+
+  mix.precommit:
+    summary: A step of mix precommit, as a quoted mix task. It runs before the tests.
+    file: app/mix.exs
+    item: [step]
+    language: elixir
+    rule:
+      pattern: '"test"'
+      inside:
+        pattern:
+          context: "[precommit: [$$$STEPS]]"
+          selector: pair
+        stopBy: end
+    before: match
+    separator: ","
+    insert: "{{ .step }}"
+
+  config.blocks:
+    summary: A config call of config/config.exs, for each environment. It goes after the config of Phoenix and before import_config.
+    file: app/config/config.exs
+    item: [block]
+    language: elixir
+    pattern: config :phoenix, :json_library, $LIBRARY
+    after: match
+    insert: "\n{{ .block }}"
+
+  config.test_blocks:
+    summary: A config call of config/test.exs. It goes after the config of the Repo.
+    file: app/config/test.exs
+    item: [block]
+    language: elixir
+    pattern: 'config :{{ option "starter.app" }}, {{ pascal (option "starter.app") }}.Repo, $$$OPTIONS'
+    after: match
+    insert: "\n{{ .block }}"
+
+  repo.dev_options:
+    summary: An option of the Repo in config/dev.exs, as a keyword.
+    file: app/config/dev.exs
+    item: [option]
+    language: elixir
+    pattern: 'config :{{ option "starter.app" }}, {{ pascal (option "starter.app") }}.Repo, $$$OPTIONS'
+    after: OPTIONS
+    separator: ","
+    insert: "{{ .option }}"
+
+  repo.test_options:
+    summary: An option of the Repo in config/test.exs, as a keyword.
+    file: app/config/test.exs
+    item: [option]
+    language: elixir
+    pattern: 'config :{{ option "starter.app" }}, {{ pascal (option "starter.app") }}.Repo, $$$OPTIONS'
+    after: OPTIONS
+    separator: ","
+    insert: "{{ .option }}"
+
+  application.children:
+    summary: A child that the supervisor of the app starts, before the endpoint.
+    file: app/lib/{{ option "starter.app" }}/application.ex
+    item: [child]
+    language: elixir
+    rule:
+      pattern: '{{ pascal (option "starter.app") }}Web.Endpoint'
+      inside:
+        pattern: children = [$$$CHILDREN]
+        stopBy: end
+    before: match
+    separator: ","
+    insert: "{{ .child }}"
+
+  data_case.using:
+    summary: A line at the start of the quote of DataCase, for each test that uses the database.
+    file: app/test/support/data_case.ex
+    item: [code]
+    language: elixir
+    pattern: using do quote do $$$BODY end end
+    before: BODY
+    insert: "{{ .code }}\n"
+
+  router.browser_routes:
+    summary: A route in the scope "/" of the router, which goes through the pipeline :browser.
+    file: app/lib/{{ option "starter.app" }}_web/router.ex
+    item: [route]
+    language: elixir
+    pattern: 'scope "/", {{ pascal (option "starter.app") }}Web do $$$BODY end'
+    after: BODY
+    insert: "\n{{ .route }}"
+
+  agents.guidelines:
+    summary: A guideline in the list of project guidelines of AGENTS.md.
+    file: app/AGENTS.md
+    item: [line]
+    language: markdown
+    rule:
+      kind: list_item
+      regex: "^- Use `mix precommit`"
+    after: match
+    insert: "- {{ .line }}"
+
+add_to:
+  mix.precommit:
+    - step: '"xref.layers"'
+  repo.dev_options:
+    - option: "port: 5444"
+  repo.test_options:
+    - option: "port: 5444"
+  router.browser_routes:
+    - route: |-
+        live_session :desk, on_mount: {{ pascal (option "starter.app") }}Web.StaffScope do
+          live "/", MemberLive.Index, :index
+          live "/members/:id", MemberLive.Show, :show
+        end
+  agents.guidelines:
+    - line: Follow the structure in `README.md`. A module calls only modules lower in the layer list in `Mix.Tasks.Xref.Layers`, and `mix xref.layers` checks it. A new top-level module gets its place in that list in the same change
+
+delimiters:
+  - glob: "app/lib/mix/tasks/xref/**"
+    left: "<%"
+    right: "%>"
+  - glob: "app/.github/**"
+    left: "[["
+    right: "]]"

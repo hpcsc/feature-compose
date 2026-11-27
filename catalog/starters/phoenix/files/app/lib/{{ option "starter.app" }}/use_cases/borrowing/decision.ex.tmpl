@@ -1,0 +1,27 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.UseCases.Borrowing.Decision do
+  alias {{ $module }}.Loans
+  alias {{ $module }}.UseCases.Borrowing.Facts
+  alias {{ $module }}.UseCases.Borrowing.Plan
+
+  def decide(%Facts{} = facts, %DateTime{} = now) do
+    cond do
+      facts.member.status == :suspended ->
+        {:error, :member_suspended}
+
+      facts.copy_on_loan? ->
+        {:error, :copy_on_loan}
+
+      facts.open_loans >= Loans.max_open_loans() ->
+        {:error, :loan_limit_reached}
+
+      true ->
+        {:ok,
+         %Plan{
+           member_id: facts.member.id,
+           copy_id: facts.copy.id,
+           due_on: Loans.due_on(now)
+         }}
+    end
+  end
+end

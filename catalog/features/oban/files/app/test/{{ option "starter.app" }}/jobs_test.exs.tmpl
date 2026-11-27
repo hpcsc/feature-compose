@@ -1,0 +1,29 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.JobsTest do
+  use {{ $module }}.DataCase, async: true
+
+  alias Ecto.Multi
+  alias {{ $module }}.Jobs
+
+  defmodule Notice do
+    defstruct [:id]
+  end
+
+  describe "enqueue" do
+    test "refuses an arg that is not a plain value" do
+      assert_raise ArgumentError, ~r/id is not one/, fn ->
+        Jobs.enqueue(Multi.new(), :notice, %Notice{id: %{id: 7}})
+      end
+    end
+  end
+
+  describe "decode" do
+    test "gives back the struct from the args of a job" do
+      assert Jobs.decode(Notice, %{"id" => 7}) == %Notice{id: 7}
+    end
+
+    test "raises when an arg of the struct is missing" do
+      assert_raise KeyError, ~r/"id"/, fn -> Jobs.decode(Notice, %{}) end
+    end
+  end
+end

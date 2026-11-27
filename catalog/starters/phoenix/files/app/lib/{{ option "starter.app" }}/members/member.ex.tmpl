@@ -1,0 +1,20 @@
+{{- $module := pascal (option "starter.app") -}}
+defmodule {{ $module }}.Members.Member do
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  schema "members" do
+    field :name, :string
+    field :email, :string
+    field :status, Ecto.Enum, values: [:active, :suspended], default: :active
+    timestamps(type: :utc_datetime)
+  end
+
+  def changeset(member, attrs) do
+    member
+    |> cast(attrs, [:name, :email, :status])
+    |> validate_required([:name, :email])
+    |> validate_format(:email, ~r/^[^\s@]+@[^\s@]+$/)
+    |> unique_constraint(:email)
+  end
+end

@@ -20,6 +20,8 @@ import (
 	"github.com/hpcsc/feature-compose/internal/textcase"
 )
 
+const writeFilesStep = "Write the files of the starter and the features"
+
 var shellWord = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
 
 type Selection struct {
@@ -88,11 +90,11 @@ func (s Selection) writeFiles(output string) error {
 	return nil
 }
 
-func (s Selection) MakeRepo(ctx context.Context, output, version string) error {
-	if err := s.writeRepo(ctx, output); err != nil {
+func (s Selection) MakeRepo(ctx context.Context, output, version string, steps Steps) error {
+	if err := s.writeRepo(ctx, output, steps); err != nil {
 		return err
 	}
-	if err := s.RunAfterRender(ctx, output); err != nil {
+	if err := s.runAfterRender(ctx, output, steps); err != nil {
 		return err
 	}
 	return s.writeSelectionFile(output, version)
@@ -166,8 +168,12 @@ func (s Selection) Arguments(output string) string {
 }
 
 func (s Selection) RunAfterRender(ctx context.Context, output string) error {
+	return s.runAfterRender(ctx, output, NoSteps{})
+}
+
+func (s Selection) runAfterRender(ctx context.Context, output string, steps Steps) error {
 	for _, folderName := range slices.Sorted(maps.Keys(s.folders)) {
-		if err := s.folders[folderName].runAfterRender(ctx, output); err != nil {
+		if err := s.folders[folderName].runAfterRender(ctx, output, steps); err != nil {
 			return err
 		}
 	}
@@ -402,9 +408,9 @@ func (s Selection) extensionPoint(name string) (extensionPoint, error) {
 	return declared, nil
 }
 
-func (s Selection) writeRepo(ctx context.Context, output string) error {
+func (s Selection) writeRepo(ctx context.Context, output string, steps Steps) error {
 	if !s.folders.hasGenerator() {
-		return s.writeFiles(output)
+		return s.step(steps, writeFilesStep, func() error { return s.writeFiles(output) })
 	}
 	files, err := s.files()
 	if err != nil {
@@ -424,7 +430,7 @@ func (s Selection) writeRepo(ctx context.Context, output string) error {
 	_, statErr := os.Stat(output)
 	existed := statErr == nil
 	written := map[string]bool{}
-	if err := s.writeGeneratedRepo(ctx, output, files, written); err != nil {
+	if err := s.writeGeneratedRepo(ctx, output, files, written, steps); err != nil {
 		if existed {
 			s.removeEntries(output, written)
 		} else {
@@ -461,27 +467,42 @@ func (s Selection) removeEntries(output string, names map[string]bool) {
 	}
 }
 
-func (s Selection) writeGeneratedRepo(ctx context.Context, output string, files []file, written map[string]bool) error {
-	generatedPaths, err := s.generate(ctx, output)
+func (s Selection) writeGeneratedRepo(ctx context.Context, output string, files []file, written map[string]bool, steps Steps) error {
+	generatedPaths, err := s.generate(ctx, output, steps)
 	for repoPath := range generatedPaths {
 		written[s.topEntry(repoPath)] = true
 	}
 	if err != nil {
 		return err
 	}
-	if err := s.remove(ctx, output, generatedPaths); err != nil {
-		return err
-	}
-	for _, f := range files {
-		if generatedPaths[f.path] && f.featureName != "" {
-			return fmt.Errorf("%s writes %s, which the generate command also writes: only a file of the starter can replace a generated file", f.owner, f.path)
-		}
-		written[s.topEntry(f.path)] = true
-		if err := f.write(output); err != nil {
+	if len(s.removals) > 0 {
+		if err := s.step(steps, "Remove the generated files and code that the starter names", func() error { return s.remove(ctx, output, generatedPaths) }); err != nil {
 			return err
 		}
 	}
-	return s.insertItems(ctx, output, generatedPaths)
+	err = s.step(steps, writeFilesStep, func() error {
+		for _, f := range files {
+			if generatedPaths[f.path] && f.featureName != "" {
+				return fmt.Errorf("%s writes %s, which the generate command also writes: only a file of the starter can replace a generated file", f.owner, f.path)
+			}
+			written[s.topEntry(f.path)] = true
+			if err := f.write(output); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil || !s.hasGeneratedExtensionPoint() {
+		return err
+	}
+	return s.step(steps, "Add the items to the generated files", func() error { return s.insertItems(ctx, output, generatedPaths) })
+}
+
+func (s Selection) step(steps Steps, label string, run func() error) error {
+	end := steps.Start(label)
+	err := run()
+	end(err)
+	return err
 }
 
 func (s Selection) topEntry(repoPath string) string {
@@ -490,22 +511,25 @@ func (s Selection) topEntry(repoPath string) string {
 }
 
 func (s Selection) changesGeneratedFiles() bool {
-	if slices.ContainsFunc(s.removals, func(r removal) bool { return !r.query.Empty() }) {
-		return true
-	}
+	return slices.ContainsFunc(s.removals, func(r removal) bool { return !r.query.Empty() }) || s.hasGeneratedExtensionPoint()
+}
+
+func (s Selection) hasGeneratedExtensionPoint() bool {
 	return slices.ContainsFunc(slices.Collect(maps.Values(s.extensionPoints)), extensionPoint.inGeneratedFile)
 }
 
-func (s Selection) generate(ctx context.Context, output string) (map[string]bool, error) {
+func (s Selection) generate(ctx context.Context, output string, steps Steps) (map[string]bool, error) {
 	generatedPaths := map[string]bool{}
 	for _, folderName := range slices.Sorted(maps.Keys(s.folders)) {
 		f := s.folders[folderName]
 		if !f.generates() {
 			continue
 		}
+		end := steps.Start("Generate the folder " + f.name)
 		paths, err := f.runGenerate(ctx, output, s.name, func(generatedFolder string) (string, error) {
 			return s.renderData("the generate command of the folder "+f.name, f.generate, defaultDelimiters, "", map[string]any{"Name": s.name, "Folder": s.quoted(generatedFolder)})
 		})
+		end(err)
 		for _, p := range paths {
 			generatedPaths[p] = true
 		}

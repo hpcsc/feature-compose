@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hpcsc/feature-compose/internal/catalog"
+	"github.com/hpcsc/feature-compose/internal/progress"
 	"github.com/hpcsc/feature-compose/internal/screen"
 	"github.com/urfave/cli/v3"
 )
@@ -55,6 +56,18 @@ func newCheckCommand(load func() (catalog.Catalog, error)) *cli.Command {
 	}
 }
 
+func runningLine(w io.Writer, label string) (clear func()) {
+	if !isTerminal(w) {
+		return func() {}
+	}
+	line := progress.Start(w, true, label)
+	stopTimer := line.Timer(time.Second)
+	return func() {
+		stopTimer()
+		line.Clear()
+	}
+}
+
 func testCombinations(ctx context.Context, w io.Writer, c catalog.Catalog) error {
 	combinations, err := c.Combinations()
 	if err != nil {
@@ -78,7 +91,9 @@ func testCombinations(ctx context.Context, w io.Writer, c catalog.Catalog) error
 			return err
 		}
 		started := time.Now()
+		running := runningLine(w, fmt.Sprintf("[%d/%d] %s", i+1, count, combination))
 		testErr := c.TestCombination(ctx, combination, combinationRepoName, filepath.Join(root, strconv.Itoa(i+1), combinationRepoName))
+		running()
 		result := fmt.Sprintf("[%d/%d] ok    %s (%s)\n", i+1, count, combination, time.Since(started).Round(time.Second))
 		if testErr != nil {
 			failed = append(failed, combination.String())

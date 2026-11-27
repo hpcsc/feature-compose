@@ -83,18 +83,20 @@ func (f folder) runGenerate(ctx context.Context, output, repoName string, comman
 	return paths, nil
 }
 
-func (f folder) runAfterRender(ctx context.Context, output string) error {
-	return f.runAll(ctx, output, "after_render", f.afterRender)
+func (f folder) runAfterRender(ctx context.Context, output string, steps Steps) error {
+	return f.runAll(ctx, output, "after_render", f.afterRender, steps)
 }
 
 func (f folder) runTests(ctx context.Context, output string) error {
-	return f.runAll(ctx, output, "test", f.test)
+	return f.runAll(ctx, output, "test", f.test, NoSteps{})
 }
 
-func (f folder) runAll(ctx context.Context, output, list string, commands []string) error {
+func (f folder) runAll(ctx context.Context, output, list string, commands []string, steps Steps) error {
 	dir := filepath.Join(output, filepath.FromSlash(f.path))
 	for _, command := range commands {
+		end := steps.Start(f.name + ": " + command)
 		printed, err := shell.Run(ctx, dir, command)
+		end(err)
 		if err != nil {
 			return fmt.Errorf("the %s command %q of the folder %s failed: %w\n%s", list, command, f.name, err, printed)
 		}

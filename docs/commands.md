@@ -268,6 +268,21 @@ stop `new` before the form opens, with the message that `new` gives without the 
 `new` writes nothing until you press Enter at the preview. A cancel writes no file, makes no output folder and runs no
 command. `new` then prints `you canceled new, so it wrote no file` and ends with the status 1.
 
+While `new` makes the repo, it shows each step on stderr: the generate command of each folder, the removals, the
+write of the files, the inserts into generated files, and each `after_render` command. On a terminal, the line of
+the running step shows the seconds so far. When the step ends, the line shows a check mark, or a cross for a step
+that failed, and the time that the step took:
+
+```text
+✓ Generate the folder app (0s)
+✓ Write the files of the starter and the features (0s)
+✓ Add the items to the generated files (0s)
+app: mix deps.get… (6s)
+```
+
+Outside a terminal, for example in CI, each step gives two whole lines: one when it starts, and one when it ends.
+stdout gets only the result.
+
 After `new` writes the repo, it prints the command that makes the same repo:
 
 ```text
@@ -548,6 +563,9 @@ The catalog has 3 combinations. Make the repo of each, and run its after_render 
       the test command "sh ./scripts/test.sh" of the folder app failed: exit status 1
       tests/greeting.sh: the greeting is "Hello, my-repo!", not "Bonjour, my-repo!"
 ```
+
+On a terminal, the line of the running combination shows the seconds so far, and the result line takes its
+place when the combination ends. Outside a terminal, `check` writes only the result lines.
 
 Each line names the combination as the arguments of `new` that make the same repo, so you can make it again to
 find the cause. The repo of each combination is `my-repo`. `check` removes the temporary folder when it ends. When

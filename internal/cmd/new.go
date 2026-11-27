@@ -68,7 +68,8 @@ func newNewCommand(load func() (catalog.Catalog, error), version string) *cli.Co
 			if output == "" {
 				output = selection.Name()
 			}
-			if err := selection.MakeRepo(ctx, output, version); err != nil {
+			steps := stepLines{w: cmd.Root().ErrWriter, terminal: isTerminal(cmd.Root().ErrWriter)}
+			if err := selection.MakeRepo(ctx, output, version, steps); err != nil {
 				return err
 			}
 			var printed strings.Builder

@@ -1098,7 +1098,7 @@ the option level of the feature a has no default and no value: give it with --fe
 			selection := selectionWith(t, threeOptions, "my-service", map[string]string{"region": "eu"}, catalog.Answers{StarterValues: map[string]string{"tier": "gold"}})
 			output := filepath.Join(t.TempDir(), "my-service")
 
-			err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+			err := selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
@@ -1112,7 +1112,7 @@ the option level of the feature a has no default and no value: give it with --fe
 			selection := selectionWith(t, "folders:\n  go:\n    path: .\n    after_render: [\"ls -A > listed\"]\n", "ledger", nil, catalog.Answers{})
 			output := filepath.Join(t.TempDir(), "ledger")
 
-			err := selection.MakeRepo(context.Background(), output, "v0.1.0")
+			err := selection.MakeRepo(context.Background(), output, "v0.1.0", catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
@@ -1126,7 +1126,7 @@ the option level of the feature a has no default and no value: give it with --fe
 			selection := selectionWith(t, "folders:\n  go:\n    path: .\n", "api", nil, catalog.Answers{})
 			output := t.TempDir()
 
-			err := selection.MakeRepo(context.Background(), output, "0123abc-dirty")
+			err := selection.MakeRepo(context.Background(), output, "0123abc-dirty", catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{"go.mod": "module api\n", ".feature-compose.yml": "version: 0123abc-dirty\nstarter: service\nname: api\noptions: {}\nfeatures: {}\nrequested: []\n"}, filesIn(t, output))
@@ -1139,7 +1139,7 @@ the option level of the feature a has no default and no value: give it with --fe
 			}
 			selection := selectionWith(t, starterYML, "my-service", map[string]string{"float": "1.28", "bool": "true", "on": "on", "empty": "", "tilde": "~"}, catalog.Answers{})
 			output := t.TempDir()
-			require.NoError(t, selection.MakeRepo(context.Background(), output, "v1.2.3"))
+			require.NoError(t, selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{}))
 			var readBack map[string]any
 
 			err := yaml.Unmarshal([]byte(filesIn(t, output)[".feature-compose.yml"]), &readBack)
@@ -1166,7 +1166,7 @@ the option level of the feature a has no default and no value: give it with --fe
 			}, map[string]map[string]string{"auth-cli": {}, "zone": {"tier": "gold"}}, catalog.Answers{Features: []string{"docs"}, FeatureValues: map[string]map[string]string{"zone": {"region": "us"}}})
 			output := t.TempDir()
 
-			err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+			err := selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
@@ -1184,7 +1184,7 @@ the option level of the feature a has no default and no value: give it with --fe
 			}, map[string]map[string]string{"a": {}, "b": {}}, catalog.Answers{Features: []string{"c"}, FeatureValues: map[string]map[string]string{"d": {"mode": "slow"}}})
 			output := t.TempDir()
 
-			err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+			err := selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, map[string]string{
@@ -1199,7 +1199,7 @@ the option level of the feature a has no default and no value: give it with --fe
 			output := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(output, "notes.txt"), []byte("my notes\n"), 0o644))
 
-			err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+			err := selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
 
 			require.ErrorContains(t, err, "is not empty")
 			require.Equal(t, map[string]string{"notes.txt": "my notes\n"}, filesIn(t, output))
@@ -1210,7 +1210,7 @@ the option level of the feature a has no default and no value: give it with --fe
 			selection := selectionWith(t, "folders:\n  go:\n    path: .\n    after_render: [\"exit 3\"]\n", "my-service", nil, catalog.Answers{})
 			output := filepath.Join(t.TempDir(), "my-service")
 
-			err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+			err := selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
 
 			require.ErrorContains(t, err, "exit 3")
 			require.Equal(t, map[string]string{"go.mod": "module my-service\n"}, filesIn(t, output))
@@ -1221,16 +1221,43 @@ the option level of the feature a has no default and no value: give it with --fe
 			selection := selectionWith(t, "folders:\n  go:\n    path: .\n    after_render: [\"mkdir .feature-compose.yml\"]\n", "my-service", nil, catalog.Answers{})
 			output := filepath.Join(t.TempDir(), "my-service")
 
-			err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+			err := selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
 
 			require.ErrorContains(t, err, "write .feature-compose.yml")
+		})
+
+		t.Run("reports the write and each after_render command as a step, in the order in which they run", func(t *testing.T) {
+			selection := selectionWith(t, "folders:\n  go:\n    path: .\n    after_render: [\"true\", \"echo done\"]\n", "my-service", nil, catalog.Answers{})
+			steps := &recordedSteps{}
+
+			err := selection.MakeRepo(context.Background(), filepath.Join(t.TempDir(), "my-service"), "v1.2.3", steps)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{
+				"start Write the files of the starter and the features", "end Write the files of the starter and the features",
+				"start go: true", "end go: true",
+				"start go: echo done", "end go: echo done",
+			}, steps.lines)
+		})
+
+		t.Run("ends the step that fails with its error, and starts no step after it", func(t *testing.T) {
+			selection := selectionWith(t, "folders:\n  go:\n    path: .\n    after_render: [\"false\", \"true\"]\n", "my-service", nil, catalog.Answers{})
+			steps := &recordedSteps{}
+
+			err := selection.MakeRepo(context.Background(), filepath.Join(t.TempDir(), "my-service"), "v1.2.3", steps)
+
+			require.ErrorContains(t, err, `the after_render command "false" of the folder go failed`)
+			require.Equal(t, []string{
+				"start Write the files of the starter and the features", "end Write the files of the starter and the features",
+				"start go: false", "fail go: false",
+			}, steps.lines)
 		})
 
 		t.Run("with a generator", func(t *testing.T) {
 			made := func(t *testing.T, selection catalog.Selection) (string, error) {
 				t.Helper()
 				output := filepath.Join(t.TempDir(), "my-service")
-				return output, selection.MakeRepo(context.Background(), output, "v1.2.3")
+				return output, selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
 			}
 			repoFiles := func(t *testing.T, output string) map[string]string {
 				t.Helper()
@@ -1263,6 +1290,47 @@ extension_points:
     insert: "{{ .dep }}"
 `
 
+			t.Run("reports the generate command, the removals, the write, the inserts and each after_render command as steps, in the order in which they run", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      printf 'page\n' > {{ .Folder }}/page.ex
+      printf 'deps = [\n  :phoenix\n]\n' > {{ .Folder }}/deps.ex
+    after_render: ["true"]
+remove:
+  - file: app/page.ex
+extension_points:
+  deps.items:
+    summary: A dependency.
+    file: app/deps.ex
+    item: [dep]
+    language: elixir
+    pattern: deps = [$$$DEPS]
+    after: DEPS
+    separator: ","
+    insert: "{{ .dep }}"
+add_to:
+  deps.items:
+    - dep: ":jason"
+`})
+				steps := &recordedSteps{}
+
+				err := selection.MakeRepo(context.Background(), filepath.Join(t.TempDir(), "my-service"), "v1.2.3", steps)
+
+				require.NoError(t, err)
+				require.Equal(t, []string{
+					"start Generate the folder app", "end Generate the folder app",
+					"start Remove the generated files and code that the starter names", "end Remove the generated files and code that the starter names",
+					"start Write the files of the starter and the features", "end Write the files of the starter and the features",
+					"start Add the items to the generated files", "end Add the items to the generated files",
+					"start app: true", "end app: true",
+				}, steps.lines)
+			})
+
 			t.Run("writes the files of the generate command, and a file of the starter replaces the generated file at its path", func(t *testing.T) {
 				selection := generatorSelection(t, map[string]string{
 					"starters/service/starter.yml": `
@@ -1289,7 +1357,7 @@ folders:
     generate: mkdir {{ .Folder }} && printf 'generated\n' > {{ .Folder }}/README.md
 `})
 
-				err := selection.MakeRepo(context.Background(), "my-service", "v1.2.3")
+				err := selection.MakeRepo(context.Background(), "my-service", "v1.2.3", catalog.NoSteps{})
 
 				require.NoError(t, err)
 				require.Equal(t, map[string]string{"README.md": "generated\n"}, repoFiles(t, "my-service"))
@@ -1544,7 +1612,7 @@ remove:
 				output := filepath.Join(t.TempDir(), "my-service")
 				require.NoError(t, os.Mkdir(output, 0o755))
 
-				err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+				err := selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
 
 				require.ErrorContains(t, err, "removes lib/page.ex, which the generate command does not write")
 				require.Equal(t, map[string]string{}, filesIn(t, output))
@@ -1722,7 +1790,7 @@ remove:
   - file: app/lib/page.ex
 `})
 
-				err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+				err := selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
 
 				require.ErrorContains(t, err, "removes lib/page.ex, which the generate command does not write")
 				require.Equal(t, map[string]string{"other.txt": "other\n"}, filesIn(t, output))
@@ -1773,7 +1841,7 @@ folders:
 				require.NoError(t, os.MkdirAll(output, 0o755))
 				require.NoError(t, os.WriteFile(filepath.Join(output, "notes.txt"), []byte("mine\n"), 0o644))
 
-				err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+				err := selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
 
 				require.ErrorContains(t, err, "is not empty")
 				require.Equal(t, map[string]string{"notes.txt": "mine\n"}, filesIn(t, output))
@@ -2096,7 +2164,7 @@ Files:
 		t.Run("gives the path of each file that the write of the same selection writes, one time each", func(t *testing.T) {
 			selection := featureSelection(t, withFeature(), "cli")
 			output := filepath.Join(t.TempDir(), "my-service")
-			require.NoError(t, selection.MakeRepo(context.Background(), output, "v1.2.3"))
+			require.NoError(t, selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{}))
 
 			preview, err := selection.Preview()
 
@@ -2986,7 +3054,7 @@ folders:
 			selection, err := starter.Select("my-service", nil, givenByFeature, answers)
 			require.NoError(t, err)
 			output := filepath.Join(t.TempDir(), "repo")
-			require.NoError(t, selection.MakeRepo(context.Background(), output, "v1.2.3"))
+			require.NoError(t, selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{}))
 			preview, err := selection.Preview()
 			require.NoError(t, err)
 			return append(slices.Sorted(maps.Keys(filesIn(t, output))), strings.Split(strings.TrimSpace(preview[strings.Index(preview, "Files:\n"):]), "\n  ")[1:]...)
@@ -3176,6 +3244,21 @@ folders:
 				[]string{given.FeatureSource("x"), given.FeatureSource("b"), given.FeatureSource("y"), answered.FeatureSource("b"), answered.FeatureSource("c"), given.FeatureSource("c")})
 		})
 	})
+}
+
+type recordedSteps struct {
+	lines []string
+}
+
+func (r *recordedSteps) Start(label string) func(error) {
+	r.lines = append(r.lines, "start "+label)
+	return func(err error) {
+		if err != nil {
+			r.lines = append(r.lines, "fail "+label)
+			return
+		}
+		r.lines = append(r.lines, "end "+label)
+	}
 }
 
 func generatorSelection(t *testing.T, catalogFiles map[string]string, featureNames ...string) catalog.Selection {

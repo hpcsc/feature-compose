@@ -46,17 +46,22 @@ folders:
 	loaded := func(files fstest.MapFS) func() (catalog.Catalog, error) {
 		return func() (catalog.Catalog, error) { return catalog.New(files), nil }
 	}
-	runNew := func(t *testing.T, files fstest.MapFS, arguments ...string) (string, error) {
+	runNewWithStatus := func(t *testing.T, files fstest.MapFS, arguments ...string) (printed, status string, err error) {
 		t.Helper()
-		var printed bytes.Buffer
+		var out, errOut bytes.Buffer
 		command := newNewCommand(loaded(files), version)
 		command.Reader = strings.NewReader("")
-		command.Writer = &printed
-		command.ErrWriter = &printed
+		command.Writer = &out
+		command.ErrWriter = &errOut
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		err := command.Run(ctx, append([]string{"new"}, arguments...))
-		return printed.String(), err
+		err = command.Run(ctx, append([]string{"new"}, arguments...))
+		return out.String(), errOut.String(), err
+	}
+	runNew := func(t *testing.T, files fstest.MapFS, arguments ...string) (string, error) {
+		t.Helper()
+		printed, _, err := runNewWithStatus(t, files, arguments...)
+		return printed, err
 	}
 	runInTerminal := func(t *testing.T, files fstest.MapFS, after, keys string, arguments ...string) (string, error) {
 		t.Helper()
@@ -138,6 +143,25 @@ folders:
 	const doesNotApply = `the option store-key of the feature client applies only when auth.method == "api-key", and auth.method is "oauth", but the command line gives it "true"`
 
 	t.Run("write", func(t *testing.T) {
+		t.Run("outside a terminal, prints each step on stderr as a line when it starts and as a line with its time when it ends", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			printed, status, err := runNewWithStatus(t, starterFiles(""), "service", "my-service", "--no-prompt")
+
+			require.NoError(t, err)
+			require.Equal(t, "Write the files of the starter and the features…\n✓ Write the files of the starter and the features (0s)\n", status)
+			require.Equal(t, "Made my-service from the starter service.\n", printed)
+		})
+
+		t.Run("outside a terminal, ends the step that fails with a cross", func(t *testing.T) {
+			t.Chdir(t.TempDir())
+
+			_, status, err := runNewWithStatus(t, starterFiles(`"false"`), "service", "my-service", "--no-prompt")
+
+			require.Error(t, err)
+			require.Contains(t, status, "go: false…\n✗ go: false (0s)\n")
+		})
+
 		t.Run("--catalog makes the repo from the catalog in that folder, also with no config file", func(t *testing.T) {
 			workingFolder := t.TempDir()
 			t.Chdir(workingFolder)
@@ -537,7 +561,7 @@ folders:
 				selection, err := starter.Select("my-service", combination.StarterValues, combination.FeatureValues, catalog.Answers{})
 				require.NoError(t, err)
 				output = filepath.Join(t.TempDir(), "my-service")
-				require.NoError(t, selection.MakeRepo(context.Background(), output, version))
+				require.NoError(t, selection.MakeRepo(context.Background(), output, version, catalog.NoSteps{}))
 				fromSelection[combination.String()] = filesIn(t, output)
 			}
 

@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"encoding/json"
 	"maps"
 	"slices"
 	"strings"
@@ -46,13 +47,33 @@ func starterDetails(starter catalog.StarterDefinition, width int) string {
 	folders := screen.Section{Heading: "Folders", None: "none"}
 	for _, name := range slices.Sorted(maps.Keys(starter.Folders)) {
 		folder := starter.Folders[name]
-		folders.Entries = append(folders.Entries, screen.Entry{Name: name, Fields: []screen.Field{
-			{Label: "path", Values: []string{folder.Path}},
-			{Label: "after_render", Values: folder.AfterRender},
-			{Label: "test", Values: folder.Test},
-		}})
+		fields := []screen.Field{{Label: "path", Values: []string{folder.Path}}}
+		if folder.Generate != "" {
+			fields = append(fields, screen.Field{Label: "generate", Values: []string{folder.Generate}})
+		}
+		fields = append(fields, screen.Field{Label: "after_render", Values: folder.AfterRender}, screen.Field{Label: "test", Values: folder.Test})
+		folders.Entries = append(folders.Entries, screen.Entry{Name: name, Fields: fields})
 	}
-	return screen.Details(starter.Summary, width, folders, optionsSection(starter.Options))
+	sections := []screen.Section{folders, optionsSection(starter.Options)}
+	if len(starter.Remove) > 0 {
+		removals := screen.Section{Heading: "Removals", None: "none"}
+		for _, r := range starter.Remove {
+			removals.Entries = append(removals.Entries, screen.Entry{Name: r.File, Fields: queryFields(r.Pattern, r.Rule)})
+		}
+		sections = append(sections, removals)
+	}
+	return screen.Details(starter.Summary, width, sections...)
+}
+
+func queryFields(pattern string, rule map[string]any) []screen.Field {
+	switch {
+	case pattern != "":
+		return []screen.Field{{Label: "pattern", Values: []string{pattern}}}
+	case rule != nil:
+		encoded, _ := json.Marshal(rule)
+		return []screen.Field{{Label: "rule", Values: []string{string(encoded)}}}
+	}
+	return nil
 }
 
 func featuresDetails(narrowed catalog.Definitions, width int) string {
@@ -97,6 +118,9 @@ func featureDetails(feature catalog.FeatureDefinition, width int) string {
 func extensionPointDetails(narrowed catalog.Definitions, starterName, name string, width int) string {
 	extensionPoint := extensionPointsOf(narrowed, starterName)[name]
 	addedToBy := []string{}
+	if _, ok := narrowed.Starters[starterName].AddTo[name]; ok {
+		addedToBy = append(addedToBy, "the starter")
+	}
 	for _, featureName := range slices.Sorted(maps.Keys(narrowed.Features)) {
 		if _, ok := narrowed.Features[featureName].AddTo[name]; ok {
 			addedToBy = append(addedToBy, featureName)
@@ -105,12 +129,22 @@ func extensionPointDetails(narrowed catalog.Definitions, starterName, name strin
 	if len(addedToBy) == 0 {
 		addedToBy = []string{screen.NoneStyle.Render("none")}
 	}
-	fields := screen.Entry{Fields: []screen.Field{
-		{Label: "file", Values: []string{extensionPoint.File}},
-		{Label: "item", Values: []string{strings.Join(extensionPoint.Item, ", ")}},
-		{Label: "declared by", Values: []string{extensionPoint.declarer}},
-		{Label: "added to by", Values: addedToBy},
-	}}
+	fields := screen.Entry{Fields: []screen.Field{{Label: "file", Values: []string{extensionPoint.File}}}}
+	if extensionPoint.Pattern != "" || extensionPoint.Rule != nil {
+		fields.Fields = append(fields.Fields, screen.Field{Label: "language", Values: []string{extensionPoint.Language}})
+		fields.Fields = append(fields.Fields, queryFields(extensionPoint.Pattern, extensionPoint.Rule)...)
+		if extensionPoint.After != "" {
+			fields.Fields = append(fields.Fields, screen.Field{Label: "after", Values: []string{extensionPoint.After}})
+		}
+		if extensionPoint.Before != "" {
+			fields.Fields = append(fields.Fields, screen.Field{Label: "before", Values: []string{extensionPoint.Before}})
+		}
+	}
+	fields.Fields = append(fields.Fields,
+		screen.Field{Label: "item", Values: []string{strings.Join(extensionPoint.Item, ", ")}},
+		screen.Field{Label: "declared by", Values: []string{extensionPoint.declarer}},
+		screen.Field{Label: "added to by", Values: addedToBy},
+	)
 	var lines []string
 	if extensionPoint.Summary != "" {
 		lines = append(screen.Wrapped(extensionPoint.Summary, width), "")

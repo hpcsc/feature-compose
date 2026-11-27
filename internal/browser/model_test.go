@@ -322,6 +322,67 @@ declared by  the feature cli
 added to by  none`, detailsOf(pressed(opened(browser.New(definitions())), "j", "j", "j", "j", "j", "j", "j", "j", "j")))
 		})
 
+		withGenerator := func() catalog.Definitions {
+			return catalog.Definitions{Starters: map[string]catalog.StarterDefinition{"phoenix": {
+				Summary: "A Phoenix app.",
+				Folders: map[string]catalog.FolderDefinition{"app": {Path: ".", Generate: "mix phx.new {{ .Folder }}", AfterRender: []string{"mix format"}}},
+				ExtensionPoints: map[string]catalog.ExtensionPointDefinition{"mix.deps": {
+					Summary: "A dependency.", File: "app/mix.exs", Item: []string{"dep"}, Language: "elixir", Pattern: "defp deps do [$$$DEPS] end", After: "DEPS",
+				}},
+				Remove: []catalog.RemovalDefinition{{File: "app/lib/page.ex"}, {File: "app/router.ex", Language: "elixir", Pattern: `get "/", PageController, :home`}},
+				AddTo:  map[string][]map[string]string{"mix.deps": {{"dep": `{:jason, "~> 1.2"}`}}},
+			}}}
+		}
+
+		t.Run("a starter with a generator shows its generate command, and each removal with its pattern", func(t *testing.T) {
+			require.Equal(t, `A Phoenix app.
+
+Folders
+  app  path          .
+       generate      mix phx.new {{ .Folder }}
+       after_render  mix format
+
+Options
+  none
+
+Removals
+  app/lib/page.ex
+  app/router.ex    pattern  get "/", PageController, :home`, detailsOf(opened(browser.New(withGenerator()))))
+		})
+
+		t.Run("an extension point in a generated file shows its language, its pattern and its position, and the starter when the starter adds items to it", func(t *testing.T) {
+			require.Equal(t, `A dependency.
+
+file         app/mix.exs
+language     elixir
+pattern      defp deps do [$$$DEPS] end
+after        DEPS
+item         dep
+declared by  the starter
+added to by  the starter`, detailsOf(pressed(opened(browser.New(withGenerator())), "j", "j")))
+		})
+
+		t.Run("an extension point in a generated file with a rule shows the rule as JSON, and its position before a node", func(t *testing.T) {
+			definitions := catalog.Definitions{Starters: map[string]catalog.StarterDefinition{"phoenix": {
+				Folders: map[string]catalog.FolderDefinition{"app": {Path: ".", Generate: "mix phx.new {{ .Folder }}"}},
+				ExtensionPoints: map[string]catalog.ExtensionPointDefinition{"agents.guidelines": {
+					Summary: "A guideline.", File: "app/AGENTS.md", Item: []string{"line"},
+					QueryDefinition: catalog.QueryDefinition{Language: "markdown", Rule: map[string]any{"kind": "list_item"}},
+					Before:          "match",
+				}},
+			}}}
+
+			require.Equal(t, `A guideline.
+
+file         app/AGENTS.md
+language     markdown
+rule         {"kind":"list_item"}
+before       match
+item         line
+declared by  the starter
+added to by  none`, detailsOf(pressed(opened(browser.New(definitions)), "j", "j")))
+		})
+
 		t.Run("a feature shows its summary, its needs, its options, and the extension points that it declares or adds items to", func(t *testing.T) {
 			require.Equal(t, `API keys.
 

@@ -43,8 +43,8 @@ folders:
 			"starters/service/files/go/go.mod.tmpl": &fstest.MapFile{Data: []byte(`module {{ option "starter.module" }}` + "\n" + `go {{ option "starter.go-version" }}` + "\n")},
 		}
 	}
-	loaded := func(files fstest.MapFS) func() (catalog.Catalog, error) {
-		return func() (catalog.Catalog, error) { return catalog.New(files), nil }
+	loaded := func(files fstest.MapFS) func() (catalog.Catalogs, error) {
+		return func() (catalog.Catalogs, error) { return catalog.NewCatalogs(catalog.New(files)), nil }
 	}
 	runNewWithStatus := func(t *testing.T, files fstest.MapFS, arguments ...string) (printed, status string, err error) {
 		t.Helper()
@@ -169,7 +169,7 @@ folders:
 				"starters/other/starter.yml":          "folders:\n  docs:\n    path: .\n",
 				"starters/other/files/docs/README.md": "# {{ .Name }}\n",
 			})
-			command := newNewCommand(func() (catalog.Catalog, error) { return catalog.Catalog{}, errors.New("no config file") }, version)
+			command := newNewCommand(func() (catalog.Catalogs, error) { return catalog.Catalogs{}, errors.New("no config file") }, version)
 			command.Writer, command.ErrWriter = io.Discard, io.Discard
 
 			err := command.Run(context.Background(), []string{"new", "--catalog", catalogDir, "other", "my-repo"})
@@ -704,8 +704,8 @@ folders:
 		t.Run("a catalog that cannot load stops --dry-run with its error, and prints nothing", func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			var printed bytes.Buffer
-			command := newNewCommand(func() (catalog.Catalog, error) {
-				return catalog.Catalog{}, errors.New("no config file at /home/config.yml")
+			command := newNewCommand(func() (catalog.Catalogs, error) {
+				return catalog.Catalogs{}, errors.New("no config file at /home/config.yml")
 			}, version)
 			command.Writer, command.ErrWriter = &printed, &printed
 
@@ -1099,8 +1099,8 @@ folders:
 		t.Run("a catalog that cannot load stops new with its error, and makes no output folder", func(t *testing.T) {
 			workingFolder := t.TempDir()
 			t.Chdir(workingFolder)
-			command := newNewCommand(func() (catalog.Catalog, error) {
-				return catalog.Catalog{}, errors.New("no config file at /home/config.yml")
+			command := newNewCommand(func() (catalog.Catalogs, error) {
+				return catalog.Catalogs{}, errors.New("no config file at /home/config.yml")
 			}, version)
 			command.Writer, command.ErrWriter = io.Discard, io.Discard
 

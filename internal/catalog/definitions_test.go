@@ -37,6 +37,19 @@ func TestDefinitions(t *testing.T) {
 			require.Equal(t, []string{"cli", "tools"}, slices.Sorted(maps.Keys(worker.Features)))
 		})
 
+		t.Run("a short name that one catalog has holds the starter of that full name and the features that target it", func(t *testing.T) {
+			definitions, err := catalog.NewCatalogs(
+				catalog.FromOrigin(fstest.MapFS{"starters/api/starter.yml": &fstest.MapFile{Data: []byte("summary: An API.\n")}, "features/auth/feature.yml": &fstest.MapFile{Data: []byte("summary: Auth.\ntargets: [api]\n")}}, catalog.Origin{Name: "hpcsc"}),
+				catalog.FromOrigin(fstest.MapFS{"starters/worker/starter.yml": &fstest.MapFile{Data: []byte("summary: A worker.\n")}}, catalog.Origin{Name: "team"}),
+			).Definitions()
+			require.NoError(t, err)
+
+			api, err := definitions.ForStarter("api")
+
+			require.NoError(t, err)
+			require.Equal(t, [][]string{{"hpcsc/api"}, {"hpcsc/auth"}}, [][]string{slices.Sorted(maps.Keys(api.Starters)), slices.Sorted(maps.Keys(api.Features))})
+		})
+
 		t.Run("an unknown starter is an error that lists the starters of the catalog", func(t *testing.T) {
 			_, err := definitionsOf(t).ForStarter("nope")
 

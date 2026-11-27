@@ -621,6 +621,18 @@ Extension points that it adds items to
 
 			require.EqualError(t, err, `unknown starter "nope": the catalog has api, worker, zone`)
 		})
+
+		t.Run("a short name that one catalog has opens the TUI with the starter of that full name selected", func(t *testing.T) {
+			named := catalog.Definitions{
+				Starters: map[string]catalog.StarterDefinition{"hpcsc/api": {Summary: "An API."}, "team/worker": {Summary: "A worker."}},
+				Features: map[string]catalog.FeatureDefinition{},
+			}
+
+			atStarter, err := browser.NewAtStarter(named, "worker")
+			require.NoError(t, err)
+
+			require.Equal(t, []string{"   hpcsc/api", "▌  team/worker"}, treeOf(opened(atStarter)))
+		})
 	})
 }
 

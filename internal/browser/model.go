@@ -52,11 +52,14 @@ func New(definitions catalog.Definitions) Model {
 }
 
 func NewAtStarter(definitions catalog.Definitions, starterName string) (Model, error) {
-	if _, err := definitions.ForStarter(starterName); err != nil {
+	narrowed, err := definitions.ForStarter(starterName)
+	if err != nil {
 		return Model{}, err
 	}
 	m := New(definitions)
-	m.tree.selected = row{starter: starterName}
+	for fullName := range narrowed.Starters {
+		m.tree.selected = row{starter: fullName}
+	}
 	return m, nil
 }
 

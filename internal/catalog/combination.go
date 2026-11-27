@@ -8,13 +8,14 @@ import (
 )
 
 type Combination struct {
+	CatalogName   string
 	StarterName   string
 	StarterValues map[string]string
 	FeatureValues map[string]map[string]string
 }
 
 func (c Combination) String() string {
-	words := append([]string{c.StarterName}, flagValues(c.StarterValues).optionWords()...)
+	words := append([]string{Origin{Name: c.CatalogName}.fullName(c.StarterName)}, flagValues(c.StarterValues).optionWords()...)
 	for _, featureName := range slices.Sorted(maps.Keys(c.FeatureValues)) {
 		words = append(words, flagValues(c.FeatureValues[featureName]).featureWords(featureName)...)
 	}

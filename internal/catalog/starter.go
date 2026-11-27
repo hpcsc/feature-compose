@@ -26,6 +26,7 @@ type Starter struct {
 	otherFeatureNames []string
 	extensionPoints   map[string]extensionPoint
 	removals          []removal
+	origin            Origin
 }
 
 func readStarter(fsys fs.FS, starterName string, features map[string]feature, otherFeatureNames []string) (Starter, error) {
@@ -127,7 +128,7 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	if err != nil {
 		return Selection{}, err
 	}
-	selection := Selection{folders: s.folders, removals: s.removals, name: name, starter: selectedStarter{name: s.name, options: s.options, values: starterValues}}
+	selection := Selection{folders: s.folders, removals: s.removals, name: name, starter: selectedStarter{name: s.name, origin: s.origin, options: s.options, values: starterValues}}
 	for _, f := range selected {
 		values, err := f.options.withDefaults(givenByFeature[f.name], setByNeeds[f.name], answers.FeatureValues[f.name], name, selection.readableOfNeedsAndStarter(f.needs))
 		if err != nil {
@@ -156,6 +157,14 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	return selection, nil
 }
 
+func (s Starter) FullName() string {
+	return s.origin.fullName(s.name)
+}
+
+func (s Starter) FullFeatureName(featureName string) string {
+	return s.origin.fullName(featureName)
+}
+
 func (s Starter) FeatureNames() ([]string, error) {
 	ordered, err := s.inNeedsOrder(s.features)
 	if err != nil {
@@ -170,12 +179,12 @@ func (s Starter) FeatureNames() ([]string, error) {
 
 func (s Starter) combinations() []Combination {
 	starterDefaults := s.options.defaultsOfOptionsWithValues()
-	combinations := []Combination{{StarterName: s.name, StarterValues: starterDefaults}}
+	combinations := []Combination{{CatalogName: s.origin.Name, StarterName: s.name, StarterValues: starterDefaults}}
 	for _, values := range s.options.otherValuesOfOptionsWithValues(nil) {
-		combinations = append(combinations, Combination{StarterName: s.name, StarterValues: values})
+		combinations = append(combinations, Combination{CatalogName: s.origin.Name, StarterName: s.name, StarterValues: values})
 	}
 	withFeatures := func(featureValues map[string]map[string]string) Combination {
-		return Combination{StarterName: s.name, StarterValues: maps.Clone(starterDefaults), FeatureValues: featureValues}
+		return Combination{CatalogName: s.origin.Name, StarterName: s.name, StarterValues: maps.Clone(starterDefaults), FeatureValues: featureValues}
 	}
 	featureNames := slices.Sorted(maps.Keys(s.features))
 	for _, featureName := range featureNames {

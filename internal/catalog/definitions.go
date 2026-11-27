@@ -1,10 +1,8 @@
 package catalog
 
 import (
-	"fmt"
 	"maps"
 	"slices"
-	"strings"
 
 	"github.com/hpcsc/feature-compose/internal/astgrep"
 )
@@ -98,16 +96,30 @@ func (f FeatureDefinition) filled() FeatureDefinition {
 	return f
 }
 
+func (f FeatureDefinition) withFullNames(origin Origin) FeatureDefinition {
+	targets := make([]string, 0, len(f.Targets))
+	for _, target := range f.Targets {
+		targets = append(targets, origin.fullName(target))
+	}
+	needs := make(map[string]map[string]string, len(f.Needs))
+	for featureName, values := range f.Needs {
+		needs[origin.fullName(featureName)] = values
+	}
+	f.Targets, f.Needs = targets, needs
+	return f
+}
+
 type Definitions struct {
 	Starters map[string]StarterDefinition `json:"starters"`
 	Features map[string]FeatureDefinition `json:"features"`
 }
 
-func (d Definitions) ForStarter(starterName string) (Definitions, error) {
-	starter, ok := d.Starters[starterName]
-	if !ok {
-		return Definitions{}, unknownStarter(starterName, slices.Sorted(maps.Keys(d.Starters)))
+func (d Definitions) ForStarter(name string) (Definitions, error) {
+	starterName, err := fullNames(slices.Sorted(maps.Keys(d.Starters))).find(name)
+	if err != nil {
+		return Definitions{}, err
 	}
+	starter := d.Starters[starterName]
 	features := map[string]FeatureDefinition{}
 	for featureName, f := range d.Features {
 		if slices.Contains(f.Targets, starterName) {
@@ -115,10 +127,6 @@ func (d Definitions) ForStarter(starterName string) (Definitions, error) {
 		}
 	}
 	return Definitions{Starters: map[string]StarterDefinition{starterName: starter}, Features: features}, nil
-}
-
-func unknownStarter(starterName string, starterNames []string) error {
-	return fmt.Errorf("unknown starter %q: the catalog has %s", starterName, strings.Join(starterNames, ", "))
 }
 
 func nonNil[T any](values []T) []T {

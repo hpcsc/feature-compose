@@ -140,6 +140,27 @@ func TestModel(t *testing.T) {
 		t.Helper()
 		return openedWith(t, files, starterName, name, nil, givenByFeature)
 	}
+	twoCatalogs := func() catalog.Catalogs {
+		return catalog.NewCatalogs(
+			catalog.FromOrigin(fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"features/alpha/feature.yml":        &fstest.MapFile{Data: []byte("summary: Feature alpha.\ntargets: [service]\nneeds: [zed]\n")},
+				"features/zed/feature.yml":          &fstest.MapFile{Data: []byte("summary: Feature zed.\ntargets: [service]\n")},
+			}, catalog.Origin{Name: "hpcsc"}),
+			catalog.FromOrigin(fstest.MapFS{
+				"starters/worker/starter.yml":      &fstest.MapFile{Data: []byte("summary: A worker.\nfolders:\n  go:\n    path: .\n")},
+				"starters/worker/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"features/alpha/feature.yml":       &fstest.MapFile{Data: []byte("summary: The alpha of the team.\ntargets: [worker]\n")},
+			}, catalog.Origin{Name: "team"}),
+		)
+	}
+	openedFrom := func(t *testing.T, catalogs catalog.Catalogs, starterName string, givenByFeature map[string]map[string]string) form.Model {
+		t.Helper()
+		m, err := form.New(catalogs, starterName, "my-service", nil, givenByFeature)
+		require.NoError(t, err)
+		return sized(m, 100, 40)
+	}
 	const writeButton = "Write the repo"
 
 	t.Run("layout", func(t *testing.T) {
@@ -775,6 +796,46 @@ func TestModel(t *testing.T) {
 				"             ○ starter-07  Summary 07.",
 				"▌          › ○ starter-08  Summary 08.",
 			}, rowsOf(m))
+		})
+
+		t.Run("the starters come with their full names", func(t *testing.T) {
+			require.Equal(t, []string{
+				"  name     my-service  from the command line",
+				"▌ starter  › ○ hpcsc/service  A service.",
+				"             ○ team/worker    A worker.",
+			}, panelOf(openedFrom(t, twoCatalogs(), "", nil), "Repo"))
+		})
+
+		t.Run("a short name from the command line shows the full name of the starter, and the features of its catalog with their summaries and needs", func(t *testing.T) {
+			m := at(t, openedFrom(t, twoCatalogs(), "service", map[string]map[string]string{"alpha": {}}), "[x] alpha")
+
+			require.Equal(t, [][]string{
+				{"  name     my-service  from the command line", "  starter  hpcsc/service  from the command line"},
+				{"  [x] zed    needed by alpha", "▌ [x] alpha  from the command line", "             Feature alpha.", "             needs zed"},
+			}, [][]string{panelOf(m, "Repo"), panelOf(m, "Features")})
+		})
+
+		t.Run("a change to a starter of another catalog clears each feature of the old catalog", func(t *testing.T) {
+			m := pressed(openedFrom(t, twoCatalogs(), "", nil), "enter")
+			m = pressed(at(t, m, "[ ] alpha"), "space")
+			changed := pressed(at(t, m, "○ team/worker"), "space")
+
+			require.Equal(t, []string{"  [ ] alpha  The alpha of the team."}, panelOf(changed, "Features"))
+		})
+
+		t.Run("a change to another starter of the same catalog keeps each selected feature that also targets it", func(t *testing.T) {
+			catalogs := catalog.NewCatalogs(catalog.FromOrigin(fstest.MapFS{
+				"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n")},
+				"starters/service/files/go/main.go": &fstest.MapFile{Data: []byte("package main\n")},
+				"starters/worker/starter.yml":       &fstest.MapFile{Data: []byte("summary: A worker.\nfolders:\n  go:\n    path: .\n")},
+				"starters/worker/files/go/main.go":  &fstest.MapFile{Data: []byte("package main\n")},
+				"features/shared/feature.yml":       &fstest.MapFile{Data: []byte("summary: Shared.\ntargets: [service, worker]\n")},
+			}, catalog.Origin{Name: "hpcsc"}))
+			m := pressed(openedFrom(t, catalogs, "", nil), "enter")
+			m = pressed(at(t, m, "[ ] shared"), "space")
+			changed := pressed(at(t, m, "○ hpcsc/worker"), "space")
+
+			require.Equal(t, []string{"  [x] shared  Shared."}, panelOf(changed, "Features"))
 		})
 	})
 

@@ -14,15 +14,15 @@ func catalogFlag(usage string) cli.Flag {
 	return &cli.StringFlag{Name: catalogFlagName, Usage: usage}
 }
 
-func catalogToRead(cmd *cli.Command, load func() (catalog.Catalog, error)) (catalog.Catalog, error) {
+func catalogToRead(cmd *cli.Command, load func() (catalog.Catalogs, error)) (catalog.Catalogs, error) {
 	catalogDir := cmd.String(catalogFlagName)
 	if catalogDir == "" {
 		return load()
 	}
 	if err := checkCatalogFolder(catalogDir); err != nil {
-		return catalog.Catalog{}, err
+		return catalog.Catalogs{}, err
 	}
-	return catalog.New(os.DirFS(catalogDir)), nil
+	return catalog.NewCatalogs(catalog.New(os.DirFS(catalogDir))), nil
 }
 
 func catalogDirOf(cmd *cli.Command, configured func() (string, error)) (string, error) {

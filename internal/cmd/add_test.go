@@ -39,7 +39,7 @@ func TestAddCommand(t *testing.T) {
 	builtLines := func(t *testing.T, catalogDir string) []string {
 		t.Helper()
 		var printed bytes.Buffer
-		check := newCheckCommand(func() (catalog.Catalog, error) { return catalog.Catalog{}, errors.New("no config file") })
+		check := newCheckCommand(func() (catalog.Catalogs, error) { return catalog.Catalogs{}, errors.New("no config file") })
 		check.Writer, check.ErrWriter = &printed, io.Discard
 		require.NoError(t, check.Run(context.Background(), []string{"check", "--catalog", catalogDir, "--build"}), printed.String())
 		var lines []string

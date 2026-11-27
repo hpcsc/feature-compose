@@ -19,7 +19,7 @@ import (
 
 const combinationRepoName = "my-repo"
 
-func newCheckCommand(load func() (catalog.Catalog, error)) *cli.Command {
+func newCheckCommand(load func() (catalog.Catalogs, error)) *cli.Command {
 	return &cli.Command{
 		Name:  "check",
 		Usage: "find the mistakes of the starters, the features and the templates of the catalog",
@@ -31,11 +31,11 @@ func newCheckCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			if cmd.NArg() > 0 {
 				return errors.New("check takes no argument")
 			}
-			c, err := catalogToRead(cmd, load)
+			catalogs, err := catalogToRead(cmd, load)
 			if err != nil {
 				return err
 			}
-			mistakes, err := c.Check(ctx)
+			mistakes, err := catalogs.Check(ctx)
 			if err != nil {
 				return err
 			}
@@ -43,7 +43,7 @@ func newCheckCommand(load func() (catalog.Catalog, error)) *cli.Command {
 				if _, err := fmt.Fprintln(cmd.Root().Writer, "The catalog has no mistakes."); err != nil || !cmd.Bool("build") {
 					return err
 				}
-				return testCombinations(ctx, cmd.Root().Writer, c)
+				return testCombinations(ctx, cmd.Root().Writer, catalogs)
 			}
 			if _, err := fmt.Fprintln(cmd.Root().Writer, strings.Join(mistakes, "\n")); err != nil {
 				return err
@@ -68,8 +68,8 @@ func runningLine(w io.Writer, label string) (clear func()) {
 	}
 }
 
-func testCombinations(ctx context.Context, w io.Writer, c catalog.Catalog) error {
-	combinations, err := c.Combinations()
+func testCombinations(ctx context.Context, w io.Writer, catalogs catalog.Catalogs) error {
+	combinations, err := catalogs.Combinations()
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func testCombinations(ctx context.Context, w io.Writer, c catalog.Catalog) error
 		}
 		started := time.Now()
 		running := runningLine(w, fmt.Sprintf("[%d/%d] %s", i+1, count, combination))
-		testErr := c.TestCombination(ctx, combination, combinationRepoName, filepath.Join(root, strconv.Itoa(i+1), combinationRepoName))
+		testErr := catalogs.TestCombination(ctx, combination, combinationRepoName, filepath.Join(root, strconv.Itoa(i+1), combinationRepoName))
 		running()
 		result := fmt.Sprintf("[%d/%d] ok    %s (%s)\n", i+1, count, combination, time.Since(started).Round(time.Second))
 		if testErr != nil {

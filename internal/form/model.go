@@ -67,8 +67,8 @@ type Model struct {
 	confirmed bool
 }
 
-func New(c catalog.Catalog, starterName, name string, given map[string]string, givenByFeature map[string]map[string]string) (Model, error) {
-	d, err := newDraft(c, starterName, name, given, givenByFeature)
+func New(catalogs Catalogs, starterName, name string, given map[string]string, givenByFeature map[string]map[string]string) (Model, error) {
+	d, err := newDraft(catalogs, starterName, name, given, givenByFeature)
 	if err != nil {
 		return Model{}, err
 	}

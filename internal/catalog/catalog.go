@@ -10,11 +10,16 @@ import (
 )
 
 type Catalog struct {
-	fsys fs.FS
+	fsys   fs.FS
+	origin Origin
 }
 
 func New(fsys fs.FS) Catalog {
 	return Catalog{fsys: fsys}
+}
+
+func FromOrigin(fsys fs.FS, origin Origin) Catalog {
+	return Catalog{fsys: fsys, origin: origin}
 }
 
 func (c Catalog) Starter(starterName string) (Starter, error) {
@@ -23,13 +28,15 @@ func (c Catalog) Starter(starterName string) (Starter, error) {
 		return Starter{}, err
 	}
 	if !slices.Contains(names, starterName) {
-		return Starter{}, unknownStarter(starterName, names)
+		return Starter{}, fullNames(names).unknown(starterName)
 	}
 	features, otherFeatureNames, err := c.featuresFor(starterName)
 	if err != nil {
 		return Starter{}, err
 	}
-	return readStarter(c.fsys, starterName, features, otherFeatureNames)
+	starter, err := readStarter(c.fsys, starterName, features, otherFeatureNames)
+	starter.origin = c.origin
+	return starter, err
 }
 
 func (c Catalog) Combinations() ([]Combination, error) {
@@ -63,14 +70,14 @@ func (c Catalog) Definitions() (Definitions, error) {
 		if err != nil {
 			return Definitions{}, err
 		}
-		definitions.Starters[starterName] = parsed.StarterDefinition.filled()
+		definitions.Starters[c.origin.fullName(starterName)] = parsed.StarterDefinition.filled()
 	}
 	for _, featureName := range featureNames {
 		parsed, err := readFeatureYML(c.fsys, featureName)
 		if err != nil {
 			return Definitions{}, err
 		}
-		definitions.Features[featureName] = parsed.FeatureDefinition.filled()
+		definitions.Features[c.origin.fullName(featureName)] = parsed.FeatureDefinition.filled().withFullNames(c.origin)
 	}
 	return definitions, nil
 }

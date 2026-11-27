@@ -32,7 +32,7 @@ func TestInitCommand(t *testing.T) {
 			_, err := runInit(t, catalogDir)
 			require.NoError(t, err)
 			var printed bytes.Buffer
-			check := newCheckCommand(func() (catalog.Catalog, error) { return catalog.Catalog{}, errors.New("no config file") })
+			check := newCheckCommand(func() (catalog.Catalogs, error) { return catalog.Catalogs{}, errors.New("no config file") })
 			check.Writer, check.ErrWriter = &printed, io.Discard
 
 			err = check.Run(context.Background(), []string{"check", "--catalog", catalogDir, "--build"})

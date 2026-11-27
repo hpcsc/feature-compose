@@ -13,7 +13,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func newNewCommand(load func() (catalog.Catalog, error), version string) *cli.Command {
+func newNewCommand(load func() (catalog.Catalogs, error), version string) *cli.Command {
 	return &cli.Command{
 		Name:      "new",
 		Usage:     "make a new repo from a starter",
@@ -43,15 +43,15 @@ func newNewCommand(load func() (catalog.Catalog, error), version string) *cli.Co
 			if err != nil {
 				return err
 			}
-			c, err := catalogToRead(cmd, load)
+			catalogs, err := catalogToRead(cmd, load)
 			if err != nil {
 				return err
 			}
 			var selection catalog.Selection
 			if asked {
-				selection, err = ask(ctx, cmd, c, starterName, name, given, givenByFeature)
+				selection, err = ask(ctx, cmd, catalogs, starterName, name, given, givenByFeature)
 			} else {
-				selection, err = selected(c, starterName, name, given, givenByFeature)
+				selection, err = selected(catalogs, starterName, name, given, givenByFeature)
 			}
 			if err != nil {
 				return err
@@ -76,7 +76,7 @@ func newNewCommand(load func() (catalog.Catalog, error), version string) *cli.Co
 			for _, need := range selection.AddedByNeeds() {
 				fmt.Fprintln(&printed, need)
 			}
-			fmt.Fprintf(&printed, "Made %s from the starter %s.\n", output, selection.StarterName())
+			fmt.Fprintf(&printed, "Made %s from the starter %s.\n", output, selection.StarterFullName())
 			if asked {
 				fmt.Fprintf(&printed, "To make the same repo again, run:\n  feature-compose new %s\n", selection.Arguments(output))
 			}
@@ -86,16 +86,16 @@ func newNewCommand(load func() (catalog.Catalog, error), version string) *cli.Co
 	}
 }
 
-func selected(c catalog.Catalog, starterName, name string, given map[string]string, givenByFeature map[string]map[string]string) (catalog.Selection, error) {
-	starter, err := c.Starter(starterName)
+func selected(catalogs catalog.Catalogs, starterName, name string, given map[string]string, givenByFeature map[string]map[string]string) (catalog.Selection, error) {
+	starter, err := catalogs.Starter(starterName)
 	if err != nil {
 		return catalog.Selection{}, err
 	}
 	return starter.Select(name, given, givenByFeature, catalog.Answers{})
 }
 
-func ask(ctx context.Context, cmd *cli.Command, c catalog.Catalog, starterName, name string, given map[string]string, givenByFeature map[string]map[string]string) (catalog.Selection, error) {
-	model, err := form.New(c, starterName, name, given, givenByFeature)
+func ask(ctx context.Context, cmd *cli.Command, catalogs catalog.Catalogs, starterName, name string, given map[string]string, givenByFeature map[string]map[string]string) (catalog.Selection, error) {
+	model, err := form.New(catalogs, starterName, name, given, givenByFeature)
 	if err != nil {
 		return catalog.Selection{}, err
 	}

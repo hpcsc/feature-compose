@@ -14,6 +14,7 @@ const (
 
 type selectionFile struct {
 	Version       string                       `yaml:"version"`
+	Catalog       *Origin                      `yaml:"catalog,omitempty"`
 	StarterName   string                       `yaml:"starter"`
 	Name          string                       `yaml:"name"`
 	StarterValues map[string]string            `yaml:"options"`

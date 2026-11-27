@@ -12,7 +12,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func newShowCommand(load func() (catalog.Catalog, error)) *cli.Command {
+func newShowCommand(load func() (catalog.Catalogs, error)) *cli.Command {
 	return &cli.Command{
 		Name:      "show",
 		Usage:     "show the starters, the features and the extension points of the catalog",
@@ -28,11 +28,11 @@ func newShowCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			if format := cmd.String("output"); format != "" && format != "json" {
 				return fmt.Errorf("unknown output %q: show prints only json", format)
 			}
-			c, err := catalogToRead(cmd, load)
+			catalogs, err := catalogToRead(cmd, load)
 			if err != nil {
 				return err
 			}
-			definitions, err := c.Definitions()
+			definitions, err := catalogs.Definitions()
 			if err != nil {
 				return err
 			}

@@ -2095,6 +2095,17 @@ extension_points:
 				require.NoFileExists(t, ran)
 			})
 		})
+
+		t.Run("make repo writes the catalog of the starter in .feature-compose.yml", func(t *testing.T) {
+			selection, err := namedStarter(t).Select("api", nil, nil, catalog.Answers{})
+			require.NoError(t, err)
+			output := filepath.Join(t.TempDir(), "api")
+
+			err = selection.MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
+
+			require.NoError(t, err)
+			require.Equal(t, "version: v1.2.3\ncatalog:\n  name: hpcsc\n  source: https://example.com/hpcsc.git\n  ref: main\n  commit: 0123abc\nstarter: service\nname: api\noptions: {}\nfeatures: {}\nrequested: []\n", filesIn(t, output)[".feature-compose.yml"])
+		})
 	})
 
 	t.Run("preview", func(t *testing.T) {
@@ -2717,6 +2728,13 @@ Options:
 			require.NoError(t, err)
 			require.Equal(t, "service\nmy-service\n--output-dir\n*\n--option\napp=a b\n--option\nmodule=$HOME\n--option\nregion=it's\n", string(printed))
 		})
+
+		t.Run("the selection names the full name of the starter, and its arguments start with it", func(t *testing.T) {
+			selection, err := namedStarter(t).Select("api", nil, map[string]map[string]string{"cli": {}}, catalog.Answers{})
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"hpcsc/service", "hpcsc/service api --feature cli"}, []string{selection.StarterFullName(), selection.Arguments("api")})
+		})
 	})
 
 	t.Run("run after render", func(t *testing.T) {
@@ -3244,6 +3262,18 @@ folders:
 				[]string{given.FeatureSource("x"), given.FeatureSource("b"), given.FeatureSource("y"), answered.FeatureSource("b"), answered.FeatureSource("c"), given.FeatureSource("c")})
 		})
 	})
+}
+
+func namedStarter(t *testing.T) catalog.Starter {
+	t.Helper()
+	fsys := fstest.MapFS{
+		"starters/service/starter.yml":      &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  app:\n    path: .\n")},
+		"starters/service/files/app/go.mod": &fstest.MapFile{Data: []byte("module {{ .Name }}\n")},
+		"features/cli/feature.yml":          &fstest.MapFile{Data: []byte("summary: A CLI.\ntargets: [service]\n")},
+	}
+	starter, err := catalog.NewCatalogs(catalog.FromOrigin(fsys, catalog.Origin{Name: "hpcsc", Source: "https://example.com/hpcsc.git", Ref: "main", Commit: "0123abc"})).Starter("service")
+	require.NoError(t, err)
+	return starter
 }
 
 type recordedSteps struct {

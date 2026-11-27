@@ -53,12 +53,12 @@ func newVersionCommand() *cli.Command {
 	}
 }
 
-func catalogInConfig() (catalog.Catalog, error) {
+func catalogInConfig() (catalog.Catalogs, error) {
 	catalogDir, err := catalogDirInConfig()
 	if err != nil {
-		return catalog.Catalog{}, err
+		return catalog.Catalogs{}, err
 	}
-	return catalog.New(os.DirFS(catalogDir)), nil
+	return catalog.NewCatalogs(catalog.New(os.DirFS(catalogDir))), nil
 }
 
 func catalogDirInConfig() (string, error) {

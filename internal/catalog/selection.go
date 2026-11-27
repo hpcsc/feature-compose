@@ -38,8 +38,8 @@ func (s Selection) Name() string {
 	return s.name
 }
 
-func (s Selection) StarterName() string {
-	return s.starter.name
+func (s Selection) StarterFullName() string {
+	return s.starter.origin.fullName(s.starter.name)
 }
 
 func (s Selection) AddedByNeeds() []Need {
@@ -110,8 +110,13 @@ func (s Selection) writeSelectionFile(output, version string) error {
 		}
 	}
 	slices.Sort(requested)
+	var origin *Origin
+	if s.starter.origin.Name != "" {
+		origin = &s.starter.origin
+	}
 	contents, err := selectionFile{
 		Version:       version,
+		Catalog:       origin,
 		StarterName:   s.starter.name,
 		Name:          s.name,
 		StarterValues: s.starter.values.byName,
@@ -133,7 +138,7 @@ func (s Selection) Preview() (string, error) {
 		return "", err
 	}
 	var preview strings.Builder
-	fmt.Fprintf(&preview, "Repo: %s\nStarter: %s\n", s.name, s.starter.name)
+	fmt.Fprintf(&preview, "Repo: %s\nStarter: %s\n", s.name, s.StarterFullName())
 	s.writeSection(&preview, "Features", s.featureLines())
 	s.writeSection(&preview, "Options", s.optionLines())
 	if lines := s.generateLines(); len(lines) > 0 {
@@ -152,7 +157,7 @@ func (s Selection) Questions() []Question {
 }
 
 func (s Selection) Arguments(output string) string {
-	words := []string{s.starter.name, s.name}
+	words := []string{s.starter.origin.fullName(s.starter.name), s.name}
 	if output != s.name {
 		words = append(words, "--output-dir", output)
 	}
@@ -743,6 +748,7 @@ const starterPrefix = "starter."
 
 type selectedStarter struct {
 	name    string
+	origin  Origin
 	options options
 	values  optionValues
 }

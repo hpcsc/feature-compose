@@ -14,8 +14,13 @@ const (
 	repoLabelWidth  = len("starter") + 2
 )
 
+type Catalogs interface {
+	Definitions() (catalog.Definitions, error)
+	Starter(name string) (catalog.Starter, error)
+}
+
 type draft struct {
-	catalog        catalog.Catalog
+	catalogs       Catalogs
 	definitions    catalog.Definitions
 	starter        catalog.Starter
 	starterName    string
@@ -29,17 +34,17 @@ type draft struct {
 	selection      catalog.Selection
 }
 
-func newDraft(c catalog.Catalog, starterName, name string, given map[string]string, givenByFeature map[string]map[string]string) (draft, error) {
+func newDraft(catalogs Catalogs, starterName, name string, given map[string]string, givenByFeature map[string]map[string]string) (draft, error) {
 	if name != "" {
 		if err := catalog.CheckRepoName(name); err != nil {
 			return draft{}, err
 		}
 	}
-	definitions, err := c.Definitions()
+	definitions, err := catalogs.Definitions()
 	if err != nil {
 		return draft{}, err
 	}
-	d := draft{catalog: c, definitions: definitions, starterGiven: starterName != "", name: name, nameGiven: name != "", given: given, givenByFeature: givenByFeature}
+	d := draft{catalogs: catalogs, definitions: definitions, starterGiven: starterName != "", name: name, nameGiven: name != "", given: given, givenByFeature: givenByFeature}
 	if starterName == "" {
 		return d, nil
 	}
@@ -47,7 +52,7 @@ func newDraft(c catalog.Catalog, starterName, name string, given map[string]stri
 }
 
 func (d draft) withStarter(starterName string) (draft, error) {
-	starter, err := d.catalog.Starter(starterName)
+	starter, err := d.catalogs.Starter(starterName)
 	if err != nil {
 		return draft{}, err
 	}
@@ -59,7 +64,7 @@ func (d draft) withStarter(starterName string) (draft, error) {
 	if err != nil {
 		return draft{}, err
 	}
-	d.starter, d.starterName, d.featureNames, d.answers, d.selection = starter, starterName, featureNames, answers, selection
+	d.starter, d.starterName, d.featureNames, d.answers, d.selection = starter, starter.FullName(), featureNames, answers, selection
 	return d, nil
 }
 
@@ -123,7 +128,7 @@ func (d draft) withKeptStarter(starterName string) (draft, error) {
 		return d, nil
 	}
 	doesNotTarget := func(featureName string) bool {
-		return !slices.Contains(d.definitions.Features[featureName].Targets, starterName)
+		return !slices.Contains(d.definitions.Features[d.starter.FullFeatureName(featureName)].Targets, starterName)
 	}
 	kept := d
 	kept.answers = catalog.Answers{
@@ -280,10 +285,15 @@ func (d draft) featuresField() field {
 		if neededBy := d.selection.NeededBy(featureName); len(neededBy) > 0 {
 			marks = append(marks, "needed by "+strings.Join(neededBy, ", "))
 		}
-		feature := d.definitions.Features[featureName]
+		feature := d.definitions.Features[d.starter.FullFeatureName(featureName)]
 		choice := item{name: featureName, checked: d.selection.Holds(featureName), mark: strings.Join(marks, ", "), summary: feature.Summary}
 		if len(feature.Needs) > 0 {
-			choice.hint = "needs " + strings.Join(slices.Sorted(maps.Keys(feature.Needs)), ", ")
+			var needs []string
+			for _, fullName := range slices.Sorted(maps.Keys(feature.Needs)) {
+				_, need := catalog.SplitFullName(fullName)
+				needs = append(needs, need)
+			}
+			choice.hint = "needs " + strings.Join(needs, ", ")
 		}
 		f.items = append(f.items, choice)
 	}

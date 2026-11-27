@@ -26,7 +26,7 @@ func TestShowCommand(t *testing.T) {
 	runShow := func(t *testing.T, files fstest.MapFS, arguments ...string) (string, error) {
 		t.Helper()
 		var printed, stderr bytes.Buffer
-		command := newShowCommand(func() (catalog.Catalog, error) { return catalog.New(files), nil })
+		command := newShowCommand(func() (catalog.Catalogs, error) { return catalog.NewCatalogs(catalog.New(files)), nil })
 		command.Writer = &printed
 		command.ErrWriter = &stderr
 		err := command.Run(context.Background(), append([]string{"show"}, arguments...))
@@ -94,7 +94,7 @@ add_to:
 	t.Run("json", func(t *testing.T) {
 		t.Run("--catalog prints the catalog in that folder, also with no config file", func(t *testing.T) {
 			catalogDir := writtenCatalog(t, map[string]string{"starters/other/starter.yml": "summary: Other.\nfolders:\n  docs:\n    path: .\n"})
-			command := newShowCommand(func() (catalog.Catalog, error) { return catalog.Catalog{}, errors.New("no config file") })
+			command := newShowCommand(func() (catalog.Catalogs, error) { return catalog.Catalogs{}, errors.New("no config file") })
 			var printed bytes.Buffer
 			command.Writer, command.ErrWriter = &printed, io.Discard
 
@@ -286,8 +286,8 @@ add_to:
 
 		t.Run("a catalog that cannot load stops show with its error before it prints anything", func(t *testing.T) {
 			var printed bytes.Buffer
-			command := newShowCommand(func() (catalog.Catalog, error) {
-				return catalog.Catalog{}, errors.New("no config file at /home/config.yml")
+			command := newShowCommand(func() (catalog.Catalogs, error) {
+				return catalog.Catalogs{}, errors.New("no config file at /home/config.yml")
 			})
 			command.Writer, command.ErrWriter = &printed, &printed
 

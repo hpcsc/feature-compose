@@ -22,7 +22,7 @@ func TestCheckCommand(t *testing.T) {
 	runCheck := func(t *testing.T, files fstest.MapFS, arguments ...string) (string, error) {
 		t.Helper()
 		var printed, stderr bytes.Buffer
-		command := newCheckCommand(func() (catalog.Catalog, error) { return catalog.New(files), nil })
+		command := newCheckCommand(func() (catalog.Catalogs, error) { return catalog.NewCatalogs(catalog.New(files)), nil })
 		command.Writer = &printed
 		command.ErrWriter = &stderr
 		err := command.Run(context.Background(), append([]string{"check"}, arguments...))
@@ -58,7 +58,7 @@ func TestCheckCommand(t *testing.T) {
 			"with two mistakes": {"auth": "targets: [service]\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n  cli.commands:\n    - code: newAuthCommand()\n"},
 		} {
 			t.Run(name+", a write to stdout that fails stops check with its cause", func(t *testing.T) {
-				command := newCheckCommand(func() (catalog.Catalog, error) { return catalog.New(withFeatures(features)), nil })
+				command := newCheckCommand(func() (catalog.Catalogs, error) { return catalog.NewCatalogs(catalog.New(withFeatures(features))), nil })
 				command.Writer, command.ErrWriter = failingWriter{}, failingWriter{}
 
 				err := command.Run(context.Background(), []string{"check"})
@@ -213,7 +213,7 @@ the feature cli: the file "go/cli.go" of the extension point "cli.commands" does
 				"starters/service/files/go/main.go": "package main\n",
 				"features/tools/feature.yml":        "targets: [service]\nadd_to:\n  cli.commands:\n    - code: newToolsCommand()\n",
 			})
-			command := newCheckCommand(func() (catalog.Catalog, error) { return catalog.Catalog{}, errors.New("no config file") })
+			command := newCheckCommand(func() (catalog.Catalogs, error) { return catalog.Catalogs{}, errors.New("no config file") })
 			var printed bytes.Buffer
 			command.Writer, command.ErrWriter = &printed, io.Discard
 
@@ -305,9 +305,9 @@ The repo of each combination passes its commands.
 
 	t.Run("stop", func(t *testing.T) {
 		t.Run("an argument stops check before it reads the catalog", func(t *testing.T) {
-			command := newCheckCommand(func() (catalog.Catalog, error) {
+			command := newCheckCommand(func() (catalog.Catalogs, error) {
 				require.FailNow(t, "check read the catalog")
-				return catalog.Catalog{}, nil
+				return catalog.Catalogs{}, nil
 			})
 			var printed bytes.Buffer
 			command.Writer, command.ErrWriter = &printed, &printed
@@ -327,7 +327,7 @@ The repo of each combination passes its commands.
 		} {
 			t.Run("a --catalog path "+name+" stops check, and the message names it", func(t *testing.T) {
 				path := folder(t)
-				command := newCheckCommand(func() (catalog.Catalog, error) { return catalog.Catalog{}, errors.New("no config file") })
+				command := newCheckCommand(func() (catalog.Catalogs, error) { return catalog.Catalogs{}, errors.New("no config file") })
 				command.Writer, command.ErrWriter = io.Discard, io.Discard
 
 				err := command.Run(context.Background(), []string{"check", "--catalog", path})

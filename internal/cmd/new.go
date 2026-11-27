@@ -13,7 +13,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func newNewCommand(load func() (catalog.Catalogs, error), version string) *cli.Command {
+func newNewCommand(load catalogsLoader, version string) *cli.Command {
 	return &cli.Command{
 		Name:      "new",
 		Usage:     "make a new repo from a starter",
@@ -24,7 +24,7 @@ func newNewCommand(load func() (catalog.Catalogs, error), version string) *cli.C
 			&cli.StringFlag{Name: "output-dir", Usage: "the folder for the new repo (default: ./<name>)"},
 			&cli.BoolFlag{Name: "no-prompt", Usage: "start no TUI: give each option without a value its default, and stop on an option with no default and no value"},
 			&cli.BoolFlag{Name: "dry-run", Usage: "print a preview of the repo, and write no file and run no command"},
-			catalogFlag("make the repo from the catalog in this folder, not the catalog folder of the config file"),
+			catalogFlag("make the repo from the catalog in this folder, or from only this catalog of the config file"),
 		},
 		DisableSliceFlagSeparator: true,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -43,7 +43,7 @@ func newNewCommand(load func() (catalog.Catalogs, error), version string) *cli.C
 			if err != nil {
 				return err
 			}
-			catalogs, err := catalogToRead(cmd, load)
+			catalogs, err := catalogsToRead(ctx, cmd, load)
 			if err != nil {
 				return err
 			}

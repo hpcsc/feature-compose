@@ -21,8 +21,8 @@ import (
 )
 
 func TestAddCommand(t *testing.T) {
-	noConfigFile := func() (string, error) { return "", errors.New("no config file") }
-	runAdd := func(t *testing.T, configured func() (string, error), arguments ...string) (string, error) {
+	noConfigFile := func(string) (string, error) { return "", errors.New("no config file") }
+	runAdd := func(t *testing.T, configured folderLoader, arguments ...string) (string, error) {
 		t.Helper()
 		var printed bytes.Buffer
 		command := newAddCommand(configured)
@@ -39,7 +39,9 @@ func TestAddCommand(t *testing.T) {
 	builtLines := func(t *testing.T, catalogDir string) []string {
 		t.Helper()
 		var printed bytes.Buffer
-		check := newCheckCommand(func() (catalog.Catalogs, error) { return catalog.Catalogs{}, errors.New("no config file") })
+		check := newCheckCommand(func(context.Context, string) (catalog.Catalogs, error) {
+			return catalog.Catalogs{}, errors.New("no config file")
+		})
 		check.Writer, check.ErrWriter = &printed, io.Discard
 		require.NoError(t, check.Run(context.Background(), []string{"check", "--catalog", catalogDir, "--build"}), printed.String())
 		var lines []string
@@ -97,14 +99,30 @@ Fill in starter.yml, and then try the starter:
 `, printed)
 		})
 
-		t.Run("with no --catalog, writes to the catalog folder of the config file, and prints the commands with no --catalog", func(t *testing.T) {
+		t.Run("with no --catalog, writes to the one catalog of the config file, and prints the commands with no --catalog", func(t *testing.T) {
 			catalogDir := t.TempDir()
 
-			printed, err := runAdd(t, func() (string, error) { return catalogDir, nil }, "starter", "service")
+			printed, err := runAdd(t, func(name string) (string, error) {
+				require.Empty(t, name)
+				return catalogDir, nil
+			}, "starter", "service")
 
 			require.NoError(t, err)
 			require.FileExists(t, filepath.Join(catalogDir, "starters", "service", "starter.yml"))
 			require.Contains(t, printed, "\n  feature-compose new service my-repo --dry-run\n  feature-compose check --build\n")
+		})
+
+		t.Run("a --catalog that names a catalog of the config writes to the folder of that catalog, and prints the commands with that --catalog", func(t *testing.T) {
+			catalogDir := t.TempDir()
+
+			printed, err := runAdd(t, func(name string) (string, error) {
+				require.Equal(t, "team", name)
+				return catalogDir, nil
+			}, "starter", "service", "--catalog", "team")
+
+			require.NoError(t, err)
+			require.FileExists(t, filepath.Join(catalogDir, "starters", "service", "starter.yml"))
+			require.Contains(t, printed, "\n  feature-compose new --catalog team service my-repo --dry-run\n  feature-compose check --catalog team --build\n")
 		})
 	})
 

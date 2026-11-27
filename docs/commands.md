@@ -8,13 +8,18 @@
 | `feature-compose init <folder>` | Writes a small catalog with one starter and one feature, as the start of a catalog of your own. |
 | `feature-compose add starter <name>` | Adds a starter to the catalog, with a `starter.yml` to fill in. |
 | `feature-compose add feature <name> --target <starter>` | Adds a feature to the catalog, with a `feature.yml` to fill in. |
+| `feature-compose catalog add <name> <source>` | Gets a catalog from a git URL or a local folder, and adds it to the config file. |
+| `feature-compose catalog list` | Shows the name, the source, the path, the ref and the commit of each catalog. |
+| `feature-compose catalog sync [<name>...]` | Gets the newest commit of the ref of each catalog from a git URL. |
+| `feature-compose catalog set <name>` | Changes the path or the ref of a catalog. |
+| `feature-compose catalog remove <name>` | Removes a catalog from the config file, and deletes its clone. |
 | `feature-compose version` | Prints the tag that the binary comes from, or its commit. |
 | `feature-compose update` | Replaces the binary with the latest release or prerelease. |
 
-`new`, `show` and `check` read the catalog that the config file names, or the catalog folder that `--catalog`
-gives.
-[Install feature-compose and Point It at a Catalog](install-and-configure.md) tells how to write the config
-file, and how `version` and `update` work.
+`new`, `show` and `check` read each catalog of the config file. `--catalog <name>` gives them only that catalog
+of the config file, and `--catalog <folder>` gives them the catalog in that folder.
+[Install feature-compose and Point It at a Catalog](install-and-configure.md) tells how the catalogs and the
+config file work, and how `version` and `update` work.
 
 ## Make a Repo
 
@@ -30,6 +35,7 @@ feature-compose new <starter> <name> [--feature <name>[:<option>=<value>,...]]..
 | `--no-prompt` | Opens no form. Each option without a value gets its default. |
 | `--dry-run` | Prints a preview of the repo, writes no file and runs no command. |
 | `--catalog <folder>` | Makes the repo from the catalog in that folder. `new` then does not read the config file. Use it to try a catalog that you write, for example `new --catalog . my-starter my-test --dry-run` in the folder of the catalog. |
+| `--catalog <name>` | Makes the repo from only that catalog of the config file. When a folder has the same name, `--catalog` takes the folder. |
 
 `new` writes each file of the starter and of the selected features. Then it runs the `after_render` commands of
 each folder of the starter, for example `go mod tidy`. Last, it writes the selection file `.feature-compose.yml` to
@@ -38,10 +44,16 @@ the root of the repo. The output folder must be empty or absent.
 ### The Selection File
 
 `.feature-compose.yml` keeps a record of the choices that made the repo. This is the file of
-`feature-compose new go-event-sourcing-service my-service --feature cli-auth`:
+`feature-compose new go-event-sourcing-service my-service --feature cli-auth`, with the catalog of this repo
+under the name `hpcsc`:
 
 ```yaml
 version: v0.1.0
+catalog:
+  name: hpcsc
+  source: https://github.com/hpcsc/feature-compose
+  path: catalog
+  commit: 2868ee8c1f0e4b6a9d3e2f7a5b1c0d9e8f7a6b5c
 starter: go-event-sourcing-service
 name: my-service
 options:
@@ -58,8 +70,9 @@ requested: [cli-auth]
 
 | Key | Value |
 | --- | --- |
-| `version` | The text that `feature-compose version` prints. The catalog is a folder with no version, so this is not a version of the catalog. |
-| `starter`, `name` | The starter and the name of the repo. |
+| `version` | The text that `feature-compose version` prints. This is not a version of the catalog. |
+| `catalog` | The name, the source, the path, the ref and the commit of the catalog of the starter. A catalog from a local folder has no commit. With `--catalog <folder>`, the file has no `catalog`. |
+| `starter`, `name` | The starter and the name of the repo. `feature-compose new <catalog>/<starter> <name>` with the same catalog makes the same repo again. |
 | `options` | Each option of the starter, with the value that the templates read. The file also holds a value that came from a default. |
 | `features` | Each feature of the repo, with each of its options and the value that the templates read. The file also holds a feature that only a need added, and a value that came from a default or from a need. |
 | `requested` | Each feature that you named with `--feature` or selected in the form, also when another feature needs it. A feature that only a need added is in `features` and not in `requested`. |
@@ -78,7 +91,7 @@ feature-compose new go-event-sourcing-service my-service --option go-version=1.2
 
 ```text
 Repo: my-service
-Starter: go-event-sourcing-service
+Starter: hpcsc/go-event-sourcing-service
 
 Features:
   api-auth: needed by cli-auth
@@ -162,9 +175,9 @@ This is `feature-compose new go-event-sourcing-service my-service --feature cli-
  feature-compose new                                                                     3 features
 ╭─ Repo ───────────────────────────────────────────────────────────────────────────────────────────╮
 │   name     my-service  from the command line                                                     │
-│   starter  go-event-sourcing-service  from the command line                                      │
+│   starter  hpcsc/go-event-sourcing-service  from the command line                                │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Options of go-event-sourcing-service ───────────────────────────────────────────────────────────╮
+╭─ Options of hpcsc/go-event-sourcing-service ─────────────────────────────────────────────────────╮
 │   go-version  1.27.1                                                                             │
 │   module      github.com/hpcsc/my-service                                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
@@ -296,9 +309,9 @@ stdout gets only the result.
 After `new` writes the repo, it prints the command that makes the same repo:
 
 ```text
-Made my-service from the starter go-event-sourcing-service.
+Made my-service from the starter hpcsc/go-event-sourcing-service.
 To make the same repo again, run:
-  feature-compose new go-event-sourcing-service my-service --feature cli-auth
+  feature-compose new hpcsc/go-event-sourcing-service my-service --feature cli-auth
 ```
 
 The command names each value that is not its default, and each feature that you selected. It puts each word that a
@@ -329,6 +342,8 @@ the option region of the starter service has no default and no value: give it wi
 
 An unknown starter stops the command before the TUI starts, and the message lists the starters.
 `--catalog <folder>` shows the catalog in that folder, and `show` then does not read the config file.
+`--catalog <name>` shows only that catalog of the config file. The starters and the features of a catalog of the
+config file have their full names, for example `hpcsc/go` and `hpcsc/cli`.
 
 ```shell
 feature-compose show
@@ -394,6 +409,64 @@ is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each
 | `features.<name>.extension_points.<name>.item` | The fields of each item. |
 | `features.<name>.add_to.<name>` | The items that the feature adds to the extension point, each with the fields of that extension point. |
 
+## Manage the Catalogs
+
+```shell
+feature-compose catalog add <name> <source> [--path <folder>] [--ref <ref>]
+feature-compose catalog list
+feature-compose catalog sync [<name>...]
+feature-compose catalog set <name> [--path <folder>] [--ref <ref>]
+feature-compose catalog remove <name>
+```
+
+[The Catalogs](install-and-configure.md#the-catalogs) tells what a source, a path and a ref are.
+
+`catalog add` gets the catalog and adds it to the config file. A git URL gets a clone, and the tool checks out the
+ref. A local folder needs no clone. Then `add` checks that the folder of the catalog holds the folder `starters`:
+
+```text
+Added the catalog hpcsc from https://github.com/hpcsc/feature-compose at the commit 2868ee8.
+The starters of a catalog run their commands on this machine. new --dry-run lists them before new runs them.
+See the starters and the features of the catalog with:
+  feature-compose show
+```
+
+`add` stops, and adds no catalog, when the config file already has the name, when git cannot read the source, when
+the source has no ref with that name, or when the path holds no folder `starters`. It then leaves no clone.
+
+`catalog list` shows a table of the catalogs, in the order of their names. A `-` is an empty value: no path, the
+default branch, or a local folder with no commit. A catalog with no clone shows `no clone`, and the line under the
+table names `catalog sync`:
+
+```text
+NAME   SOURCE                                    PATH     REF   COMMIT
+hpcsc  https://github.com/hpcsc/feature-compose  catalog  -     2868ee8
+team   /home/me/code/team-catalog                -        -     -
+```
+
+`catalog sync` gets the newest commit of the ref of each catalog from a git URL, or of the named catalogs, and
+shows the old and the new commit. A branch gets its newest commit. A commit keeps its content, and so does a tag,
+unless the owner of the repo moves the tag to another commit. A catalog
+with no clone gets a new clone. A local folder gets nothing. When one catalog fails, `sync` still syncs the
+others, and then stops with the names of the catalogs that failed:
+
+```text
+hpcsc: from 2868ee8 to 9a1b2c3
+team: a local folder, so sync gets nothing
+```
+
+`catalog set` changes the path or the ref of a catalog. A new ref gets the newest commits of the source first.
+When the new ref or path does not hold a catalog, `set` stops, and the catalog and its clone stay as they were.
+`--ref ''` goes back to the default branch. A local folder has no ref.
+
+Only one of `catalog add`, `sync`, `set` and `remove` changes the catalogs at a time. A second one, for example in
+another terminal, stops at once and tells you to run it again later. Each one reads the config file again when it
+starts, so it keeps the changes of the one before it. When you change the source of a catalog in the config file by
+hand, the next `catalog sync` gets the commits of the new source.
+
+`catalog remove` removes the catalog from the config file, and deletes its clone. It does not change a local
+folder, and it does not change a repo that the catalog made: its `.feature-compose.yml` still names the catalog.
+
 ## Start a Catalog
 
 `feature-compose init <folder>` writes a small catalog that works, as the start of a catalog of your own. The
@@ -414,16 +487,16 @@ The catalog has these files:
 | `features/greeting/files/app/` | `scripts/greet`, which prints the greeting, and its test `tests/greeting.sh`. |
 | `.github/workflows/check.yml` | A GitHub workflow that installs the latest release of feature-compose and runs `check --catalog . --build` on each push. |
 
-Then `init` prints the commands that try the catalog, and the line of the config file that makes it the catalog
-of `new`, `show` and `check`:
+Then `init` prints the commands that try the catalog, and the command that adds it to the config file. The name
+of the catalog is the name of its folder, or `my-catalog` when the name of the folder is not a valid catalog name:
 
 ```text
 Made a catalog in my-catalog with the starter example and the feature greeting. Try it:
   feature-compose show --catalog my-catalog
   feature-compose new --catalog my-catalog example my-repo --feature greeting --dry-run
   feature-compose check --catalog my-catalog --build
-To use it with no --catalog, write this line in /home/me/.config/feature-compose/config.yml:
-  catalog: /home/me/my-catalog
+To use it with no --catalog, add it to the config file:
+  feature-compose catalog add my-catalog /home/me/my-catalog
 ```
 
 Change the starter and the feature into your own, or keep them as an example next to your own.
@@ -432,8 +505,11 @@ Change the starter and the feature into your own, or keep them as an example nex
 
 `add` writes the files of a new starter or feature, with comments that show the fields to fill in. `check` finds
 no mistake in them, and `check --build` passes on their repos, so you can try each change that you make. `add`
-writes to the catalog folder of the config file, or to the folder that `--catalog` gives. When the catalog already
-has the starter or the feature, `add` stops and writes no file.
+writes to the folder that `--catalog <folder>` gives, or to the folder of the catalog of the config file that
+`--catalog <name>` names. With no `--catalog`, `add` writes to the one catalog of the config file, and stops when
+the config file has more than one catalog. `add` writes only to a catalog from a local folder: the next
+`catalog sync` removes each change in the clone of a git URL. When the catalog already has the starter or the
+feature, `add` stops and writes no file.
 
 ```shell
 feature-compose add starter service
@@ -464,10 +540,10 @@ that try the starter or the feature.
 `feature-compose check` finds each feature of the catalog that does not fit its targets or its needs, each
 template that reads an option that it cannot read or that does not parse, each extension point whose file does not
 render its items, and each path that two owners write, so that a mistake in the catalog stops before a developer
-runs `new`. It reads the catalog folder that the config file
-names, and checks each feature against each starter that its `targets` name. `--catalog <folder>` checks the
-catalog in that folder, and `check` then does not read the config file. A `--catalog` path that is not a folder
-stops `check`, and the message names the path.
+runs `new`. It reads each catalog of the config file, and checks each feature against each starter that its `targets` name.
+Each mistake of a catalog of the config file starts with `the catalog <name>: `. `--catalog <name>` checks only
+that catalog of the config file. `--catalog <folder>` checks the catalog in that folder, and `check` then does not
+read the config file. A `--catalog` path that is not a folder stops `check`, and the message names the path.
 
 ```shell
 feature-compose check

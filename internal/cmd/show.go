@@ -12,14 +12,14 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func newShowCommand(load func() (catalog.Catalogs, error)) *cli.Command {
+func newShowCommand(load catalogsLoader) *cli.Command {
 	return &cli.Command{
 		Name:      "show",
 		Usage:     "show the starters, the features and the extension points of the catalog",
 		ArgsUsage: "[<starter>]",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "output", Usage: "print the catalog in this format: json"},
-			catalogFlag("show the catalog in this folder, not the catalog folder of the config file"),
+			catalogFlag("show the catalog in this folder, or only this catalog of the config file"),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.NArg() > 1 {
@@ -28,7 +28,7 @@ func newShowCommand(load func() (catalog.Catalogs, error)) *cli.Command {
 			if format := cmd.String("output"); format != "" && format != "json" {
 				return fmt.Errorf("unknown output %q: show prints only json", format)
 			}
-			catalogs, err := catalogToRead(cmd, load)
+			catalogs, err := catalogsToRead(ctx, cmd, load)
 			if err != nil {
 				return err
 			}

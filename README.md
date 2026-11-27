@@ -95,33 +95,30 @@ flowchart LR
    sh <(curl -fsSL https://raw.githubusercontent.com/hpcsc/feature-compose/main/scripts/install.sh)
    ```
 
-2. Get a catalog. To start with the catalog of this repo, clone the repo:
+2. Add a catalog. To start with the catalog of this repo, add the folder `catalog` of this repo with the name
+   `hpcsc`. The tool clones the repo, and writes the catalog in its config file:
 
    ```shell
-   git clone https://github.com/hpcsc/feature-compose.git ~/code/feature-compose
+   feature-compose catalog add hpcsc https://github.com/hpcsc/feature-compose --path catalog
    ```
 
-3. Write the folder of the catalog in the config file `~/.config/feature-compose/config.yml`:
+   `feature-compose catalog sync` gets the newest commit of the catalog later.
 
-   ```yaml
-   catalog: ~/code/feature-compose/catalog
-   ```
-
-4. See the starters and the features of the catalog. In a terminal, `show` opens a tree that you can
+3. See the starters and the features of the catalog. In a terminal, `show` opens a tree that you can
    browse:
 
    ```shell
    feature-compose show
    ```
 
-5. Preview a repo. `--dry-run` prints the features, the options, the commands and the files of the
+4. Preview a repo. `--dry-run` prints the features, the options, the commands and the files of the
    repo, and writes nothing:
 
    ```shell
    feature-compose new go my-tool --feature cli --dry-run
    ```
 
-6. Make the repo. In a terminal, `new` opens a form, where you can select more features and change the
+5. Make the repo. In a terminal, `new` opens a form, where you can select more features and change the
    answers. The button `Write the repo` shows the preview, and Enter writes the repo:
 
    ```shell

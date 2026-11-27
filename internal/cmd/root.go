@@ -8,7 +8,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/hpcsc/feature-compose/internal/catalog"
-	"github.com/hpcsc/feature-compose/internal/config"
+	"github.com/hpcsc/feature-compose/internal/registry"
 	"github.com/hpcsc/feature-compose/internal/version"
 	"github.com/urfave/cli/v3"
 )
@@ -31,11 +31,12 @@ func newCommand() *cli.Command {
 		Version:               version.Current(),
 		EnableShellCompletion: true,
 		Commands: []*cli.Command{
-			newNewCommand(catalogInConfig, version.Current()),
-			newShowCommand(catalogInConfig),
-			newCheckCommand(catalogInConfig),
+			newNewCommand(catalogsInConfig, version.Current()),
+			newShowCommand(catalogsInConfig),
+			newCheckCommand(catalogsInConfig),
+			newCatalogCommand(registry.Open),
 			newInitCommand(),
-			newAddCommand(catalogDirInConfig),
+			newAddCommand(folderInConfig),
 			newVersionCommand(),
 			newUpdateCommand(),
 		},
@@ -53,20 +54,27 @@ func newVersionCommand() *cli.Command {
 	}
 }
 
-func catalogInConfig() (catalog.Catalogs, error) {
-	catalogDir, err := catalogDirInConfig()
+func catalogsInConfig(ctx context.Context, name string) (catalog.Catalogs, error) {
+	r, err := registry.Open()
 	if err != nil {
 		return catalog.Catalogs{}, err
 	}
-	return catalog.NewCatalogs(catalog.New(os.DirFS(catalogDir))), nil
+	if name == "" {
+		return r.Catalogs(ctx)
+	}
+	c, err := r.Catalog(ctx, name)
+	if err != nil {
+		return catalog.Catalogs{}, err
+	}
+	return catalog.NewCatalogs(c), nil
 }
 
-func catalogDirInConfig() (string, error) {
-	file, err := config.Load()
+func folderInConfig(name string) (string, error) {
+	r, err := registry.Open()
 	if err != nil {
 		return "", err
 	}
-	return file.CatalogDir, nil
+	return r.Folder(name)
 }
 
 func writeError(w io.Writer, err error) {

@@ -1,12 +1,6 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { runCli, scratchDir } from '../testUtils'
-
-function writeFile(path: string, contents: string): void {
-  mkdirSync(dirname(path), { recursive: true })
-  writeFileSync(path, contents)
-}
+import { configHomeWith, runCli, scratchDir, writeFile } from '../testUtils'
 
 describe('feature-compose check', () => {
   it('with --build, makes the repo of each combination, runs its commands, names each combination whose command fails, and exits with 1', async () => {
@@ -41,14 +35,13 @@ describe('feature-compose check', () => {
     writeFile(join(catalogDir, 'starters', 'service', 'starter.yml'), 'folders:\n  go:\n    path: .\n')
     writeFile(join(catalogDir, 'starters', 'service', 'files', 'go', 'main.go'), 'package main\n')
     writeFile(join(catalogDir, 'features', 'tools', 'feature.yml'), 'targets: [service]\nadd_to:\n  cli.commands:\n    - code: newToolsCommand()\n')
-    const home = scratchDir()
-    writeFile(join(home, 'feature-compose', 'config.yml'), `catalog: ${catalogDir}\n`)
+    const home = configHomeWith({ team: catalogDir })
 
     const result = await runCli(scratchDir(), ['check'], { XDG_CONFIG_HOME: home })
 
     expect(result.status).toBe(1)
     expect(result.stdout).toBe(
-      'the starter service: the feature tools adds to the extension point "cli.commands", which the starter, the feature and its needs do not declare\n',
+      'the catalog team: the starter service: the feature tools adds to the extension point "cli.commands", which the starter, the feature and its needs do not declare\n',
     )
     expect(result.stderr).toBe('the catalog has 1 mistake\n')
   })

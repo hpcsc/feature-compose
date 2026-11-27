@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { launchTerminal, type Session } from 'tuistory'
 import { onTestFinished } from 'vitest'
 
@@ -21,21 +21,36 @@ export function buildTag(): string {
   return tag
 }
 
+export function writeFile(path: string, contents: string): void {
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, contents)
+}
+
 export function scratchDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'feature-compose-e2e-'))
   onTestFinished(() => rmSync(dir, { recursive: true, force: true }))
   return dir
 }
 
-// configHome gives a folder for XDG_CONFIG_HOME whose config file names the catalog folder of this repo.
-export function configHome(): string {
-  const catalogDir = process.env.CATALOG_DIR
-  if (!catalogDir) {
+export const noGitConfigOfTheMachine = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' }
+
+export function featureComposeCatalogDir(): string {
+  const dir = process.env.CATALOG_DIR
+  if (!dir) {
     throw new Error('CATALOG_DIR environment variable is required. Set it to the catalog folder of this repo.')
   }
+  return resolve(dir)
+}
+
+export function configHome(): string {
+  return configHomeWith({ hpcsc: featureComposeCatalogDir() })
+}
+
+export function configHomeWith(catalogDirs: Record<string, string>): string {
   const home = scratchDir()
   mkdirSync(join(home, 'feature-compose'))
-  writeFileSync(join(home, 'feature-compose', 'config.yml'), `catalog: ${resolve(catalogDir)}\n`)
+  const entries = Object.entries(catalogDirs).map(([name, dir]) => `  ${name}:\n    source: ${dir}\n`)
+  writeFileSync(join(home, 'feature-compose', 'config.yml'), `catalogs:\n${entries.join('')}`)
   return home
 }
 

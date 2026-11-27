@@ -43,8 +43,10 @@ folders:
 			"starters/service/files/go/go.mod.tmpl": &fstest.MapFile{Data: []byte(`module {{ option "starter.module" }}` + "\n" + `go {{ option "starter.go-version" }}` + "\n")},
 		}
 	}
-	loaded := func(files fstest.MapFS) func() (catalog.Catalogs, error) {
-		return func() (catalog.Catalogs, error) { return catalog.NewCatalogs(catalog.New(files)), nil }
+	loaded := func(files fstest.MapFS) func(context.Context, string) (catalog.Catalogs, error) {
+		return func(context.Context, string) (catalog.Catalogs, error) {
+			return catalog.NewCatalogs(catalog.New(files)), nil
+		}
 	}
 	runNewWithStatus := func(t *testing.T, files fstest.MapFS, arguments ...string) (printed, status string, err error) {
 		t.Helper()
@@ -169,7 +171,9 @@ folders:
 				"starters/other/starter.yml":          "folders:\n  docs:\n    path: .\n",
 				"starters/other/files/docs/README.md": "# {{ .Name }}\n",
 			})
-			command := newNewCommand(func() (catalog.Catalogs, error) { return catalog.Catalogs{}, errors.New("no config file") }, version)
+			command := newNewCommand(func(context.Context, string) (catalog.Catalogs, error) {
+				return catalog.Catalogs{}, errors.New("no config file")
+			}, version)
 			command.Writer, command.ErrWriter = io.Discard, io.Discard
 
 			err := command.Run(context.Background(), []string{"new", "--catalog", catalogDir, "other", "my-repo"})
@@ -704,7 +708,7 @@ folders:
 		t.Run("a catalog that cannot load stops --dry-run with its error, and prints nothing", func(t *testing.T) {
 			t.Chdir(t.TempDir())
 			var printed bytes.Buffer
-			command := newNewCommand(func() (catalog.Catalogs, error) {
+			command := newNewCommand(func(context.Context, string) (catalog.Catalogs, error) {
 				return catalog.Catalogs{}, errors.New("no config file at /home/config.yml")
 			}, version)
 			command.Writer, command.ErrWriter = &printed, &printed
@@ -749,7 +753,7 @@ folders:
 
 			require.NoError(t, err)
 			require.Contains(t, printed, "--catalog")
-			require.Contains(t, printed, "make the repo from the catalog in this folder, not the catalog folder of the config file")
+			require.Contains(t, printed, "make the repo from the catalog in this folder, or from only this catalog of the config file")
 		})
 
 		t.Run("--help shows the arguments of new as optional", func(t *testing.T) {
@@ -1099,7 +1103,7 @@ folders:
 		t.Run("a catalog that cannot load stops new with its error, and makes no output folder", func(t *testing.T) {
 			workingFolder := t.TempDir()
 			t.Chdir(workingFolder)
-			command := newNewCommand(func() (catalog.Catalogs, error) {
+			command := newNewCommand(func(context.Context, string) (catalog.Catalogs, error) {
 				return catalog.Catalogs{}, errors.New("no config file at /home/config.yml")
 			}, version)
 			command.Writer, command.ErrWriter = io.Discard, io.Discard

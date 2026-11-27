@@ -5,7 +5,7 @@ import { createServer, type Server } from 'node:http'
 import { type AddressInfo, createServer as createNetServer, type Socket } from 'node:net'
 import { dirname, join } from 'node:path'
 import { describe, expect, it, onTestFinished } from 'vitest'
-import { buildTag, configHome, getExecutablePath, openCli, runCli, runProgram, scratchDir } from '../testUtils'
+import { buildTag, configHome, configHomeWith, getExecutablePath, noGitConfigOfTheMachine, openCli, featureComposeCatalogDir, runCli, runProgram, scratchDir } from '../testUtils'
 
 describe('feature-compose new', () => {
   it('an unknown starter stops new, and the message lists the starters of the catalog folder that the config file names', async () => {
@@ -161,7 +161,7 @@ describe('feature-compose new', () => {
 
       expect(made.status, made.stdout + made.stderr).toBe(0)
       const repo = join(dir, 'my-tool')
-      const requires: Array<{ module: string; version: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features.cli.add_to['gomod.requires']
+      const requires: Array<{ module: string; version: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['hpcsc/cli'].add_to['gomod.requires']
       expect(requires.map((item) => item.module)).toContain('github.com/urfave/cli/v3')
       const goMod = readFileSync(join(repo, 'go.mod'), 'utf8')
       for (const { module, version } of requires) {
@@ -219,7 +219,7 @@ describe('feature-compose new', () => {
       expect(version).toMatchObject({ status: 0, stdout: `${tag}\n` })
 
       expect(existsSync(join(repo, 'e2e', 'node_modules'))).toBe(true)
-      const onlyTheConfigOfTheRepo = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', XDG_CONFIG_HOME: scratchDir() }
+      const onlyTheConfigOfTheRepo = { ...noGitConfigOfTheMachine, XDG_CONFIG_HOME: scratchDir() }
       const init = await runProgram(repo, 'git', ['init', '--quiet'], onlyTheConfigOfTheRepo)
       expect(init.status, init.stderr).toBe(0)
       const status = await runProgram(repo, 'git', ['status', '--porcelain', '--untracked-files=all'], onlyTheConfigOfTheRepo)
@@ -534,13 +534,13 @@ describe('feature-compose new', () => {
       const made = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--no-prompt'], env)
 
       expect(made.status, made.stdout + made.stderr).toBe(0)
-      expect(made.stdout).toBe('api-auth: needed by cli-auth\ncli: needed by cli-auth\nMade my-service from the starter go-event-sourcing-service.\n')
+      expect(made.stdout).toBe('api-auth: needed by cli-auth\ncli: needed by cli-auth\nMade my-service from the starter hpcsc/go-event-sourcing-service.\n')
       const repo = join(dir, 'my-service')
       expect(readFileSync(join(repo, '.feature-compose.yml'), 'utf8')).toBe(
-        `version: ${buildTag()}\nstarter: go-event-sourcing-service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\n` +
+        `version: ${buildTag()}\ncatalog:\n  name: hpcsc\n  source: ${featureComposeCatalogDir()}\nstarter: go-event-sourcing-service\nname: my-service\noptions:\n  go-version: 1.27.1\n  module: github.com/hpcsc/my-service\n` +
           'features:\n  api-auth:\n    method: api-key\n  cli: {}\n  cli-auth:\n    store-key: "false"\nrequested: [cli-auth]\n',
       )
-      const requires: Array<{ module: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['cli-auth'].add_to['gomod.requires']
+      const requires: Array<{ module: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['hpcsc/cli-auth'].add_to['gomod.requires']
       expect(requires.map((item) => item.module).sort()).toEqual(['github.com/cli/browser', 'github.com/zalando/go-keyring', 'golang.org/x/oauth2', 'golang.org/x/term'])
       const goMod = readFileSync(join(repo, 'go.mod'), 'utf8')
       for (const { module } of requires) {
@@ -595,9 +595,9 @@ describe('feature-compose new', () => {
       const made = await runCli(dir, ['new', 'chi-api', 'my-api', '--feature', 'cli-auth', '--no-prompt'], env)
 
       expect(made.status, made.stdout + made.stderr).toBe(0)
-      expect(made.stdout).toBe('api-auth: needed by cli-auth\ncli: needed by cli-auth\nMade my-api from the starter chi-api.\n')
+      expect(made.stdout).toBe('api-auth: needed by cli-auth\ncli: needed by cli-auth\nMade my-api from the starter hpcsc/chi-api.\n')
       const repo = join(dir, 'my-api')
-      const requires: Array<{ module: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['cli-auth'].add_to['gomod.requires']
+      const requires: Array<{ module: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['hpcsc/cli-auth'].add_to['gomod.requires']
       const goMod = readFileSync(join(repo, 'go.mod'), 'utf8')
       for (const { module } of requires) {
         expect(goMod, `go mod tidy removes ${module}, which only the files of the method oauth and of the stored key import`).not.toContain(module)
@@ -637,7 +637,7 @@ describe('feature-compose new', () => {
       expect(made.status, made.stdout + made.stderr).toBe(0)
       const repo = join(dir, 'my-service')
       expect(readFileSync(join(repo, '.feature-compose.yml'), 'utf8')).toContain('  cli-auth:\n    store-key: "true"\n')
-      const requires: Array<{ module: string; version: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['cli-auth'].add_to['gomod.requires']
+      const requires: Array<{ module: string; version: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['hpcsc/cli-auth'].add_to['gomod.requires']
       const goMod = readFileSync(join(repo, 'go.mod'), 'utf8')
       for (const { module, version } of requires) {
         const required = new RegExp(`^\\s*(?:require )?${module.replaceAll('.', '\\.')} ${version.replaceAll('.', '\\.')}$`, 'm')
@@ -690,7 +690,7 @@ describe('feature-compose new', () => {
       const made = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--feature', 'api-auth:method=oauth', '--no-prompt'], env)
 
       expect(made.status, made.stdout + made.stderr).toBe(0)
-      expect(made.stdout).toBe('cli: needed by cli-auth\nMade my-service from the starter go-event-sourcing-service.\n')
+      expect(made.stdout).toBe('cli: needed by cli-auth\nMade my-service from the starter hpcsc/go-event-sourcing-service.\n')
       const repo = join(dir, 'my-service')
       expect(readFileSync(join(repo, '.feature-compose.yml'), 'utf8')).toContain('features:\n  api-auth:\n    method: oauth\n  cli: {}\n  cli-auth:\n    store-key: "false"\n')
       const unformatted = await runProgram(repo, 'gofmt', ['-l', '.'], env)
@@ -700,7 +700,7 @@ describe('feature-compose new', () => {
       const unit = await runProgram(repo, 'task', ['test:unit'], env)
       expect(unit.status, unit.stdout + unit.stderr).toBe(0)
       expect(passedPackages(unit.stdout)).toEqual(expect.arrayContaining(['internal/credential', 'internal/apiclient', 'internal/auth', 'internal/cli']))
-      const requires: Array<{ module: string; version: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['cli-auth'].add_to['gomod.requires']
+      const requires: Array<{ module: string; version: string }> = JSON.parse((await runCli(dir, ['show'])).stdout).features['hpcsc/cli-auth'].add_to['gomod.requires']
       expect(requires.map((item) => item.module).sort()).toEqual(['github.com/cli/browser', 'github.com/zalando/go-keyring', 'golang.org/x/oauth2', 'golang.org/x/term'])
       const goMod = readFileSync(join(repo, 'go.mod'), 'utf8')
       for (const { module, version } of requires.filter((item) => item.module !== 'golang.org/x/term')) {
@@ -770,7 +770,7 @@ describe('feature-compose new', () => {
     const result = await runCli(dir, ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli', '--dry-run'])
 
     expect(result.status, result.stderr).toBe(0)
-    expect(result.stdout).toContain('Repo: my-service\nStarter: go-event-sourcing-service\n')
+    expect(result.stdout).toContain('Repo: my-service\nStarter: hpcsc/go-event-sourcing-service\n')
     expect(result.stdout).toContain('\n  go.mod: the starter\n')
     expect(result.stdout).toContain('\n  cmd/my-service/main.go: the feature cli\n')
     expect(result.stdout).toContain('\n  .feature-compose.yml: feature-compose\n')
@@ -878,8 +878,8 @@ describe('feature-compose new', () => {
     const dir = scratchDir()
     const catalog = JSON.parse((await runCli(dir, ['show'])).stdout)
     const notTargetingGo = Object.entries(catalog.features)
-      .filter(([, feature]) => !(feature as { targets: string[] }).targets.includes('go'))
-      .map(([name]) => name)
+      .filter(([, feature]) => !(feature as { targets: string[] }).targets.includes('hpcsc/go'))
+      .map(([name]) => name.replace(/^hpcsc\//, ''))
     expect(notTargetingGo).toContain('api-auth')
 
     for (const feature of notTargetingGo) {
@@ -1001,7 +1001,7 @@ describe('feature-compose new in a terminal', () => {
 
     await session.waitForText('needed by cli-auth', { timeout: 15_000 })
     const form = await session.text()
-    for (const part of ['name     my-service  from the command line', 'starter  go-event-sourcing-service  from the command line', 'go-version  1.28  from the command line']) {
+    for (const part of ['name     my-service  from the command line', 'starter  hpcsc/go-event-sourcing-service  from the command line', 'go-version  1.28  from the command line']) {
       expect(form).toContain(part)
     }
     for (const part of [/\[x\] cli-auth +from the command line/, /\[x\] api-auth +from the command line, needed by cli-auth/, /\[x\] cli +needed by cli-auth/]) {
@@ -1177,10 +1177,10 @@ describe('feature-compose new in a terminal', () => {
       await session.press('tab')
       await session.waitForText('A Go HTTP API with chi, whose routes are under /api.')
       await session.press('j')
-      await session.waitForText('› ○ go ')
+      await session.waitForText('› ○ hpcsc/go ')
       expect(await session.text()).toContain('A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow.')
       await session.press('j')
-      await session.waitForText('› ○ go-event-sourcing-service')
+      await session.waitForText('› ○ hpcsc/go-event-sourcing-service')
       expect(await session.text()).toContain('A Go service with an event store, an HTTP API, and a catchup process.')
       await session.press('enter')
       await session.waitForText('go-version  1.27.1')
@@ -1189,9 +1189,9 @@ describe('feature-compose new in a terminal', () => {
       await session.waitForText('Write the repo?')
       await session.press('enter')
       await session.waitForText('EXIT:0', { timeout: 14 * 60 * 1000 })
-      expect(await session.text()).toContain('feature-compose new go-event-sourcing-service my-service --feature cli-auth')
+      expect(await session.text()).toContain('feature-compose new hpcsc/go-event-sourcing-service my-service --feature cli-auth')
 
-      const made = await runCli(join(dir, 'flags'), ['new', 'go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--no-prompt'], env)
+      const made = await runCli(join(dir, 'flags'), ['new', 'hpcsc/go-event-sourcing-service', 'my-service', '--feature', 'cli-auth', '--no-prompt'], env)
 
       expect(made.status, made.stdout + made.stderr).toBe(0)
       expect(readFileSync(join(dir, 'tui', 'my-service', '.feature-compose.yml'), 'utf8')).toContain('\nrequested: [cli-auth]\n')
@@ -1269,10 +1269,7 @@ function needValueHome(): string {
     mkdirSync(dirname(join(catalogDir, path)), { recursive: true })
     writeFileSync(join(catalogDir, path), contents)
   }
-  const home = scratchDir()
-  mkdirSync(join(home, 'feature-compose'))
-  writeFileSync(join(home, 'feature-compose', 'config.yml'), `catalog: ${catalogDir}\n`)
-  return home
+  return configHomeWith({ team: catalogDir })
 }
 
 function exitStatus(child: ChildProcess): Promise<number | null> {

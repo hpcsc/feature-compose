@@ -19,19 +19,19 @@ import (
 
 const combinationRepoName = "my-repo"
 
-func newCheckCommand(load func() (catalog.Catalogs, error)) *cli.Command {
+func newCheckCommand(load catalogsLoader) *cli.Command {
 	return &cli.Command{
 		Name:  "check",
 		Usage: "find the mistakes of the starters, the features and the templates of the catalog",
 		Flags: []cli.Flag{
-			catalogFlag("check the catalog in this folder, not the catalog folder of the config file"),
+			catalogFlag("check the catalog in this folder, or only this catalog of the config file"),
 			&cli.BoolFlag{Name: "build", Usage: "also make the repo of each combination of the catalog in a temporary folder, and run its after_render and test commands"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if cmd.NArg() > 0 {
 				return errors.New("check takes no argument")
 			}
-			catalogs, err := catalogToRead(cmd, load)
+			catalogs, err := catalogsToRead(ctx, cmd, load)
 			if err != nil {
 				return err
 			}

@@ -28,17 +28,17 @@ func newInitCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			configPath, err := config.FilePath()
-			if err != nil {
-				return err
+			name := filepath.Base(catalogDir)
+			if config.CheckCatalogName(name) != nil {
+				name = "my-catalog"
 			}
 			_, err = fmt.Fprintf(cmd.Root().Writer, `Made a catalog in %[1]s with the starter %[2]s and the feature %[3]s. Try it:
   feature-compose show --catalog %[1]s
   feature-compose new --catalog %[1]s %[2]s my-repo --feature %[3]s --dry-run
   feature-compose check --catalog %[1]s --build
-To use it with no --catalog, write this line in %[4]s:
-  catalog: %[5]s
-`, folder, example_catalog.StarterName, example_catalog.FeatureName, configPath, catalogDir)
+To use it with no --catalog, add it to the config file:
+  feature-compose catalog add %[4]s %[5]s
+`, folder, example_catalog.StarterName, example_catalog.FeatureName, name, catalogDir)
 			return err
 		},
 	}

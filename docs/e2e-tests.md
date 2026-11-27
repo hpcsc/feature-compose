@@ -77,6 +77,18 @@ sequenceDiagram
 Each update test runs a copy of the CLI in its own folder. The update replaces that copy, so the other
 tests keep the original binary.
 
+## The catalog tests
+
+`e2e/tests/catalog.test.ts` makes a git repo with a catalog in a throwaway folder, and gives `catalog add` its
+`file://` URL. Each test has its own `XDG_CONFIG_HOME` and `XDG_DATA_HOME`, so the config file and the clones are in
+throwaway folders too. The git commands of a test run with `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM=1`
+and `XDG_CONFIG_HOME=/dev/null`, so the git config of the machine does not change the repo of the test.
+
+Two tests start the CLI in the pseudo-terminal, where git and ssh have a terminal that they can ask on. In the first
+test, the source is on a local HTTP server that asks for a password, and the test passes only when the CLI stops at
+once, with no question. In the second test, `GIT_SSH_COMMAND` names a script that writes whether it can open
+`/dev/tty`, and the test passes only when it cannot.
+
 ## The full run of `new`
 
 Fifteen tests in `e2e/tests/new.test.ts` make a repo and check it. Two make a repo from the starter `go`. The
@@ -358,8 +370,10 @@ mise trusts the new repo.
 Both commands build the CLI with the tag in `E2E_TAG` in `Taskfile.test.yml`, which is `v0.1.0`. They set
 three environment variables for the tests: `EXECUTABLE`, the path of the binary, `BUILD_TAG`, the tag, and
 `CATALOG_DIR`, the catalog folder of this repo. The `version` and `update` tests compare the output of the
-CLI with `BUILD_TAG`. `runCli` and `openCli` give the CLI a config file that names `CATALOG_DIR`, through
-`XDG_CONFIG_HOME`, and a test can give another `XDG_CONFIG_HOME` in its `env`.
+CLI with `BUILD_TAG`. `runCli` and `openCli` give the CLI a config file with the catalog `hpcsc` from the folder `CATALOG_DIR`,
+through `XDG_CONFIG_HOME`. So the starters and the features have full names such as `hpcsc/go`. A test can give
+another `XDG_CONFIG_HOME` in its `env`, for example the folder of `configHomeWith`, which writes a config file
+with other catalogs.
 
 No feature of the catalog of this repo sets a value in a need. So the tests of a need value, the source
 `need of <features>`, the stop of a flag against a need and the text `from the need of <features>` in the form,

@@ -32,7 +32,9 @@ func TestInitCommand(t *testing.T) {
 			_, err := runInit(t, catalogDir)
 			require.NoError(t, err)
 			var printed bytes.Buffer
-			check := newCheckCommand(func() (catalog.Catalogs, error) { return catalog.Catalogs{}, errors.New("no config file") })
+			check := newCheckCommand(func(context.Context, string) (catalog.Catalogs, error) {
+				return catalog.Catalogs{}, errors.New("no config file")
+			})
 			check.Writer, check.ErrWriter = &printed, io.Discard
 
 			err = check.Run(context.Background(), []string{"check", "--catalog", catalogDir, "--build"})
@@ -47,22 +49,30 @@ The repo of each combination passes its commands.
 `, regexp.MustCompile(`\(\d+s\)`).ReplaceAllString(printed.String(), "(…)"))
 		})
 
-		t.Run("prints the folder of the catalog, the commands that try it, and the line of the config file that makes it the catalog", func(t *testing.T) {
+		t.Run("prints the folder of the catalog, the commands that try it, and the command that adds it to the config file with the name of its folder", func(t *testing.T) {
 			workingFolder := t.TempDir()
 			t.Chdir(workingFolder)
-			configHome := t.TempDir()
-			t.Setenv("XDG_CONFIG_HOME", configHome)
 
-			printed, err := runInit(t, "my-catalog")
+			printed, err := runInit(t, "team-catalog")
 
 			require.NoError(t, err)
-			require.Equal(t, `Made a catalog in my-catalog with the starter example and the feature greeting. Try it:
-  feature-compose show --catalog my-catalog
-  feature-compose new --catalog my-catalog example my-repo --feature greeting --dry-run
-  feature-compose check --catalog my-catalog --build
-To use it with no --catalog, write this line in `+filepath.Join(configHome, "feature-compose", "config.yml")+`:
-  catalog: `+filepath.Join(workingFolder, "my-catalog")+`
+			require.Equal(t, `Made a catalog in team-catalog with the starter example and the feature greeting. Try it:
+  feature-compose show --catalog team-catalog
+  feature-compose new --catalog team-catalog example my-repo --feature greeting --dry-run
+  feature-compose check --catalog team-catalog --build
+To use it with no --catalog, add it to the config file:
+  feature-compose catalog add team-catalog `+filepath.Join(workingFolder, "team-catalog")+`
 `, printed)
+		})
+
+		t.Run("a folder whose name is not a catalog name gives the name my-catalog in the command that adds it", func(t *testing.T) {
+			workingFolder := t.TempDir()
+			t.Chdir(workingFolder)
+
+			printed, err := runInit(t, "my catalog")
+
+			require.NoError(t, err)
+			require.Contains(t, printed, "  feature-compose catalog add my-catalog "+filepath.Join(workingFolder, "my catalog")+"\n")
 		})
 
 		t.Run("writes the catalog next to the other files of a folder", func(t *testing.T) {

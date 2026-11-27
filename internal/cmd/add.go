@@ -25,7 +25,7 @@ type addedFile struct {
 	contents string
 }
 
-func newAddCommand(configured func() (string, error)) *cli.Command {
+func newAddCommand(configured folderLoader) *cli.Command {
 	return &cli.Command{
 		Name:  "add",
 		Usage: "add a starter or a feature to the catalog, with a file to fill in",
@@ -35,7 +35,7 @@ func newAddCommand(configured func() (string, error)) *cli.Command {
 				Usage:     "add a starter to the catalog, with a starter.yml to fill in and the folder app",
 				ArgsUsage: "<name>",
 				Flags: []cli.Flag{
-					catalogFlag("add the starter to the catalog in this folder, not the catalog folder of the config file"),
+					catalogFlag("add the starter to the catalog in this folder, or to this catalog of the config file"),
 				},
 				Action: func(_ context.Context, cmd *cli.Command) error {
 					if cmd.NArg() != 1 {
@@ -61,7 +61,7 @@ func newAddCommand(configured func() (string, error)) *cli.Command {
 				ArgsUsage: "<name>",
 				Flags: []cli.Flag{
 					&cli.StringSliceFlag{Name: "target", Usage: "a starter that the feature targets; give the flag one time for each starter"},
-					catalogFlag("add the feature to the catalog in this folder, not the catalog folder of the config file"),
+					catalogFlag("add the feature to the catalog in this folder, or to this catalog of the config file"),
 				},
 				Action: func(_ context.Context, cmd *cli.Command) error {
 					if cmd.NArg() != 1 {

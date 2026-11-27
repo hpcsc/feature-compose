@@ -20,8 +20,8 @@ Made a catalog in my-catalog with the starter example and the feature greeting. 
   feature-compose show --catalog my-catalog
   feature-compose new --catalog my-catalog example my-repo --feature greeting --dry-run
   feature-compose check --catalog my-catalog --build
-To use it with no --catalog, write this line in /home/me/.config/feature-compose/config.yml:
-  catalog: /home/me/my-catalog
+To use it with no --catalog, add it to the config file:
+  feature-compose catalog add my-catalog /home/me/my-catalog
 ```
 
 [Start a Catalog](commands.md#start-a-catalog) lists each file of the catalog. Two facts about the starter
@@ -215,11 +215,12 @@ feature-compose new --catalog my-catalog example my-repo --feature changelog:for
 
 ## 7. Use the Catalog
 
-1. Write the line that `init` printed in the config file. Then `new`, `show` and `check` read the catalog with no
-   `--catalog`:
+1. Run the command that `init` printed. It adds the folder of the catalog to the config file with the name
+   `my-catalog`. Then `new`, `show` and `check` read the catalog with no `--catalog`, and a change in the folder
+   shows at the next `new`:
 
-   ```yaml
-   catalog: /home/me/my-catalog
+   ```shell
+   feature-compose catalog add my-catalog /home/me/my-catalog
    ```
 
 2. Make a repo. In a terminal, `new` opens a form, where you select the features and answer the options:
@@ -227,6 +228,9 @@ feature-compose new --catalog my-catalog example my-repo --feature changelog:for
    ```shell
    feature-compose new example my-repo
    ```
+
+   The full name of the starter is `my-catalog/example`. The short name `example` works while no other catalog
+   has a starter `example`.
 
 3. Push the catalog to GitHub. The workflow `.github/workflows/check.yml` of `init` runs
    `feature-compose check --catalog . --build` on each push.

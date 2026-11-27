@@ -479,6 +479,11 @@ team: a local folder, so sync gets nothing
 When the new ref or path does not hold a catalog, `set` stops, and the catalog and its clone stay as they were.
 `--ref ''` goes back to the default branch. A local folder has no ref.
 
+`catalog add`, `sync` and `set` write each clone and each fetch of git as a step on stderr, as `new` does. On a
+terminal, the line of the running step counts the seconds, and it ends with a check mark or a cross and the time of
+the step. Outside a terminal, each step gives a line when it starts and a line when it ends. stdout gets only the
+result.
+
 Only one of `catalog add`, `sync`, `set` and `remove` changes the catalogs at a time. A second one, for example in
 another terminal, stops at once and tells you to run it again later. Each one reads the config file again when it
 starts, so it keeps the changes of the one before it. When you change the source of a catalog in the config file by

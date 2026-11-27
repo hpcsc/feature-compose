@@ -95,7 +95,7 @@ func opened(t *testing.T) *registry.Instance {
 
 func added(t *testing.T, name string, entry config.Entry) catalog.Origin {
 	t.Helper()
-	origin, err := opened(t).Add(context.Background(), name, entry)
+	origin, err := opened(t).Add(context.Background(), name, entry, catalog.NoSteps{})
 	require.NoError(t, err)
 	return origin
 }
@@ -174,6 +174,20 @@ func newPrivateServer(t *testing.T, src source, required map[string]string) priv
 	return privateServer{url: server.URL, authorized: &authorized}
 }
 
+type recordedSteps struct {
+	ended []string
+}
+
+func (r *recordedSteps) Start(label string) func(error) {
+	return func(err error) {
+		result := "ok"
+		if err != nil {
+			result = "failed"
+		}
+		r.ended = append(r.ended, label+": "+result)
+	}
+}
+
 func pointer(value string) *string {
 	return &value
 }
@@ -226,7 +240,7 @@ func TestRegistry(t *testing.T) {
 			src := newSource(t, map[string]string{"starters/service/starter.yml": starterYML})
 			added(t, "hpcsc", config.Entry{Source: src.url()})
 
-			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: src.url()})
+			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: src.url()}, catalog.NoSteps{})
 
 			require.EqualError(t, err, "the config already has the catalog hpcsc: change it with feature-compose catalog set, or remove it with feature-compose catalog remove")
 		})
@@ -235,7 +249,7 @@ func TestRegistry(t *testing.T) {
 			f := isolated(t)
 			missing := "file://" + filepath.Join(t.TempDir(), "missing")
 
-			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: missing})
+			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: missing}, catalog.NoSteps{})
 
 			require.ErrorContains(t, err, "git cannot read "+missing+": check that git clone "+missing+" works\n")
 			require.NoDirExists(t, f.clone("hpcsc"))
@@ -246,7 +260,7 @@ func TestRegistry(t *testing.T) {
 			f := isolated(t)
 			src := newSource(t, map[string]string{"catalog/starters/service/starter.yml": starterYML})
 
-			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: src.url()})
+			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: src.url()}, catalog.NoSteps{})
 
 			require.EqualError(t, err, "the source "+src.url()+" has no catalog at its root, because it has no folder starters: give the folder of the catalog in the source with --path")
 			require.NoDirExists(t, f.clone("hpcsc"))
@@ -256,7 +270,7 @@ func TestRegistry(t *testing.T) {
 			f := isolated(t)
 			src := newSource(t, map[string]string{"starters/service/starter.yml": starterYML})
 
-			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: src.url(), Ref: "v9"})
+			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: src.url(), Ref: "v9"}, catalog.NoSteps{})
 
 			require.EqualError(t, err, "the source "+src.url()+" has no ref v9")
 			require.NoDirExists(t, f.clone("hpcsc"))
@@ -267,7 +281,7 @@ func TestRegistry(t *testing.T) {
 			isolated(t)
 			folder := t.TempDir()
 
-			_, err := opened(t).Add(ctx, "team", config.Entry{Source: folder, Ref: "main"})
+			_, err := opened(t).Add(ctx, "team", config.Entry{Source: folder, Ref: "main"}, catalog.NoSteps{})
 
 			require.EqualError(t, err, "the source "+folder+" is a local folder, so it has no ref: give --ref only with a git URL")
 		})
@@ -276,7 +290,7 @@ func TestRegistry(t *testing.T) {
 			f := isolated(t)
 			missing := filepath.Join(t.TempDir(), "missing")
 
-			_, err := opened(t).Add(ctx, "team", config.Entry{Source: missing})
+			_, err := opened(t).Add(ctx, "team", config.Entry{Source: missing}, catalog.NoSteps{})
 
 			require.EqualError(t, err, "the source "+missing+" is not a git URL and not a folder")
 			require.NoFileExists(t, filepath.Join(f.config, "feature-compose", "config.yml"))
@@ -286,7 +300,7 @@ func TestRegistry(t *testing.T) {
 			f := isolated(t)
 			src := newSource(t, map[string]string{"catalog/starters/service/starter.yml": starterYML})
 
-			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: src.url(), Path: "other"})
+			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: src.url(), Path: "other"}, catalog.NoSteps{})
 
 			require.EqualError(t, err, "the source "+src.url()+" has no catalog at the path other, because that path has no folder starters: give the folder of the catalog in the source with --path")
 			require.NoDirExists(t, f.clone("hpcsc"))
@@ -295,7 +309,7 @@ func TestRegistry(t *testing.T) {
 		t.Run("a name that is not a catalog name stops, and the config gets no entry", func(t *testing.T) {
 			f := isolated(t)
 
-			_, err := opened(t).Add(ctx, "team/a", config.Entry{Source: t.TempDir()})
+			_, err := opened(t).Add(ctx, "team/a", config.Entry{Source: t.TempDir()}, catalog.NoSteps{})
 
 			require.ErrorContains(t, err, `the name "team/a" of the catalog must start with a letter or a digit`)
 			require.NoFileExists(t, filepath.Join(f.config, "feature-compose", "config.yml"))
@@ -306,7 +320,7 @@ func TestRegistry(t *testing.T) {
 			src := newSource(t, map[string]string{"starters/service/starter.yml": starterYML})
 			added(t, "team", config.Entry{Source: src.url()})
 
-			_, err := opened(t).Add(ctx, "Team", config.Entry{Source: src.url()})
+			_, err := opened(t).Add(ctx, "Team", config.Entry{Source: src.url()}, catalog.NoSteps{})
 
 			require.EqualError(t, err, "the config already has the catalog team, whose name differs from Team only in case: two such names share one clone folder on a file system that ignores case")
 			require.DirExists(t, filepath.Join(f.clone("team"), ".git"))
@@ -317,7 +331,7 @@ func TestRegistry(t *testing.T) {
 			src := newSource(t, map[string]string{"starters/service/starter.yml": starterYML})
 			readOnly(t, filepath.Join(f.config, "feature-compose"))
 
-			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: src.url()})
+			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: src.url()}, catalog.NoSteps{})
 
 			require.ErrorContains(t, err, "write "+filepath.Join(f.config, "feature-compose", "config.yml"))
 			require.NoDirExists(t, f.clone("hpcsc"))
@@ -329,7 +343,7 @@ func TestRegistry(t *testing.T) {
 			require.NoError(t, os.MkdirAll(filepath.Join(work, "starters"), 0o755))
 			t.Chdir(work)
 
-			_, err := opened(t).Add(ctx, "team", config.Entry{})
+			_, err := opened(t).Add(ctx, "team", config.Entry{}, catalog.NoSteps{})
 
 			require.EqualError(t, err, "the catalog team has no source")
 			require.NoFileExists(t, filepath.Join(f.config, "feature-compose", "config.yml"))
@@ -341,7 +355,7 @@ func TestRegistry(t *testing.T) {
 			t.Cleanup(server.Close)
 			source := strings.Replace(server.URL, "://", "://deploy:secret@", 1) + "/team/catalog.git"
 
-			_, err := opened(t).Add(ctx, "team", config.Entry{Source: source})
+			_, err := opened(t).Add(ctx, "team", config.Entry{Source: source}, catalog.NoSteps{})
 
 			require.ErrorContains(t, err, "git cannot read "+server.URL+"/team/catalog.git")
 			require.NotContains(t, err.Error(), "secret")
@@ -391,7 +405,7 @@ func TestRegistry(t *testing.T) {
 			t.Setenv("GITHUB_SERVER_URL", "https://github.com")
 			t.Setenv("GITHUB_TOKEN", "secret")
 
-			_, err := opened(t).Add(ctx, "private", config.Entry{Source: private.url + "/team/catalog.git"})
+			_, err := opened(t).Add(ctx, "private", config.Entry{Source: private.url + "/team/catalog.git"}, catalog.NoSteps{})
 
 			require.ErrorContains(t, err, "git cannot read "+private.url+"/team/catalog.git")
 			require.NotEmpty(t, *private.authorized)
@@ -401,7 +415,7 @@ func TestRegistry(t *testing.T) {
 		t.Run("a path outside the source stops", func(t *testing.T) {
 			isolated(t)
 
-			_, err := opened(t).Add(ctx, "team", config.Entry{Source: t.TempDir(), Path: "../other"})
+			_, err := opened(t).Add(ctx, "team", config.Entry{Source: t.TempDir(), Path: "../other"}, catalog.NoSteps{})
 
 			require.EqualError(t, err, "the path ../other is outside the source: give a folder in the source")
 		})
@@ -422,8 +436,8 @@ func TestRegistry(t *testing.T) {
 			isolated(t)
 			first, second := opened(t), opened(t)
 
-			_, firstErr := first.Add(ctx, "one", config.Entry{Source: newSource(t, map[string]string{"starters/service/starter.yml": starterYML}).dir})
-			_, secondErr := second.Add(ctx, "two", config.Entry{Source: newSource(t, map[string]string{"starters/service/starter.yml": starterYML}).dir})
+			_, firstErr := first.Add(ctx, "one", config.Entry{Source: newSource(t, map[string]string{"starters/service/starter.yml": starterYML}).dir}, catalog.NoSteps{})
+			_, secondErr := second.Add(ctx, "two", config.Entry{Source: newSource(t, map[string]string{"starters/service/starter.yml": starterYML}).dir}, catalog.NoSteps{})
 
 			require.NoError(t, errors.Join(firstErr, secondErr))
 			require.Equal(t, []string{"one", "two"}, []string{listed(t, "one").Name, listed(t, "two").Name})
@@ -438,9 +452,31 @@ func TestRegistry(t *testing.T) {
 			t.Cleanup(func() { _ = lock.Close() })
 			require.NoError(t, syscall.Flock(int(lock.Fd()), syscall.LOCK_EX))
 
-			_, err = opened(t).Add(ctx, "team", config.Entry{Source: newSource(t, map[string]string{"starters/service/starter.yml": starterYML}).dir})
+			_, err = opened(t).Add(ctx, "team", config.Entry{Source: newSource(t, map[string]string{"starters/service/starter.yml": starterYML}).dir}, catalog.NoSteps{})
 
 			require.EqualError(t, err, "another feature-compose catalog command changes the catalogs now: run this command again when it ends")
+		})
+
+		t.Run("a git URL gives the clone as a step", func(t *testing.T) {
+			isolated(t)
+			src := newSource(t, map[string]string{"starters/service/starter.yml": starterYML})
+			steps := &recordedSteps{}
+
+			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: src.url()}, steps)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"Clone " + src.url() + ": ok"}, steps.ended)
+		})
+
+		t.Run("a clone that fails is a step that fails", func(t *testing.T) {
+			isolated(t)
+			missing := "file://" + filepath.Join(t.TempDir(), "missing")
+			steps := &recordedSteps{}
+
+			_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: missing}, steps)
+
+			require.Error(t, err)
+			require.Equal(t, []string{"Clone " + missing + ": failed"}, steps.ended)
 		})
 	})
 
@@ -521,7 +557,7 @@ func TestRegistry(t *testing.T) {
 			old := added(t, "hpcsc", config.Entry{Source: src.url()}).Commit
 			newest := src.commit(t, map[string]string{"starters/worker/starter.yml": starterYML})
 
-			synced, err := opened(t).Sync(ctx, nil)
+			synced, err := opened(t).Sync(ctx, nil, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, []registry.Synced{{Name: "hpcsc", OldCommit: old, NewCommit: newest}}, synced)
@@ -535,7 +571,7 @@ func TestRegistry(t *testing.T) {
 			tagged := added(t, "hpcsc", config.Entry{Source: src.url(), Ref: "v1.0.0"}).Commit
 			src.commit(t, map[string]string{"starters/worker/starter.yml": starterYML})
 
-			synced, err := opened(t).Sync(ctx, []string{"hpcsc"})
+			synced, err := opened(t).Sync(ctx, []string{"hpcsc"}, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, []registry.Synced{{Name: "hpcsc", OldCommit: tagged, NewCommit: tagged}}, synced)
@@ -545,7 +581,7 @@ func TestRegistry(t *testing.T) {
 			isolated(t)
 			added(t, "team", config.Entry{Source: newSource(t, map[string]string{"starters/service/starter.yml": starterYML}).dir})
 
-			synced, err := opened(t).Sync(ctx, nil)
+			synced, err := opened(t).Sync(ctx, nil, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, []registry.Synced{{Name: "team", Local: true}}, synced)
@@ -557,7 +593,7 @@ func TestRegistry(t *testing.T) {
 			head := added(t, "hpcsc", config.Entry{Source: src.url()}).Commit
 			require.NoError(t, os.RemoveAll(f.clone("hpcsc")))
 
-			synced, err := opened(t).Sync(ctx, nil)
+			synced, err := opened(t).Sync(ctx, nil, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, []registry.Synced{{Name: "hpcsc", NewCommit: head}}, synced)
@@ -573,7 +609,7 @@ func TestRegistry(t *testing.T) {
 			newest := kept.commit(t, map[string]string{"starters/worker/starter.yml": starterYML})
 			require.NoError(t, os.RemoveAll(gone.dir))
 
-			synced, err := opened(t).Sync(ctx, nil)
+			synced, err := opened(t).Sync(ctx, nil, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, []string{"gone", goneCommit, ""}, []string{synced[0].Name, synced[0].OldCommit, synced[0].NewCommit})
@@ -588,7 +624,7 @@ func TestRegistry(t *testing.T) {
 			src.git(t, "-C", src.dir, "rm", "--quiet", "-r", "starters")
 			src.commit(t, map[string]string{"README.md": "no catalog\n"})
 
-			synced, err := opened(t).Sync(ctx, nil)
+			synced, err := opened(t).Sync(ctx, nil, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.ErrorContains(t, synced[0].Err, "has no catalog at its root")
@@ -604,7 +640,7 @@ func TestRegistry(t *testing.T) {
 			require.NoError(t, os.RemoveAll(f.clone("hpcsc")))
 			src.git(t, "-C", src.dir, "branch", "--delete", "next")
 
-			synced, err := opened(t).Sync(ctx, nil)
+			synced, err := opened(t).Sync(ctx, nil, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.EqualError(t, synced[0].Err, "the source "+src.url()+" has no ref next")
@@ -617,7 +653,7 @@ func TestRegistry(t *testing.T) {
 			old := added(t, "hpcsc", config.Entry{Source: src.url()}).Commit
 			src.commit(t, map[string]string{"starters/worker/starter.yml": starterYML})
 
-			_, err := opened(t).Sync(ctx, []string{"hpcsc", "nope"})
+			_, err := opened(t).Sync(ctx, []string{"hpcsc", "nope"}, catalog.NoSteps{})
 
 			require.ErrorContains(t, err, "has no catalog nope: it has hpcsc")
 			require.Equal(t, old, listed(t, "hpcsc").Commit)
@@ -631,7 +667,7 @@ func TestRegistry(t *testing.T) {
 			secondCommit := added(t, "second", config.Entry{Source: second.url()}).Commit
 			second.commit(t, map[string]string{"starters/worker/starter.yml": starterYML})
 
-			synced, err := opened(t).Sync(ctx, []string{"first"})
+			synced, err := opened(t).Sync(ctx, []string{"first"}, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, []string{"first"}, namesOf(synced))
@@ -647,7 +683,7 @@ func TestRegistry(t *testing.T) {
 			src.git(t, "-C", src.dir, "checkout", "--quiet", "main")
 			src.git(t, "-C", src.dir, "symbolic-ref", "HEAD", "refs/heads/trunk")
 
-			synced, err := opened(t).Sync(ctx, nil)
+			synced, err := opened(t).Sync(ctx, nil, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, trunk, synced[0].NewCommit)
@@ -660,11 +696,24 @@ func TestRegistry(t *testing.T) {
 			added(t, "hpcsc", config.Entry{Source: old.url()})
 			writtenConfig(t, f, "catalogs:\n  hpcsc:\n    source: "+moved.url()+"\n")
 
-			synced, err := opened(t).Sync(ctx, nil)
+			synced, err := opened(t).Sync(ctx, nil, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, moved.git(t, "-C", moved.dir, "rev-parse", "HEAD"), synced[0].NewCommit)
 			require.Equal(t, []string{"hpcsc/worker"}, starterNames(t, "hpcsc"))
+		})
+
+		t.Run("gives the fetch of each catalog from a git URL as a step, and no step for a local folder", func(t *testing.T) {
+			isolated(t)
+			src := newSource(t, map[string]string{"starters/service/starter.yml": starterYML})
+			added(t, "hpcsc", config.Entry{Source: src.url()})
+			added(t, "team", config.Entry{Source: newSource(t, map[string]string{"starters/service/starter.yml": starterYML}).dir})
+			steps := &recordedSteps{}
+
+			_, err := opened(t).Sync(ctx, nil, steps)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"Fetch " + src.url() + ": ok"}, steps.ended)
 		})
 	})
 
@@ -676,7 +725,7 @@ func TestRegistry(t *testing.T) {
 			src.git(t, "-C", src.dir, "checkout", "--quiet", "-b", "next")
 			next := src.commit(t, map[string]string{"starters/worker/starter.yml": starterYML})
 
-			origin, err := opened(t).Set(ctx, "hpcsc", registry.Change{Ref: pointer("next")})
+			origin, err := opened(t).Set(ctx, "hpcsc", registry.Change{Ref: pointer("next")}, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, catalog.Origin{Name: "hpcsc", Source: src.url(), Ref: "next", Commit: next}, origin)
@@ -689,7 +738,7 @@ func TestRegistry(t *testing.T) {
 			old := added(t, "hpcsc", config.Entry{Source: src.url()}).Commit
 			before := f.configFile(t)
 
-			_, err := opened(t).Set(ctx, "hpcsc", registry.Change{Ref: pointer("v9")})
+			_, err := opened(t).Set(ctx, "hpcsc", registry.Change{Ref: pointer("v9")}, catalog.NoSteps{})
 
 			require.EqualError(t, err, "the source "+src.url()+" has no ref v9")
 			require.Equal(t, []string{before, old}, []string{f.configFile(t), listed(t, "hpcsc").Commit})
@@ -703,7 +752,7 @@ func TestRegistry(t *testing.T) {
 			src.git(t, "-C", src.dir, "rm", "--quiet", "-r", "starters")
 			src.commit(t, map[string]string{"README.md": "no catalog\n"})
 
-			_, err := opened(t).Set(ctx, "hpcsc", registry.Change{Ref: pointer("empty")})
+			_, err := opened(t).Set(ctx, "hpcsc", registry.Change{Ref: pointer("empty")}, catalog.NoSteps{})
 
 			require.ErrorContains(t, err, "has no catalog at its root")
 			require.Equal(t, catalog.Origin{Name: "hpcsc", Source: src.url(), Commit: old}, listed(t, "hpcsc"))
@@ -715,7 +764,7 @@ func TestRegistry(t *testing.T) {
 			src := newSource(t, map[string]string{"starters/service/starter.yml": starterYML, "other/starters/worker/starter.yml": starterYML})
 			added(t, "team", config.Entry{Source: src.dir})
 
-			origin, err := opened(t).Set(ctx, "team", registry.Change{Path: pointer("other/")})
+			origin, err := opened(t).Set(ctx, "team", registry.Change{Path: pointer("other/")}, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, catalog.Origin{Name: "team", Source: src.dir, Path: "other"}, origin)
@@ -729,7 +778,7 @@ func TestRegistry(t *testing.T) {
 			newest := src.commit(t, map[string]string{"starters/worker/starter.yml": starterYML})
 			added(t, "hpcsc", config.Entry{Source: src.url(), Ref: "v1"})
 
-			origin, err := opened(t).Set(ctx, "hpcsc", registry.Change{Ref: pointer("")})
+			origin, err := opened(t).Set(ctx, "hpcsc", registry.Change{Ref: pointer("")}, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, catalog.Origin{Name: "hpcsc", Source: src.url(), Commit: newest}, origin)
@@ -744,7 +793,7 @@ func TestRegistry(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(f.config, "feature-compose", "config.yml"), []byte("catalogs:\n  team:\n    source: team-catalog\n"), 0o644))
 			t.Chdir(t.TempDir())
 
-			origin, err := opened(t).Set(ctx, "team", registry.Change{Path: pointer("other")})
+			origin, err := opened(t).Set(ctx, "team", registry.Change{Path: pointer("other")}, catalog.NoSteps{})
 
 			require.NoError(t, err)
 			require.Equal(t, catalog.Origin{Name: "team", Source: "team-catalog", Path: "other"}, origin)
@@ -755,7 +804,7 @@ func TestRegistry(t *testing.T) {
 			isolated(t)
 			added(t, "team", config.Entry{Source: newSource(t, map[string]string{"starters/service/starter.yml": starterYML}).dir})
 
-			_, err := opened(t).Set(ctx, "nope", registry.Change{Ref: pointer("main")})
+			_, err := opened(t).Set(ctx, "nope", registry.Change{Ref: pointer("main")}, catalog.NoSteps{})
 
 			require.ErrorContains(t, err, "has no catalog nope: it has team")
 		})
@@ -768,7 +817,7 @@ func TestRegistry(t *testing.T) {
 			src.commit(t, map[string]string{"starters/worker/starter.yml": starterYML})
 			readOnly(t, filepath.Join(f.config, "feature-compose"))
 
-			_, err := opened(t).Set(ctx, "hpcsc", registry.Change{Ref: pointer("next")})
+			_, err := opened(t).Set(ctx, "hpcsc", registry.Change{Ref: pointer("next")}, catalog.NoSteps{})
 
 			require.ErrorContains(t, err, "write "+filepath.Join(f.config, "feature-compose", "config.yml"))
 			require.Equal(t, catalog.Origin{Name: "hpcsc", Source: src.url(), Commit: old}, listed(t, "hpcsc"))
@@ -779,9 +828,22 @@ func TestRegistry(t *testing.T) {
 			src := newSource(t, map[string]string{"starters/service/starter.yml": starterYML})
 			added(t, "team", config.Entry{Source: src.dir})
 
-			_, err := opened(t).Set(ctx, "team", registry.Change{Ref: pointer("main")})
+			_, err := opened(t).Set(ctx, "team", registry.Change{Ref: pointer("main")}, catalog.NoSteps{})
 
 			require.EqualError(t, err, "the source "+src.dir+" is a local folder, so it has no ref: give --ref only with a git URL")
+		})
+
+		t.Run("a ref gives the fetch as a step", func(t *testing.T) {
+			isolated(t)
+			src := newSource(t, map[string]string{"starters/service/starter.yml": starterYML})
+			src.git(t, "-C", src.dir, "tag", "v1")
+			added(t, "hpcsc", config.Entry{Source: src.url()})
+			steps := &recordedSteps{}
+
+			_, err := opened(t).Set(ctx, "hpcsc", registry.Change{Ref: pointer("v1")}, steps)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"Fetch " + src.url() + ": ok"}, steps.ended)
 		})
 	})
 

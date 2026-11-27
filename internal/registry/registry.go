@@ -119,17 +119,17 @@ func (r *Instance) List(ctx context.Context) ([]catalog.Origin, error) {
 	return origins, nil
 }
 
-func (r *Instance) Add(ctx context.Context, name string, entry config.Entry) (catalog.Origin, error) {
+func (r *Instance) Add(ctx context.Context, name string, entry config.Entry, steps catalog.Steps) (catalog.Origin, error) {
 	var origin catalog.Origin
 	err := r.changing(func() error {
 		var err error
-		origin, err = r.add(ctx, name, entry)
+		origin, err = r.add(ctx, name, entry, steps)
 		return err
 	})
 	return origin, err
 }
 
-func (r *Instance) Sync(ctx context.Context, names []string) ([]Synced, error) {
+func (r *Instance) Sync(ctx context.Context, names []string, steps catalog.Steps) ([]Synced, error) {
 	var synced []Synced
 	err := r.changing(func() error {
 		if len(names) == 0 {
@@ -142,18 +142,18 @@ func (r *Instance) Sync(ctx context.Context, names []string) ([]Synced, error) {
 		}
 		for _, name := range names {
 			entry, _ := r.file.Entry(name)
-			synced = append(synced, r.synced(ctx, name, entry))
+			synced = append(synced, r.synced(ctx, name, entry, steps))
 		}
 		return nil
 	})
 	return synced, err
 }
 
-func (r *Instance) Set(ctx context.Context, name string, change Change) (catalog.Origin, error) {
+func (r *Instance) Set(ctx context.Context, name string, change Change, steps catalog.Steps) (catalog.Origin, error) {
 	var origin catalog.Origin
 	err := r.changing(func() error {
 		var err error
-		origin, err = r.set(ctx, name, change)
+		origin, err = r.set(ctx, name, change, steps)
 		return err
 	})
 	return origin, err
@@ -182,7 +182,7 @@ func (r *Instance) changing(change func() error) error {
 	return change()
 }
 
-func (r *Instance) add(ctx context.Context, name string, entry config.Entry) (catalog.Origin, error) {
+func (r *Instance) add(ctx context.Context, name string, entry config.Entry, steps catalog.Steps) (catalog.Origin, error) {
 	if _, err := r.file.Entry(name); err == nil {
 		return catalog.Origin{}, fmt.Errorf("the config already has the catalog %s: change it with feature-compose catalog set, or remove it with feature-compose catalog remove", name)
 	}
@@ -199,7 +199,7 @@ func (r *Instance) add(ctx context.Context, name string, entry config.Entry) (ca
 	}
 	commit := ""
 	if entry.IsGitURL() {
-		c, err := newClone(ctx, entry, r.cloneFolder(name))
+		c, err := newClone(ctx, entry, r.cloneFolder(name), steps)
 		if err != nil {
 			return catalog.Origin{}, err
 		}
@@ -220,7 +220,7 @@ func (r *Instance) add(ctx context.Context, name string, entry config.Entry) (ca
 	return r.origin(name, entry, commit), nil
 }
 
-func (r *Instance) set(ctx context.Context, name string, change Change) (catalog.Origin, error) {
+func (r *Instance) set(ctx context.Context, name string, change Change, steps catalog.Steps) (catalog.Origin, error) {
 	entry, err := r.file.Entry(name)
 	if err != nil {
 		return catalog.Origin{}, err
@@ -257,7 +257,7 @@ func (r *Instance) set(ctx context.Context, name string, change Change) (catalog
 		return catalog.Origin{}, err
 	}
 	if change.Ref != nil {
-		if err := c.fetch(ctx); err != nil {
+		if err := c.fetch(ctx, steps); err != nil {
 			return catalog.Origin{}, err
 		}
 		if err := c.checkout(ctx, entry.Ref); err != nil {
@@ -295,14 +295,14 @@ func (r *Instance) remove(name string) error {
 	return nil
 }
 
-func (r *Instance) synced(ctx context.Context, name string, entry config.Entry) Synced {
+func (r *Instance) synced(ctx context.Context, name string, entry config.Entry, steps catalog.Steps) Synced {
 	if !entry.IsGitURL() {
 		return Synced{Name: name, Local: true}
 	}
 	s := Synced{Name: name}
 	c := r.cloneOf(name, entry)
 	if !c.exists() {
-		if c, s.Err = newClone(ctx, entry, c.folder); s.Err != nil {
+		if c, s.Err = newClone(ctx, entry, c.folder, steps); s.Err != nil {
 			return s
 		}
 		if s.NewCommit, s.Err = r.checkedOut(ctx, c, entry); s.Err != nil {
@@ -314,7 +314,7 @@ func (r *Instance) synced(ctx context.Context, name string, entry config.Entry) 
 	if s.OldCommit, s.Err = c.commit(ctx); s.Err != nil {
 		return s
 	}
-	if s.Err = c.fetch(ctx); s.Err != nil {
+	if s.Err = c.fetch(ctx, steps); s.Err != nil {
 		return s
 	}
 	if s.NewCommit, s.Err = r.checkedOut(ctx, c, entry); s.Err != nil {

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -64,6 +65,14 @@ func TestCatalogCommand(t *testing.T) {
 		err := command.Run(context.Background(), append([]string{"catalog"}, arguments...))
 		return printed.String(), err
 	}
+	runWithStatus := func(t *testing.T, arguments ...string) (string, string, error) {
+		t.Helper()
+		var printed, status bytes.Buffer
+		command := newCatalogCommand(registry.Open, knownCatalogs)
+		command.Writer, command.ErrWriter = &printed, &status
+		err := command.Run(context.Background(), append([]string{"catalog"}, arguments...))
+		return printed.String(), regexp.MustCompile(`\(\d+s\)`).ReplaceAllString(status.String(), "(…)"), err
+	}
 	ran := func(t *testing.T, arguments ...string) string {
 		t.Helper()
 		printed, err := run(t, arguments...)
@@ -84,6 +93,16 @@ The starters of a catalog run their commands on this machine. new --dry-run list
 See the starters and the features of the catalog with:
   feature-compose show
 `, printed)
+		})
+
+		t.Run("writes the clone of a git URL as a step to stderr", func(t *testing.T) {
+			isolated(t)
+			_, url := gitSource(t)
+
+			_, status, err := runWithStatus(t, "add", "hpcsc", url)
+
+			require.NoError(t, err)
+			require.Equal(t, "Clone "+url+"…\n✓ Clone "+url+" (…)\n", status)
 		})
 
 		t.Run("a local folder prints its full path", func(t *testing.T) {
@@ -221,6 +240,17 @@ Add one with: feature-compose catalog add <name>
 			printed := ran(t, "sync")
 
 			require.Equal(t, "hpcsc: from "+old[:7]+" to "+newest[:7]+"\nsame: no new commit, at "+old[:7]+"\nteam: a local folder, so sync gets nothing\n", printed)
+		})
+
+		t.Run("writes the fetch of each catalog as a step to stderr", func(t *testing.T) {
+			isolated(t)
+			_, url := gitSource(t)
+			ran(t, "add", "hpcsc", url)
+
+			_, status, err := runWithStatus(t, "sync")
+
+			require.NoError(t, err)
+			require.Equal(t, "Fetch "+url+"…\n✓ Fetch "+url+" (…)\n", status)
 		})
 
 		t.Run("a catalog whose clone is gone prints that sync cloned it again", func(t *testing.T) {

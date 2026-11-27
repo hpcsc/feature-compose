@@ -7,6 +7,10 @@ import (
 	"github.com/hpcsc/feature-compose/internal/progress"
 )
 
+func stepsOn(w io.Writer) stepLines {
+	return stepLines{w: w, terminal: isTerminal(w)}
+}
+
 type stepLines struct {
 	w        io.Writer
 	terminal bool

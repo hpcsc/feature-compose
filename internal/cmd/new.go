@@ -68,7 +68,7 @@ func newNewCommand(load catalogsLoader, version string) *cli.Command {
 			if output == "" {
 				output = selection.Name()
 			}
-			steps := stepLines{w: cmd.Root().ErrWriter, terminal: isTerminal(cmd.Root().ErrWriter)}
+			steps := stepsOn(cmd.Root().ErrWriter)
 			if err := selection.MakeRepo(ctx, output, version, steps); err != nil {
 				return err
 			}

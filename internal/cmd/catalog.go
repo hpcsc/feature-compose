@@ -57,7 +57,7 @@ func newCatalogCommand(open registryOpener, fetch indexFetcher) *cli.Command {
 							return err
 						}
 					}
-					origin, err := r.Add(ctx, cmd.Args().Get(0), entry)
+					origin, err := r.Add(ctx, cmd.Args().Get(0), entry, stepsOn(cmd.Root().ErrWriter))
 					if err != nil {
 						return err
 					}
@@ -108,7 +108,7 @@ See the starters and the features of the catalog with:
 					if err != nil {
 						return err
 					}
-					synced, err := r.Sync(ctx, cmd.Args().Slice())
+					synced, err := r.Sync(ctx, cmd.Args().Slice(), stepsOn(cmd.Root().ErrWriter))
 					if err != nil {
 						return err
 					}
@@ -159,7 +159,7 @@ See the starters and the features of the catalog with:
 					if err != nil {
 						return err
 					}
-					origin, err := r.Set(ctx, cmd.Args().First(), change)
+					origin, err := r.Set(ctx, cmd.Args().First(), change, stepsOn(cmd.Root().ErrWriter))
 					if err != nil {
 						return err
 					}

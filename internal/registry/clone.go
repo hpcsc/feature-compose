@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/hpcsc/feature-compose/internal/catalog"
 	"github.com/hpcsc/feature-compose/internal/config"
 )
 
@@ -24,7 +25,7 @@ type clone struct {
 	folder                   string
 }
 
-func newClone(ctx context.Context, entry config.Entry, folder string) (clone, error) {
+func newClone(ctx context.Context, entry config.Entry, folder string, steps catalog.Steps) (clone, error) {
 	c := clone{source: entry.Source, sourceWithoutCredentials: entry.SourceWithoutCredentials(), folder: folder}
 	if err := os.RemoveAll(folder); err != nil {
 		return clone{}, fmt.Errorf("remove the old clone %s: %w", folder, err)
@@ -32,10 +33,14 @@ func newClone(ctx context.Context, entry config.Entry, folder string) (clone, er
 	if err := os.MkdirAll(filepath.Dir(folder), 0o755); err != nil {
 		return clone{}, fmt.Errorf("make the folder of the clones: %w", err)
 	}
+	end := steps.Start("Clone " + c.sourceWithoutCredentials)
 	if printed, err := c.run(ctx, "clone", "--quiet", "--", c.source, folder); err != nil {
 		_ = os.RemoveAll(folder)
-		return clone{}, c.cannotRead(printed)
+		err = c.cannotRead(printed)
+		end(err)
+		return clone{}, err
 	}
+	end(nil)
 	return c, nil
 }
 
@@ -52,7 +57,14 @@ func (c clone) commit(ctx context.Context) (string, error) {
 	return printed, nil
 }
 
-func (c clone) fetch(ctx context.Context) error {
+func (c clone) fetch(ctx context.Context, steps catalog.Steps) error {
+	end := steps.Start("Fetch " + c.sourceWithoutCredentials)
+	err := c.fetched(ctx)
+	end(err)
+	return err
+}
+
+func (c clone) fetched(ctx context.Context) error {
 	if printed, err := c.run(ctx, "-C", c.folder, "remote", "set-url", "origin", c.source); err != nil {
 		return fmt.Errorf("set the source %s in the clone %s: %s", c.sourceWithoutCredentials, c.folder, printed)
 	}

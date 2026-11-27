@@ -86,6 +86,22 @@ credential for the source, `catalog add` and `catalog sync` stop at once, and th
 `git clone <source>` works. A password or a token in the URL of a source does not go into the messages, the output of
 `catalog list` or `.feature-compose.yml`.
 
+In CI, a machine often has no SSH key and no credential helper. There, set `GITHUB_TOKEN`, or `GH_TOKEN`, to a
+token that can read the repo of the catalog. The tool then gives the token to git for each source on the GitHub
+server, for example `https://github.com/team/catalog`. The GitHub server is `https://github.com`, or
+`GITHUB_SERVER_URL` when it is set. git gets the token in its environment, and not on its command line or in the
+clone, so the token does not show in the process list, in `.git/config` or in a message. A source on another
+server does not get the token. This is the token that `update` reads too. The tool gives the token for each source
+on the GitHub server, also for a public repo. So a token that GitHub does not accept, for example an old token in
+your shell, also stops `catalog add` of a public repo. Then unset `GITHUB_TOKEN` and `GH_TOKEN`, or give a valid
+token.
+
+```yaml
+- run: feature-compose catalog add team https://github.com/team/catalog
+  env:
+    GITHUB_TOKEN: ${{ secrets.CATALOG_TOKEN }}
+```
+
 ### Trust
 
 A catalog runs its commands on your machine: the `generate` command and the `after_render` commands of its

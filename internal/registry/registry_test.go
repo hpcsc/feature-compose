@@ -4,6 +4,7 @@ package registry_test
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"maps"
 	"net/http"
@@ -140,6 +141,37 @@ func namesOf(synced []registry.Synced) []string {
 		names = append(names, s.Name)
 	}
 	return names
+}
+
+type privateServer struct {
+	url        string
+	authorized *[]string
+}
+
+func basicToken(token string) string {
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+token))
+}
+
+func newPrivateServer(t *testing.T, src source, required map[string]string) privateServer {
+	t.Helper()
+	root := t.TempDir()
+	bare := filepath.Join(root, "team", "catalog.git")
+	src.git(t, "clone", "--quiet", "--bare", src.dir, bare)
+	src.git(t, "-C", bare, "update-server-info")
+	var authorized []string
+	files := http.FileServer(http.Dir(root))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorized = append(authorized, r.Header.Get("Authorization"))
+		for name, value := range required {
+			if r.Header.Get(name) != value {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+		}
+		files.ServeHTTP(w, r)
+	}))
+	t.Cleanup(server.Close)
+	return privateServer{url: server.URL, authorized: &authorized}
 }
 
 func pointer(value string) *string {
@@ -313,6 +345,57 @@ func TestRegistry(t *testing.T) {
 
 			require.ErrorContains(t, err, "git cannot read "+server.URL+"/team/catalog.git")
 			require.NotContains(t, err.Error(), "secret")
+		})
+
+		t.Run("a git URL on the GitHub server gets the token of GITHUB_TOKEN, so CI can clone a private repo", func(t *testing.T) {
+			isolated(t)
+			private := newPrivateServer(t, newSource(t, map[string]string{"starters/service/starter.yml": starterYML}), map[string]string{"Authorization": basicToken("secret")})
+			t.Setenv("GITHUB_SERVER_URL", private.url)
+			t.Setenv("GITHUB_TOKEN", "secret")
+			t.Setenv("GH_TOKEN", "")
+
+			added(t, "private", config.Entry{Source: private.url + "/team/catalog.git"})
+
+			require.Equal(t, []string{"private/service"}, starterNames(t, "private"))
+		})
+
+		t.Run("with no GITHUB_TOKEN, a git URL on the GitHub server gets the token of GH_TOKEN", func(t *testing.T) {
+			isolated(t)
+			private := newPrivateServer(t, newSource(t, map[string]string{"starters/service/starter.yml": starterYML}), map[string]string{"Authorization": basicToken("secret")})
+			t.Setenv("GITHUB_SERVER_URL", private.url)
+			t.Setenv("GITHUB_TOKEN", "")
+			t.Setenv("GH_TOKEN", "secret")
+
+			added(t, "private", config.Entry{Source: private.url + "/team/catalog.git"})
+
+			require.Equal(t, []string{"private/service"}, starterNames(t, "private"))
+		})
+
+		t.Run("the token keeps each git config entry of the environment", func(t *testing.T) {
+			isolated(t)
+			private := newPrivateServer(t, newSource(t, map[string]string{"starters/service/starter.yml": starterYML}), map[string]string{"Authorization": basicToken("secret"), "X-Kept": "yes"})
+			t.Setenv("GITHUB_SERVER_URL", private.url)
+			t.Setenv("GITHUB_TOKEN", "secret")
+			t.Setenv("GIT_CONFIG_COUNT", "1")
+			t.Setenv("GIT_CONFIG_KEY_0", "http."+private.url+"/.extraheader")
+			t.Setenv("GIT_CONFIG_VALUE_0", "X-Kept: yes")
+
+			added(t, "private", config.Entry{Source: private.url + "/team/catalog.git"})
+
+			require.Equal(t, []string{"private/service"}, starterNames(t, "private"))
+		})
+
+		t.Run("a git URL on another server gets no token", func(t *testing.T) {
+			isolated(t)
+			private := newPrivateServer(t, newSource(t, map[string]string{"starters/service/starter.yml": starterYML}), map[string]string{"Authorization": basicToken("secret")})
+			t.Setenv("GITHUB_SERVER_URL", "https://github.com")
+			t.Setenv("GITHUB_TOKEN", "secret")
+
+			_, err := opened(t).Add(ctx, "private", config.Entry{Source: private.url + "/team/catalog.git"})
+
+			require.ErrorContains(t, err, "git cannot read "+private.url+"/team/catalog.git")
+			require.NotEmpty(t, *private.authorized)
+			require.Equal(t, []string{""}, slices.Compact(*private.authorized))
 		})
 
 		t.Run("a path outside the source stops", func(t *testing.T) {

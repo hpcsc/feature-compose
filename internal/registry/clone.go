@@ -2,11 +2,13 @@ package registry
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -91,6 +93,32 @@ func (c clone) revision(ctx context.Context, ref string) (string, error) {
 	return "", fmt.Errorf("the source %s has no ref %s", c.sourceWithoutCredentials, ref)
 }
 
+func (c clone) environment() []string {
+	env := append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		token = os.Getenv("GH_TOKEN")
+	}
+	server := strings.TrimSuffix(os.Getenv("GITHUB_SERVER_URL"), "/")
+	if server == "" {
+		server = "https://github.com"
+	}
+	if token == "" || !strings.HasPrefix(c.source, server+"/") {
+		return env
+	}
+	// the environment, and not -c, holds the header, so that other users cannot read the token in the process list
+	count, err := strconv.Atoi(os.Getenv("GIT_CONFIG_COUNT"))
+	if err != nil {
+		count = 0
+	}
+	header := "Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+token))
+	return append(env,
+		"GIT_CONFIG_COUNT="+strconv.Itoa(count+1),
+		fmt.Sprintf("GIT_CONFIG_KEY_%d=http.%s/.extraheader", count, server),
+		fmt.Sprintf("GIT_CONFIG_VALUE_%d=%s", count, header),
+	)
+}
+
 func (c clone) cannotRead(printed string) error {
 	return fmt.Errorf("git cannot read %s: check that git clone %s works\n%s", c.sourceWithoutCredentials, c.sourceWithoutCredentials, strings.ReplaceAll(printed, c.source, c.sourceWithoutCredentials))
 }
@@ -99,7 +127,7 @@ func (c clone) run(ctx context.Context, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, gitTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = c.environment()
 	// a new session has no terminal, so neither git nor ssh can ask for a password that nobody sees
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }

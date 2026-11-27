@@ -855,6 +855,8 @@ func TestModel(t *testing.T) {
 				"",
 				"Options: none",
 				"",
+				"Commands: none",
+				"",
 				"Files:",
 				"  .feature-compose.yml: feature-compose",
 				"  main.go: the starter",

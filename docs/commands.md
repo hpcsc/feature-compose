@@ -91,6 +91,10 @@ Options:
   api-auth.method: api-key (default)
   cli-auth.store-key: false (default)
 
+Commands:
+  go: go mod tidy
+  go: gofmt -w .
+
 Files:
   .dockerignore: the feature cli
   .env.integration: the starter
@@ -120,6 +124,12 @@ above. Each option shows the value that the templates read, and its source:
 | `need of <features>` | The `needs` of the features that select this feature set the value, for example a feature `client` with `needs: {auth: {method: api-key}}` sets the `method` of `auth` to `api-key`. A need comes after a flag and before an answer. |
 | `answered` | You type or choose the value in the form, also when it is the default. `--dry-run` opens no form, so it never shows this source. |
 | `default` | No flag gives the value, so the option has its default. A default that holds `{{ .Name }}` shows with the name of the repo. An option whose `when` is false has its default, also when you gave it another value in the form. |
+
+Then the preview gives each command that `new` runs on your machine, in the order in which `new` runs them, with
+the name of its folder: first the `generate` command of each folder that has one, and then each `after_render`
+command of each folder. A catalog can run any command, so read this list before you run `new` with a catalog that
+you do not know. In a `generate` command, `<new folder>` stands for the folder that the command writes, for example
+`app: mix phx.new <new folder> --app shop --no-install`. A starter with no command shows `Commands: none`.
 
 Last, the preview gives each file of the repo by its path, in the order of the paths, with its owner: the starter,
 the feature whose template writes the file, or `feature-compose` for the selection file `.feature-compose.yml`.

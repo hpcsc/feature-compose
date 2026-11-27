@@ -114,8 +114,8 @@ flowchart LR
    feature-compose show
    ```
 
-5. Preview a repo. `--dry-run` prints the features, the options and the files of the repo, and writes
-   nothing:
+5. Preview a repo. `--dry-run` prints the features, the options, the commands and the files of the
+   repo, and writes nothing:
 
    ```shell
    feature-compose new go my-tool --feature cli --dry-run

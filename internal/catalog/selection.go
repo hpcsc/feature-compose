@@ -141,9 +141,7 @@ func (s Selection) Preview() (string, error) {
 	fmt.Fprintf(&preview, "Repo: %s\nStarter: %s\n", s.name, s.StarterFullName())
 	s.writeSection(&preview, "Features", s.featureLines())
 	s.writeSection(&preview, "Options", s.optionLines())
-	if lines := s.generateLines(); len(lines) > 0 {
-		s.writeSection(&preview, "Generate", lines)
-	}
+	s.writeSection(&preview, "Commands", s.commandLines())
 	s.writeSection(&preview, "Files", s.fileLines(append(files, file{path: selectionFilePath, owner: selectionFileOwner})))
 	return preview.String(), nil
 }
@@ -545,9 +543,10 @@ func (s Selection) generate(ctx context.Context, output string, steps Steps) (ma
 	return generatedPaths, nil
 }
 
-func (s Selection) generateLines() []string {
+func (s Selection) commandLines() []string {
 	var lines []string
-	for _, folderName := range slices.Sorted(maps.Keys(s.folders)) {
+	folderNames := slices.Sorted(maps.Keys(s.folders))
+	for _, folderName := range folderNames {
 		f := s.folders[folderName]
 		if !f.generates() {
 			continue
@@ -557,6 +556,11 @@ func (s Selection) generateLines() []string {
 			command = f.generate
 		}
 		lines = append(lines, folderName+": "+command)
+	}
+	for _, folderName := range folderNames {
+		for _, command := range s.folders[folderName].afterRender {
+			lines = append(lines, folderName+": "+command)
+		}
 	}
 	return lines
 }

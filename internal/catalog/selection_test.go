@@ -2109,21 +2109,26 @@ extension_points:
 	})
 
 	t.Run("preview", func(t *testing.T) {
-		t.Run("shows the generate command of each folder, with <new folder> for the folder that the command gets", func(t *testing.T) {
+		t.Run("lists the generate command and each after_render command of each folder in the order in which new runs them, with <new folder> for the folder that the generate command gets", func(t *testing.T) {
 			selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
 options:
   app:
     default: shop
 folders:
+  web:
+    path: web
+    generate: npm create vite {{ .Folder }}
+    after_render: [npm install]
   app:
-    path: .
+    path: app
     generate: mix phx.new {{ .Folder }} --app {{ option "starter.app" }} --no-install
+    after_render: [mix deps.get, mix format]
 `})
 
 			preview, err := selection.Preview()
 
 			require.NoError(t, err)
-			require.Contains(t, preview, "\nGenerate:\n  app: mix phx.new <new folder> --app shop --no-install\n")
+			require.Contains(t, preview, "\nCommands:\n  app: mix phx.new <new folder> --app shop --no-install\n  web: npm create vite <new folder>\n  app: mix deps.get\n  app: mix format\n  web: npm install\n\n")
 		})
 
 		t.Run("stops when the generate command reads an option whose value is not one shell word, as new does", func(t *testing.T) {
@@ -2163,6 +2168,8 @@ Features:
   cli: command line
 
 Options: none
+
+Commands: none
 
 Files:
   .feature-compose.yml: feature-compose
@@ -2220,7 +2227,7 @@ Files:
 			preview, err := featureSelection(t, files).Preview()
 
 			require.NoError(t, err)
-			require.Equal(t, "Repo: my-service\nStarter: service\n\nFeatures: none\n\nOptions: none\n\nFiles:\n  .feature-compose.yml: feature-compose\n", preview)
+			require.Equal(t, "Repo: my-service\nStarter: service\n\nFeatures: none\n\nOptions: none\n\nCommands: none\n\nFiles:\n  .feature-compose.yml: feature-compose\n", preview)
 		})
 
 		t.Run("gives each feature after its needs and otherwise in the order of the names, a given feature with the source command line, and a feature that a need added with the features that need it", func(t *testing.T) {
@@ -2239,6 +2246,8 @@ Features:
   x: command line
 
 Options: none
+
+Commands: none
 
 Files:
   .feature-compose.yml: feature-compose

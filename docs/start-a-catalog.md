@@ -52,6 +52,8 @@ Options:
   starter.owner: nobody (default)
   greeting.language: en (default)
 
+Commands: none
+
 Files:
   .feature-compose.yml: feature-compose
   README.md: the starter

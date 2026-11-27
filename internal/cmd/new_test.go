@@ -578,7 +578,7 @@ folders:
 			printed, err := runNew(t, withFeatures(), "service", "my-service", "--feature", "cli", "--dry-run")
 
 			require.NoError(t, err)
-			require.Equal(t, "Repo: my-service\nStarter: service\n\nFeatures:\n  cli: command line\n\nOptions:\n  starter.go-version: 1.27.1 (default)\n  starter.module: github.com/hpcsc/my-service (default)\n\nFiles:\n  .feature-compose.yml: feature-compose\n  cmd/my-service/main.go: the feature cli\n  go.mod: the starter\n", printed)
+			require.Equal(t, "Repo: my-service\nStarter: service\n\nFeatures:\n  cli: command line\n\nOptions:\n  starter.go-version: 1.27.1 (default)\n  starter.module: github.com/hpcsc/my-service (default)\n\nCommands: none\n\nFiles:\n  .feature-compose.yml: feature-compose\n  cmd/my-service/main.go: the feature cli\n  go.mod: the starter\n", printed)
 			require.Empty(t, filesIn(t, workingFolder))
 		})
 

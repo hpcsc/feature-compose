@@ -26,7 +26,11 @@ hold each combination of these parts:
 
 feature-compose keeps each part as one feature. A feature names the starters that it works with, the
 features that it needs, and the lines that it adds to the files of the starter. The tool joins the starter
-and the features in one render, and no step changes a file after it.
+and the features in one render, and no step changes a file of the catalog after it.
+
+A starter can also start from the output of a generator, for example `mix phx.new`, so that the repo gets the
+latest version of the generator. The tool then changes the generated files only at the places that the starter
+names, and it stops when a place is not in the output of the generator.
 
 ## How It Is Different From a Template Tool
 
@@ -125,6 +129,9 @@ flowchart LR
    ```
 
    With `--no-prompt`, `new` opens no form and gives each option its default.
+
+   A starter that runs a generator, for example `mix phx.new`, also needs
+   [ast-grep](https://ast-grep.github.io) and the generator on the `PATH`.
 
 `new` writes the repo to `./my-tool`, and then runs the commands of the starter, for example `go mod tidy`.
 After the form, it also prints the command that makes the same repo again.

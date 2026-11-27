@@ -1,6 +1,8 @@
 package catalog
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"maps"
@@ -9,6 +11,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/hpcsc/feature-compose/internal/astgrep"
 )
 
 var repoName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
@@ -16,11 +20,12 @@ var repoName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 type Starter struct {
 	name              string
 	options           options
-	folders           map[string]folder
+	folders           folders
 	templates         []template
 	features          map[string]feature
 	otherFeatureNames []string
 	extensionPoints   map[string]extensionPoint
+	removals          []removal
 }
 
 func readStarter(fsys fs.FS, starterName string, features map[string]feature, otherFeatureNames []string) (Starter, error) {
@@ -41,12 +46,12 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature, ot
 			return Starter{}, fmt.Errorf("read %s: %w", ymlPath, err)
 		}
 	}
-	folders := make(map[string]folder, len(parsed.Folders))
+	starterFolders := make(folders, len(parsed.Folders))
 	for folderName, declared := range parsed.Folders {
 		if !filepath.IsLocal(filepath.FromSlash(declared.Path)) {
 			return Starter{}, fmt.Errorf("read %s: the path %q of the folder %s is outside the repo", ymlPath, declared.Path, folderName)
 		}
-		folders[folderName] = folder{name: folderName, path: declared.Path, afterRender: declared.AfterRender, test: declared.Test}
+		starterFolders[folderName] = folder{name: folderName, path: declared.Path, generate: declared.Generate, afterRender: declared.AfterRender, test: declared.Test}
 	}
 	var rules []delimitersRule
 	for _, declared := range parsed.Delimiters {
@@ -57,12 +62,12 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature, ot
 		rules = append(rules, rule)
 	}
 	read, err := readTemplates(fsys, path.Join(root, "files"), "", rules)
-	if err != nil {
+	if err != nil && !(starterFolders.hasGenerator() && errors.Is(err, fs.ErrNotExist)) {
 		return Starter{}, err
 	}
 	templates := make([]template, 0, len(read))
 	for _, t := range read {
-		placed, err := t.place(folders)
+		placed, err := t.place(starterFolders)
 		if err != nil {
 			return Starter{}, err
 		}
@@ -70,11 +75,34 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature, ot
 	}
 	extensionPoints := make(map[string]extensionPoint, len(parsed.ExtensionPoints))
 	for name, declared := range parsed.ExtensionPoints {
-		extensionPoints[name] = extensionPoint{name: name, declarer: "the starter " + starterName, file: declared.File, itemFields: declared.Item}
+		extensionPoints[name] = newExtensionPoint(name, "the starter "+starterName, declared)
+	}
+	for _, name := range slices.Sorted(maps.Keys(parsed.AddTo)) {
+		declared, ok := extensionPoints[name]
+		if !ok {
+			return Starter{}, fmt.Errorf("read %s: the starter adds to the extension point %q, which it does not declare", ymlPath, name)
+		}
+		items := make([]item, 0, len(parsed.AddTo[name]))
+		for _, fields := range parsed.AddTo[name] {
+			added, err := newItem("", fields)
+			if err != nil {
+				return Starter{}, fmt.Errorf("read %s: an item of the extension point %q: %w", ymlPath, name, err)
+			}
+			items = append(items, added)
+		}
+		withItems, err := declared.add(items)
+		if err != nil {
+			return Starter{}, fmt.Errorf("read %s: %w", ymlPath, err)
+		}
+		extensionPoints[name] = withItems
+	}
+	removals := make([]removal, 0, len(parsed.Remove))
+	for _, declared := range parsed.Remove {
+		removals = append(removals, newRemoval(declared))
 	}
 	return Starter{
-		name: starterName, options: declaredOptions, folders: folders, templates: templates, features: features,
-		otherFeatureNames: otherFeatureNames, extensionPoints: extensionPoints,
+		name: starterName, options: declaredOptions, folders: starterFolders, templates: templates, features: features,
+		otherFeatureNames: otherFeatureNames, extensionPoints: extensionPoints, removals: removals,
 	}, nil
 }
 
@@ -99,7 +127,7 @@ func (s Starter) Select(name string, given map[string]string, givenByFeature map
 	if err != nil {
 		return Selection{}, err
 	}
-	selection := Selection{folders: s.folders, name: name, starter: selectedStarter{name: s.name, options: s.options, values: starterValues}}
+	selection := Selection{folders: s.folders, removals: s.removals, name: name, starter: selectedStarter{name: s.name, options: s.options, values: starterValues}}
 	for _, f := range selected {
 		values, err := f.options.withDefaults(givenByFeature[f.name], setByNeeds[f.name], answers.FeatureValues[f.name], name, selection.readableOfNeedsAndStarter(f.needs))
 		if err != nil {
@@ -180,23 +208,144 @@ func (s Starter) combinations() []Combination {
 	return combinations
 }
 
-func (s Starter) mistakes(catalogFeatures map[string]feature) []string {
+func (s Starter) mistakes(ctx context.Context, catalogFeatures map[string]feature) []string {
 	var mistakes []string
 	for _, featureName := range slices.Sorted(maps.Keys(s.features)) {
 		f := s.features[featureName]
 		mistakes = append(mistakes, s.addToMistakes(f)...)
 		mistakes = append(mistakes, s.folderMistakes(f)...)
 		mistakes = append(mistakes, f.needMistakes(s.name, catalogFeatures)...)
+		for _, name := range slices.Sorted(maps.Keys(f.extensionPoints)) {
+			if e := f.extensionPoints[name]; e.inGeneratedFile() {
+				for _, mistake := range e.generatedFileMistakes(s.folders) {
+					mistakes = append(mistakes, "the feature "+f.name+": "+mistake)
+				}
+			}
+		}
 	}
 	mistakes = append(mistakes, s.cycleMistakes()...)
 	mistakes = append(mistakes, s.templateMistakes()...)
 	for _, name := range slices.Sorted(maps.Keys(s.extensionPoints)) {
 		mistakes = append(mistakes, s.extensionPoints[name].whenFieldMistakes()...)
+		if s.extensionPoints[name].inGeneratedFile() {
+			mistakes = append(mistakes, s.extensionPoints[name].generatedFileMistakes(s.folders)...)
+			continue
+		}
 		mistakes = append(mistakes, s.extensionPoints[name].fileMistakes(s.templates)...)
 	}
+	mistakes = append(mistakes, s.removalMistakes()...)
+	mistakes = append(mistakes, s.queryMistakes(ctx)...)
+	mistakes = append(mistakes, s.generatedTemplateMistakes(catalogFeatures)...)
 	mistakes = append(mistakes, s.ownerMistakes()...)
 	for i, mistake := range mistakes {
 		mistakes[i] = "the starter " + s.name + ": " + mistake
+	}
+	return mistakes
+}
+
+func (s Starter) removalMistakes() []string {
+	var mistakes []string
+	for i, r := range s.removals {
+		for _, mistake := range r.mistakes(s.folders) {
+			mistakes = append(mistakes, fmt.Sprintf("the removal %d %s", i+1, mistake))
+		}
+	}
+	return mistakes
+}
+
+func (s Starter) generatedTemplateMistakes(catalogFeatures map[string]feature) []string {
+	var mistakes []string
+	check := func(subject, text, reader string, readable map[string]bool) {
+		parsed, err := calls{}.with(subject, text, defaultDelimiters)
+		if err != nil {
+			mistakes = append(mistakes, fmt.Sprintf("%s does not parse: %s", subject, err))
+			return
+		}
+		for _, reference := range parsed.argumentsOf("option") {
+			if !readable[reference] {
+				mistakes = append(mistakes, fmt.Sprintf("%s reads %q, which %s cannot read", subject, reference, reader))
+			}
+		}
+	}
+	readable := s.options.references(starterPrefix)
+	for _, name := range slices.Sorted(maps.Keys(s.extensionPoints)) {
+		e := s.extensionPoints[name]
+		if !e.inGeneratedFile() {
+			continue
+		}
+		check(fmt.Sprintf("the file of the extension point %q", name), e.file, "the starter", readable)
+		check(fmt.Sprintf("the insert of the extension point %q", name), e.generatedFile.insert, "the starter", readable)
+		for i, added := range e.items {
+			for _, field := range slices.Sorted(maps.Keys(added.fields)) {
+				check(fmt.Sprintf("the field %s of the item %d that the starter adds to the extension point %q", field, i+1, name), added.fields[field], "the starter", readable)
+			}
+		}
+	}
+	for i, r := range s.removals {
+		check(fmt.Sprintf("the file of the removal %d", i+1), r.file, "the starter", readable)
+	}
+	for _, featureName := range slices.Sorted(maps.Keys(s.features)) {
+		f := s.features[featureName]
+		declared := s.extensionPointsDeclaredFor(f)
+		featureReadable := f.readable([]Starter{s}, catalogFeatures)
+		for _, name := range slices.Sorted(maps.Keys(f.addTo)) {
+			if e, ok := declared[name]; !ok || !e.inGeneratedFile() {
+				continue
+			}
+			for i, added := range f.addTo[name] {
+				for _, field := range slices.Sorted(maps.Keys(added.fields)) {
+					check(fmt.Sprintf("the field %s of the item %d that the feature %s adds to the extension point %q", field, i+1, featureName, name), added.fields[field], "the feature "+featureName, featureReadable)
+				}
+			}
+		}
+	}
+	return mistakes
+}
+
+func (s Starter) queryMistakes(ctx context.Context) []string {
+	type labeledQuery struct {
+		label string
+		query astgrep.Query
+	}
+	var queries []labeledQuery
+	for _, name := range slices.Sorted(maps.Keys(s.extensionPoints)) {
+		if e := s.extensionPoints[name]; e.inGeneratedFile() && e.generatedFile.query.Language != "" {
+			queries = append(queries, labeledQuery{fmt.Sprintf("the extension point %q", name), e.generatedFile.query})
+		}
+	}
+	for _, featureName := range slices.Sorted(maps.Keys(s.features)) {
+		extensionPoints := s.features[featureName].extensionPoints
+		for _, name := range slices.Sorted(maps.Keys(extensionPoints)) {
+			if e := extensionPoints[name]; e.inGeneratedFile() && e.generatedFile.query.Language != "" {
+				queries = append(queries, labeledQuery{fmt.Sprintf("the extension point %q of the feature %s", name, featureName), e.generatedFile.query})
+			}
+		}
+	}
+	for i, r := range s.removals {
+		if !r.query.Empty() && r.query.Language != "" {
+			queries = append(queries, labeledQuery{fmt.Sprintf("the removal %d", i+1), r.query})
+		}
+	}
+	if len(queries) == 0 {
+		return nil
+	}
+	if err := astgrep.Installed(); err != nil {
+		return []string{"check cannot read the patterns and the rules: " + err.Error()}
+	}
+	sample, err := s.Select("check", nil, nil, Answers{})
+	if err != nil {
+		return []string{"check cannot render the patterns and the rules with the default values of the options: " + err.Error()}
+	}
+	var mistakes []string
+	for _, q := range queries {
+		rendered, err := sample.renderedQuery(q.query, q.label)
+		if err != nil {
+			mistakes = append(mistakes, err.Error())
+			continue
+		}
+		if err := astgrep.Check(ctx, rendered); err != nil {
+			mistakes = append(mistakes, q.label+": "+err.Error())
+		}
 	}
 	return mistakes
 }

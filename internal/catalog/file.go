@@ -8,9 +8,10 @@ import (
 )
 
 type file struct {
-	path     string
-	contents string
-	owner    string
+	path        string
+	contents    string
+	owner       string
+	featureName string
 }
 
 func (f file) write(output string) error {

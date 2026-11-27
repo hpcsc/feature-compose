@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -74,7 +75,7 @@ func (c Catalog) Definitions() (Definitions, error) {
 	return definitions, nil
 }
 
-func (c Catalog) Check() ([]string, error) {
+func (c Catalog) Check(ctx context.Context) ([]string, error) {
 	names, err := c.starterNames()
 	if err != nil {
 		return nil, err
@@ -100,7 +101,7 @@ func (c Catalog) Check() ([]string, error) {
 			return nil, err
 		}
 		starters = append(starters, starter)
-		mistakes = append(mistakes, starter.mistakes(catalogFeatures)...)
+		mistakes = append(mistakes, starter.mistakes(ctx, catalogFeatures)...)
 	}
 	for _, featureName := range slices.Sorted(maps.Keys(catalogFeatures)) {
 		mistakes = append(mistakes, catalogFeatures[featureName].mistakes(starters, catalogFeatures)...)

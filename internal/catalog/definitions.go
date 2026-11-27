@@ -5,10 +5,13 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/hpcsc/feature-compose/internal/astgrep"
 )
 
 type FolderDefinition struct {
 	Path        string   `json:"path" yaml:"path"`
+	Generate    string   `json:"generate,omitempty" yaml:"generate"`
 	AfterRender []string `json:"after_render" yaml:"after_render"`
 	Test        []string `json:"test" yaml:"test"`
 }
@@ -31,10 +34,25 @@ func (o OptionDefinition) filled() OptionDefinition {
 	return o
 }
 
+type QueryDefinition struct {
+	Language string         `json:"language,omitempty" yaml:"language"`
+	Pattern  string         `json:"pattern,omitempty" yaml:"pattern"`
+	Rule     map[string]any `json:"rule,omitempty" yaml:"rule"`
+}
+
+func (q QueryDefinition) query() astgrep.Query {
+	return astgrep.Query{Language: q.Language, Pattern: q.Pattern, Rule: q.Rule}
+}
+
 type ExtensionPointDefinition struct {
-	Summary string   `json:"summary" yaml:"summary"`
-	File    string   `json:"file" yaml:"file"`
-	Item    []string `json:"item" yaml:"item"`
+	Summary         string   `json:"summary" yaml:"summary"`
+	File            string   `json:"file" yaml:"file"`
+	Item            []string `json:"item" yaml:"item"`
+	QueryDefinition `yaml:",inline"`
+	After           string `json:"after,omitempty" yaml:"after"`
+	Before          string `json:"before,omitempty" yaml:"before"`
+	Separator       string `json:"separator,omitempty" yaml:"separator"`
+	Insert          string `json:"insert,omitempty" yaml:"insert"`
 }
 
 func (e ExtensionPointDefinition) filled() ExtensionPointDefinition {
@@ -42,11 +60,18 @@ func (e ExtensionPointDefinition) filled() ExtensionPointDefinition {
 	return e
 }
 
+type RemovalDefinition struct {
+	File            string `json:"file" yaml:"file"`
+	QueryDefinition `yaml:",inline"`
+}
+
 type StarterDefinition struct {
 	Summary         string                              `json:"summary" yaml:"summary"`
 	Folders         map[string]FolderDefinition         `json:"folders" yaml:"folders"`
 	Options         map[string]OptionDefinition         `json:"options" yaml:"options"`
 	ExtensionPoints map[string]ExtensionPointDefinition `json:"extension_points" yaml:"extension_points"`
+	Remove          []RemovalDefinition                 `json:"remove,omitempty" yaml:"remove"`
+	AddTo           map[string][]map[string]string      `json:"add_to,omitempty" yaml:"add_to"`
 }
 
 func (s StarterDefinition) filled() StarterDefinition {

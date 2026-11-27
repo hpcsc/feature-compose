@@ -113,7 +113,7 @@ func newFeature(fsys fs.FS, featureName string, parsed featureYML) (feature, err
 	}
 	extensionPoints := make(map[string]extensionPoint, len(parsed.ExtensionPoints))
 	for name, declared := range parsed.ExtensionPoints {
-		extensionPoints[name] = extensionPoint{name: name, declarer: "the feature " + featureName, file: declared.File, itemFields: declared.Item}
+		extensionPoints[name] = newExtensionPoint(name, "the feature "+featureName, declared)
 	}
 	return feature{
 		name: featureName, targets: parsed.Targets, templates: templates, options: declaredOptions,
@@ -168,7 +168,9 @@ func (f feature) mistakes(starters []Starter, catalogFeatures map[string]feature
 	ofFeature := slices.Concat(f.whenParseMistakes, f.readMistakes(starters, catalogFeatures))
 	for _, name := range slices.Sorted(maps.Keys(f.extensionPoints)) {
 		ofFeature = append(ofFeature, f.extensionPoints[name].whenFieldMistakes()...)
-		ofFeature = append(ofFeature, f.extensionPoints[name].fileMistakes(f.templates)...)
+		if !f.extensionPoints[name].inGeneratedFile() {
+			ofFeature = append(ofFeature, f.extensionPoints[name].fileMistakes(f.templates)...)
+		}
 	}
 	mistakes := f.itemFieldsMistakes(starters)
 	for _, mistake := range ofFeature {

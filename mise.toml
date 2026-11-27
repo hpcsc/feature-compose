@@ -1,4 +1,5 @@
 [tools]
+"aqua:ast-grep/ast-grep" = "0.45.3"
 "aqua:go-task/task" = "3.53.1"
 "aqua:goreleaser/goreleaser" = "2.18.2"
 "aqua:gotestyourself/gotestsum" = "1.13.0"

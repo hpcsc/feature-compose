@@ -34,7 +34,7 @@ func newCheckCommand(load func() (catalog.Catalog, error)) *cli.Command {
 			if err != nil {
 				return err
 			}
-			mistakes, err := c.Check()
+			mistakes, err := c.Check(ctx)
 			if err != nil {
 				return err
 			}

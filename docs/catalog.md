@@ -84,11 +84,15 @@ delimiters:
 | `summary` | One sentence about what a repo from the starter gets. `show` shows it. |
 | `options` | The questions of the starter. [Options](#options) tells how they work. |
 | `folders.<name>.path` | The path of the folder in the repo. |
+| `folders.<name>.generate` | A command that writes the first files of the folder, for example `mix phx.new`. [A Starter on Top of a Generator](#a-starter-on-top-of-a-generator) tells how it works. |
 | `folders.<name>.after_render` | The commands that `new` runs in the folder after it writes all files. |
 | `folders.<name>.test` | The commands that a test of the catalog runs in the folder, for example in CI. `new` does not run them. |
 | `extension_points.<name>.summary` | The contract of an item: what its fields must hold, and which names its code can use. |
 | `extension_points.<name>.file` | The file that writes the items, as a path that starts with a folder name. |
 | `extension_points.<name>.item` | The fields of each item. |
+| `extension_points.<name>.language`, `pattern`, `rule`, `after`, `before`, `separator`, `insert` | The place of an extension point in a file that the generator writes. [Extension Points in Generated Files](#extension-points-in-generated-files) tells how they work. |
+| `remove` | The files, and the code, that the starter removes from the output of its generator. |
+| `add_to` | The items that the starter adds to its own extension points, in the form of the `add_to` of a feature. They come before the items of the features. |
 | `delimiters` | Other template delimiters for the files whose catalog path matches `glob`. The glob also matches the folder name and `.tmpl`. |
 
 Use other delimiters for a file whose own syntax has `{{`, for example a Taskfile or a GitHub workflow.
@@ -250,7 +254,9 @@ A name in an expression is an option of the feature, for example `method`, an op
 
 An extension point is a named list in one file. The starter, or a feature, declares it. Other features add
 items to it, and the file writes each item. So a feature changes a file that it does not own, and no step
-edits the file after the render.
+edits the file after the render. The starter, or a feature, can also declare an extension point in a file
+that a generator writes: [Extension Points in Generated Files](#extension-points-in-generated-files) tells
+how.
 
 A feature adds items with `add_to`. Each item has the fields that the extension point declares:
 
@@ -280,7 +286,8 @@ func protectedMiddleware(cfg *api.Config) []func(http.Handler) http.Handler {
 }
 ```
 
-- The value of an item goes into the file as it is. The tool does not render it as a template.
+- The value of an item goes into the file as it is. The tool does not render it as a template. An item of an
+  extension point in a generated file is different: the tool renders its values.
 - The items have a fixed order: a feature comes after the features that it needs, and other features come in
   the order of their names. So the order of the `--feature` flags does not change a file.
 - With no item, the `range` writes nothing. Put the `{{-` and `-}}` markers so that the file of a repo with no
@@ -352,6 +359,120 @@ permissions. A job of an item can name the jobs of the starter in `needs`. The w
 The `summary` of an extension point is a contract that the tool cannot check. A test of each combination of
 the catalog checks it: [Build, Test and Release feature-compose](development.md) tells how this repo does
 this.
+
+## A Starter on Top of a Generator
+
+Some kinds of repo start from the output of a generator, for example `mix phx.new` for a Phoenix app. A copy of
+that output in the catalog gets old when the generator changes. So a starter can run the generator, and then
+change its output:
+
+```yaml
+options:
+  app:
+    default: "{{ snake .Name }}"
+
+folders:
+  app:
+    path: .
+    generate: mix phx.new {{ .Folder }} --app {{ option "starter.app" }} --no-install
+    after_render: [mix deps.get, mix format]
+
+remove:
+  - file: app/lib/{{ option "starter.app" }}_web/controllers/page_controller.ex
+  - file: app/lib/{{ option "starter.app" }}_web/router.ex
+    language: elixir
+    pattern: get "/", PageController, :home
+```
+
+`new` makes the repo in these steps:
+
+1. It runs the `generate` command of each folder that has one.
+2. It removes the files and the code that `remove` names.
+3. It writes the files of the starter and of the features.
+4. It adds the items of each extension point in a generated file.
+5. It runs the `after_render` commands, and then writes `.feature-compose.yml`.
+
+- `{{ .Folder }}` is a path in an empty temporary folder, and the path does not exist yet. Its last part is the
+  name of the repo. The command must write its files there, and the tool then moves them into the folder of the
+  starter. Some generators stop when their folder exists, so the tool does not give them the output folder.
+- The command gets no input. Give it the flags that stop each question, for example `--no-install`.
+- The command is a template, and it can read the options of the starter.
+- A file of the starter at the path of a generated file replaces the generated file. A file of a feature at such
+  a path stops `new`.
+- A removal with only `file` removes the file, and each folder that it leaves empty. A removal with a `pattern`
+  or a `rule` removes the one place that it matches, and also the line of that place when the line is then
+  empty. The `file` of a removal starts with a folder name, as the `file` of an extension point does.
+- A starter with a generator does not need a `files/` folder.
+
+### Extension Points in Generated Files
+
+A file of the generator has no `items` call. So the starter tells where the items go, with a pattern or a rule
+of [ast-grep](https://ast-grep.github.io):
+
+```yaml
+extension_points:
+  mix.deps:
+    summary: A dependency of the app, as a tuple of deps in mix.exs.
+    file: app/mix.exs
+    item: [dep]
+    language: elixir
+    pattern: defp deps do [$$$DEPS] end
+    after: DEPS
+    separator: ","
+    insert: "{{ .dep }}"
+```
+
+| Field | Meaning |
+| --- | --- |
+| `language` | The ast-grep language of the file, for example `elixir` or `markdown`. The tool gives ast-grep the text of the file, so the name of the file does not change the language. |
+| `pattern` | An ast-grep pattern. It must match exactly one place in the file. |
+| `rule` | An ast-grep rule, in place of `pattern`, for a place that a pattern cannot match alone. For example, a rule can match a node only inside another node. |
+| `after` | The items go after the last node of this metavariable. `match` is the whole match. |
+| `before` | The items go before the first node of this metavariable, and above the comment lines directly above that node. `match` is the whole match. |
+| `separator` | The text between two items of a list, for example `,`. |
+| `insert` | A template for the text of one item. `{{ .dep }}` reads a field of the item. |
+
+This rule matches the endpoint only in the list of children, and the items go before it:
+
+```yaml
+extension_points:
+  application.children:
+    summary: A child that the supervisor of the app starts, before the endpoint.
+    file: app/lib/{{ option "starter.app" }}/application.ex
+    item: [child]
+    language: elixir
+    rule:
+      pattern: '{{ pascal (option "starter.app") }}Web.Endpoint'
+      inside:
+        pattern: children = [$$$CHILDREN]
+        stopBy: end
+    before: match
+    separator: ","
+    insert: "{{ .child }}"
+```
+
+- Each item goes on its own line, with the indentation of the node next to it. An `after_render` command, for
+  example `mix format`, fixes the rest of the layout.
+- The value of an item is a template, and it can read the options that its feature can read. Code in a
+  generated file often names the app, for example `config :{{ option "starter.app" }}, Oban`.
+- So `{{` in the value of an item starts a template action. For code that holds `{{`, for example a nested
+  tuple of Elixir, write `{ {` when the formatter of the `after_render` commands joins it, as `mix format`
+  does. Otherwise write `{{ "{{" }}`.
+- The `file`, the `pattern` and the strings of the `rule` are templates that can read the options of the
+  starter.
+- A pattern that matches no place, or more than one place, stops `new`. The message names the extension point
+  and the file. A new version of the generator can change its files, so run `check --build` on a schedule.
+- The tool runs ast-grep only for an extension point that has items.
+- A feature can declare an extension point in a generated file too. `check` finds it as a mistake for each
+  target whose folder has no `generate` command. The `file` and the pattern of the extension point read only
+  the options of the starter.
+- `new` and `check` need `ast-grep` 0.45.3 or later on the `PATH` when a starter changes the files of its
+  generator.
+
+`check` finds these mistakes without the generator: an unknown language, a rule that ast-grep refuses, a pattern
+that ast-grep reads with an `ERROR` node, an `after` or a `before` that is not a metavariable of the pattern or
+of the rule, and a template of a generated file that does not parse or reads an option that its owner cannot
+read. Only `check --build` finds a pattern that matches no place, because only it runs the generator.
 
 ## Templates
 

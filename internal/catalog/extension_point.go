@@ -8,11 +8,26 @@ import (
 )
 
 type extensionPoint struct {
-	name       string
-	declarer   string
-	file       string
-	itemFields []string
-	items      []item
+	name          string
+	declarer      string
+	file          string
+	itemFields    []string
+	items         []item
+	generatedFile generatedFileFields
+}
+
+func newExtensionPoint(name, declarer string, declared ExtensionPointDefinition) extensionPoint {
+	return extensionPoint{
+		name: name, declarer: declarer, file: declared.File, itemFields: declared.Item,
+		generatedFile: generatedFileFields{
+			query: declared.query(), after: declared.After, before: declared.Before,
+			separator: declared.Separator, insert: declared.Insert,
+		},
+	}
+}
+
+func (e extensionPoint) inGeneratedFile() bool {
+	return e.generatedFile.isSet()
 }
 
 func (e extensionPoint) add(items []item) (extensionPoint, error) {
@@ -32,8 +47,8 @@ func (e extensionPoint) hasItemFields(fields []string) bool {
 func (e extensionPoint) checkItem(number int, added item) error {
 	fields := slices.Sorted(maps.Keys(added.fields))
 	if !e.hasItemFields(fields) {
-		return fmt.Errorf("the item %d that the feature %s adds to the extension point %q has the fields [%s], but the extension point declares the fields [%s]",
-			number, added.featureName, e.name, strings.Join(fields, ", "), strings.Join(e.itemFields, ", "))
+		return fmt.Errorf("the item %d that %s adds to the extension point %q has the fields [%s], but the extension point declares the fields [%s]",
+			number, added.owner(), e.name, strings.Join(fields, ", "), strings.Join(e.itemFields, ", "))
 	}
 	return nil
 }
@@ -46,10 +61,13 @@ func (e extensionPoint) whenFieldMistakes() []string {
 }
 
 func (e extensionPoint) fileMistakes(templates []template) []string {
-	if e.file == "" {
-		return []string{fmt.Sprintf("the extension point %q names no file", e.name)}
-	}
 	var mistakes []string
+	for _, mistake := range e.generatedFile.unusedMistakes() {
+		mistakes = append(mistakes, fmt.Sprintf("the extension point %q %s", e.name, mistake))
+	}
+	if e.file == "" {
+		return append(mistakes, fmt.Sprintf("the extension point %q names no file", e.name))
+	}
 	found := false
 	for _, t := range templates {
 		if t.pathWithoutTmpl() != e.file {
@@ -63,23 +81,43 @@ func (e extensionPoint) fileMistakes(templates []template) []string {
 		mistakes = append(mistakes, fmt.Sprintf("%s does not call items %q", t.descriptionInOwner(), e.name))
 	}
 	if !found {
-		return []string{fmt.Sprintf("the file %q of the extension point %q does not exist", e.file, e.name)}
+		return append(mistakes, fmt.Sprintf("the file %q of the extension point %q does not exist", e.file, e.name))
 	}
 	return mistakes
 }
 
 func (e extensionPoint) written(readableOf func(featureName string) map[string]string) ([]map[string]string, error) {
-	written := make([]map[string]string, 0, len(e.items))
+	items, err := e.writtenItems(readableOf)
+	if err != nil {
+		return nil, err
+	}
+	written := make([]map[string]string, 0, len(items))
+	for _, added := range items {
+		written = append(written, added.fields)
+	}
+	return written, nil
+}
+
+func (e extensionPoint) writtenItems(readableOf func(featureName string) map[string]string) ([]item, error) {
+	var written []item
 	for _, added := range e.items {
 		ok, err := added.when.trueFor(readableOf(added.featureName))
 		if err != nil {
-			return nil, fmt.Errorf("the when %q of an item that the feature %s adds to the extension point %q: %w", added.when.text, added.featureName, e.name, err)
+			return nil, fmt.Errorf("the when %q of an item that %s adds to the extension point %q: %w", added.when.text, added.owner(), e.name, err)
 		}
 		if ok {
-			written = append(written, added.fields)
+			written = append(written, added)
 		}
 	}
 	return written, nil
+}
+
+func (e extensionPoint) generatedFileMistakes(starterFolders folders) []string {
+	mistakes := e.generatedFile.mistakes(starterFolders, e.file)
+	for i, mistake := range mistakes {
+		mistakes[i] = fmt.Sprintf("the extension point %q %s", e.name, mistake)
+	}
+	return mistakes
 }
 
 func (e extensionPoint) values(field string, readableOf func(featureName string) map[string]string) ([]string, error) {

@@ -132,5 +132,5 @@ func (t template) render(s Selection) (file, error) {
 	if err != nil {
 		return file{}, err
 	}
-	return file{path: repoPath, contents: contents, owner: t.owner}, nil
+	return file{path: repoPath, contents: contents, owner: t.owner, featureName: t.featureName}, nil
 }

@@ -3,6 +3,7 @@
 package catalog_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"go/parser"
@@ -313,7 +314,7 @@ func TestCatalog(t *testing.T) {
 			}
 
 			_, starterErr := catalog.New(files).Starter("service")
-			_, checkErr := catalog.New(files).Check()
+			_, checkErr := catalog.New(files).Check(context.Background())
 
 			for _, err := range []error{starterErr, checkErr} {
 				require.ErrorContains(t, err, "starters/service/starter.yml")
@@ -457,7 +458,7 @@ func TestCatalog(t *testing.T) {
 				})
 				files["features/docs/files/go/index.md"] = rendersItems("docs.pages")
 
-				mistakes, err := catalog.New(files).Check()
+				mistakes, err := catalog.New(files).Check(context.Background())
 
 				require.NoError(t, err)
 				require.Equal(t, []string{
@@ -499,7 +500,7 @@ files:
 			files["features/cli/files/go/flags.go"] = rendersItems("cli.flags")
 			files["features/base/files/go/base.go"] = rendersItems("base.hooks")
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -514,7 +515,7 @@ files:
 			t.Run("an item "+name+" is a mistake, and the message names the starter, the feature, the extension point, the item, its fields and the declared fields", func(t *testing.T) {
 				files := withFeatures(map[string]string{"auth": "targets: [service]\nadd_to:\n  api.middleware:\n" + item[0]})
 
-				mistakes, err := catalog.New(files).Check()
+				mistakes, err := catalog.New(files).Check(context.Background())
 
 				require.NoError(t, err)
 				require.Equal(t, []string{
@@ -527,7 +528,7 @@ files:
 			files := withFeatures(map[string]string{"auth": "targets: [service]\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n  cli.commands:\n    - code: newAuthCommand()\n"})
 			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [import, code]\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -552,7 +553,7 @@ add_to:
 			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")}
 			files["starters/worker/files/go/main.go"] = &fstest.MapFile{Data: []byte("package main\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -570,7 +571,7 @@ add_to:
 			files["features/web/files/web/index.html"] = &fstest.MapFile{Data: []byte("<html></html>\n")}
 			files["features/web/files/web/app.js"] = &fstest.MapFile{Data: []byte("app()\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{"the starter service: the feature web adds files to the folder web, which the starter does not have"}, mistakes)
@@ -593,7 +594,7 @@ files:
 			files["features/auth/files/oauth/docs/oauth.md"] = &fstest.MapFile{Data: []byte("oauth\n")}
 			files["features/auth/files/api-key/web/keys.html"] = &fstest.MapFile{Data: []byte("keys\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -607,7 +608,7 @@ files:
 			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte("package cli\n")}
 			files["features/cli/files/README.md"] = &fstest.MapFile{Data: []byte("cli\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{"the starter service: the template README.md of the files entry files/ of the feature cli is not in a folder"}, mistakes)
@@ -622,7 +623,7 @@ files:
 			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")}
 			files["starters/worker/files/go/main.go"] = &fstest.MapFile{Data: []byte("package main\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -647,7 +648,7 @@ files:
 				files["starters/"+starterName+"/files/go/main.go"] = rendersItems("api.middleware", "cli.commands")
 			}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -667,7 +668,7 @@ files:
 			files["starters/cron/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")}
 			files["starters/cron/files/go/main.go"] = &fstest.MapFile{Data: []byte("package main\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -680,7 +681,7 @@ files:
 			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n")}
 			files["starters/worker/files/go/server.go"] = rendersItems("api.middleware")
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -693,7 +694,7 @@ files:
 			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code]\n")}
 			files["starters/worker/files/go/server.go"] = rendersItems("api.middleware")
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -711,7 +712,7 @@ files:
 		t.Run("a need that is not a feature of the catalog is a mistake for each target of the feature, and the message names the starter, the feature and the need", func(t *testing.T) {
 			files := withWorker(withFeatures(map[string]string{"auth": "targets: [service, worker]\nneeds: [vault]\n"}))
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -727,7 +728,7 @@ files:
 				"vault": "targets: [worker]\n",
 			}))
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -743,7 +744,7 @@ files:
 				"cli-auth": "targets: [service]\nneeds:\n  api-auth:\n    method: basic\n    port: http\n    region: us\n  plain:\n    mode: fast\n",
 			})
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -760,7 +761,7 @@ files:
 				"cli-auth": "targets: [service]\nneeds:\n  api-auth:\n    method: oauth\n  vault:\n    mode: fast\n",
 			})
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{"the starter service: the feature cli-auth needs vault, which is not a feature of the catalog"}, mistakes)
@@ -772,7 +773,7 @@ files:
 				"cli-auth": "targets: [service, worker]\nneeds:\n  api-auth:\n    method: basic\n",
 			}))
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -788,7 +789,7 @@ files:
 				"cli": "targets: [service]\nneeds: [vault]\n",
 			})
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{"the starter service: the feature cli needs vault, which is not a feature of the catalog"}, mistakes)
@@ -800,7 +801,7 @@ files:
 				"base": "targets: [service]\nneeds: [app]\n",
 			})
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -812,7 +813,7 @@ files:
 		t.Run("a feature that needs itself is a cycle", func(t *testing.T) {
 			files := withFeatures(map[string]string{"app": "targets: [service]\nneeds: [app]\n"})
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{"the starter service: the needs of the features form a cycle: app needs app"}, mistakes)
@@ -826,7 +827,7 @@ files:
 				"env": "targets: [service]\nneeds: [cli]\n",
 			})
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{"the starter service: the needs of the features form a cycle: cli needs db needs env needs cli"}, mistakes)
@@ -840,7 +841,7 @@ files:
 				"d": "targets: [service]\nneeds: [c]\n",
 			}))
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -857,7 +858,7 @@ files:
 				"c": "targets: [service]\nneeds: [b]\n",
 			})
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -872,7 +873,7 @@ files:
 				"x": "targets: [service]\nneeds: [a]\n",
 			}))
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -907,7 +908,7 @@ files:
 			files["features/auth/files/oauth/go/tokens.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
 			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte("package cli\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -939,7 +940,7 @@ files:
 			files["starters/worker/files/go/main.go"] = &fstest.MapFile{Data: []byte("package main\n")}
 			files["features/auth/files/go/auth.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -977,7 +978,7 @@ files:
 			})
 			files["features/auth/files/go/auth.go"] = rendersItems("auth.checks")
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1018,7 +1019,7 @@ files:
 			})
 			files["features/auth/files/go/auth.go"] = rendersItems("auth.checks")
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1033,7 +1034,7 @@ files:
 				"auth": "targets: [service]\noptions:\n  method:\n    default: api-key\nadd_to:\n  api.middleware:\n    - code: auth.Middleware\n      import: internal/auth\n      when: method == \"oauth\"\n    - code: log.Middleware\n      import: internal/log\n",
 			})
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Empty(t, mistakes)
@@ -1046,7 +1047,7 @@ files:
 			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code, when]\n")}
 			files["features/docs/files/go/index.md"] = rendersItems("docs.pages")
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1062,7 +1063,7 @@ files:
 			})
 			files["features/auth/files/web/index.html"] = &fstest.MapFile{Data: []byte("<html></html>\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1106,7 +1107,7 @@ files:
 				files["features/cli-auth/files/"+entry+"/go/"+entry+".go"] = &fstest.MapFile{Data: []byte("package auth\n")}
 			}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1159,7 +1160,7 @@ options:
 			})
 			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\noptions:\n  module:\n    default: example.com/service\n  go-version:\n    default: \"1.25\"\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			canRead := "which the when of an option cannot read: it can read api-auth.method, api-auth.scope, debug, starter.go-version, starter.module, store, tokens.ttl"
@@ -1182,7 +1183,7 @@ options:
 			files["starters/worker/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\n")}
 			files["starters/worker/files/go/main.go"] = &fstest.MapFile{Data: []byte("package main\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1195,7 +1196,7 @@ options:
 				"cli": "targets: [service]\noptions:\n  mode:\n    default: x\n    when: '!(a && b == \"x\") || c != \"y\" || a'\n",
 			})
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1211,7 +1212,7 @@ options:
 			})
 			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte(`{{ option "c" }}`)}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1238,7 +1239,7 @@ options:
 			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte("package cli\n")}
 			files["features/orphan/files/go/orphan.go"] = &fstest.MapFile{Data: []byte("package orphan\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1255,7 +1256,7 @@ options:
 			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte("package cli\n")}
 			files["features/cli/files/go/flags.go"] = &fstest.MapFile{Data: []byte("package cli\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1273,7 +1274,7 @@ options:
 				files["features/auth/files/"+entry+"/go/"+entry+".go"] = &fstest.MapFile{Data: []byte("package auth\n")}
 			}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1297,7 +1298,7 @@ options:
 `)}
 			files[`features/cli/files/go/{{ option "path" }}.go`] = &fstest.MapFile{Data: []byte("package cli\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1323,7 +1324,7 @@ options:
 			files := withFeatures(map[string]string{"cli": "targets: [service]\nfiles:\n  - path: files/\n"})
 			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte(`{{ option .Name }}{{ .Name "m" }}{{ option "n" }}` + "\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{`the feature cli: the template go/cli.go of the files entry files/ reads "n", which the feature cannot read: it can read no option`}, mistakes)
@@ -1341,7 +1342,7 @@ files:
 			files["features/tasks/files/go/Taskfile.tasks.yml"] = &fstest.MapFile{Data: []byte(`run: [[ option "x" ]] {{ option "y" }} {{.CLI_ARGS}}` + "\n")}
 			files[`features/tasks/files/go/Taskfile.{{ option "w" }}.yml`] = &fstest.MapFile{Data: []byte("tasks: {}\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1354,7 +1355,7 @@ files:
 			files := withFeatures(map[string]string{"tasks": "targets: [service]\noptions:\n  mode:\n    values: [fast]\n    default: fast\nfiles:\n  - path: files/slow/\n    when: mode == \"slow\"\n"})
 			files["features/tasks/files/slow/go/slow.go"] = &fstest.MapFile{Data: []byte(`{{ option "z" }}` + "\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{`the feature tasks: the template go/slow.go of the files entry files/slow/ reads "z", which the feature cannot read: it can read mode`}, mistakes)
@@ -1373,7 +1374,7 @@ files:
 			files["starters/one/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\noptions:\n  module:\n    default: example.com/one\n")}
 			files["starters/one/files/go/main.go"] = &fstest.MapFile{Data: []byte(`{{ option "starter.region" }}` + "\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1394,7 +1395,7 @@ files:
 			files["features/cli/files/go/c.go"] = &fstest.MapFile{Data: []byte(`{{ option "mode" }}` + "\n")}
 			files[`features/cli/files/go/{{ if }}.go`] = &fstest.MapFile{Data: []byte("package cli\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1410,7 +1411,7 @@ files:
 			files := withFeatures(map[string]string{"cli": "targets: [service]\noptions:\n  method:\n    default: api-key\nfiles:\n  - path: files/\n"})
 			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte(`{{ option "method" }}{{ items "api.middleware" }}{{ unique "code" "api.middleware" }}{{ indent 2 "x" }}{{ githubRepository "github.com/a/b" }}{{ kebab "A" }}{{ snake "A" }}{{ camel "A" }}{{ pascal "A" }}{{ upper "a" }}` + "\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Empty(t, mistakes)
@@ -1421,7 +1422,7 @@ files:
 			files["features/auth/files/a/go/a.go"] = &fstest.MapFile{Data: []byte(`{{ option "region" }}` + "\n")}
 			files["features/auth/files/b/go/b.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1437,7 +1438,7 @@ files:
 			files["starters/service/files/go/main.go"] = &fstest.MapFile{Data: []byte(`{{ option "auth.method" }}` + "\n")}
 			files["features/auth/files/go/auth.go"] = rendersItems("c.feature")
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1457,7 +1458,7 @@ files:
 			files["features/cli/files/common/go/root.go"] = &fstest.MapFile{Data: []byte("package cli\n")}
 			files["features/cli/files/extra/go/flags.go"] = rendersItems("cli.flags")
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{`the feature cli: the file "go/cli.go" of the extension point "cli.commands" does not exist`}, mistakes)
@@ -1471,7 +1472,7 @@ files:
 			files["features/auth/files/oauth/go/checks.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
 			files["features/auth/files/sso/go/checks.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1483,7 +1484,7 @@ files:
 		t.Run("the mistakes of the files of the extension points of a feature come in the order of the names of the extension points", func(t *testing.T) {
 			files := withFeatures(map[string]string{"cli": "targets: [service]\nextension_points:\n  cli.hooks:\n    file: go/hooks.go\n    item: [code]\n  cli.flags:\n    file: go/flags.go\n    item: [name]\n  cli.args:\n    file: go/args.go\n    item: [name]\n  cli.env:\n    file: go/env.go\n    item: [name]\n  cli.commands:\n    file: go/commands.go\n    item: [code]\n"})
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1504,7 +1505,7 @@ files:
 			files["starters/service/files/go/ci.yml"] = &fstest.MapFile{Data: []byte(`[[ range items "ci.jobs" ]][[ .text ]][[ end ]] {{ range items "ci.steps" }}{{ .text }}{{ end }}` + "\n")}
 			files["features/cli/files/go/cli.go"] = rendersItems("cli.flags")
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1521,7 +1522,7 @@ files:
 			files["starters/service/files/go/server.go"] = &fstest.MapFile{Data: []byte("{{ if }}\n")}
 			files["features/cli/files/go/cli.go"] = &fstest.MapFile{Data: []byte("{{ end }}\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1549,7 +1550,7 @@ files:
 			files["features/cli/files/go/internal/shared.go"] = &fstest.MapFile{Data: []byte("package internal\n")}
 			files["features/cli/files/go/internal/cli.go"] = &fstest.MapFile{Data: []byte("package internal\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1573,7 +1574,7 @@ files:
 			files["features/auth/files/oauth/go/config.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
 			files["features/cli/files/slow/go/config.go"] = &fstest.MapFile{Data: []byte("package cli\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{"the starter service: the feature auth and the feature cli both write config.go"}, mistakes)
@@ -1595,7 +1596,7 @@ files:
 			files["features/d/files/NOTES.md"] = &fstest.MapFile{Data: []byte("d\n")}
 			files["features/docs/files/docs/README.md"] = &fstest.MapFile{Data: []byte("# Docs\n")}
 
-			mistakes, err := catalog.New(files).Check()
+			mistakes, err := catalog.New(files).Check(context.Background())
 
 			require.NoError(t, err)
 			require.Equal(t, []string{
@@ -1606,7 +1607,7 @@ files:
 		})
 
 		t.Run("the catalog of this repo has no mistake", func(t *testing.T) {
-			mistakes, err := repoCatalog().Check()
+			mistakes, err := repoCatalog().Check(context.Background())
 
 			require.NoError(t, err)
 			require.Empty(t, mistakes)
@@ -1616,7 +1617,7 @@ files:
 			files := withFeatures(map[string]string{"auth": "targets: [service]\nfiles:\n  - path: files/\n    when: a\n  - path: files\n    when: b\n"})
 			files["features/auth/files/go/auth.go"] = &fstest.MapFile{Data: []byte("package auth\n")}
 
-			_, checkErr := catalog.New(files).Check()
+			_, checkErr := catalog.New(files).Check(context.Background())
 			_, starterErr := catalog.New(files).Starter("service")
 
 			for _, err := range []error{checkErr, starterErr} {
@@ -1628,7 +1629,7 @@ files:
 			files := withFeatures(nil)
 			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders: [go\n")}
 
-			_, err := catalog.New(files).Check()
+			_, err := catalog.New(files).Check(context.Background())
 
 			require.ErrorContains(t, err, "starters/service/starter.yml")
 		})
@@ -1637,11 +1638,270 @@ files:
 			t.Run("a read of "+failing+" that fails stops the check with its cause", func(t *testing.T) {
 				files := failingFS{failing: failing, files: withFeatures(map[string]string{"auth": "targets: [service]\nadd_to:\n  cli.commands:\n    - code: newAuthCommand()\n"})}
 
-				_, err := catalog.New(files).Check()
+				_, err := catalog.New(files).Check(context.Background())
 
 				require.ErrorContains(t, err, "disk failure")
 			})
 		}
+
+		withGeneratedDeps := func(rest string) fstest.MapFS {
+			return fstest.MapFS{"starters/service/starter.yml": &fstest.MapFile{Data: []byte(`
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }}
+extension_points:
+  mix.deps:
+    summary: A dependency.
+    file: app/mix.exs
+    item: [dep]
+    insert: "{{ .dep }}"
+` + rest)}}
+		}
+
+		t.Run("a removal outside a folder with a generate command, without a language, or with both a pattern and a rule is a mistake, and the message names the removal", func(t *testing.T) {
+			files := withGeneratedDeps("    language: elixir\n    pattern: defp deps do [$$$DEPS] end\n    after: DEPS\nremove:\n  - file: docs/page.ex\n  - file: app/router.ex\n    pattern: get :home\n  - file: app/router.ex\n    language: elixir\n    pattern: get :home\n    rule: {kind: comment}\n")
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Subset(t, mistakes, []string{
+				`the starter service: the removal 1 names the file "docs/page.ex", which is not in a folder with a generate command`,
+				`the starter service: the removal 2 has a pattern or a rule, and no language`,
+				`the starter service: the removal 3 has both a pattern and a rule, and it must have one of them`,
+			})
+		})
+
+		t.Run("an extension point in a generated file with no language, both a pattern and a rule, no insert, or both after and before is a mistake for each of these", func(t *testing.T) {
+			files := fstest.MapFS{"starters/service/starter.yml": &fstest.MapFile{Data: []byte(`
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }}
+extension_points:
+  mix.deps:
+    file: app/mix.exs
+    item: [dep]
+    pattern: defp deps do [$$$DEPS] end
+    rule: {kind: list}
+    after: DEPS
+    before: DEPS
+`)}}
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Subset(t, mistakes, []string{
+				`the starter service: the extension point "mix.deps" has a pattern or a rule, and no language`,
+				`the starter service: the extension point "mix.deps" has both a pattern and a rule, and it must have one of them`,
+				`the starter service: the extension point "mix.deps" has no insert`,
+				`the starter service: the extension point "mix.deps" has both after and before, and it must have one of them`,
+			})
+		})
+
+		t.Run("an extension point in a generated file can put its items next to a metavariable of any pattern of its rule, also of a pattern object with a context and of a pattern in a list", func(t *testing.T) {
+			requireASTGrep(t)
+			files := withGeneratedDeps("    language: elixir\n    rule:\n      any:\n        - pattern: '\"compile\"'\n        - pattern: {context: \"[precommit: [$FIRST, $$$STEPS]]\", selector: pair}\n    after: STEPS\n")
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Empty(t, mistakes)
+		})
+
+		t.Run("without ast-grep on the PATH, a starter that changes generated files gets one mistake that says where to get ast-grep", func(t *testing.T) {
+			files := withGeneratedDeps("    language: elixir\n    pattern: defp deps do [$$$DEPS] end\n    after: DEPS\n")
+			t.Setenv("PATH", pathWithOnly(t))
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"the starter service: check cannot read the patterns and the rules: ast-grep is not on the PATH: install it from https://ast-grep.github.io"}, mistakes)
+		})
+
+		t.Run("an option default that does not render is a mistake for the patterns and the rules, because check renders them with the defaults", func(t *testing.T) {
+			requireASTGrep(t)
+			files := withGeneratedDeps("    language: elixir\n    pattern: defp deps do [$$$DEPS] end\n    after: DEPS\noptions:\n  app:\n    default: \"{{ .Missing }}\"\n")
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Len(t, mistakes, 1)
+			require.Contains(t, mistakes[0], "the starter service: check cannot render the patterns and the rules with the default values of the options:")
+		})
+
+		t.Run("an add_to of the starter to an extension point that it does not declare stops the check, and the message names the extension point", func(t *testing.T) {
+			files := withGeneratedDeps("    language: elixir\n    pattern: defp deps do [$$$DEPS] end\n    after: DEPS\nadd_to:\n  mix.aliases:\n    - alias: setup\n")
+
+			_, err := catalog.New(files).Check(context.Background())
+
+			require.ErrorContains(t, err, `the starter adds to the extension point "mix.aliases", which it does not declare`)
+		})
+
+		t.Run("a removal of a whole generated file is not a mistake", func(t *testing.T) {
+			files := fstest.MapFS{"starters/service/starter.yml": &fstest.MapFile{Data: []byte("folders:\n  app:\n    path: .\n    generate: mkdir {{ .Folder }}\nremove:\n  - file: app/lib/page.ex\n")}}
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Empty(t, mistakes)
+		})
+
+		t.Run("a removal whose pattern ast-grep reads with an ERROR node is a mistake, and the message names the removal", func(t *testing.T) {
+			requireASTGrep(t)
+			files := fstest.MapFS{"starters/service/starter.yml": &fstest.MapFile{Data: []byte("folders:\n  app:\n    path: .\n    generate: mkdir {{ .Folder }}\nremove:\n  - file: app/mix.exs\n    language: elixir\n    pattern: \"precommit: [$$$STEPS]\"\n")}}
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Equal(t, []string{`the starter service: the removal 1: the pattern "precommit: [$$$STEPS]" is not valid elixir: ast-grep reads a part of it as an ERROR node, so it matches no place`}, mistakes)
+		})
+
+		t.Run("an extension point in a generated file can put its items next to a metavariable of a pattern that comes after another key of the rule", func(t *testing.T) {
+			requireASTGrep(t)
+			files := withGeneratedDeps("    language: elixir\n    rule:\n      inside: {pattern: \"defp deps do [$$$DEPS] end\", stopBy: end}\n      pattern: \"{:phoenix, $VERSION}\"\n    after: VERSION\n")
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Empty(t, mistakes)
+		})
+
+		t.Run("a pattern that does not render with the default values of the options is a mistake, and the message names the option", func(t *testing.T) {
+			requireASTGrep(t)
+			files := withGeneratedDeps("    language: elixir\n    pattern: 'defp {{ option \"starter.nope\" }} do [$$$DEPS] end'\n    after: DEPS\n")
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Len(t, mistakes, 1)
+			require.Contains(t, mistakes[0], `unknown option "starter.nope"`)
+		})
+
+		t.Run("an ERROR node in a later pattern of a rule is a mistake, and the message names that pattern", func(t *testing.T) {
+			requireASTGrep(t)
+			files := withGeneratedDeps("    language: elixir\n    rule:\n      any:\n        - pattern: defp deps do [$$$DEPS] end\n        - pattern: \"precommit: [$$$STEPS]\"\n    after: DEPS\n")
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Equal(t, []string{`the starter service: the extension point "mix.deps": the pattern "precommit: [$$$STEPS]" is not valid elixir: ast-grep reads a part of it as an ERROR node, so it matches no place`}, mistakes)
+		})
+
+		t.Run("an item of the starter for a generated file that reads an option that the starter does not declare is a mistake", func(t *testing.T) {
+			requireASTGrep(t)
+			files := withGeneratedDeps("    language: elixir\n    pattern: defp deps do [$$$DEPS] end\n    after: DEPS\nadd_to:\n  mix.deps:\n    - dep: '{:{{ option \"starter.nope\" }}, \"~> 1.0\"}'\n")
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Equal(t, []string{`the starter service: the field dep of the item 1 that the starter adds to the extension point "mix.deps" reads "starter.nope", which the starter cannot read`}, mistakes)
+		})
+
+		t.Run("an insert of a generated file that does not parse is a mistake", func(t *testing.T) {
+			requireASTGrep(t)
+			files := fstest.MapFS{"starters/service/starter.yml": &fstest.MapFile{Data: []byte("folders:\n  app:\n    path: .\n    generate: mkdir {{ .Folder }}\nextension_points:\n  mix.deps:\n    file: app/mix.exs\n    item: [dep]\n    language: elixir\n    pattern: defp deps do [$$$DEPS] end\n    after: DEPS\n    insert: \"{{ .dep\"\n")}}
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Len(t, mistakes, 1)
+			require.Contains(t, mistakes[0], `the starter service: the insert of the extension point "mix.deps" does not parse:`)
+		})
+
+		t.Run("an item of a feature for a generated file that reads an option that the feature cannot read is a mistake, and the message names the feature", func(t *testing.T) {
+			requireASTGrep(t)
+			files := withGeneratedDeps("    language: elixir\n    pattern: defp deps do [$$$DEPS] end\n    after: DEPS\n")
+			files["features/oban/feature.yml"] = &fstest.MapFile{Data: []byte("targets: [service]\nadd_to:\n  mix.deps:\n    - dep: '{:oban, \"~> {{ option \"version\" }}\"}'\n")}
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Equal(t, []string{`the starter service: the field dep of the item 1 that the feature oban adds to the extension point "mix.deps" reads "version", which the feature oban cannot read`}, mistakes)
+		})
+
+		t.Run("an extension point with an insert but no pattern or rule is a mistake, because only a generated file uses the insert", func(t *testing.T) {
+			files := withFeatures(nil)
+			files["starters/service/starter.yml"] = &fstest.MapFile{Data: []byte("folders:\n  go:\n    path: .\nextension_points:\n  api.middleware:\n    file: go/server.go\n    item: [code, import]\n    after: BODY\n    insert: \"{{ .code }}\"\n")}
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Equal(t, []string{`the starter service: the extension point "api.middleware" has after, before, separator or insert, which only an extension point with a pattern or a rule uses`}, mistakes)
+		})
+
+		t.Run("an item of the starter with other fields than its extension point stops the check, and the message names the starter", func(t *testing.T) {
+			files := withGeneratedDeps("    language: elixir\n    pattern: defp deps do [$$$DEPS] end\n    after: DEPS\nadd_to:\n  mix.deps:\n    - name: jason\n")
+
+			_, err := catalog.New(files).Check(context.Background())
+
+			require.ErrorContains(t, err, `the item 1 that the starter adds to the extension point "mix.deps" has the fields [name], but the extension point declares the fields [dep]`)
+		})
+
+		t.Run("an item of the starter whose when does not parse stops the check, and the message names the extension point", func(t *testing.T) {
+			files := withGeneratedDeps("    language: elixir\n    pattern: defp deps do [$$$DEPS] end\n    after: DEPS\nadd_to:\n  mix.deps:\n    - dep: jason\n      when: 'app =='\n")
+
+			_, err := catalog.New(files).Check(context.Background())
+
+			require.ErrorContains(t, err, `an item of the extension point "mix.deps"`)
+		})
+
+		t.Run("an extension point in a generated file whose position is not a metavariable of its rule is a mistake, and the message names the position", func(t *testing.T) {
+			files := withGeneratedDeps("    language: elixir\n    rule:\n      pattern: defp deps do [$$$DEPS] end\n    after: DEP\n")
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Contains(t, mistakes, `the starter service: the extension point "mix.deps" puts its items after DEP, which is not a metavariable of its pattern or its rule, and is not match`)
+		})
+
+		t.Run("an extension point that a feature declares in a generated file is a mistake for a target whose folder has no generate command", func(t *testing.T) {
+			files := withFeatures(map[string]string{"oban": `targets: [service]
+extension_points:
+  oban.children:
+    file: go/children.ex
+    item: [child]
+    language: elixir
+    pattern: "[$$$CHILDREN]"
+    after: CHILDREN
+    insert: "{{ .child }}"
+`})
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Contains(t, mistakes, `the starter service: the feature oban: the extension point "oban.children" is in the file "go/children.ex", which is not in a folder with a generate command`)
+		})
+
+		t.Run("an extension point in a generated file whose pattern is valid and names its position is not a mistake", func(t *testing.T) {
+			requireASTGrep(t)
+			files := withGeneratedDeps("    language: elixir\n    pattern: defp deps do [$$$DEPS] end\n    after: DEPS\n")
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Empty(t, mistakes)
+		})
+
+		t.Run("a pattern that ast-grep reads with an ERROR node is a mistake, because the pattern matches no place", func(t *testing.T) {
+			requireASTGrep(t)
+			files := withGeneratedDeps("    language: elixir\n    pattern: \"precommit: [$$$DEPS]\"\n    after: DEPS\n")
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Equal(t, []string{`the starter service: the extension point "mix.deps": the pattern "precommit: [$$$DEPS]" is not valid elixir: ast-grep reads a part of it as an ERROR node, so it matches no place`}, mistakes)
+		})
+
+		t.Run("a language that ast-grep does not know is a mistake, and the message names the language", func(t *testing.T) {
+			requireASTGrep(t)
+			files := withGeneratedDeps("    language: elixr\n    pattern: defp deps do [$$$DEPS] end\n    after: DEPS\n")
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Regexp(t, `^the starter service: the extension point "mix.deps": ast-grep refuses the rule, or the language "elixr": .+$`, strings.Join(mistakes, "\n"))
+		})
 	})
 
 	t.Run("embedded", func(t *testing.T) {

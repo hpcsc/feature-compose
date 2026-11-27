@@ -26,3 +26,10 @@ func newItem(featureName string, declared map[string]string) (item, error) {
 	added.when = when
 	return added, nil
 }
+
+func (i item) owner() string {
+	if i.featureName == "" {
+		return "the starter"
+	}
+	return "the feature " + i.featureName
+}

@@ -7,20 +7,24 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 	texttemplate "text/template"
 
+	"github.com/hpcsc/feature-compose/internal/astgrep"
 	"github.com/hpcsc/feature-compose/internal/github"
+	"github.com/hpcsc/feature-compose/internal/indent"
 	"github.com/hpcsc/feature-compose/internal/textcase"
 )
 
 var shellWord = regexp.MustCompile(`^[A-Za-z0-9_@%+=:,./-]+$`)
 
 type Selection struct {
-	folders         map[string]folder
+	folders         folders
+	removals        []removal
 	name            string
 	starter         selectedStarter
 	features        []selectedFeature
@@ -62,6 +66,13 @@ func (s Selection) NeededBy(featureName string) []string {
 }
 
 func (s Selection) Write(output string) error {
+	if s.folders.hasGenerator() {
+		return fmt.Errorf("the starter %s runs a generate command, so only MakeRepo writes its repo", s.starter.name)
+	}
+	return s.writeFiles(output)
+}
+
+func (s Selection) writeFiles(output string) error {
 	files, err := s.files()
 	if err != nil {
 		return err
@@ -78,7 +89,7 @@ func (s Selection) Write(output string) error {
 }
 
 func (s Selection) MakeRepo(ctx context.Context, output, version string) error {
-	if err := s.Write(output); err != nil {
+	if err := s.writeRepo(ctx, output); err != nil {
 		return err
 	}
 	if err := s.RunAfterRender(ctx, output); err != nil {
@@ -116,10 +127,16 @@ func (s Selection) Preview() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if err := s.checkGenerateValues(); err != nil {
+		return "", err
+	}
 	var preview strings.Builder
 	fmt.Fprintf(&preview, "Repo: %s\nStarter: %s\n", s.name, s.starter.name)
 	s.writeSection(&preview, "Features", s.featureLines())
 	s.writeSection(&preview, "Options", s.optionLines())
+	if lines := s.generateLines(); len(lines) > 0 {
+		s.writeSection(&preview, "Generate", lines)
+	}
 	s.writeSection(&preview, "Files", s.fileLines(append(files, file{path: selectionFilePath, owner: selectionFileOwner})))
 	return preview.String(), nil
 }
@@ -292,12 +309,16 @@ func (s Selection) checkEmpty(output string) error {
 }
 
 func (s Selection) render(label, text string, d delimiters, featureName string) (string, error) {
+	return s.renderData(label, text, d, featureName, map[string]any{"Name": s.name})
+}
+
+func (s Selection) renderData(label, text string, d delimiters, featureName string, data map[string]any) (string, error) {
 	parsed, err := texttemplate.New(label).Delims(d.left, d.right).Funcs(s.funcs(featureName)).Option("missingkey=error").Parse(text)
 	if err != nil {
 		return "", fmt.Errorf("parse %w", err)
 	}
 	var rendered strings.Builder
-	if err := parsed.Execute(&rendered, map[string]any{"Name": s.name}); err != nil {
+	if err := parsed.Execute(&rendered, data); err != nil {
 		return "", fmt.Errorf("render %w", err)
 	}
 	return rendered.String(), nil
@@ -309,14 +330,7 @@ func (s Selection) funcs(featureName string) texttemplate.FuncMap {
 }
 
 func (s Selection) indent(spaces int, text string) string {
-	prefix := strings.Repeat(" ", spaces)
-	lines := strings.Split(text, "\n")
-	for i, line := range lines {
-		if line != "" {
-			lines[i] = prefix + line
-		}
-	}
-	return strings.Join(lines, "\n")
+	return indent.Lines(text, strings.Repeat(" ", spaces))
 }
 
 func (s Selection) option(featureName, reference string) (string, error) {
@@ -386,6 +400,319 @@ func (s Selection) extensionPoint(name string) (extensionPoint, error) {
 			name, strings.Join(slices.Sorted(maps.Keys(s.extensionPoints)), ", "))
 	}
 	return declared, nil
+}
+
+func (s Selection) writeRepo(ctx context.Context, output string) error {
+	if !s.folders.hasGenerator() {
+		return s.writeFiles(output)
+	}
+	files, err := s.files()
+	if err != nil {
+		return err
+	}
+	if err := s.checkEmpty(output); err != nil {
+		return err
+	}
+	if s.changesGeneratedFiles() {
+		if err := astgrep.Installed(); err != nil {
+			return fmt.Errorf("the starter changes the files of its generator with ast-grep: %w", err)
+		}
+	}
+	if err := s.checkGenerateValues(); err != nil {
+		return err
+	}
+	_, statErr := os.Stat(output)
+	existed := statErr == nil
+	written := map[string]bool{}
+	if err := s.writeGeneratedRepo(ctx, output, files, written); err != nil {
+		if existed {
+			s.removeEntries(output, written)
+		} else {
+			_ = os.RemoveAll(output)
+		}
+		return err
+	}
+	return nil
+}
+
+func (s Selection) checkGenerateValues() error {
+	readable := s.readable("")
+	for _, folderName := range slices.Sorted(maps.Keys(s.folders)) {
+		f := s.folders[folderName]
+		if !f.generates() {
+			continue
+		}
+		parsed, err := calls{}.with("the generate command of the folder "+f.name, f.generate, defaultDelimiters)
+		if err != nil {
+			return fmt.Errorf("the generate command of the folder %s does not parse: %w", f.name, err)
+		}
+		for _, reference := range parsed.argumentsOf("option") {
+			if value, ok := readable[reference]; ok && !shellWord.MatchString(value) {
+				return fmt.Errorf("the generate command of the folder %s reads the option %s, whose value %q is not one shell word: the value can hold only letters, digits and the characters _@%%+=:,./-", f.name, reference, value)
+			}
+		}
+	}
+	return nil
+}
+
+func (s Selection) removeEntries(output string, names map[string]bool) {
+	for name := range names {
+		_ = os.RemoveAll(filepath.Join(output, name))
+	}
+}
+
+func (s Selection) writeGeneratedRepo(ctx context.Context, output string, files []file, written map[string]bool) error {
+	generatedPaths, err := s.generate(ctx, output)
+	for repoPath := range generatedPaths {
+		written[s.topEntry(repoPath)] = true
+	}
+	if err != nil {
+		return err
+	}
+	if err := s.remove(ctx, output, generatedPaths); err != nil {
+		return err
+	}
+	for _, f := range files {
+		if generatedPaths[f.path] && f.featureName != "" {
+			return fmt.Errorf("%s writes %s, which the generate command also writes: only a file of the starter can replace a generated file", f.owner, f.path)
+		}
+		written[s.topEntry(f.path)] = true
+		if err := f.write(output); err != nil {
+			return err
+		}
+	}
+	return s.insertItems(ctx, output, generatedPaths)
+}
+
+func (s Selection) topEntry(repoPath string) string {
+	entry, _, _ := strings.Cut(repoPath, "/")
+	return entry
+}
+
+func (s Selection) changesGeneratedFiles() bool {
+	if slices.ContainsFunc(s.removals, func(r removal) bool { return !r.query.Empty() }) {
+		return true
+	}
+	return slices.ContainsFunc(slices.Collect(maps.Values(s.extensionPoints)), extensionPoint.inGeneratedFile)
+}
+
+func (s Selection) generate(ctx context.Context, output string) (map[string]bool, error) {
+	generatedPaths := map[string]bool{}
+	for _, folderName := range slices.Sorted(maps.Keys(s.folders)) {
+		f := s.folders[folderName]
+		if !f.generates() {
+			continue
+		}
+		paths, err := f.runGenerate(ctx, output, s.name, func(generatedFolder string) (string, error) {
+			return s.renderData("the generate command of the folder "+f.name, f.generate, defaultDelimiters, "", map[string]any{"Name": s.name, "Folder": s.quoted(generatedFolder)})
+		})
+		for _, p := range paths {
+			generatedPaths[p] = true
+		}
+		if err != nil {
+			return generatedPaths, err
+		}
+	}
+	return generatedPaths, nil
+}
+
+func (s Selection) generateLines() []string {
+	var lines []string
+	for _, folderName := range slices.Sorted(maps.Keys(s.folders)) {
+		f := s.folders[folderName]
+		if !f.generates() {
+			continue
+		}
+		command, err := s.renderData("the generate command of the folder "+f.name, f.generate, defaultDelimiters, "", map[string]any{"Name": s.name, "Folder": "<new folder>"})
+		if err != nil {
+			command = f.generate
+		}
+		lines = append(lines, folderName+": "+command)
+	}
+	return lines
+}
+
+func (s Selection) remove(ctx context.Context, output string, generatedPaths map[string]bool) error {
+	for i, r := range s.removals {
+		label := fmt.Sprintf("the removal %d of the starter", i+1)
+		repoPath, err := s.repoPathOf(r.file, label)
+		if err != nil {
+			return err
+		}
+		if !generatedPaths[repoPath] {
+			return fmt.Errorf("%s removes %s, which the generate command does not write", label, repoPath)
+		}
+		onDisk := filepath.Join(output, filepath.FromSlash(repoPath))
+		if r.query.Empty() {
+			if err := os.Remove(onDisk); err != nil {
+				return fmt.Errorf("%s: %w", label, err)
+			}
+			s.removeEmptyFolders(output, path.Dir(repoPath))
+			delete(generatedPaths, repoPath)
+			continue
+		}
+		query, err := s.renderedQuery(r.query, label)
+		if err != nil {
+			return err
+		}
+		match, contents, err := s.onlyMatch(ctx, onDisk, repoPath, query, label)
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(onDisk, []byte(r.removedFrom(contents, match)), 0o644); err != nil {
+			return fmt.Errorf("%s: %w", label, err)
+		}
+	}
+	return nil
+}
+
+func (s Selection) insertItems(ctx context.Context, output string, generatedPaths map[string]bool) error {
+	for _, name := range slices.Sorted(maps.Keys(s.extensionPoints)) {
+		e := s.extensionPoints[name]
+		if !e.inGeneratedFile() {
+			continue
+		}
+		items, err := e.writtenItems(s.readable)
+		if err != nil {
+			return err
+		}
+		if len(items) == 0 {
+			continue
+		}
+		label := fmt.Sprintf("the extension point %q", name)
+		repoPath, err := s.repoPathOf(e.file, label)
+		if err != nil {
+			return err
+		}
+		if !generatedPaths[repoPath] {
+			return fmt.Errorf("%s is in %s, which the generate command does not write", label, repoPath)
+		}
+		texts, err := s.insertTexts(e, items, label)
+		if err != nil {
+			return err
+		}
+		query, err := s.renderedQuery(e.generatedFile.query, label)
+		if err != nil {
+			return err
+		}
+		onDisk := filepath.Join(output, filepath.FromSlash(repoPath))
+		match, contents, err := s.onlyMatch(ctx, onDisk, repoPath, query, label)
+		if err != nil {
+			return err
+		}
+		var comments []astgrep.Node
+		if e.generatedFile.needsComments() {
+			comments = astgrep.Comments(ctx, onDisk, query.Language)
+		}
+		changed, err := e.generatedFile.inserted(contents, match, texts, comments)
+		if err != nil {
+			return fmt.Errorf("%s in %s %w", label, repoPath, err)
+		}
+		if err := os.WriteFile(onDisk, []byte(changed), 0o644); err != nil {
+			return fmt.Errorf("%s: %w", label, err)
+		}
+	}
+	return nil
+}
+
+func (s Selection) insertTexts(e extensionPoint, items []item, label string) ([]string, error) {
+	texts := make([]string, 0, len(items))
+	for i, added := range items {
+		data := map[string]any{"Name": s.name}
+		for _, field := range slices.Sorted(maps.Keys(added.fields)) {
+			rendered, err := s.render(fmt.Sprintf("the field %s of the item %d of %s", field, i+1, label), added.fields[field], defaultDelimiters, added.featureName)
+			if err != nil {
+				return nil, err
+			}
+			data[field] = rendered
+		}
+		text, err := s.renderData("the insert of "+label, e.generatedFile.insert, defaultDelimiters, "", data)
+		if err != nil {
+			return nil, err
+		}
+		texts = append(texts, text)
+	}
+	return texts, nil
+}
+
+func (s Selection) repoPathOf(catalogPath, label string) (string, error) {
+	folderName, pathInFolder, _ := strings.Cut(catalogPath, "/")
+	f, ok := s.folders[folderName]
+	if !ok || pathInFolder == "" {
+		return "", fmt.Errorf("%s names the file %q, which is not in a folder of the starter", label, catalogPath)
+	}
+	rendered, err := s.render(label, pathInFolder, defaultDelimiters, "")
+	if err != nil {
+		return "", err
+	}
+	return path.Join(f.path, rendered), nil
+}
+
+func (s Selection) renderedQuery(q astgrep.Query, label string) (astgrep.Query, error) {
+	pattern, err := s.render("the pattern of "+label, q.Pattern, defaultDelimiters, "")
+	if err != nil {
+		return astgrep.Query{}, err
+	}
+	rendered := astgrep.Query{Language: q.Language, Pattern: pattern}
+	if q.Rule != nil {
+		rule, err := s.renderedValue(q.Rule, "the rule of "+label)
+		if err != nil {
+			return astgrep.Query{}, err
+		}
+		rendered.Rule = rule.(map[string]any)
+	}
+	return rendered, nil
+}
+
+func (s Selection) renderedValue(value any, label string) (any, error) {
+	switch v := value.(type) {
+	case string:
+		return s.render(label, v, defaultDelimiters, "")
+	case map[string]any:
+		rendered := make(map[string]any, len(v))
+		for key, inner := range v {
+			r, err := s.renderedValue(inner, label)
+			if err != nil {
+				return nil, err
+			}
+			rendered[key] = r
+		}
+		return rendered, nil
+	case []any:
+		rendered := make([]any, 0, len(v))
+		for _, inner := range v {
+			r, err := s.renderedValue(inner, label)
+			if err != nil {
+				return nil, err
+			}
+			rendered = append(rendered, r)
+		}
+		return rendered, nil
+	}
+	return value, nil
+}
+
+func (s Selection) removeEmptyFolders(output, repoFolder string) {
+	for ; repoFolder != "." && repoFolder != "/"; repoFolder = path.Dir(repoFolder) {
+		if os.Remove(filepath.Join(output, filepath.FromSlash(repoFolder))) != nil {
+			return
+		}
+	}
+}
+
+func (s Selection) onlyMatch(ctx context.Context, onDisk, repoPath string, q astgrep.Query, label string) (astgrep.Match, string, error) {
+	matches, err := astgrep.Find(ctx, onDisk, q)
+	if err != nil {
+		return astgrep.Match{}, "", fmt.Errorf("%s: %w", label, err)
+	}
+	if len(matches) != 1 {
+		return astgrep.Match{}, "", fmt.Errorf("%s matches %d places in %s, and it must match exactly one: the generator writes this file, so a new version of the generator can change it", label, len(matches), repoPath)
+	}
+	contents, err := os.ReadFile(onDisk)
+	if err != nil {
+		return astgrep.Match{}, "", fmt.Errorf("%s: %w", label, err)
+	}
+	return matches[0], string(contents), nil
 }
 
 const starterPrefix = "starter."

@@ -30,7 +30,7 @@ func (c Catalog) TestCombination(ctx context.Context, combination Combination, n
 	if err != nil {
 		return err
 	}
-	if err := selection.Write(output); err != nil {
+	if err := selection.writeRepo(ctx, output); err != nil {
 		return err
 	}
 	if err := selection.RunAfterRender(ctx, output); err != nil {

@@ -477,6 +477,11 @@ feature-compose check --catalog ./catalog
 | An extension point declares the item field `when`, which an item of `add_to` uses for its own `when`. | `the starter service: the extension point "api.middleware" declares the item field when, which an item of add_to uses for its own when` |
 | The `file` of an extension point is not a template of its declarer, or the extension point names no file. A template whose path is the `file` with `.tmpl` after it is the file. The file of an extension point of a feature can be in any files entry of the feature. | `the starter service: the file "go/config.go" of the extension point "api.config" does not exist` |
 | The file of an extension point does not call `items` with the name of the extension point, also when it calls `items` for another extension point or calls only `unique` for it. A feature that has the file in two files entries must call `items` in each copy, and the message names the files entry of a copy that does not. A file that does not parse gives only the mistake of the parse. | `the feature cli: the template go/cli.go of the files entry files/ does not call items "cli.commands"` |
+| An extension point in a generated file has no language, both a pattern and a rule, no insert, both or neither of `after` and `before`, or a place that is not a metavariable of its pattern or its rule and is not `match`. Its file is not in a folder with a `generate` command. | `the starter phoenix: the extension point "mix.deps" puts its items after DEP, which is not a metavariable of its pattern or its rule, and is not match` |
+| A template of a generated file does not parse, or it reads an option that its owner cannot read. These templates are the `file` and the `insert` of an extension point in a generated file, the value of each item for that extension point, and the `file` of a removal. | `the starter phoenix: the field dep of the item 1 that the feature oban adds to the extension point "mix.deps" reads "version", which the feature oban cannot read` |
+| An extension point has `after`, `before`, `separator` or `insert`, and no pattern or rule. | `the starter service: the extension point "api.middleware" has after, before, separator or insert, which only an extension point with a pattern or a rule uses` |
+| A removal names a file that is not in a folder with a `generate` command, or it has a pattern or a rule and no language. | `the starter phoenix: the removal 1 names the file "lib/page.ex", which is not in a folder with a generate command` |
+| ast-grep refuses the rule or the language of an extension point in a generated file or of a removal, or it reads a pattern of it with an `ERROR` node. `check` renders the pattern with the default values of the options. Without `ast-grep` on the `PATH`, this is one mistake for the starter. | `the starter phoenix: the extension point "mix.precommit": the pattern "precommit: [$$$STEPS]" is not valid elixir: ast-grep reads a part of it as an ERROR node, so it matches no place` |
 | Two owners write one path of the repo: the starter and a feature that targets it, or two features that target it. The path is the path of the folder joined with the path of the template in the folder, without `.tmpl`, before the render. `check` reads each files entry, also one whose `when` is false. Two templates of one owner are not a mistake. Each pair of owners of a path is one mistake. | `the starter service: the starter and the feature auth both write go.mod` |
 
 Each message names the feature, the starter, and the extension point, the folder or the need that is wrong. A
@@ -492,6 +497,9 @@ mistake of the feature that has the need, not of the features that need that fea
    - The cycles of the needs.
    - The options that its templates read and cannot read, then its templates that do not parse.
    - The item fields and the files of its extension points, in the order of their names.
+   - Its removals, in their order.
+   - The patterns and the rules that ast-grep refuses: those of its extension points in the order of their
+     names, then those of its removals.
    - The paths that two owners write, in the order of the paths.
 2. The mistakes of each feature, in the order of the features:
    - Its targets with different item fields.

@@ -27,6 +27,17 @@ sh <(curl -fsSL https://raw.githubusercontent.com/hpcsc/feature-compose/main/scr
 When the channel has more than one version, the installer lists them, and you select one. `GITHUB_TOKEN` or
 `GH_TOKEN` gives access to a private repository.
 
+### Tools for a Starter That Runs a Generator
+
+A starter can run a generator, for example `mix phx.new`, and then change the files that the generator writes.
+For such a starter, `new` and `check` need these tools on the `PATH`:
+
+- [ast-grep](https://ast-grep.github.io), version 0.45.3 or later. For example: `brew install ast-grep`, or
+  `mise use -g ast-grep`.
+- The generator and its toolchain, for example Elixir and the archive `phx_new`.
+
+A starter without a generator needs neither.
+
 ## The Config File
 
 `new`, `show` and `check` read the catalog folder that the config file names. The config file is

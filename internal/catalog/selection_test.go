@@ -68,6 +68,21 @@ func TestSelection(t *testing.T) {
 	}
 
 	t.Run("write", func(t *testing.T) {
+		t.Run("refuses a starter with a generate command, because only MakeRepo runs the command", func(t *testing.T) {
+			selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }}
+`})
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := selection.Write(output)
+
+			require.ErrorContains(t, err, "the starter service runs a generate command, so only MakeRepo writes its repo")
+			require.NoDirExists(t, output)
+		})
+
 		t.Run("writes each template to the path of its folder in the repo", func(t *testing.T) {
 			files := fstest.MapFS{
 				"starters/service/starter.yml":                  &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n  web:\n    path: frontend\n")},
@@ -1210,9 +1225,844 @@ the option level of the feature a has no default and no value: give it with --fe
 
 			require.ErrorContains(t, err, "write .feature-compose.yml")
 		})
+
+		t.Run("with a generator", func(t *testing.T) {
+			made := func(t *testing.T, selection catalog.Selection) (string, error) {
+				t.Helper()
+				output := filepath.Join(t.TempDir(), "my-service")
+				return output, selection.MakeRepo(context.Background(), output, "v1.2.3")
+			}
+			repoFiles := func(t *testing.T, output string) map[string]string {
+				t.Helper()
+				files := filesIn(t, output)
+				delete(files, ".feature-compose.yml")
+				return files
+			}
+			const generatedDeps = `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      cat > {{ .Folder }}/mix.exs <<'EOF'
+      defp deps do
+        [
+          {:phoenix, "~> 1.8"}
+        ]
+      end
+      EOF
+extension_points:
+  mix.deps:
+    summary: A dependency.
+    file: app/mix.exs
+    item: [dep]
+    language: elixir
+    pattern: defp deps do [$$$DEPS] end
+    after: DEPS
+    separator: ","
+    insert: "{{ .dep }}"
+`
+
+			t.Run("writes the files of the generate command, and a file of the starter replaces the generated file at its path", func(t *testing.T) {
+				selection := generatorSelection(t, map[string]string{
+					"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }} && printf 'generated readme\n' > {{ .Folder }}/README.md && printf 'kept\n' > {{ .Folder }}/kept.txt
+`,
+					"starters/service/files/app/README.md": "readme of the starter\n",
+				})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"README.md": "readme of the starter\n", "kept.txt": "kept\n"}, repoFiles(t, output))
+			})
+
+			t.Run("makes the repo in a relative output folder, which is the default output folder of new", func(t *testing.T) {
+				t.Chdir(t.TempDir())
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }} && printf 'generated\n' > {{ .Folder }}/README.md
+`})
+
+				err := selection.MakeRepo(context.Background(), "my-service", "v1.2.3")
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"README.md": "generated\n"}, repoFiles(t, "my-service"))
+			})
+
+			t.Run("gives the generate command a folder that does not exist yet, whose last part is the repo name", func(t *testing.T) {
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }} && basename {{ .Folder }} > {{ .Folder }}/name.txt
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"name.txt": "my-service\n"}, repoFiles(t, output))
+			})
+
+			t.Run("removes a generated file and each folder that the removal leaves empty", func(t *testing.T) {
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: mkdir -p {{ .Folder }}/lib/page && printf 'home' > {{ .Folder }}/lib/page/home.html && printf 'app' > {{ .Folder }}/lib/app.ex
+remove:
+  - file: app/lib/page/home.html
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"lib/app.ex": "app"}, repoFiles(t, output))
+				require.NoDirExists(t, filepath.Join(output, "lib", "page"))
+			})
+
+			t.Run("removes the one match of a pattern, with the line that it leaves empty", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      cat > {{ .Folder }}/router.ex <<'EOF'
+      scope "/" do
+        pipe_through :browser
+        get "/", PageController, :home
+      end
+      EOF
+remove:
+  - file: app/router.ex
+    language: elixir
+    pattern: get "/", PageController, :home
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"router.ex": "scope \"/\" do\n  pipe_through :browser\nend\n"}, repoFiles(t, output))
+			})
+
+			t.Run("inserts the items of the starter, then of a feature, after the last node of the metavariable, with the separator and the indentation of that node", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{
+					"starters/service/starter.yml": generatedDeps + "add_to:\n  mix.deps:\n    - dep: '{:jason, \"~> 1.2\"}'\n",
+					"features/oban/feature.yml":    "summary: Oban.\ntargets: [service]\nadd_to:\n  mix.deps:\n    - dep: '{:oban, \"~> 2.24\"}'\n",
+				}, "oban")
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"mix.exs": "defp deps do\n  [\n    {:phoenix, \"~> 1.8\"},\n    {:jason, \"~> 1.2\"},\n    {:oban, \"~> 2.24\"}\n  ]\nend\n"}, repoFiles(t, output))
+			})
+
+			t.Run("inserts the items of an extension point that a feature declares in a generated file", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{
+					"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      printf '[\n  :repo\n]\n' > {{ .Folder }}/children.ex
+`,
+					"features/oban/feature.yml": `summary: Oban.
+targets: [service]
+extension_points:
+  oban.children:
+    summary: A child.
+    file: app/children.ex
+    item: [child]
+    language: elixir
+    pattern: "[$$$CHILDREN]"
+    after: CHILDREN
+    separator: ","
+    insert: "{{ .child }}"
+add_to:
+  oban.children:
+    - child: ":oban"
+`,
+				}, "oban")
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"children.ex": "[\n  :repo,\n  :oban\n]\n"}, repoFiles(t, output))
+			})
+
+			t.Run("renders the value of an item with the options of its feature", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{
+					"starters/service/starter.yml": generatedDeps,
+					"features/oban/feature.yml":    "summary: Oban.\ntargets: [service]\noptions:\n  version:\n    default: \"2.24\"\nadd_to:\n  mix.deps:\n    - dep: '{:oban, \"~> {{ option \"version\" }}\"}'\n",
+				}, "oban")
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"mix.exs": "defp deps do\n  [\n    {:phoenix, \"~> 1.8\"},\n    {:oban, \"~> 2.24\"}\n  ]\nend\n"}, repoFiles(t, output))
+			})
+
+			t.Run("inserts the items before the node of a rule, with the separator and the indentation of that node", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      cat > {{ .Folder }}/application.ex <<'EOF'
+      children = [
+        Repo,
+        Endpoint
+      ]
+      EOF
+extension_points:
+  application.children:
+    summary: A child.
+    file: app/application.ex
+    item: [child]
+    language: elixir
+    rule:
+      pattern: Endpoint
+      inside:
+        pattern: children = [$$$CHILDREN]
+        stopBy: end
+    before: match
+    separator: ","
+    insert: "{{ .child }}"
+add_to:
+  application.children:
+    - child: Oban
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"application.ex": "children = [\n  Repo,\n  Oban,\n  Endpoint\n]\n"}, repoFiles(t, output))
+			})
+
+			t.Run("inserts the items before a node above the comment lines directly above that node, because those comments describe the node", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      cat > {{ .Folder }}/application.ex <<'EOF'
+      children = [
+        Repo,
+        # Start to serve requests,
+        # typically the last entry
+        Endpoint
+      ]
+      EOF
+extension_points:
+  application.children:
+    summary: A child.
+    file: app/application.ex
+    item: [child]
+    language: elixir
+    rule:
+      pattern: Endpoint
+      inside:
+        pattern: children = [$$$CHILDREN]
+        stopBy: end
+    before: match
+    separator: ","
+    insert: "{{ .child }}"
+add_to:
+  application.children:
+    - child: Oban
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"application.ex": "children = [\n  Repo,\n  Oban,\n  # Start to serve requests,\n  # typically the last entry\n  Endpoint\n]\n"}, repoFiles(t, output))
+			})
+
+			t.Run("stops when the pattern of an extension point matches no place, and names the extension point and the file", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{
+					"starters/service/starter.yml": strings.Replace(generatedDeps, "defp deps do [$$$DEPS] end", "defp other_deps do [$$$DEPS] end", 1) + "add_to:\n  mix.deps:\n    - dep: '{:jason, \"~> 1.2\"}'\n",
+				})
+
+				_, err := made(t, selection)
+
+				require.ErrorContains(t, err, `the extension point "mix.deps" matches 0 places in mix.exs, and it must match exactly one`)
+			})
+
+			t.Run("stops when a file of a feature has the path of a generated file", func(t *testing.T) {
+				selection := generatorSelection(t, map[string]string{
+					"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }} && printf 'generated readme\n' > {{ .Folder }}/README.md
+`,
+					"features/docs/feature.yml":         "summary: Docs.\ntargets: [service]\nfiles:\n  - path: files/\n",
+					"features/docs/files/app/README.md": "readme of the feature\n",
+				}, "docs")
+
+				_, err := made(t, selection)
+
+				require.ErrorContains(t, err, "the feature docs writes README.md, which the generate command also writes")
+			})
+
+			removesTheWrongFile := `
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }} && printf 'generated\n' > {{ .Folder }}/README.md
+remove:
+  - file: app/lib/page.ex
+`
+
+			t.Run("removes the output folder when a step after the generate command fails, so that new can make the repo again", func(t *testing.T) {
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": removesTheWrongFile})
+
+				output, err := made(t, selection)
+
+				require.ErrorContains(t, err, "removes lib/page.ex, which the generate command does not write")
+				require.NoDirExists(t, output)
+			})
+
+			t.Run("keeps an empty output folder that existed before, and removes what it wrote into it, when a step after the generate command fails", func(t *testing.T) {
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": removesTheWrongFile})
+				output := filepath.Join(t.TempDir(), "my-service")
+				require.NoError(t, os.Mkdir(output, 0o755))
+
+				err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+
+				require.ErrorContains(t, err, "removes lib/page.ex, which the generate command does not write")
+				require.Equal(t, map[string]string{}, filesIn(t, output))
+			})
+
+			t.Run("stops before the generate command runs when the command reads an option whose value is not one shell word", func(t *testing.T) {
+				injected := filepath.Join(t.TempDir(), "injected")
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+options:
+  app:
+    default: "x;touch ` + injected + `"
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }} && echo {{ option "starter.app" }}
+`})
+
+				_, err := made(t, selection)
+
+				require.ErrorContains(t, err, `the generate command of the folder app reads the option starter.app, whose value "x;touch `+injected+`" is not one shell word`)
+				require.NoFileExists(t, injected)
+			})
+
+			t.Run("stops when the generate command fails, and shows what the command printed", func(t *testing.T) {
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: echo "phx.new is not installed" && exit 3
+`})
+
+				_, err := made(t, selection)
+
+				require.ErrorContains(t, err, "phx.new is not installed")
+			})
+			t.Run("finds the place by the declared language, also in a file whose name ast-grep does not link to that language", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      printf 'deps = [\n  :a\n]\n' > {{ .Folder }}/Depsfile
+extension_points:
+  deps.items:
+    summary: A dependency.
+    file: app/Depsfile
+    item: [dep]
+    language: elixir
+    pattern: deps = [$$$DEPS]
+    after: DEPS
+    separator: ","
+    insert: "{{ .dep }}"
+add_to:
+  deps.items:
+    - dep: ":b"
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"Depsfile": "deps = [\n  :a,\n  :b\n]\n"}, repoFiles(t, output))
+			})
+
+			t.Run("stops when the metavariable of the position matches no node, and names the metavariable", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }} && printf 'deps = []\n' > {{ .Folder }}/deps.ex
+extension_points:
+  deps.items:
+    summary: A dependency.
+    file: app/deps.ex
+    item: [dep]
+    language: elixir
+    pattern: deps = [$$$DEPS]
+    after: DEPS
+    separator: ","
+    insert: "{{ .dep }}"
+add_to:
+  deps.items:
+    - dep: ":a"
+`})
+
+				_, err := made(t, selection)
+
+				require.ErrorContains(t, err, "DEPS matches no node, so the items cannot go next to it")
+			})
+
+			t.Run("stops when the file of an extension point is not a file that the generate command writes", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": strings.Replace(generatedDeps, "file: app/mix.exs", "file: app/deps.exs", 1) + "add_to:\n  mix.deps:\n    - dep: '{:jason, \"~> 1.2\"}'\n"})
+
+				_, err := made(t, selection)
+
+				require.ErrorContains(t, err, `the extension point "mix.deps" is in deps.exs, which the generate command does not write`)
+			})
+
+			t.Run("inserts the items before the first node of a metavariable that matches more than one node", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      printf 'quote do\n  alias Repo\n  import Ecto\nend\n' > {{ .Folder }}/case.ex
+extension_points:
+  case.using:
+    summary: A line.
+    file: app/case.ex
+    item: [code]
+    language: elixir
+    pattern: quote do $$$BODY end
+    before: BODY
+    insert: "{{ .code }}"
+add_to:
+  case.using:
+    - code: use Oban.Testing
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"case.ex": "quote do\n  use Oban.Testing\n  alias Repo\n  import Ecto\nend\n"}, repoFiles(t, output))
+			})
+
+			t.Run("removes a match that shares its line with other code, and keeps that code", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      printf 'x = 1 # remove me\n' > {{ .Folder }}/x.ex
+remove:
+  - file: app/x.ex
+    language: elixir
+    rule: {kind: comment, regex: remove me}
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"x.ex": "x = 1 \n"}, repoFiles(t, output))
+			})
+
+			t.Run("stops when the generate command does not render, and writes no repo", func(t *testing.T) {
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }} && echo {{ .Nmae }}
+`})
+
+				output, err := made(t, selection)
+
+				require.ErrorContains(t, err, "the generate command of the folder app")
+				require.NoDirExists(t, output)
+			})
+
+			t.Run("removes only the entries that it wrote when a step after the generate command fails, and keeps an entry that another writer put into the folder", func(t *testing.T) {
+				output := filepath.Join(t.TempDir(), "my-service")
+				require.NoError(t, os.Mkdir(output, 0o755))
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }} && printf 'generated\n' > {{ .Folder }}/README.md && printf 'other\n' > ` + output + `/other.txt
+remove:
+  - file: app/lib/page.ex
+`})
+
+				err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+
+				require.ErrorContains(t, err, "removes lib/page.ex, which the generate command does not write")
+				require.Equal(t, map[string]string{"other.txt": "other\n"}, filesIn(t, output))
+			})
+
+			t.Run("inserts the items above a block comment directly above the node, also when the language has an earlier comment kind", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      printf 'fn main() {\n    let v = [\n        1,\n        /* the last one */\n        2,\n    ];\n}\n' > {{ .Folder }}/main.rs
+extension_points:
+  main.numbers:
+    summary: A number.
+    file: app/main.rs
+    item: [number]
+    language: rust
+    rule:
+      pattern: "2"
+      inside:
+        pattern: let v = [$$$NUMBERS];
+        stopBy: end
+    before: match
+    separator: ","
+    insert: "{{ .number }}"
+add_to:
+  main.numbers:
+    - number: "9"
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"main.rs": "fn main() {\n    let v = [\n        1,\n        9,\n        /* the last one */\n        2,\n    ];\n}\n"}, repoFiles(t, output))
+			})
+
+			t.Run("stops when the output folder is not empty, and leaves the files in it as they are", func(t *testing.T) {
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }} && printf 'generated\n' > {{ .Folder }}/README.md
+`})
+				output := filepath.Join(t.TempDir(), "my-service")
+				require.NoError(t, os.MkdirAll(output, 0o755))
+				require.NoError(t, os.WriteFile(filepath.Join(output, "notes.txt"), []byte("mine\n"), 0o644))
+
+				err := selection.MakeRepo(context.Background(), output, "v1.2.3")
+
+				require.ErrorContains(t, err, "is not empty")
+				require.Equal(t, map[string]string{"notes.txt": "mine\n"}, filesIn(t, output))
+			})
+
+			t.Run("stops when the pattern of a removal matches no place, and names the removal and the file", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: mkdir {{ .Folder }} && printf 'scope do\n  get :home\nend\n' > {{ .Folder }}/router.ex
+remove:
+  - file: app/router.ex
+    language: elixir
+    pattern: get :index
+`})
+
+				_, err := made(t, selection)
+
+				require.ErrorContains(t, err, "the removal 1 of the starter matches 0 places in router.ex, and it must match exactly one")
+			})
+
+			t.Run("renders the options of the starter in the file and in the pattern of a removal", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+options:
+  app:
+    default: shop
+  function:
+    default: b
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir -p {{ .Folder }}/lib
+      printf 'defmodule Shop do\n  def a, do: 1\n  def b, do: 2\nend\n' > {{ .Folder }}/lib/shop.ex
+remove:
+  - file: app/lib/{{ option "starter.app" }}.ex
+    language: elixir
+    pattern: 'def {{ option "starter.function" }}, do: $VALUE'
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"lib/shop.ex": "defmodule Shop do\n  def a, do: 1\nend\n"}, repoFiles(t, output))
+			})
+
+			t.Run("renders the options of the starter in the strings of a rule, also inside a list of the rule", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+options:
+  app:
+    default: shop
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      printf 'children = [\n  Shop.Repo,\n  Shop.Endpoint\n]\n' > {{ .Folder }}/application.ex
+extension_points:
+  application.children:
+    summary: A child.
+    file: app/application.ex
+    item: [child]
+    language: elixir
+    rule:
+      any:
+        - pattern: '{{ pascal (option "starter.app") }}.Endpoint'
+      inside:
+        pattern: children = [$$$CHILDREN]
+        stopBy: end
+    before: match
+    separator: ","
+    insert: "{{ .child }}"
+add_to:
+  application.children:
+    - child: Oban
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"application.ex": "children = [\n  Shop.Repo,\n  Oban,\n  Shop.Endpoint\n]\n"}, repoFiles(t, output))
+			})
+
+			t.Run("stops when the generate command writes nothing at the folder that it gets", func(t *testing.T) {
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: echo "the generator wrote nothing"
+`})
+
+				_, err := made(t, selection)
+
+				require.ErrorContains(t, err, "wrote no folder at the path that {{ .Folder }} gives")
+			})
+
+			t.Run("inserts the items before a node that has other code before it on its line, and starts a new line at the node", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      printf 'steps = ["compile", "test"]\n' > {{ .Folder }}/mix.exs
+extension_points:
+  mix.steps:
+    summary: A step.
+    file: app/mix.exs
+    item: [step]
+    language: elixir
+    rule:
+      pattern: '"test"'
+      inside:
+        pattern: steps = [$$$STEPS]
+        stopBy: end
+    before: match
+    separator: ","
+    insert: "{{ .step }}"
+add_to:
+  mix.steps:
+    - step: '"xref"'
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"mix.exs": "steps = [\"compile\", \"xref\",\n\"test\"]\n"}, repoFiles(t, output))
+			})
+
+			t.Run("inserts the items after a single metavariable", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      printf 'x = [:a, :b]\n' > {{ .Folder }}/list.ex
+extension_points:
+  list.items:
+    summary: An item.
+    file: app/list.ex
+    item: [atom]
+    language: elixir
+    pattern: x = [$FIRST, $$$REST]
+    after: FIRST
+    separator: ","
+    insert: "{{ .atom }}"
+add_to:
+  list.items:
+    - atom: ":c"
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"list.ex": "x = [:a,\n:c, :b]\n"}, repoFiles(t, output))
+			})
+
+			t.Run("inserts the items above the comment lines of a language whose comments have the kind line_comment", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      printf 'fn main() {\n    let v = [\n        1,\n        // the last one\n        2,\n    ];\n}\n' > {{ .Folder }}/main.rs
+extension_points:
+  main.numbers:
+    summary: A number.
+    file: app/main.rs
+    item: [number]
+    language: rust
+    rule:
+      pattern: "2"
+      inside:
+        pattern: let v = [$$$NUMBERS];
+        stopBy: end
+    before: match
+    separator: ","
+    insert: "{{ .number }}"
+add_to:
+  main.numbers:
+    - number: "9"
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"main.rs": "fn main() {\n    let v = [\n        1,\n        9,\n        // the last one\n        2,\n    ];\n}\n"}, repoFiles(t, output))
+			})
+
+			t.Run("inserts the items after the separator when the last node of the metavariable is a separator", func(t *testing.T) {
+				requireASTGrep(t)
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: |
+      mkdir {{ .Folder }}
+      printf 'deps = [\n  :a,\n  :b,\n]\n' > {{ .Folder }}/deps.ex
+extension_points:
+  deps.items:
+    summary: A dependency.
+    file: app/deps.ex
+    item: [dep]
+    language: elixir
+    pattern: deps = [$$$DEPS]
+    after: DEPS
+    separator: ","
+    insert: "{{ .dep }}"
+add_to:
+  deps.items:
+    - dep: ":c"
+`})
+
+				output, err := made(t, selection)
+
+				require.NoError(t, err)
+				require.Equal(t, map[string]string{"deps.ex": "deps = [\n  :a,\n  :b,\n  :c,\n]\n"}, repoFiles(t, output))
+			})
+
+			t.Run("stops before the generate command runs when ast-grep is not on the PATH, and says where to get it", func(t *testing.T) {
+				ran := filepath.Join(t.TempDir(), "ran")
+				selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+folders:
+  app:
+    path: .
+    generate: touch ` + ran + ` && mkdir {{ .Folder }}
+extension_points:
+  mix.deps:
+    summary: A dependency.
+    file: app/mix.exs
+    item: [dep]
+    language: elixir
+    pattern: defp deps do [$$$DEPS] end
+    after: DEPS
+    insert: "{{ .dep }}"
+`})
+				t.Setenv("PATH", pathWithOnly(t, "sh", "touch", "mkdir"))
+
+				_, err := made(t, selection)
+
+				require.ErrorContains(t, err, "the starter changes the files of its generator with ast-grep: ast-grep is not on the PATH: install it from https://ast-grep.github.io")
+				require.NoFileExists(t, ran)
+			})
+		})
 	})
 
 	t.Run("preview", func(t *testing.T) {
+		t.Run("shows the generate command of each folder, with <new folder> for the folder that the command gets", func(t *testing.T) {
+			selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+options:
+  app:
+    default: shop
+folders:
+  app:
+    path: .
+    generate: mix phx.new {{ .Folder }} --app {{ option "starter.app" }} --no-install
+`})
+
+			preview, err := selection.Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, "\nGenerate:\n  app: mix phx.new <new folder> --app shop --no-install\n")
+		})
+
+		t.Run("stops when the generate command reads an option whose value is not one shell word, as new does", func(t *testing.T) {
+			selection := generatorSelection(t, map[string]string{"starters/service/starter.yml": `
+options:
+  app:
+    default: "shop; rm -rf ~"
+folders:
+  app:
+    path: .
+    generate: mix phx.new {{ .Folder }} --app {{ option "starter.app" }}
+`})
+
+			_, err := selection.Preview()
+
+			require.ErrorContains(t, err, `reads the option starter.app, whose value "shop; rm -rf ~" is not one shell word`)
+		})
+
 		withFeature := func() fstest.MapFS {
 			return fstest.MapFS{
 				"starters/service/starter.yml":                       &fstest.MapFile{Data: []byte("summary: A service.\nfolders:\n  go:\n    path: .\n  web:\n    path: frontend\n")},
@@ -2326,6 +3176,44 @@ folders:
 				[]string{given.FeatureSource("x"), given.FeatureSource("b"), given.FeatureSource("y"), answered.FeatureSource("b"), answered.FeatureSource("c"), given.FeatureSource("c")})
 		})
 	})
+}
+
+func generatorSelection(t *testing.T, catalogFiles map[string]string, featureNames ...string) catalog.Selection {
+	t.Helper()
+	fsys := fstest.MapFS{}
+	for catalogPath, contents := range catalogFiles {
+		fsys[catalogPath] = &fstest.MapFile{Data: []byte(contents)}
+	}
+	starter, err := catalog.New(fsys).Starter("service")
+	require.NoError(t, err)
+	givenByFeature := map[string]map[string]string{}
+	for _, featureName := range featureNames {
+		givenByFeature[featureName] = map[string]string{}
+	}
+	selection, err := starter.Select("my-service", nil, givenByFeature, catalog.Answers{})
+	require.NoError(t, err)
+	return selection
+}
+
+func pathWithOnly(t *testing.T, tools ...string) string {
+	t.Helper()
+	bin := t.TempDir()
+	for _, tool := range tools {
+		found, err := exec.LookPath(tool)
+		require.NoError(t, err)
+		require.NoError(t, os.Symlink(found, filepath.Join(bin, tool)))
+	}
+	return bin
+}
+
+func requireASTGrep(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("ast-grep"); err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatal("ast-grep is not on the PATH: mise.toml installs it in CI")
+		}
+		t.Skip("ast-grep is not on the PATH")
+	}
 }
 
 func filesIn(t *testing.T, dir string) map[string]string {

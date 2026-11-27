@@ -5,11 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"os"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/hpcsc/feature-compose/internal/catalog"
 	"github.com/hpcsc/feature-compose/internal/config"
+	"github.com/hpcsc/feature-compose/internal/index"
 	"github.com/hpcsc/feature-compose/internal/registry"
 	"github.com/hpcsc/feature-compose/internal/screen"
 	"github.com/urfave/cli/v3"
@@ -17,7 +21,17 @@ import (
 
 type registryOpener func() (*registry.Instance, error)
 
-func newCatalogCommand(open registryOpener) *cli.Command {
+type indexFetcher func(ctx context.Context) (index.File, error)
+
+func knownCatalogs(ctx context.Context) (index.File, error) {
+	url := os.Getenv("FEATURE_COMPOSE_INDEX_URL")
+	if url == "" {
+		url = index.DefaultURL
+	}
+	return index.Fetch(ctx, &http.Client{Timeout: 30 * time.Second}, url)
+}
+
+func newCatalogCommand(open registryOpener, fetch indexFetcher) *cli.Command {
 	pathFlag := &cli.StringFlag{Name: "path", Usage: "the folder of the catalog in the source (default: the root of the source)"}
 	refFlag := &cli.StringFlag{Name: "ref", Usage: "a branch, a tag or a commit of a git URL (default: the default branch)"}
 	return &cli.Command{
@@ -26,18 +40,24 @@ func newCatalogCommand(open registryOpener) *cli.Command {
 		Commands: []*cli.Command{
 			{
 				Name:      "add",
-				Usage:     "get a catalog from a git URL or a local folder, and add it to the config file with a name",
-				ArgsUsage: "<name> <source>",
+				Usage:     "get a catalog from a git URL or a local folder, and add it to the config file with a name; with no source, get the catalog of that name from the index of known catalogs",
+				ArgsUsage: "<name> [<source>]",
 				Flags:     []cli.Flag{pathFlag, refFlag},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
-					if cmd.NArg() != 2 {
-						return errors.New("catalog add needs two arguments: catalog add <name> <source>")
+					if cmd.NArg() < 1 || cmd.NArg() > 2 {
+						return errors.New("catalog add needs a name, and a source when the index of known catalogs does not have the name: catalog add <name> [<source>]")
 					}
 					r, err := open()
 					if err != nil {
 						return err
 					}
-					origin, err := r.Add(ctx, cmd.Args().Get(0), config.Entry{Source: cmd.Args().Get(1), Path: cmd.String("path"), Ref: cmd.String("ref")})
+					entry := config.Entry{Source: cmd.Args().Get(1), Path: cmd.String("path"), Ref: cmd.String("ref")}
+					if cmd.NArg() == 1 {
+						if entry, err = knownEntry(ctx, cmd, fetch); err != nil {
+							return err
+						}
+					}
+					origin, err := r.Add(ctx, cmd.Args().Get(0), entry)
 					if err != nil {
 						return err
 					}
@@ -56,9 +76,17 @@ See the starters and the features of the catalog with:
 			{
 				Name:  "list",
 				Usage: "show the name, the source, the path, the ref and the commit of each catalog",
+				Flags: []cli.Flag{&cli.BoolFlag{Name: "known", Usage: "show the catalogs of the index of known catalogs, which catalog add <name> gets with no source"}},
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					if cmd.NArg() > 0 {
 						return errors.New("catalog list takes no argument")
+					}
+					if cmd.Bool("known") {
+						known, err := fetch(ctx)
+						if err != nil {
+							return err
+						}
+						return printKnown(cmd.Root().Writer, known)
 					}
 					r, err := open()
 					if err != nil {
@@ -143,6 +171,47 @@ See the starters and the features of the catalog with:
 			},
 		},
 	}
+}
+
+func knownEntry(ctx context.Context, cmd *cli.Command, fetch indexFetcher) (config.Entry, error) {
+	known, err := fetch(ctx)
+	if err != nil {
+		return config.Entry{}, err
+	}
+	found, err := known.Entry(cmd.Args().First())
+	if err != nil {
+		return config.Entry{}, err
+	}
+	entry := found.ConfigEntry()
+	if cmd.IsSet("path") {
+		entry.Path = cmd.String("path")
+	}
+	if cmd.IsSet("ref") {
+		entry.Ref = cmd.String("ref")
+	}
+	return entry, nil
+}
+
+func printKnown(w io.Writer, known index.File) error {
+	names := known.Names()
+	if len(names) == 0 {
+		_, err := fmt.Fprintln(w, "The index of known catalogs has no catalog.")
+		return err
+	}
+	table := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(table, "NAME\tSOURCE\tPATH\tSUMMARY")
+	for _, name := range names {
+		entry, err := known.Entry(name)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(table, "%s\t%s\t%s\t%s\n", name, entry.Source, orDash(entry.Path), entry.Summary)
+	}
+	if err := table.Flush(); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintln(w, "Add one with: feature-compose catalog add <name>")
+	return err
 }
 
 func printOrigins(w io.Writer, origins []catalog.Origin) error {

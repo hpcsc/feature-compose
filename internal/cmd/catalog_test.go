@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -45,10 +47,19 @@ func TestCatalogCommand(t *testing.T) {
 		commit(t, dir, "service")
 		return dir, "file://" + dir
 	}
+	indexWith := func(t *testing.T, contents string) string {
+		t.Helper()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(contents))
+		}))
+		t.Cleanup(server.Close)
+		t.Setenv("FEATURE_COMPOSE_INDEX_URL", server.URL+"/catalogs.yml")
+		return server.URL + "/catalogs.yml"
+	}
 	run := func(t *testing.T, arguments ...string) (string, error) {
 		t.Helper()
 		var printed bytes.Buffer
-		command := newCatalogCommand(registry.Open)
+		command := newCatalogCommand(registry.Open, knownCatalogs)
 		command.Writer, command.ErrWriter = &printed, io.Discard
 		err := command.Run(context.Background(), append([]string{"catalog"}, arguments...))
 		return printed.String(), err
@@ -84,12 +95,59 @@ See the starters and the features of the catalog with:
 			require.True(t, strings.HasPrefix(printed, "Added the catalog team from the folder "+dir+".\n"), printed)
 		})
 
-		t.Run("one argument stops, and the message gives the form of add", func(t *testing.T) {
+		t.Run("a name with no source gets the catalog of that name from the index of known catalogs", func(t *testing.T) {
 			isolated(t)
+			dir, url := gitSource(t)
+			head := git(t, "-C", dir, "rev-parse", "HEAD")
+			indexWith(t, "catalogs:\n  hpcsc:\n    summary: A catalog.\n    source: "+url+"\n")
+
+			printed := ran(t, "add", "hpcsc")
+
+			require.True(t, strings.HasPrefix(printed, "Added the catalog hpcsc from "+url+" at the commit "+head[:7]+".\n"), printed)
+		})
+
+		t.Run("--path and --ref replace the path and the ref that the index gives", func(t *testing.T) {
+			isolated(t)
+			dir, url := gitSource(t)
+			old := git(t, "-C", dir, "rev-parse", "HEAD")
+			git(t, "-C", dir, "tag", "v1")
+			commit(t, dir, "worker")
+			git(t, "-C", dir, "mv", "starters", "other")
+			git(t, "-C", dir, "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "--quiet", "--message", "move")
+			indexWith(t, "catalogs:\n  hpcsc:\n    summary: A catalog.\n    source: "+url+"\n    path: other\n")
+
+			ran(t, "add", "hpcsc", "--path", "", "--ref", "v1")
+
+			require.Contains(t, ran(t, "list"), "hpcsc  "+url+"  -     v1   "+old[:7]+"\n")
+		})
+
+		t.Run("a name with no source stops when the tool cannot get the index, and the config gets no catalog", func(t *testing.T) {
+			isolated(t)
+			server := httptest.NewServer(http.NotFoundHandler())
+			t.Cleanup(server.Close)
+			t.Setenv("FEATURE_COMPOSE_INDEX_URL", server.URL+"/catalogs.yml")
 
 			_, err := run(t, "add", "hpcsc")
 
-			require.EqualError(t, err, "catalog add needs two arguments: catalog add <name> <source>")
+			require.EqualError(t, err, "get the index of known catalogs from "+server.URL+"/catalogs.yml: 404 Not Found")
+			require.Equal(t, "The config file has no catalog. Add one with: feature-compose catalog add <name> <source>\n", ran(t, "list"))
+		})
+
+		t.Run("a name that the index does not have stops, and the message names the command with a source", func(t *testing.T) {
+			isolated(t)
+			indexURL := indexWith(t, "catalogs:\n  hpcsc:\n    source: https://github.com/hpcsc/feature-compose\n")
+
+			_, err := run(t, "add", "team")
+
+			require.EqualError(t, err, "the index of known catalogs at "+indexURL+" has no catalog team: it has hpcsc. Give the source with catalog add team <source>")
+		})
+
+		t.Run("no argument stops, and the message gives the form of add", func(t *testing.T) {
+			isolated(t)
+
+			_, err := run(t, "add")
+
+			require.EqualError(t, err, "catalog add needs a name, and a source when the index of known catalogs does not have the name: catalog add <name> [<source>]")
 		})
 	})
 
@@ -114,6 +172,31 @@ See the starters and the features of the catalog with:
 				"Get the clone of 1 catalog with: feature-compose catalog sync gone",
 				"",
 			}, "\n"), printed)
+		})
+
+		t.Run("--known prints a table of the catalogs of the index of known catalogs, and names catalog add", func(t *testing.T) {
+			isolated(t)
+			indexWith(t, "catalogs:\n  team:\n    summary: The catalog of the team.\n    source: git@github.com:team/catalog.git\n  hpcsc:\n    summary: The catalog of feature-compose.\n    source: https://github.com/hpcsc/feature-compose\n    path: catalog\n")
+
+			printed := ran(t, "list", "--known")
+
+			require.Equal(t, `NAME   SOURCE                                    PATH     SUMMARY
+hpcsc  https://github.com/hpcsc/feature-compose  catalog  The catalog of feature-compose.
+team   git@github.com:team/catalog.git           -        The catalog of the team.
+Add one with: feature-compose catalog add <name>
+`, printed)
+		})
+
+		t.Run("--known stops when the tool cannot get the index", func(t *testing.T) {
+			isolated(t)
+			server := httptest.NewServer(http.NotFoundHandler())
+			t.Cleanup(server.Close)
+			t.Setenv("FEATURE_COMPOSE_INDEX_URL", server.URL+"/catalogs.yml")
+
+			printed, err := run(t, "list", "--known")
+
+			require.EqualError(t, err, "get the index of known catalogs from "+server.URL+"/catalogs.yml: 404 Not Found")
+			require.Empty(t, printed)
 		})
 
 		t.Run("with no catalog, names catalog add", func(t *testing.T) {

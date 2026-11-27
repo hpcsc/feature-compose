@@ -34,7 +34,7 @@ func newCommand() *cli.Command {
 			newNewCommand(catalogsInConfig, version.Current()),
 			newShowCommand(catalogsInConfig),
 			newCheckCommand(catalogsInConfig),
-			newCatalogCommand(registry.Open),
+			newCatalogCommand(registry.Open, knownCatalogs),
 			newInitCommand(),
 			newAddCommand(folderInConfig),
 			newVersionCommand(),

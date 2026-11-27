@@ -18,7 +18,33 @@ function commitStarter(source: string, starterName: string): string {
   return git(source, ['rev-parse', 'HEAD'])
 }
 
+async function servedIndex(contents: string): Promise<string> {
+  const server = createServer((_, response) => response.end(contents))
+  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done))
+  onTestFinished(() => new Promise<void>((done) => server.close(() => done())))
+  return `http://127.0.0.1:${(server.address() as AddressInfo).port}/catalogs.yml`
+}
+
 describe('feature-compose catalog', () => {
+  it('lists the known catalogs of the index, and adds one of them by its name with no source', async () => {
+    const source = scratchDir()
+    git(source, ['init', '--quiet', '--initial-branch=main'])
+    const firstCommit = commitStarter(source, 'first')
+    const url = `file://${source}`
+    const indexURL = await servedIndex(`catalogs:\n  team:\n    summary: The catalog of the team.\n    source: ${url}\n    path: catalog\n`)
+    const dir = scratchDir()
+    const env = { XDG_CONFIG_HOME: scratchDir(), XDG_DATA_HOME: scratchDir(), FEATURE_COMPOSE_INDEX_URL: indexURL, ...noGitConfigOfTheMachine }
+
+    const known = await runCli(dir, ['catalog', 'list', '--known'], env)
+    const added = await runCli(dir, ['catalog', 'add', 'team'], env)
+    const made = await runCli(dir, ['new', 'team/first', 'my-repo'], env)
+
+    expect([known.status, added.status, made.status], known.stderr + added.stderr + made.stderr).toEqual([0, 0, 0])
+    expect(known.stdout).toContain(`team  ${url}  catalog  The catalog of the team.\n`)
+    expect(added.stdout).toContain(`Added the catalog team from ${url} at the commit ${firstCommit.slice(0, 7)}.\n`)
+    expect(made.stdout).toBe('Made my-repo from the starter team/first.\n')
+  })
+
   it('adds a catalog from a git repo, syncs it to a new commit of the repo, and makes a repo from a starter of that commit', async () => {
     const source = scratchDir()
     git(source, ['init', '--quiet', '--initial-branch=main'])

@@ -95,14 +95,16 @@ flowchart LR
    sh <(curl -fsSL https://raw.githubusercontent.com/hpcsc/feature-compose/main/scripts/install.sh)
    ```
 
-2. Add a catalog. To start with the catalog of this repo, add the folder `catalog` of this repo with the name
-   `hpcsc`. The tool clones the repo, and writes the catalog in its config file:
+2. Add a catalog. To start with the catalog of this repo, add the known catalog `hpcsc`. The tool clones the
+   repo, and writes the catalog in its config file:
 
    ```shell
-   feature-compose catalog add hpcsc https://github.com/hpcsc/feature-compose --path catalog
+   feature-compose catalog add hpcsc
    ```
 
-   `feature-compose catalog sync` gets the newest commit of the catalog later.
+   `feature-compose catalog list --known` lists the known catalogs. To add another catalog, give its git URL or
+   its folder, for example `feature-compose catalog add team git@github.com:team/catalog.git`.
+   `feature-compose catalog sync` gets the newest commit of each catalog later.
 
 3. See the starters and the features of the catalog. In a terminal, `show` opens a tree that you can
    browse:

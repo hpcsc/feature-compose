@@ -84,6 +84,9 @@ tests keep the original binary.
 throwaway folders too. The git commands of a test run with `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM=1`
 and `XDG_CONFIG_HOME=/dev/null`, so the git config of the machine does not change the repo of the test.
 
+The test of the known catalogs serves an index on a local HTTP server, and points the CLI at it with
+`FEATURE_COMPOSE_INDEX_URL`.
+
 Two tests start the CLI in the pseudo-terminal, where git and ssh have a terminal that they can ask on. In the first
 test, the source is on a local HTTP server that asks for a password, and the test passes only when the CLI stops at
 once, with no question. In the second test, `GIT_SSH_COMMAND` names a script that writes whether it can open

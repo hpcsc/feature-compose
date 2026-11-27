@@ -62,6 +62,22 @@ The first argument is the name of the catalog. The second argument is its source
   tag, unless the owner of the repo moves the tag to another commit.
 - A name starts with a letter or a digit, and holds only letters, digits, `.`, `_` and `-`.
 
+### Known Catalogs
+
+The index of known catalogs is the file [`catalogs.yml`](../catalogs.yml) in this repo. It gives a name, a
+summary, a source and a path for each catalog that it knows. With no source, `catalog add` gets the catalog of
+that name from the index:
+
+```shell
+feature-compose catalog list --known
+feature-compose catalog add hpcsc
+```
+
+`--path` and `--ref` replace the path and the ref that the index gives. The tool gets the index from the branch
+`main` of this repo on GitHub each time that it needs it, so a new entry needs no new release of the tool. When
+`FEATURE_COMPOSE_INDEX_URL` is set, the tool gets the index from that URL, for example the index of a team. To
+add a catalog to the index of this repo, open a pull request that adds it to `catalogs.yml`.
+
 [What Each Command of feature-compose Does](commands.md#manage-the-catalogs) tells how `catalog list`, `sync`,
 `set` and `remove` work.
 

@@ -8,8 +8,8 @@
 | `feature-compose init <folder>` | Writes a small catalog with one starter and one feature, as the start of a catalog of your own. |
 | `feature-compose add starter <name>` | Adds a starter to the catalog, with a `starter.yml` to fill in. |
 | `feature-compose add feature <name> --target <starter>` | Adds a feature to the catalog, with a `feature.yml` to fill in. |
-| `feature-compose catalog add <name> <source>` | Gets a catalog from a git URL or a local folder, and adds it to the config file. |
-| `feature-compose catalog list` | Shows the name, the source, the path, the ref and the commit of each catalog. |
+| `feature-compose catalog add <name> [<source>]` | Gets a catalog from a git URL or a local folder, and adds it to the config file. With no source, it gets the known catalog of that name. |
+| `feature-compose catalog list [--known]` | Shows the name, the source, the path, the ref and the commit of each catalog. With `--known`, it shows the known catalogs. |
 | `feature-compose catalog sync [<name>...]` | Gets the newest commit of the ref of each catalog from a git URL. |
 | `feature-compose catalog set <name>` | Changes the path or the ref of a catalog. |
 | `feature-compose catalog remove <name>` | Removes a catalog from the config file, and deletes its clone. |
@@ -419,8 +419,8 @@ is `[]`, an object with no entry is `{}`, and a text with no value is `""`. Each
 ## Manage the Catalogs
 
 ```shell
-feature-compose catalog add <name> <source> [--path <folder>] [--ref <ref>]
-feature-compose catalog list
+feature-compose catalog add <name> [<source>] [--path <folder>] [--ref <ref>]
+feature-compose catalog list [--known]
 feature-compose catalog sync [<name>...]
 feature-compose catalog set <name> [--path <folder>] [--ref <ref>]
 feature-compose catalog remove <name>
@@ -438,8 +438,12 @@ See the starters and the features of the catalog with:
   feature-compose show
 ```
 
+With no source, `catalog add` gets the source, the path and the ref of the catalog of that name from the index of
+known catalogs. [Known Catalogs](install-and-configure.md#known-catalogs) tells where the index is.
+
 `add` stops, and adds no catalog, when the config file already has the name, when git cannot read the source, when
-the source has no ref with that name, or when the path holds no folder `starters`. It then leaves no clone.
+the source has no ref with that name, or when the path holds no folder `starters`. It then leaves no clone. With
+no source, `add` also stops when the index does not have the name, and the message lists the names that it has.
 
 `catalog list` shows a table of the catalogs, in the order of their names. A `-` is an empty value: no path, the
 default branch, or a local folder with no commit. A catalog with no clone shows `no clone`, and the line under the
@@ -449,6 +453,15 @@ table names `catalog sync`:
 NAME   SOURCE                                    PATH     REF   COMMIT
 hpcsc  https://github.com/hpcsc/feature-compose  catalog  -     2868ee8
 team   /home/me/code/team-catalog                -        -     -
+```
+
+`catalog list --known` shows a table of the known catalogs of the index, with the name, the source, the path and
+the summary of each:
+
+```text
+NAME   SOURCE                                    PATH     SUMMARY
+hpcsc  https://github.com/hpcsc/feature-compose  catalog  The catalog of feature-compose, with starters for ...
+Add one with: feature-compose catalog add <name>
 ```
 
 `catalog sync` gets the newest commit of the ref of each catalog from a git URL, or of the named catalogs, and

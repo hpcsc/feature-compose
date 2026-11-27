@@ -1,0 +1,5 @@
+catalogs:
+  hpcsc:
+    summary: The catalog of feature-compose, with starters for a Go module, Go services, a Go HTTP API and a Phoenix app.
+    source: https://github.com/hpcsc/feature-compose
+    path: catalog

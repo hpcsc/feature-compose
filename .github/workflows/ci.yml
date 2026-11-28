@@ -44,6 +44,9 @@ jobs:
   combinations:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      # mise detects no Ubuntu 26.04, so without this it compiles Erlang from source with kerl, and that takes minutes
+      MISE_ERLANG_PRECOMPILED_OS: ubuntu-26.04
     steps:
     - uses: actions/checkout@v7
 

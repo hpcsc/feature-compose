@@ -14,6 +14,9 @@ jobs:
   phoenix:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # mise detects no Ubuntu 26.04, so without this it compiles Erlang from source with kerl, and that takes minutes
+      MISE_ERLANG_PRECOMPILED_OS: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:

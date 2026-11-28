@@ -38,6 +38,10 @@ For such a starter, `new` and `check` need these tools on the `PATH`:
   installs the versions that the starter pins, and the machine needs no Elixir and no `phx_new` of its own. mise
   does not trust or track the new repo, and the tool changes no config of mise.
 
+On a Linux system that mise does not detect, mise compiles Erlang from source with kerl. That needs a C compiler,
+and it takes minutes. Ubuntu 26.04 is such a system. There, set `MISE_ERLANG_PRECOMPILED_OS=ubuntu-26.04`, so that mise downloads
+a precompiled Erlang. The CI of this repo does this.
+
 A starter without a generator and without pinned tools needs neither.
 
 ## The Catalogs

@@ -2164,6 +2164,26 @@ extension_points:
 			require.Contains(t, filesIn(t, output)["generated.txt"], "version: 0.11.0")
 		})
 
+		t.Run("with pinned_tools, gives mise each version of a core tool as MISE_<TOOL>_VERSION, so that the install of a tool finds the tools that it needs", func(t *testing.T) {
+			bin := pathWithOnly(t, "sh", "grep", "env")
+			variables := filepath.Join(t.TempDir(), "variables.txt")
+			fakeMise := "#!/bin/sh\nenv | grep '^MISE_.*_VERSION=' >> '" + variables + "'\nwhile [ \"$1\" != -- ]; do shift; done\nshift\nexec \"$@\"\n"
+			require.NoError(t, os.WriteFile(filepath.Join(bin, "mise"), []byte(fakeMise), 0o755))
+			t.Setenv("PATH", bin)
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := generatorSelection(t, map[string]string{
+				"starters/service/starter.yml":         "folders:\n  app:\n    path: .\n    pinned_tools: true\n    after_render: ['echo ran > ran.txt']\n",
+				"starters/service/files/app/mise.toml": "[tools]\nerlang = \"29.1\"\nelixir = \"1.20.4-otp-29\"\ngo-task = \"3.53.1\"\n\"aqua:koalaman/shellcheck\" = \"0.11.0\"\n",
+			}).MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
+
+			require.NoError(t, err)
+			recorded, err := os.ReadFile(variables)
+			require.NoError(t, err)
+			require.Equal(t, []string{"MISE_ELIXIR_VERSION=1.20.4-otp-29", "MISE_ERLANG_VERSION=29.1", "MISE_GO_TASK_VERSION=3.53.1"}, slices.Sorted(slices.Values(strings.Split(strings.TrimSpace(string(recorded)), "\n"))))
+			require.Equal(t, "ran\n", filesIn(t, output)["ran.txt"])
+		})
+
 		t.Run("with pinned_tools and no mise on the PATH, stops, and the message names mise", func(t *testing.T) {
 			t.Setenv("PATH", pathWithOnly(t, "sh"))
 			output := filepath.Join(t.TempDir(), "my-service")

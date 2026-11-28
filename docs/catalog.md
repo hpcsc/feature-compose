@@ -390,6 +390,9 @@ elixir = "1.20.4-otp-29"
 - mise reads no `mise.toml` in the folder of the command, or in a folder above it. So mise does not trust and does
   not track the new repo, and a `mise.toml` of a parent folder does not change the tools. The tool sets
   `MISE_CEILING_PATHS` and `MISE_IGNORED_CONFIG_PATHS` for this.
+- The tool also gives mise the version of each tool with a plain name as `MISE_<TOOL>_VERSION`, for example
+  `MISE_ERLANG_VERSION=29.1`. mise gives the install of a tool only the tools of its config, and these variables
+  count as config. So the install of `elixir` finds the `erl` of the pinned Erlang.
 - Each version is a text, for example `elixir = "1.20.4-otp-29"`. Another form stops `new` and names the tool.
 - The preview gives each command with its `mise exec` part.
 - `check` finds a folder with `pinned_tools` whose starter writes no `mise.toml` in it.

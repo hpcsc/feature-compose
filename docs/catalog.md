@@ -84,6 +84,7 @@ delimiters:
 | `summary` | One sentence about what a repo from the starter gets. `show` shows it. |
 | `options` | The questions of the starter. [Options](#options) tells how they work. |
 | `folders.<name>.path` | The path of the folder in the repo. |
+| `folders.<name>.pinned_tools` | With `true`, each command of the folder runs with the tools that the `mise.toml` of the folder pins. [Pinned Tools](#pinned-tools) tells how it works. |
 | `folders.<name>.generate` | A command that writes the first files of the folder, for example `mix phx.new`. [A Starter on Top of a Generator](#a-starter-on-top-of-a-generator) tells how it works. |
 | `folders.<name>.after_render` | The commands that `new` runs in the folder after it writes all files. |
 | `folders.<name>.test` | The commands that a test of the catalog runs in the folder, for example in CI. `new` does not run them. |
@@ -360,6 +361,39 @@ The `summary` of an extension point is a contract that the tool cannot check. A 
 the catalog checks it: [Build, Test and Release feature-compose](development.md) tells how this repo does
 this.
 
+## Pinned Tools
+
+A command of a folder runs with the tools on the `PATH` of the machine. So a repo can get another version of Go,
+Elixir or a generator than its catalog expects. With `pinned_tools: true`, each command of the folder runs with the
+versions that the `mise.toml` of the folder pins, with [mise](https://mise.jdx.dev):
+
+```yaml
+folders:
+  app:
+    path: .
+    pinned_tools: true
+    after_render: [mix deps.get]
+```
+
+```toml
+# files/app/mise.toml
+[tools]
+erlang = "29.1"
+elixir = "1.20.4-otp-29"
+```
+
+- The tool reads the section `[tools]` of the `mise.toml` that the starter or a feature writes in the folder, and
+  runs each `generate`, `after_render` and `test` command as `mise exec erlang@29.1 elixir@1.20.4-otp-29 -- sh -c
+  '<command>'`. The `mise.toml` is the one place of the versions. The repo gets the same file, so its own commands
+  use the same versions.
+- mise installs a version that the machine does not have. So a user needs mise, and not the tools themselves.
+- mise reads no `mise.toml` in the folder of the command, or in a folder above it. So mise does not trust and does
+  not track the new repo, and a `mise.toml` of a parent folder does not change the tools. The tool sets
+  `MISE_CEILING_PATHS` and `MISE_IGNORED_CONFIG_PATHS` for this.
+- Each version is a text, for example `elixir = "1.20.4-otp-29"`. Another form stops `new` and names the tool.
+- The preview gives each command with its `mise exec` part.
+- `check` finds a folder with `pinned_tools` whose starter writes no `mise.toml` in it.
+
 ## A Starter on Top of a Generator
 
 Some kinds of repo start from the output of a generator, for example `mix phx.new` for a Phoenix app. A copy of
@@ -370,12 +404,18 @@ change its output:
 options:
   app:
     default: "{{ snake .Name }}"
+  phx-new-version:
+    default: 1.8.17
 
 folders:
   app:
     path: .
-    generate: mix phx.new {{ .Folder }} --app {{ option "starter.app" }} --no-install
-    after_render: [mix deps.get, mix format]
+    pinned_tools: true
+    generate: >-
+      MIX_ARCHIVES="$PWD/.archives" mix local.hex --force &&
+      MIX_ARCHIVES="$PWD/.archives" mix archive.install hex phx_new {{ option "starter.phx-new-version" }} --force &&
+      MIX_ARCHIVES="$PWD/.archives" mix phx.new {{ .Folder }} --app {{ option "starter.app" }} --no-install
+    after_render: [mix local.hex --force --if-missing, mix deps.get, mix format]
 
 remove:
   - file: app/lib/{{ option "starter.app" }}_web/controllers/page_controller.ex
@@ -396,6 +436,10 @@ remove:
   name of the repo. The command must write its files there, and the tool then moves them into the folder of the
   starter. Some generators stop when their folder exists, so the tool does not give them the output folder.
 - The command gets no input. Give it the flags that stop each question, for example `--no-install`.
+- The command runs in the temporary folder, and the tool deletes that folder after the command. So a generator
+  that the command installs there, for example into `MIX_ARCHIVES="$PWD/.archives"`, does not change the machine.
+  An option for the version of the generator, such as `phx-new-version`, makes the same command give the same repo
+  again.
 - The command is a template, and it can read the options of the starter.
 - A file of the starter at the path of a generated file replaces the generated file. A file of a feature at such
   a path stops `new`.

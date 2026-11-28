@@ -9,6 +9,7 @@ import (
 
 type FolderDefinition struct {
 	Path        string   `json:"path" yaml:"path"`
+	PinnedTools bool     `json:"pinned_tools,omitempty" yaml:"pinned_tools"`
 	Generate    string   `json:"generate,omitempty" yaml:"generate"`
 	AfterRender []string `json:"after_render" yaml:"after_render"`
 	Test        []string `json:"test" yaml:"test"`

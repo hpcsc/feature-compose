@@ -429,6 +429,18 @@ func TestCatalog(t *testing.T) {
 	})
 
 	t.Run("check", func(t *testing.T) {
+		t.Run("a folder with pinned_tools and no mise.toml of the starter in it is a mistake", func(t *testing.T) {
+			files := fstest.MapFS{
+				"starters/service/starter.yml":         &fstest.MapFile{Data: []byte("folders:\n  app:\n    path: .\n    pinned_tools: true\n")},
+				"starters/service/files/app/README.md": &fstest.MapFile{Data: []byte("# {{ .Name }}\n")},
+			}
+
+			mistakes, err := catalog.New(files).Check(context.Background())
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"the starter service: the folder app has pinned_tools, but the starter writes no mise.toml in it: add files/app/mise.toml with the tools in its section [tools]"}, mistakes)
+		})
+
 		rendersItems := func(extensionPoints ...string) *fstest.MapFile {
 			var text strings.Builder
 			for _, name := range extensionPoints {

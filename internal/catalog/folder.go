@@ -10,16 +10,16 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-
-	"github.com/hpcsc/feature-compose/internal/shell"
 )
 
 type folder struct {
 	name        string
 	path        string
+	pinnedTools bool
 	generate    string
 	afterRender []string
 	test        []string
+	toolchain   toolchain
 }
 
 func (f folder) generates() bool {
@@ -45,7 +45,7 @@ func (f folder) runGenerate(ctx context.Context, output, repoName string, comman
 	if err != nil {
 		return nil, fmt.Errorf("the generate command of the folder %s: %w", f.name, err)
 	}
-	printed, err := shell.Run(ctx, temporary, rendered)
+	printed, err := f.toolchain.run(ctx, temporary, rendered)
 	if err != nil {
 		return nil, fmt.Errorf("the generate command %q of the folder %s failed: %w\n%s", rendered, f.name, err, printed)
 	}
@@ -95,7 +95,7 @@ func (f folder) runAll(ctx context.Context, output, list string, commands []stri
 	dir := filepath.Join(output, filepath.FromSlash(f.path))
 	for _, command := range commands {
 		end := steps.Start(f.name + ": " + command)
-		printed, err := shell.Run(ctx, dir, command)
+		printed, err := f.toolchain.run(ctx, dir, command)
 		end(err)
 		if err != nil {
 			return fmt.Errorf("the %s command %q of the folder %s failed: %w\n%s", list, command, f.name, err, printed)

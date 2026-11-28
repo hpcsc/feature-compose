@@ -143,7 +143,9 @@ Then the preview gives each command that `new` runs on your machine, in the orde
 the name of its folder: first the `generate` command of each folder that has one, and then each `after_render`
 command of each folder. A catalog can run any command, so read this list before you run `new` with a catalog that
 you do not know. In a `generate` command, `<new folder>` stands for the folder that the command writes, for example
-`app: mix phx.new <new folder> --app shop --no-install`. A starter with no command shows `Commands: none`.
+`app: mix phx.new <new folder> --app shop --no-install`. A folder with `pinned_tools` gives each command with its
+`mise exec` part and the versions, for example `app: mise exec elixir@1.20.4-otp-29 erlang@29.1 -- mix deps.get`.
+A starter with no command shows `Commands: none`.
 
 Last, the preview gives each file of the repo by its path, in the order of the paths, with its owner: the starter,
 the feature whose template writes the file, or `feature-compose` for the selection file `.feature-compose.yml`.

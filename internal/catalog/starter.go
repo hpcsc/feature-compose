@@ -52,7 +52,7 @@ func readStarter(fsys fs.FS, starterName string, features map[string]feature, ot
 		if !filepath.IsLocal(filepath.FromSlash(declared.Path)) {
 			return Starter{}, fmt.Errorf("read %s: the path %q of the folder %s is outside the repo", ymlPath, declared.Path, folderName)
 		}
-		starterFolders[folderName] = folder{name: folderName, path: declared.Path, generate: declared.Generate, afterRender: declared.AfterRender, test: declared.Test}
+		starterFolders[folderName] = folder{name: folderName, path: declared.Path, pinnedTools: declared.PinnedTools, generate: declared.Generate, afterRender: declared.AfterRender, test: declared.Test}
 	}
 	var rules []delimitersRule
 	for _, declared := range parsed.Delimiters {
@@ -246,8 +246,26 @@ func (s Starter) mistakes(ctx context.Context, catalogFeatures map[string]featur
 	mistakes = append(mistakes, s.queryMistakes(ctx)...)
 	mistakes = append(mistakes, s.generatedTemplateMistakes(catalogFeatures)...)
 	mistakes = append(mistakes, s.ownerMistakes()...)
+	mistakes = append(mistakes, s.pinnedToolsMistakes()...)
 	for i, mistake := range mistakes {
 		mistakes[i] = "the starter " + s.name + ": " + mistake
+	}
+	return mistakes
+}
+
+func (s Starter) pinnedToolsMistakes() []string {
+	var mistakes []string
+	for _, folderName := range slices.Sorted(maps.Keys(s.folders)) {
+		if !s.folders[folderName].pinnedTools {
+			continue
+		}
+		pinned := slices.ContainsFunc(s.templates, func(t template) bool {
+			name, pathInFolder := t.splitPath()
+			return name == folderName && pathInFolder == toolchainFile
+		})
+		if !pinned {
+			mistakes = append(mistakes, fmt.Sprintf("the folder %s has pinned_tools, but the starter writes no %s in it: add files/%s/%s with the tools in its section [tools]", folderName, toolchainFile, folderName, toolchainFile))
+		}
 	}
 	return mistakes
 }

@@ -31,11 +31,14 @@ func (c Catalog) TestCombination(ctx context.Context, combination Combination, n
 	if err != nil {
 		return err
 	}
+	if selection, err = selection.withToolchains(); err != nil {
+		return err
+	}
 	if err := selection.writeRepo(ctx, output, NoSteps{}); err != nil {
 		return err
 	}
-	if err := selection.RunAfterRender(ctx, output); err != nil {
+	if err := selection.runAfterRender(ctx, output, NoSteps{}); err != nil {
 		return err
 	}
-	return selection.RunTests(ctx, output)
+	return selection.runTests(ctx, output)
 }

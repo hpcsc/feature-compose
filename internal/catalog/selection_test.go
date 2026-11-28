@@ -2106,6 +2106,87 @@ extension_points:
 			require.NoError(t, err)
 			require.Equal(t, "version: v1.2.3\ncatalog:\n  name: hpcsc\n  source: https://example.com/hpcsc.git\n  ref: main\n  commit: 0123abc\nstarter: service\nname: api\noptions: {}\nfeatures: {}\nrequested: []\n", filesIn(t, output)[".feature-compose.yml"])
 		})
+
+		t.Run("with pinned_tools, runs each after_render command with the tools of the mise.toml of the folder, and mise reads no other mise.toml and trusts or tracks no file of the repo", func(t *testing.T) {
+			requireMise(t)
+			state := t.TempDir()
+			t.Setenv("MISE_STATE_DIR", state)
+			parent := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(parent, "mise.toml"), []byte("[env]\nFROM_PARENT = \"yes\"\n"), 0o644))
+			output := filepath.Join(parent, "my-service")
+
+			err := generatorSelection(t, map[string]string{
+				"starters/service/starter.yml":         "folders:\n  app:\n    path: .\n    pinned_tools: true\n    after_render: ['shellcheck --version > shellcheck.txt', 'echo \"${FROM_PARENT:-none}\" > parent.txt']\n",
+				"starters/service/files/app/mise.toml": "[tools]\n\"aqua:koalaman/shellcheck\" = \"0.11.0\"\n",
+			}).MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
+
+			require.NoError(t, err)
+			files := filesIn(t, output)
+			require.Contains(t, files["shellcheck.txt"], "version: 0.11.0")
+			require.Equal(t, "none\n", files["parent.txt"])
+			realParent, err := filepath.EvalSymlinks(parent)
+			require.NoError(t, err)
+			for _, target := range linkTargetsIn(t, state) {
+				require.False(t, strings.HasPrefix(target, realParent), "mise trusts or tracks %s", target)
+			}
+		})
+
+		t.Run("with pinned_tools and a relative output folder, mise trusts or tracks no file of the repo", func(t *testing.T) {
+			requireMise(t)
+			state := t.TempDir()
+			t.Setenv("MISE_STATE_DIR", state)
+			work := t.TempDir()
+			t.Chdir(work)
+
+			err := generatorSelection(t, map[string]string{
+				"starters/service/starter.yml":         "folders:\n  app:\n    path: .\n    pinned_tools: true\n    after_render: ['shellcheck --version > shellcheck.txt']\n",
+				"starters/service/files/app/mise.toml": "[tools]\n\"aqua:koalaman/shellcheck\" = \"0.11.0\"\n",
+			}).MakeRepo(context.Background(), "my-service", "v1.2.3", catalog.NoSteps{})
+
+			require.NoError(t, err)
+			realWork, err := filepath.EvalSymlinks(work)
+			require.NoError(t, err)
+			for _, target := range linkTargetsIn(t, state) {
+				require.False(t, strings.HasPrefix(target, realWork), "mise trusts or tracks %s", target)
+			}
+		})
+
+		t.Run("with pinned_tools, runs the generate command with the tools of the mise.toml of the folder", func(t *testing.T) {
+			requireMise(t)
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := generatorSelection(t, map[string]string{
+				"starters/service/starter.yml":         "folders:\n  app:\n    path: .\n    pinned_tools: true\n    generate: mkdir {{ .Folder }} && shellcheck --version > {{ .Folder }}/generated.txt\n",
+				"starters/service/files/app/mise.toml": "[tools]\n\"aqua:koalaman/shellcheck\" = \"0.11.0\"\n",
+			}).MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
+
+			require.NoError(t, err)
+			require.Contains(t, filesIn(t, output)["generated.txt"], "version: 0.11.0")
+		})
+
+		t.Run("with pinned_tools and no mise on the PATH, stops, and the message names mise", func(t *testing.T) {
+			t.Setenv("PATH", pathWithOnly(t, "sh"))
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := generatorSelection(t, map[string]string{
+				"starters/service/starter.yml":         "folders:\n  app:\n    path: .\n    pinned_tools: true\n    after_render: ['shellcheck --version > shellcheck.txt', 'echo \"${FROM_PARENT:-none}\" > parent.txt']\n",
+				"starters/service/files/app/mise.toml": "[tools]\n\"aqua:koalaman/shellcheck\" = \"0.11.0\"\n",
+			}).MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
+
+			require.ErrorContains(t, err, "the folder pins its tools in mise.toml, so its commands run with mise, and mise is not on the PATH: install it from https://mise.jdx.dev")
+		})
+
+		t.Run("with pinned_tools, a tool of the mise.toml with no version as a text stops before a command runs", func(t *testing.T) {
+			output := filepath.Join(t.TempDir(), "my-service")
+
+			err := generatorSelection(t, map[string]string{
+				"starters/service/starter.yml":         "folders:\n  app:\n    path: .\n    pinned_tools: true\n    after_render: [touch ran.txt]\n",
+				"starters/service/files/app/mise.toml": "[tools]\nshellcheck = { version = \"0.11.0\" }\n",
+			}).MakeRepo(context.Background(), output, "v1.2.3", catalog.NoSteps{})
+
+			require.EqualError(t, err, `read mise.toml of the folder app, which the starter writes: the tool shellcheck has no version as a text, for example shellcheck = "1.0.0"`)
+			require.NoFileExists(t, filepath.Join(output, "ran.txt"))
+		})
 	})
 
 	t.Run("preview", func(t *testing.T) {
@@ -2477,6 +2558,16 @@ Options:
 				require.Empty(t, preview)
 			})
 		}
+
+		t.Run("with pinned_tools, shows each command with mise exec and the tools of the mise.toml of the folder", func(t *testing.T) {
+			preview, err := generatorSelection(t, map[string]string{
+				"starters/service/starter.yml":         "folders:\n  app:\n    path: .\n    pinned_tools: true\n    generate: mix phx.new {{ .Folder }}\n    after_render: [mix deps.get]\n",
+				"starters/service/files/app/mise.toml": "[tools]\nerlang = \"29.1\"\nelixir = \"1.20.4-otp-29\"\n",
+			}).Preview()
+
+			require.NoError(t, err)
+			require.Contains(t, preview, "\nCommands:\n  app: mise exec elixir@1.20.4-otp-29 erlang@29.1 -- mix phx.new <new folder>\n  app: mise exec elixir@1.20.4-otp-29 erlang@29.1 -- mix deps.get\n\n")
+		})
 	})
 
 	t.Run("questions", func(t *testing.T) {
@@ -3326,6 +3417,31 @@ func pathWithOnly(t *testing.T, tools ...string) string {
 		require.NoError(t, os.Symlink(found, filepath.Join(bin, tool)))
 	}
 	return bin
+}
+
+func linkTargetsIn(t *testing.T, dir string) []string {
+	t.Helper()
+	var targets []string
+	err := filepath.WalkDir(dir, func(name string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.Type()&fs.ModeSymlink == 0 {
+			return err
+		}
+		target, err := os.Readlink(name)
+		targets = append(targets, target)
+		return err
+	})
+	require.NoError(t, err)
+	return targets
+}
+
+func requireMise(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("mise"); err != nil {
+		if os.Getenv("CI") != "" {
+			t.Fatal("mise is not on the PATH: CI installs it")
+		}
+		t.Skip("mise is not on the PATH")
+	}
 }
 
 func requireASTGrep(t *testing.T) {

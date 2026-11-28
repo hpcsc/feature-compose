@@ -409,6 +409,15 @@ added to by  none`, detailsOf(pressed(opened(browser.New(definitions())), "j", "
 			}}}
 		}
 
+		t.Run("a folder with pinned_tools says that its commands run with the versions of its mise.toml", func(t *testing.T) {
+			pinned := catalog.Definitions{Starters: map[string]catalog.StarterDefinition{"phoenix": {
+				Summary: "A Phoenix app.",
+				Folders: map[string]catalog.FolderDefinition{"app": {Path: ".", PinnedTools: true, AfterRender: []string{"mix format"}}},
+			}}}
+
+			require.Contains(t, detailsOf(opened(browser.New(pinned))), "  app  path          .\n       tools         the versions of its mise.toml, with mise exec\n")
+		})
+
 		t.Run("a starter with a generator shows its generate command, and each removal with its pattern", func(t *testing.T) {
 			require.Equal(t, `A Phoenix app.
 

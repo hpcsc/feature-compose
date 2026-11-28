@@ -84,6 +84,9 @@ func starterDetails(starter catalog.StarterDefinition, width int) string {
 	for _, name := range slices.Sorted(maps.Keys(starter.Folders)) {
 		folder := starter.Folders[name]
 		fields := []screen.Field{{Label: "path", Values: []string{folder.Path}}}
+		if folder.PinnedTools {
+			fields = append(fields, screen.Field{Label: "tools", Values: []string{"the versions of its mise.toml, with mise exec"}})
+		}
 		if folder.Generate != "" {
 			fields = append(fields, screen.Field{Label: "generate", Values: []string{folder.Generate}})
 		}

@@ -91,6 +91,10 @@ func (s Selection) writeFiles(output string) error {
 }
 
 func (s Selection) MakeRepo(ctx context.Context, output, version string, steps Steps) error {
+	s, err := s.withToolchains()
+	if err != nil {
+		return err
+	}
 	if err := s.writeRepo(ctx, output, steps); err != nil {
 		return err
 	}
@@ -134,6 +138,9 @@ func (s Selection) Preview() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if s, err = s.withToolchains(); err != nil {
+		return "", err
+	}
 	if err := s.checkGenerateValues(); err != nil {
 		return "", err
 	}
@@ -171,6 +178,10 @@ func (s Selection) Arguments(output string) string {
 }
 
 func (s Selection) RunAfterRender(ctx context.Context, output string) error {
+	s, err := s.withToolchains()
+	if err != nil {
+		return err
+	}
 	return s.runAfterRender(ctx, output, NoSteps{})
 }
 
@@ -184,12 +195,45 @@ func (s Selection) runAfterRender(ctx context.Context, output string, steps Step
 }
 
 func (s Selection) RunTests(ctx context.Context, output string) error {
+	s, err := s.withToolchains()
+	if err != nil {
+		return err
+	}
+	return s.runTests(ctx, output)
+}
+
+func (s Selection) runTests(ctx context.Context, output string) error {
 	for _, folderName := range slices.Sorted(maps.Keys(s.folders)) {
 		if err := s.folders[folderName].runTests(ctx, output); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (s Selection) withToolchains() (Selection, error) {
+	files, err := s.files()
+	if err != nil {
+		return Selection{}, err
+	}
+	withTools := make(folders, len(s.folders))
+	for name, f := range s.folders {
+		withTools[name] = f
+		if !f.pinnedTools {
+			continue
+		}
+		target := path.Join(f.path, toolchainFile)
+		i := slices.IndexFunc(files, func(written file) bool { return written.path == target })
+		if i < 0 {
+			return Selection{}, fmt.Errorf("the folder %s has pinned_tools, but the selection writes no %s in it", name, target)
+		}
+		if f.toolchain, err = newToolchain(fmt.Sprintf("%s of the folder %s, which %s writes", target, name, files[i].owner), files[i].contents); err != nil {
+			return Selection{}, err
+		}
+		withTools[name] = f
+	}
+	s.folders = withTools
+	return s, nil
 }
 
 func (s Selection) writeSection(preview *strings.Builder, heading string, lines []string) {
@@ -555,11 +599,12 @@ func (s Selection) commandLines() []string {
 		if err != nil {
 			command = f.generate
 		}
-		lines = append(lines, folderName+": "+command)
+		lines = append(lines, folderName+": "+f.toolchain.shown(command))
 	}
 	for _, folderName := range folderNames {
-		for _, command := range s.folders[folderName].afterRender {
-			lines = append(lines, folderName+": "+command)
+		f := s.folders[folderName]
+		for _, command := range f.afterRender {
+			lines = append(lines, folderName+": "+f.toolchain.shown(command))
 		}
 	}
 	return lines

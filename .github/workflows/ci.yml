@@ -67,7 +67,7 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Cache the tools that the starters pin in mise.toml
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           ~/.local/share/mise/installs/erlang

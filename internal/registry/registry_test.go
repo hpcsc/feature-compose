@@ -83,6 +83,12 @@ func isolated(t *testing.T) folders {
 	t.Setenv("XDG_DATA_HOME", f.data)
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("GITHUB_SERVER_URL", "")
+	t.Setenv("FEATURE_COMPOSE_GIT_SERVER", "")
+	t.Setenv("FEATURE_COMPOSE_GIT_TOKEN", "")
+	t.Setenv("FEATURE_COMPOSE_GIT_USERNAME", "")
 	return f
 }
 
@@ -398,6 +404,88 @@ func TestRegistry(t *testing.T) {
 
 			require.Equal(t, []string{"private/service"}, starterNames(t, "private"))
 		})
+
+		t.Run("a git URL on the server of FEATURE_COMPOSE_GIT_SERVER gets FEATURE_COMPOSE_GIT_TOKEN with the user name of FEATURE_COMPOSE_GIT_USERNAME", func(t *testing.T) {
+			isolated(t)
+			required := "Basic " + base64.StdEncoding.EncodeToString([]byte("gitlab-ci-token:secret"))
+			private := newPrivateServer(t, newSource(t, map[string]string{"starters/service/starter.yml": starterYML}), map[string]string{"Authorization": required})
+			t.Setenv("GITHUB_TOKEN", "")
+			t.Setenv("GH_TOKEN", "")
+			t.Setenv("FEATURE_COMPOSE_GIT_SERVER", private.url)
+			t.Setenv("FEATURE_COMPOSE_GIT_TOKEN", "secret")
+			t.Setenv("FEATURE_COMPOSE_GIT_USERNAME", "gitlab-ci-token")
+
+			added(t, "private", config.Entry{Source: private.url + "/team/catalog.git"})
+
+			require.Equal(t, []string{"private/service"}, starterNames(t, "private"))
+		})
+
+		t.Run("with no FEATURE_COMPOSE_GIT_USERNAME, FEATURE_COMPOSE_GIT_TOKEN goes with the user name x-access-token", func(t *testing.T) {
+			isolated(t)
+			private := newPrivateServer(t, newSource(t, map[string]string{"starters/service/starter.yml": starterYML}), map[string]string{"Authorization": basicToken("secret")})
+			t.Setenv("GITHUB_TOKEN", "")
+			t.Setenv("GH_TOKEN", "")
+			t.Setenv("FEATURE_COMPOSE_GIT_SERVER", private.url+"/")
+			t.Setenv("FEATURE_COMPOSE_GIT_TOKEN", "secret")
+			t.Setenv("FEATURE_COMPOSE_GIT_USERNAME", "")
+
+			added(t, "private", config.Entry{Source: private.url + "/team/catalog.git"})
+
+			require.Equal(t, []string{"private/service"}, starterNames(t, "private"))
+		})
+
+		t.Run("a git URL on another port of the same host gets no token", func(t *testing.T) {
+			isolated(t)
+			private := newPrivateServer(t, newSource(t, map[string]string{"starters/service/starter.yml": starterYML}), map[string]string{"Authorization": basicToken("secret")})
+			other := httptest.NewServer(http.NotFoundHandler())
+			t.Cleanup(other.Close)
+			t.Setenv("GITHUB_TOKEN", "")
+			t.Setenv("GH_TOKEN", "")
+			t.Setenv("FEATURE_COMPOSE_GIT_SERVER", other.URL)
+			t.Setenv("FEATURE_COMPOSE_GIT_TOKEN", "secret")
+
+			_, err := opened(t).Add(ctx, "private", config.Entry{Source: private.url + "/team/catalog.git"}, catalog.NoSteps{})
+
+			require.ErrorContains(t, err, "git cannot read "+private.url+"/team/catalog.git")
+			require.Equal(t, []string{""}, slices.Compact(*private.authorized))
+		})
+
+		for name, test := range map[string]struct {
+			env     map[string]string
+			message string
+		}{
+			"FEATURE_COMPOSE_GIT_TOKEN with no FEATURE_COMPOSE_GIT_SERVER": {
+				env:     map[string]string{"FEATURE_COMPOSE_GIT_TOKEN": "secret", "FEATURE_COMPOSE_GIT_SERVER": ""},
+				message: "FEATURE_COMPOSE_GIT_TOKEN is set, but FEATURE_COMPOSE_GIT_SERVER names no server: set it to the server of the token, for example https://gitlab.com",
+			},
+			"a FEATURE_COMPOSE_GIT_SERVER over plain http": {
+				env:     map[string]string{"FEATURE_COMPOSE_GIT_TOKEN": "secret", "FEATURE_COMPOSE_GIT_SERVER": "http://git.example.com"},
+				message: "FEATURE_COMPOSE_GIT_SERVER is http://git.example.com, but a token goes only to an https server, so that nobody on the network can read it",
+			},
+			"a GITHUB_SERVER_URL over plain http": {
+				env:     map[string]string{"GITHUB_TOKEN": "secret", "GITHUB_SERVER_URL": "http://github.example.com"},
+				message: "GITHUB_SERVER_URL is http://github.example.com, but a token goes only to an https server, so that nobody on the network can read it",
+			},
+			"a FEATURE_COMPOSE_GIT_SERVER that is not a URL": {
+				env:     map[string]string{"FEATURE_COMPOSE_GIT_TOKEN": "secret", "FEATURE_COMPOSE_GIT_SERVER": "gitlab.com"},
+				message: `FEATURE_COMPOSE_GIT_SERVER is "gitlab.com", which is not the URL of a server, for example https://gitlab.com`,
+			},
+		} {
+			t.Run(name+" stops before git runs, and the message says why", func(t *testing.T) {
+				f := isolated(t)
+				t.Setenv("GITHUB_TOKEN", "")
+				t.Setenv("GH_TOKEN", "")
+				for variable, value := range test.env {
+					t.Setenv(variable, value)
+				}
+				src := newSource(t, map[string]string{"starters/service/starter.yml": starterYML})
+
+				_, err := opened(t).Add(ctx, "hpcsc", config.Entry{Source: src.url()}, catalog.NoSteps{})
+
+				require.EqualError(t, err, test.message)
+				require.NoDirExists(t, f.clone("hpcsc"))
+			})
+		}
 
 		t.Run("a git URL on another server gets no token", func(t *testing.T) {
 			isolated(t)

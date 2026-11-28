@@ -2,13 +2,11 @@ package registry
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -33,8 +31,12 @@ func newClone(ctx context.Context, entry config.Entry, folder string, steps cata
 	if err := os.MkdirAll(filepath.Dir(folder), 0o755); err != nil {
 		return clone{}, fmt.Errorf("make the folder of the clones: %w", err)
 	}
+	env, err := c.remoteEnvironment()
+	if err != nil {
+		return clone{}, err
+	}
 	end := steps.Start("Clone " + c.sourceWithoutCredentials)
-	if printed, err := c.run(ctx, "clone", "--quiet", "--", c.source, folder); err != nil {
+	if printed, err := c.command(ctx, env, "clone", "--quiet", "--", c.source, folder); err != nil {
 		_ = os.RemoveAll(folder)
 		err = c.cannotRead(printed)
 		end(err)
@@ -68,10 +70,14 @@ func (c clone) fetched(ctx context.Context) error {
 	if printed, err := c.run(ctx, "-C", c.folder, "remote", "set-url", "origin", c.source); err != nil {
 		return fmt.Errorf("set the source %s in the clone %s: %s", c.sourceWithoutCredentials, c.folder, printed)
 	}
-	if printed, err := c.run(ctx, "-C", c.folder, "fetch", "--quiet", "--tags", "--force", "--prune", "origin"); err != nil {
+	env, err := c.remoteEnvironment()
+	if err != nil {
+		return err
+	}
+	if printed, err := c.command(ctx, env, "-C", c.folder, "fetch", "--quiet", "--tags", "--force", "--prune", "origin"); err != nil {
 		return c.cannotRead(printed)
 	}
-	if printed, err := c.run(ctx, "-C", c.folder, "remote", "set-head", "origin", "--auto"); err != nil {
+	if printed, err := c.command(ctx, env, "-C", c.folder, "remote", "set-head", "origin", "--auto"); err != nil {
 		return c.cannotRead(printed)
 	}
 	return nil
@@ -122,30 +128,22 @@ func (c clone) revision(ctx context.Context, ref string) (string, error) {
 	return "", fmt.Errorf("the source %s has no ref %s", c.sourceWithoutCredentials, ref)
 }
 
-func (c clone) environment() []string {
-	env := append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
-	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" {
-		token = os.Getenv("GH_TOKEN")
-	}
-	server := strings.TrimSuffix(os.Getenv("GITHUB_SERVER_URL"), "/")
-	if server == "" {
-		server = "https://github.com"
-	}
-	if token == "" || !strings.HasPrefix(c.source, server+"/") {
-		return env
-	}
-	// the environment, and not -c, holds the header, so that other users cannot read the token in the process list
-	count, err := strconv.Atoi(os.Getenv("GIT_CONFIG_COUNT"))
+func (c clone) remoteEnvironment() ([]string, error) {
+	tokens, err := tokensOfEnvironment()
 	if err != nil {
-		count = 0
+		return nil, err
 	}
-	header := "Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+token))
-	return append(env,
-		"GIT_CONFIG_COUNT="+strconv.Itoa(count+1),
-		fmt.Sprintf("GIT_CONFIG_KEY_%d=http.%s/.extraheader", count, server),
-		fmt.Sprintf("GIT_CONFIG_VALUE_%d=%s", count, header),
-	)
+	env := c.environment()
+	for _, t := range tokens {
+		if t.matches(c.source) {
+			return t.environment(env), nil
+		}
+	}
+	return env, nil
+}
+
+func (c clone) environment() []string {
+	return append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 }
 
 func (c clone) cannotRead(printed string) error {
@@ -153,10 +151,14 @@ func (c clone) cannotRead(printed string) error {
 }
 
 func (c clone) run(ctx context.Context, args ...string) (string, error) {
+	return c.command(ctx, c.environment(), args...)
+}
+
+func (c clone) command(ctx context.Context, env []string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, gitTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Env = c.environment()
+	cmd.Env = env
 	// a new session has no terminal, so neither git nor ssh can ask for a password that nobody sees
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }

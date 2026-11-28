@@ -62,6 +62,12 @@ func isolated(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("GITHUB_SERVER_URL", "")
+	t.Setenv("FEATURE_COMPOSE_GIT_SERVER", "")
+	t.Setenv("FEATURE_COMPOSE_GIT_TOKEN", "")
+	t.Setenv("FEATURE_COMPOSE_GIT_USERNAME", "")
 }
 
 func opened(t *testing.T) *registry.Instance {

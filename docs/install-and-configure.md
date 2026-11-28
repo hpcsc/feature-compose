@@ -102,20 +102,63 @@ credential for the source, `catalog add` and `catalog sync` stop at once, and th
 `git clone <source>` works. A password or a token in the URL of a source does not go into the messages, the output of
 `catalog list` or `.feature-compose.yml`.
 
-In CI, a machine often has no SSH key and no credential helper. There, set `GITHUB_TOKEN`, or `GH_TOKEN`, to a
-token that can read the repo of the catalog. The tool then gives the token to git for each source on the GitHub
-server, for example `https://github.com/team/catalog`. The GitHub server is `https://github.com`, or
-`GITHUB_SERVER_URL` when it is set. git gets the token in its environment, and not on its command line or in the
-clone, so the token does not show in the process list, in `.git/config` or in a message. A source on another
-server does not get the token. This is the token that `update` reads too. The tool gives the token for each source
-on the GitHub server, also for a public repo. So a token that GitHub does not accept, for example an old token in
-your shell, also stops `catalog add` of a public repo. Then unset `GITHUB_TOKEN` and `GH_TOKEN`, or give a valid
-token.
+### A Token in CI
+
+In CI, a machine often has no SSH key and no credential helper. There, give the tool a token that can read the
+repo of the catalog, in an environment variable from the secrets of the CI:
+
+| Variable | Meaning |
+| --- | --- |
+| `GITHUB_TOKEN`, or `GH_TOKEN` | A token for the GitHub server: `https://github.com`, or `GITHUB_SERVER_URL` when it is set, for example for GitHub Enterprise. This is the token that `update` reads too |
+| `FEATURE_COMPOSE_GIT_TOKEN` | A token for the server of `FEATURE_COMPOSE_GIT_SERVER`, for example GitLab or Bitbucket |
+| `FEATURE_COMPOSE_GIT_SERVER` | The server of `FEATURE_COMPOSE_GIT_TOKEN`, for example `https://gitlab.com` |
+| `FEATURE_COMPOSE_GIT_USERNAME` | The user name that goes with `FEATURE_COMPOSE_GIT_TOKEN`. With no value, it is `x-access-token` |
+
+The tool keeps each token safe:
+
+- git gets the token as an HTTP header in its environment. So the token is not on a command line, where the process
+  list shows it to other users. It is not in a URL either, so it is not in `config.yml`, in the `.git/config` of the
+  clone, in `.feature-compose.yml` or in a message.
+- Only a source on the scheme, the host and the port of the server of the token gets the token. A source on another
+  server, or on another port of the same host, does not get it.
+- A token goes only to an `https` server, so that nobody on the network can read it. A server over plain `http`
+  stops each command that runs git, and the message names the variable. Only a server on `localhost` can use `http`.
+- Only the git commands that reach the server get the token. The other git commands do not.
+
+On your own machine, use an SSH key or the credential helper of git with the keychain of your system. Then no
+token is in your shell.
+
+The tool gives the token for each source on its server, also for a public repo. So a token that the server does not
+accept, for example an old token in your shell, also stops `catalog add` of a public repo. Then unset the variable,
+or give a valid token.
+
+GitHub Actions:
 
 ```yaml
 - run: feature-compose catalog add team https://github.com/team/catalog
   env:
     GITHUB_TOKEN: ${{ secrets.CATALOG_TOKEN }}
+```
+
+GitLab CI, with the token of the job:
+
+```yaml
+script:
+  - feature-compose catalog add team "$CI_SERVER_URL/team/catalog.git"
+variables:
+  FEATURE_COMPOSE_GIT_SERVER: $CI_SERVER_URL
+  FEATURE_COMPOSE_GIT_TOKEN: $CI_JOB_TOKEN
+  FEATURE_COMPOSE_GIT_USERNAME: gitlab-ci-token
+```
+
+Bitbucket Pipelines, with an access token of the repo:
+
+```yaml
+script:
+  - export FEATURE_COMPOSE_GIT_SERVER=https://bitbucket.org
+  - export FEATURE_COMPOSE_GIT_TOKEN=$CATALOG_TOKEN
+  - export FEATURE_COMPOSE_GIT_USERNAME=x-token-auth
+  - feature-compose catalog add team https://bitbucket.org/team/catalog.git
 ```
 
 ### Trust

@@ -111,4 +111,24 @@ describe('feature-compose catalog in a terminal', () => {
     await session.waitForText(/EXIT:[1-9]/, { timeout: 15_000 })
     expect(readFileSync(marker, 'utf8')).toBe('no\n')
   })
+
+  it('with no command, opens a TUI that lists the catalogs and the known catalogs, syncs with S, and stops with q', async () => {
+    const source = scratchDir()
+    git(source, ['init', '--quiet', '--initial-branch=main'])
+    commitStarter(source, 'first')
+    const indexURL = await servedIndex('catalogs:\n  other:\n    summary: Another catalog.\n    source: https://example.com/other.git\n')
+    const env = { XDG_CONFIG_HOME: scratchDir(), XDG_DATA_HOME: scratchDir(), FEATURE_COMPOSE_INDEX_URL: indexURL, ...noGitConfigOfTheMachine }
+    const added = await runCli(scratchDir(), ['catalog', 'add', 'team', `file://${source}`, '--path', 'catalog'], env)
+    expect(added.status, added.stderr).toBe(0)
+
+    const session = await openCli(scratchDir(), ['catalog'], env)
+
+    await session.waitForText('Known catalogs', { timeout: 15_000 })
+    await session.waitForText('other')
+    expect(await session.text()).toContain('source  file://')
+    await session.press('S')
+    await session.waitForText('team: no new commit, at')
+    await session.press('q')
+    await session.waitForText('EXIT:0')
+  })
 })

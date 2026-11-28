@@ -8,6 +8,7 @@
 | `feature-compose init <folder>` | Writes a small catalog with one starter and one feature, as the start of a catalog of your own. |
 | `feature-compose add starter <name>` | Adds a starter to the catalog, with a `starter.yml` to fill in. |
 | `feature-compose add feature <name> --target <starter>` | Adds a feature to the catalog, with a `feature.yml` to fill in. |
+| `feature-compose catalog` | In a terminal, opens a TUI that lists the catalogs and the known catalogs, and syncs, changes, removes and adds them. |
 | `feature-compose catalog add <name> [<source>]` | Gets a catalog from a git URL or a local folder, and adds it to the config file. With no source, it gets the known catalog of that name. |
 | `feature-compose catalog list [--known]` | Shows the name, the source, the path, the ref and the commit of each catalog. With `--known`, it shows the known catalogs. |
 | `feature-compose catalog sync [<name>...]` | Gets the newest commit of the ref of each catalog from a git URL. |
@@ -493,6 +494,27 @@ hand, the next `catalog sync` gets the commits of the new source.
 
 `catalog remove` removes the catalog from the config file, and deletes its clone. It does not change a local
 folder, and it does not change a repo that the catalog made: its `.feature-compose.yml` still names the catalog.
+
+### The TUI of the Catalogs
+
+`feature-compose catalog` with no command opens a TUI when stdin and stdout are both terminals. Outside a terminal, it
+prints the commands of `catalog`. The left pane lists the catalogs of the config file, and under them the known
+catalogs of the index that the config file does not have. The right pane shows the details of the selected row: the
+source, the path, the ref and the commit of a catalog, or the summary and the source of a known catalog. When the
+tool cannot get the index, the TUI says so, and the catalogs of the config file still work.
+
+| Key | Action |
+| --- | --- |
+| `j`, `k`, or the up and down arrows | Move down and up in the list. |
+| `s` | Sync the selected catalog. The line under the panes gives the old and the new commit. |
+| `S` | Sync each catalog of the config file. |
+| `r` | At a catalog from a git URL, list the default branch, and then the branches and the tags of its clone. `j` and `k` move in the list, Enter sets the chosen ref, and Esc closes the list. Press `s` first to get the newest branches and tags. |
+| `x` | Remove the selected catalog. The TUI asks first: `y` removes it, and another key keeps it. |
+| Enter | At a known catalog, add it to the config file. |
+| `q` or ctrl+c | Stop the TUI. |
+
+While a command runs, the line under the panes names it, and the TUI takes no key but ctrl+c. Then the line gives the
+result, or the message of the error.
 
 ## Start a Catalog
 

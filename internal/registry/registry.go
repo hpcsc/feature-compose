@@ -26,6 +26,20 @@ type Synced struct {
 	Err       error
 }
 
+func (s Synced) String() string {
+	switch {
+	case s.Err != nil:
+		return s.Name + ": FAIL"
+	case s.Local:
+		return s.Name + ": a local folder, so sync gets nothing"
+	case s.OldCommit == "":
+		return s.Name + ": cloned again, at " + ShortCommit(s.NewCommit)
+	case s.OldCommit == s.NewCommit:
+		return s.Name + ": no new commit, at " + ShortCommit(s.NewCommit)
+	}
+	return s.Name + ": from " + ShortCommit(s.OldCommit) + " to " + ShortCommit(s.NewCommit)
+}
+
 type Instance struct {
 	file   config.File
 	clones string
@@ -117,6 +131,21 @@ func (r *Instance) List(ctx context.Context) ([]catalog.Origin, error) {
 		origins = append(origins, r.origin(name, entry, commit))
 	}
 	return origins, nil
+}
+
+func (r *Instance) Refs(ctx context.Context, name string) ([]string, error) {
+	entry, err := r.file.Entry(name)
+	if err != nil {
+		return nil, err
+	}
+	if !entry.IsGitURL() {
+		return nil, fmt.Errorf("the catalog %s is a local folder, so it has no ref", name)
+	}
+	c := r.cloneOf(name, entry)
+	if !c.exists() {
+		return nil, r.noClone(name)
+	}
+	return c.refs(ctx)
 }
 
 func (r *Instance) Add(ctx context.Context, name string, entry config.Entry, steps catalog.Steps) (catalog.Origin, error) {
@@ -385,4 +414,8 @@ func (r *Instance) cloneOf(name string, entry config.Entry) clone {
 
 func (r *Instance) cloneFolder(name string) string {
 	return filepath.Join(r.clones, name)
+}
+
+func ShortCommit(commit string) string {
+	return commit[:min(len(commit), 7)]
 }

@@ -11,7 +11,9 @@ import (
 	"text/tabwriter"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/hpcsc/feature-compose/internal/catalog"
+	"github.com/hpcsc/feature-compose/internal/catalogscreen"
 	"github.com/hpcsc/feature-compose/internal/config"
 	"github.com/hpcsc/feature-compose/internal/index"
 	"github.com/hpcsc/feature-compose/internal/registry"
@@ -36,7 +38,25 @@ func newCatalogCommand(open registryOpener, fetch indexFetcher) *cli.Command {
 	refFlag := &cli.StringFlag{Name: "ref", Usage: "a branch, a tag or a commit of a git URL (default: the default branch)"}
 	return &cli.Command{
 		Name:  "catalog",
-		Usage: "add, list, sync, change and remove the catalogs of the config file",
+		Usage: "add, list, sync, change and remove the catalogs of the config file; in a terminal, with no command, open a TUI that does each of these",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			if cmd.NArg() > 0 {
+				return fmt.Errorf("catalog has no command %q: give one of add, list, sync, set and remove", cmd.Args().First())
+			}
+			if !isTerminal(cmd.Root().Reader) || !isTerminal(cmd.Root().Writer) {
+				return cli.ShowSubcommandHelp(cmd)
+			}
+			r, err := open()
+			if err != nil {
+				return err
+			}
+			model, err := catalogscreen.New(ctx, r, fetch)
+			if err != nil {
+				return err
+			}
+			_, err = tea.NewProgram(model, tea.WithContext(ctx), tea.WithInput(cmd.Root().Reader), tea.WithOutput(cmd.Root().Writer), tea.WithAltScreen()).Run()
+			return err
+		},
 		Commands: []*cli.Command{
 			{
 				Name:      "add",
@@ -63,7 +83,7 @@ func newCatalogCommand(open registryOpener, fetch indexFetcher) *cli.Command {
 					}
 					from := "the folder " + origin.Source
 					if origin.Commit != "" {
-						from = origin.Source + " at the commit " + shortCommit(origin.Commit)
+						from = origin.Source + " at the commit " + registry.ShortCommit(origin.Commit)
 					}
 					_, err = fmt.Fprintf(cmd.Root().Writer, `Added the catalog %s from %s.
 The starters of a catalog run their commands on this machine. new --dry-run lists them before new runs them.
@@ -223,7 +243,7 @@ func printOrigins(w io.Writer, origins []catalog.Origin) error {
 	fmt.Fprintln(table, "NAME\tSOURCE\tPATH\tREF\tCOMMIT")
 	var withNoClone []string
 	for _, origin := range origins {
-		commit := shortCommit(origin.Commit)
+		commit := registry.ShortCommit(origin.Commit)
 		switch {
 		case !config.IsGitURL(origin.Source):
 			commit = "-"
@@ -247,18 +267,10 @@ func printSynced(w io.Writer, synced []registry.Synced) error {
 	var printed strings.Builder
 	var failed []string
 	for _, s := range synced {
-		switch {
-		case s.Err != nil:
+		fmt.Fprintln(&printed, s)
+		if s.Err != nil {
 			failed = append(failed, s.Name)
-			fmt.Fprintf(&printed, "%s: FAIL\n%s\n", s.Name, indented(s.Err.Error()))
-		case s.Local:
-			fmt.Fprintf(&printed, "%s: a local folder, so sync gets nothing\n", s.Name)
-		case s.OldCommit == "":
-			fmt.Fprintf(&printed, "%s: cloned again, at %s\n", s.Name, shortCommit(s.NewCommit))
-		case s.OldCommit == s.NewCommit:
-			fmt.Fprintf(&printed, "%s: no new commit, at %s\n", s.Name, shortCommit(s.NewCommit))
-		default:
-			fmt.Fprintf(&printed, "%s: from %s to %s\n", s.Name, shortCommit(s.OldCommit), shortCommit(s.NewCommit))
+			fmt.Fprintln(&printed, indented(s.Err.Error()))
 		}
 	}
 	if _, err := io.WriteString(w, printed.String()); err != nil {
@@ -268,10 +280,6 @@ func printSynced(w io.Writer, synced []registry.Synced) error {
 		return fmt.Errorf("the sync of %d of %s failed: %s", len(failed), screen.Counted(len(synced), "catalog"), strings.Join(failed, ", "))
 	}
 	return nil
-}
-
-func shortCommit(commit string) string {
-	return commit[:min(len(commit), 7)]
 }
 
 func orDash(value string) string {

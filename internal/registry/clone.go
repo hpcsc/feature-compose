@@ -77,6 +77,23 @@ func (c clone) fetched(ctx context.Context) error {
 	return nil
 }
 
+func (c clone) refs(ctx context.Context) ([]string, error) {
+	printed, err := c.run(ctx, "-C", c.folder, "for-each-ref", "--format=%(refname)", "refs/remotes/origin", "refs/tags")
+	if err != nil {
+		return nil, fmt.Errorf("read the refs of the clone %s: %s", c.folder, printed)
+	}
+	var branches, tags []string
+	for _, line := range strings.Split(printed, "\n") {
+		switch {
+		case strings.HasPrefix(line, "refs/remotes/origin/") && line != "refs/remotes/origin/HEAD":
+			branches = append(branches, strings.TrimPrefix(line, "refs/remotes/origin/"))
+		case strings.HasPrefix(line, "refs/tags/"):
+			tags = append(tags, strings.TrimPrefix(line, "refs/tags/"))
+		}
+	}
+	return append(branches, tags...), nil
+}
+
 func (c clone) checkout(ctx context.Context, ref string) error {
 	revision, err := c.revision(ctx, ref)
 	if err != nil {

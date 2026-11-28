@@ -943,6 +943,30 @@ func TestRegistry(t *testing.T) {
 		})
 	})
 
+	t.Run("refs", func(t *testing.T) {
+		t.Run("gives the branches and then the tags of the clone, with no HEAD", func(t *testing.T) {
+			isolated(t)
+			src := newSource(t, map[string]string{"starters/service/starter.yml": starterYML})
+			src.git(t, "-C", src.dir, "branch", "next")
+			src.git(t, "-C", src.dir, "tag", "v1")
+			added(t, "hpcsc", config.Entry{Source: src.url()})
+
+			refs, err := opened(t).Refs(ctx, "hpcsc")
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"main", "next", "v1"}, refs)
+		})
+
+		t.Run("a local folder stops, because a local folder has no ref", func(t *testing.T) {
+			isolated(t)
+			added(t, "team", config.Entry{Source: newSource(t, map[string]string{"starters/service/starter.yml": starterYML}).dir})
+
+			_, err := opened(t).Refs(ctx, "team")
+
+			require.EqualError(t, err, "the catalog team is a local folder, so it has no ref")
+		})
+	})
+
 	t.Run("list", func(t *testing.T) {
 		for source, recorded := range map[string]string{
 			"https://x-access-token:secret@github.com/team/catalog.git": "https://github.com/team/catalog.git",
@@ -977,5 +1001,21 @@ func TestRegistry(t *testing.T) {
 				{Name: "team", Source: folder},
 			}, origins)
 		})
+	})
+}
+
+func TestSynced(t *testing.T) {
+	t.Run("string", func(t *testing.T) {
+		for text, synced := range map[string]registry.Synced{
+			"hpcsc: from 1111111 to 2222222":             {Name: "hpcsc", OldCommit: "1111111aaaa", NewCommit: "2222222bbbb"},
+			"hpcsc: no new commit, at 1111111":           {Name: "hpcsc", OldCommit: "1111111aaaa", NewCommit: "1111111aaaa"},
+			"hpcsc: cloned again, at 2222222":            {Name: "hpcsc", NewCommit: "2222222bbbb"},
+			"team: a local folder, so sync gets nothing": {Name: "team", Local: true},
+			"hpcsc: FAIL": {Name: "hpcsc", OldCommit: "1111111aaaa", Err: errors.New("git cannot read")},
+		} {
+			t.Run("gives "+text, func(t *testing.T) {
+				require.Equal(t, text, synced.String())
+			})
+		}
 	})
 }

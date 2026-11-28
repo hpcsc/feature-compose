@@ -80,6 +80,25 @@ func TestCatalogCommand(t *testing.T) {
 		return printed
 	}
 
+	t.Run("open", func(t *testing.T) {
+		t.Run("with no command outside a terminal, prints the commands of catalog and opens no TUI", func(t *testing.T) {
+			isolated(t)
+
+			printed := ran(t)
+
+			require.Contains(t, printed, "add     get a catalog from a git URL or a local folder")
+			require.Contains(t, printed, "remove  remove a catalog from the config file, and delete its clone")
+		})
+
+		t.Run("an unknown command stops, and the message lists the commands", func(t *testing.T) {
+			isolated(t)
+
+			_, err := run(t, "nope")
+
+			require.EqualError(t, err, `catalog has no command "nope": give one of add, list, sync, set and remove`)
+		})
+	})
+
 	t.Run("add", func(t *testing.T) {
 		t.Run("a git URL prints the source, the commit, and that the starters can run commands", func(t *testing.T) {
 			isolated(t)

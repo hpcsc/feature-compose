@@ -29,7 +29,7 @@ features that it needs, and the lines that it adds to the files of the starter. 
 and the features in one render, and no step changes a file of the catalog after it.
 
 A starter can also start from the output of a generator, for example `mix phx.new`, so that the repo gets the
-latest version of the generator. The tool then changes the generated files only at the places that the starter
+output of a recent generator, and not an old copy of it. The tool then changes the generated files only at the places that the starter
 names, and it stops when a place is not in the output of the generator.
 
 ## How It Is Different From a Template Tool
@@ -130,7 +130,8 @@ flowchart LR
    With `--no-prompt`, `new` opens no form and gives each option its default.
 
    A starter that runs a generator, for example `mix phx.new`, also needs
-   [ast-grep](https://ast-grep.github.io) and the generator on the `PATH`.
+   [ast-grep](https://ast-grep.github.io). A starter that pins its tools needs [mise](https://mise.jdx.dev), and
+   mise installs the versions that the starter pins.
 
 `new` writes the repo to `./my-tool`, and then runs the commands of the starter, for example `go mod tidy`.
 After the form, it also prints the command that makes the same repo again.
@@ -146,7 +147,7 @@ feature that `check --build` tests.
 | `chi-api` | A Go HTTP API with chi, whose routes are under `/api`, with an example of a public route and of a protected route |
 | `go` | A Go module with an example package, its unit tests, a pre-push hook, and a CI workflow |
 | `go-event-sourcing-service` | A Go service with an event store, an HTTP API, and a catchup process |
-| `phoenix` | A Phoenix app from the latest `mix phx.new`, with contexts at the bottom, use cases above them, and a layer list that `mix xref.layers` checks. Its sample, the desk of a lending library, shows each part of the structure one time. It needs Elixir, the archive `phx_new` and `ast-grep` |
+| `phoenix` | A Phoenix app from `mix phx.new` of the version in `phx-new-version`, with contexts at the bottom, use cases above them, and a layer list that `mix xref.layers` checks. Its sample, the desk of a lending library, shows each part of the structure one time. It needs mise and `ast-grep`: mise gives it its versions of Erlang and Elixir, and `generate` installs `phx_new` in its temporary folder |
 
 | Feature | Targets | What it adds |
 | --- | --- | --- |

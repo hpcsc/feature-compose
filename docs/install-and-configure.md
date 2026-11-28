@@ -34,9 +34,11 @@ For such a starter, `new` and `check` need these tools on the `PATH`:
 
 - [ast-grep](https://ast-grep.github.io), version 0.45.3 or later. For example: `brew install ast-grep`, or
   `mise use -g ast-grep`.
-- The generator and its toolchain, for example Elixir and the archive `phx_new`.
+- [mise](https://mise.jdx.dev), when the starter pins its tools with `pinned_tools`, as `phoenix` does. Then mise
+  installs the versions that the starter pins, and the machine needs no Elixir and no `phx_new` of its own. mise
+  does not trust or track the new repo, and the tool changes no config of mise.
 
-A starter without a generator needs neither.
+A starter without a generator and without pinned tools needs neither.
 
 ## The Catalogs
 

@@ -1,15 +1,22 @@
-summary: A Phoenix app from the latest mix phx.new, with contexts, use cases above them, and a layer list that mix xref.layers checks.
+summary: A Phoenix app from mix phx.new, with contexts, use cases above them, and a layer list that mix xref.layers checks.
 
 options:
   app:
     default: "{{ snake .Name }}"
     pattern: '^[a-z][a-z0-9_]*$'
+  phx-new-version:
+    default: 1.8.17
+    pattern: '^(latest|[0-9]+\.[0-9]+\.[0-9]+)$'
 
 folders:
   app:
     path: .
-    generate: mix phx.new {{ .Folder }} --app {{ option "starter.app" }} --no-mailer --no-gettext --no-dashboard --no-install
-    after_render: [mix deps.get, mix format]
+    pinned_tools: true
+    generate: >-
+      MIX_ARCHIVES="$PWD/.archives" mix local.hex --force &&
+      MIX_ARCHIVES="$PWD/.archives" mix archive.install hex phx_new{{ if ne (option "starter.phx-new-version") "latest" }} {{ option "starter.phx-new-version" }}{{ end }} --force &&
+      MIX_ARCHIVES="$PWD/.archives" mix phx.new {{ .Folder }} --app {{ option "starter.app" }} --no-mailer --no-gettext --no-dashboard --no-install
+    after_render: [mix local.hex --force --if-missing, mix local.rebar --force --if-missing, mix deps.get, mix format]
     test: [mix deps.unlock --check-unused, MIX_ENV=test mix compile --warnings-as-errors, mix format --check-formatted, mix xref.layers]
 
 remove:

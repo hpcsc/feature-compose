@@ -35,10 +35,13 @@ tells how to read the output. Run the task after you change a starter or a featu
 
 The task sets `MISE_TRUSTED_CONFIG_PATHS` to the temporary folder, because mise refuses the `mise.toml` of a repo
 in a folder that it does not trust. The task needs Go, Task, gotestsum, a C compiler and the network. The starter
-`phoenix` also needs Elixir, the archive `phx_new` and `ast-grep`.
+`phoenix` also needs mise and `ast-grep`: mise installs the Erlang and the Elixir of its `mise.toml`, and its
+`generate` command installs `phx_new` in its temporary folder.
 
-CI installs `phx_new` at a fixed version for this task, so that a new release of `phx_new` cannot fail an
-unrelated push. The workflow `.github/workflows/generator-catalog.yml` uses the latest `phx_new` each week. It
+The default of the option `phx-new-version` pins `phx_new`, so that a new release of `phx_new` cannot fail an
+unrelated push. CI keeps the Erlang and the Elixir of mise in a cache, keyed by the `mise.toml` files of the
+starters. The workflow `.github/workflows/generator-catalog.yml` uses the latest `phx_new` each week, with
+`--option phx-new-version=latest`. It
 makes a repo of each combination of `phoenix` and runs the checks of the CI of that repo, also `mix test`
 against Postgres.
 

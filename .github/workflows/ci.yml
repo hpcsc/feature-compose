@@ -63,15 +63,13 @@ jobs:
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Set up Elixir
-      uses: erlef/setup-beam@v1
+    - name: Cache the tools that the starters pin in mise.toml
+      uses: actions/cache@v4
       with:
-        otp-version: '29.1'
-        elixir-version: '1.20.4'
-
-    # generator-catalog.yml tests the latest phx_new, so that a new release cannot fail this push
-    - name: Install phx_new
-      run: mix archive.install hex phx_new 1.8.17 --force
+        path: |
+          ~/.local/share/mise/installs/erlang
+          ~/.local/share/mise/installs/elixir
+        key: pinned-tools-${{ runner.os }}-${{ hashFiles('catalog/starters/*/files/*/mise.toml') }}
 
     - name: Make and test the repo of each combination of the catalog
       run: task test:combinations

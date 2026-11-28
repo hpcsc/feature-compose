@@ -44,14 +44,13 @@ jobs:
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Set up Elixir
-      uses: erlef/setup-beam@v1
+    - name: Cache the tools that the starters pin in mise.toml
+      uses: actions/cache@v4
       with:
-        otp-version: '29.1'
-        elixir-version: '1.20.4'
-
-    - name: Install the latest phx_new
-      run: mix archive.install hex phx_new --force
+        path: |
+          ~/.local/share/mise/installs/erlang
+          ~/.local/share/mise/installs/elixir
+        key: pinned-tools-${{ runner.os }}-${{ hashFiles('catalog/starters/*/files/*/mise.toml') }}
 
     - name: Make the repo with the latest phx_new
       env:
@@ -59,15 +58,15 @@ jobs:
       run: |
         # FEATURES holds a flag and its value, so it is split on purpose
         # shellcheck disable=SC2086
-        go run ./cmd/feature-compose new phoenix lending-desk --catalog catalog $FEATURES --no-prompt --output-dir "$RUNNER_TEMP/lending-desk"
+        go run ./cmd/feature-compose new phoenix lending-desk --catalog catalog --option phx-new-version=latest $FEATURES --no-prompt --output-dir "$RUNNER_TEMP/lending-desk"
 
     - name: Run the checks of the CI of the repo
       working-directory: ${{ runner.temp }}/lending-desk
       env:
         MISE_TRUSTED_CONFIG_PATHS: ${{ runner.temp }}
       run: |
-        mix deps.unlock --check-unused
-        MIX_ENV="test" mix compile --warnings-as-errors
-        mix format --check-formatted
-        mix xref.layers
-        mix test
+        mise exec -- mix deps.unlock --check-unused
+        MIX_ENV="test" mise exec -- mix compile --warnings-as-errors
+        mise exec -- mix format --check-formatted
+        mise exec -- mix xref.layers
+        mise exec -- mix test
